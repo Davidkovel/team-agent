@@ -3,6 +3,7 @@
 TEAM_HUB_URL picks the server. If it points at this computer and nothing answers,
 the widget starts the backend in dev mode (SQLite, no Redis) so the button always works.
 """
+import json
 import os
 import secrets
 import shutil
@@ -38,6 +39,16 @@ def is_up(url: str) -> bool:
         return True  # 401 = the server answered
     except OSError:
         return False
+
+
+def ping_presence(url: str, user: str):
+    """Tells the Hub on this computer that `user` has the widget open: that is what shows them online with no agent running."""
+    req = urllib.request.Request(url + "/api/local/presence", data=json.dumps({"user": user}).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "X-Team-Widget": "1"})
+    try:
+        urllib.request.urlopen(req, timeout=3).close()
+    except OSError:
+        pass
 
 
 def is_local(url: str) -> bool:

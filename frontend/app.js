@@ -142,9 +142,18 @@ function drawHud(team, active, pending, week) {
 }
 
 async function loadAgents() {
-  if (!$("agents")) return;
+  if (!$("agents") && !$("presence")) return;
   const team = await api("/api/team");
   teamNames = Object.fromEntries(team.map((m) => [m.user, m.display_name]));
+  if ($("presence")) {
+    $("presence").innerHTML = team.map((m) => {
+      const on = m.status !== "OFFLINE", label = STATUS_PT[m.status] || m.status;
+      return `<a class="who ${on ? "on" : "off"}" href="#/equipa" title="${esc(m.display_name)}: ${esc(label)}${m.task ? " · " + esc(m.task) : ""}">
+        <span class="who-ava">${initial(m.display_name)}<i class="dot ${m.status === "ERROR" ? "err" : on ? "on" : "off"}"></i></span>
+        <b>${esc(m.display_name)}</b><small>${esc(label)}</small></a>`;
+    }).join("");
+  }
+  if (!$("agents")) return;
   $("agents").innerHTML = team.map((m) => {
     const on = m.status !== "OFFLINE", pct = Number(m.progress) || 0;
     return `<div class="agent ${on ? "on" : "off"}">
@@ -237,16 +246,17 @@ async function loadTeam() {
     </div>`).join("");
 }
 
-function eventHtml(a) {
+function eventHtml(a, relative = false) {
   return `<div class="event"><span class="avatar">${initial(a.name || a.user)}</span>
     <div><b>${esc(a.name || a.user)}</b> <span class="muted">${esc(a.message.replace(a.name || "\u0000", "").trim())}</span></div>
-    <span class="when">${time(a.created_at)}</span></div>`;
+    <span class="when" title="${esc(dayLabel(a.created_at))} ${time(a.created_at)}">${relative ? ago(a.created_at) : time(a.created_at)}</span></div>`;
 }
 
 async function loadRecent() {
   if (!$("recent")) return;
-  const items = (await api("/api/history?limit=8"));
-  $("recent").innerHTML = items.length ? items.map(eventHtml).join("") : '<p class="muted">Ainda sem atividade.</p>';
+  const NOISE = ["login", "hub_online", "hub_offline", "agent_online", "agent_offline"]; // who is online lives in the icons above; this is what people DID
+  const items = (await api("/api/history?limit=80")).filter((a) => !NOISE.includes(a.kind)).slice(0, 10);
+  $("recent").innerHTML = items.length ? items.map((a) => eventHtml(a, true)).join("") : '<p class="muted">Ainda sem atividade. Assim que alguém fizer alguma coisa, aparece aqui.</p>';
 }
 
 async function loadTimeline() {
@@ -458,6 +468,7 @@ async function viewHome() {
   $("view").innerHTML = `
     <div class="hero">
       <div><h2>Olá, <span>${esc(me.display_name)}</span></h2><p>Tudo sob controlo. Nada passa despercebido.</p><div class="tiles" id="tiles"></div></div>
+      <div class="presence" id="presence" aria-label="Quem está online"></div>
     </div>
     <div id="week"></div>
     <div class="section-title">Agentes agora</div>
@@ -972,9 +983,12 @@ function refresh(type) {
 
 function connect() {
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?token=${token}`);
-  ws.onopen = () => { $("live").textContent = "● ao vivo"; $("live").classList.add("live"); };
+  const ping = () => { if (ws.readyState === 1) ws.send("ping"); };
+  let timer = null;
+  ws.onopen = () => { $("live").textContent = "● ao vivo"; $("live").classList.add("live"); timer = setInterval(ping, 10000); };
   ws.onmessage = (e) => refresh(JSON.parse(e.data).type);
-  ws.onclose = () => { $("live").textContent = "a reconectar"; $("live").classList.remove("live"); if (token) setTimeout(connect, 3000); };
+  ws.onclose = () => { clearInterval(timer); $("live").textContent = "a reconectar"; $("live").classList.remove("live"); if (token) setTimeout(connect, 3000); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) ping(); });
 }
 
 async function start() {
@@ -991,7 +1005,7 @@ async function start() {
   checkNews().catch(() => {});
   setInterval(() => { loadWorktree().catch(() => {}); loadWeek().catch(() => {}); }, 8000); // uncommitted work shows up within seconds
   setInterval(() => loadCommits().catch(() => {}), 30000); // new commits from teammates show up by themselves
-  setInterval(() => { loadTeam().catch(() => {}); loadAgents().catch(() => {}); loadStats().catch(() => {}); checkNews().catch(() => {}); }, 15000); // catches OFFLINE even if the socket dropped
+  setInterval(() => { loadTeam().catch(() => {}); loadAgents().catch(() => {}); loadStats().catch(() => {}); checkNews().catch(() => {}); loadRecent().catch(() => {}); loadToday().catch(() => {}); loadApprovals().catch(() => {}); }, 15000); // catches OFFLINE and new activity even if the socket dropped
   connect();
 }
 

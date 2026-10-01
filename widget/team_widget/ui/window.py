@@ -1,5 +1,7 @@
 import ctypes
+import getpass
 import json
+import os
 import threading
 import time
 import tkinter as tk
@@ -24,7 +26,7 @@ LABELS = {"WORKING": "A trabalhar", "ONLINE": "Online", "IDLE": "Livre", "WAITIN
           "PAUSED": "Em pausa", "ERROR": "Erro", "OFFLINE": "Agente desligado"}
 WIDTH = 372
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
-LOGO, WORDMARK, CAR = ASSETS / "logo.png", ASSETS / "amg-wordmark.png", ASSETS / "car.png"
+LOGO, CAR = ASSETS / "logo.png", ASSETS / "car.png"
 FONT = "Segoe UI"
 MONO = "Consolas"
 FAINT = "#4a4a4a"
@@ -72,7 +74,8 @@ class WidgetWindow:
         self._version = -1
         self._opening_hub = False
         self._hub_result = None
-        self._week, self._week_seen = None, None  # weekly ledger from the Hub on this computer
+        self._week, self._week_seen = None, None  # what is being touched / just happened, from the Hub on this computer
+        self._team, self._team_seen = [], False   # who is online, from the Hub on this computer (None = Hub not answering)
 
         root = self.root = tk.Tk()
         root.title("Agente AMG")
@@ -81,21 +84,16 @@ class WidgetWindow:
         root.minsize(WIDTH, 120)
         root.bind("<Configure>", self._on_configure)
         root.protocol("WM_DELETE_WINDOW", self.hide)  # closing hides to tray; the agent keeps running
-        self._logo = ImageTk.PhotoImage(Image.open(LOGO).resize((36, 36), Image.LANCZOS))
         root.iconphoto(True, ImageTk.PhotoImage(Image.open(LOGO).resize((64, 64), Image.LANCZOS)))
         self._dark_titlebar()
 
-        # header: logo, wordmark, agent status
+        # header: who is online (one icon per person), then this agent's status
+        self.people = tk.Frame(root, bg=BG)
+        self.people.pack(fill="x")
         head = tk.Frame(root, bg=BG)
-        head.pack(fill="x")
-        tk.Label(head, image=self._logo, bg=BG).pack(side="left")
-        names = tk.Frame(head, bg=BG)
-        names.pack(side="left", padx=10)
-        mark = Image.open(WORDMARK)
-        self._wordmark = ImageTk.PhotoImage(mark.resize((round(mark.width * 11 / mark.height), 11), Image.LANCZOS))
-        tk.Label(names, image=self._wordmark, bg=BG).pack(anchor="w")
-        self.user_label = tk.Label(names, text="CENTRAL DE COMANDO", bg=BG, fg=MUTED, font=(MONO, 8))
-        self.user_label.pack(anchor="w")
+        head.pack(fill="x", pady=(8, 0))
+        self.user_label = tk.Label(head, text="CENTRAL DE COMANDO", bg=BG, fg=MUTED, font=(MONO, 8))
+        self.user_label.pack(side="left")
         self.chip = tk.Label(head, text="", bg=CARD, fg=MUTED, font=(MONO, 8, "bold"), padx=8, pady=3)
         self.chip.pack(side="right")
 
@@ -104,17 +102,8 @@ class WidgetWindow:
         self.car_label.pack(pady=(2, 0))
         self.alert = tk.Label(root, text="", bg=BG, fg=COLORS["WAITING"], font=(FONT, 9), anchor="w", justify="left", wraplength=WIDTH - 28)
 
-        # the weekly ledger
+        # what people are touching right now and what just happened (the weekly table and calendar live in the Hub)
         self.ledger = self._card(pady=(6, 0))
-        top = tk.Frame(self.ledger, bg=CARD)
-        top.pack(fill="x")
-        self.ledger_title = tk.Label(top, text="RELATÓRIO SEMANAL", bg=CARD, fg=TEXT, font=(MONO, 9, "bold"), anchor="w")
-        self.ledger_title.pack(side="left")
-        self.demo_tag = tk.Label(top, text="EXEMPLO", bg=CARD, fg=MUTED, font=(MONO, 7, "bold"), padx=4,
-                                 highlightthickness=1, highlightbackground=FAINT)
-        self.table = tk.Frame(self.ledger, bg=CARD)
-        self.table.pack(fill="x", pady=(6, 0))
-        tk.Frame(self.ledger, bg=FAINT, height=1).pack(fill="x", pady=(8, 6))
         tk.Label(self.ledger, text="A MEXER AGORA · SEM COMMIT", bg=CARD, fg="#ff9f1c", font=(MONO, 8, "bold"), anchor="w").pack(fill="x")
         self.pending = tk.Frame(self.ledger, bg=CARD)
         self.pending.pack(fill="x", pady=(3, 8))
@@ -149,7 +138,7 @@ class WidgetWindow:
         root.update_idletasks()
         x = root.winfo_screenwidth() - WIDTH - 24
         root.geometry(f"{WIDTH}x{root.winfo_reqheight()}+{x}+60")
-        threading.Thread(target=self._poll_week, daemon=True).start()
+        threading.Thread(target=self._poll_hub, daemon=True).start()
         self._tick()
 
     # ------------------------------------------------------------ building blocks
@@ -176,56 +165,60 @@ class WidgetWindow:
         bar.pack(fill="x")
         return label, bar
 
-    # ------------------------------------------------------------ weekly ledger (from the Hub on this computer)
+    # ------------------------------------------------------------ the Hub on this computer: who is online, what is happening
 
-    def _poll_week(self):
-        """Keeps the ledger fresh. Starts the local Hub server if it is not running, so the widget never shows an empty table."""
+    def _poll_hub(self):
+        """Keeps the widget current. Starts the local Hub server if it is not running, and tells the Hub this person is here
+        (that is what shows them online when no agent is running)."""
+        tick = 0
         while True:
             url = hub.hub_url()
             try:
                 if not hub.is_up(url) and hub.is_local(url):
                     hub.start_local_server(url)
-                with urllib.request.urlopen(url + "/api/local/week", timeout=5) as res:
-                    self._week = json.load(res)
+                with urllib.request.urlopen(url + "/api/local/team", timeout=5) as res:
+                    team = json.load(res)
+                who = self._identity(team)
+                if who:
+                    hub.ping_presence(url, who)
+                    with urllib.request.urlopen(url + "/api/local/team", timeout=5) as res:
+                        team = json.load(res)  # again, so this person already shows as online
+                self._team = team
+                if tick % 2 == 0:
+                    with urllib.request.urlopen(url + "/api/local/week", timeout=5) as res:
+                        self._week = json.load(res)
             except (OSError, ValueError, urllib.error.URLError):
-                pass
-            time.sleep(8)
+                self._team = None  # the Hub is not answering
+            tick += 1
+            time.sleep(4)
+
+    def _identity(self, team):
+        """Who sits at this computer: TEAM_WIDGET_USER, else the agent's user, else the Windows account name (marco -> Marco)."""
+        wanted = (os.environ.get("TEAM_WIDGET_USER") or self.store.get().get("user") or getpass.getuser() or "").strip().lower()
+        return next((p["user"] for p in team if wanted in (p["user"].lower(), p["name"].lower())), None)
+
+    def _render_people(self, team):
+        for child in self.people.winfo_children():
+            child.destroy()
+        if team is None:
+            tk.Label(self.people, text="Hub desligado", bg=BG, fg=MUTED, font=(MONO, 8)).pack(anchor="w")
+            return
+        states = {"WORKING": "a trabalhar", "WAITING": "à espera", "PAUSED": "em pausa", "ERROR": "erro", "IDLE": "livre"}
+        for person in team:
+            on = person["online"]
+            cell = tk.Frame(self.people, bg=BG)
+            cell.pack(side="left", padx=(0, 16))
+            icon = tk.Canvas(cell, width=52, height=52, bg=BG, highlightthickness=0, bd=0)
+            icon.create_rectangle(2, 2, 50, 50, fill="#0f3d3a" if on else "#15181a", outline=COLORS["ONLINE"] if on else "#2a2f31", width=2)
+            icon.create_text(26, 26, text=person["name"][:1].upper(), fill="#ffffff" if on else "#6b6880", font=(FONT, 20, "bold"))
+            icon.create_oval(37, 37, 49, 49, fill=COLORS["ONLINE"] if on else COLORS["OFFLINE"], outline=BG, width=2)
+            icon.pack()
+            tk.Label(cell, text=clip(person["name"].upper(), 8), bg=BG, fg=TEXT if on else FAINT, font=(MONO, 8, "bold")).pack()
+            tk.Label(cell, text=states.get(person["status"], "online") if on else "offline", bg=BG,
+                     fg=COLORS["ONLINE"] if on else FAINT, font=(MONO, 7)).pack()
+        self._fit()
 
     def _render_week(self, w: dict):
-        for child in self.table.winfo_children():
-            child.destroy()
-        self.ledger_title["text"] = f"RELATÓRIO SEMANAL  ·  SEM {w['week']}"
-        if w.get("demo"):
-            self.demo_tag.pack(side="right")
-        else:
-            self.demo_tag.pack_forget()
-
-        def put(r, c, text, fg=TEXT, bold=False, anchor="e", sticky="e"):
-            tk.Label(self.table, text=text, bg=CARD, fg=fg, font=(MONO, 9, "bold" if bold else "normal"), anchor=anchor).grid(
-                row=r, column=c, sticky=sticky, padx=1)
-
-        put(0, 0, "AGENTE", MUTED, True, "w", "w")
-        for i, d in enumerate(w["days"]):
-            put(0, 1 + i, d[0].upper(), TEXT if i == w["today"] else MUTED, i == w["today"], "center", "ew")
-        for c, title in enumerate(("ENT", "CMT", "OK", "PEN")):
-            put(0, 8 + c, title, MUTED, True)
-        totals = [0, 0, 0, 0]
-        for r, p in enumerate(w["people"], start=1):
-            put(r, 0, clip(p["name"].upper(), 8), TEXT if p["status"] == "ativo" else FAINT, True, "w", "w")
-            for i, on in enumerate(p["days"]):
-                future = i > w["today"]
-                put(r, 1 + i, "·" if future else "■" if on else "□", "#333333" if future else TEXT if on else "#555555", False, "center", "ew")
-            for c, (key, val) in enumerate((("logins", p["logins"]), ("commits", p["commits"]),
-                                            ("tasks_done", p["tasks_done"]), ("tasks_open", p["tasks_open"]))):
-                totals[c] += val
-                owes = key == "tasks_open" and bool(val)
-                put(r, 8 + c, str(val), "#ff9f1c" if owes else FAINT if not val else TEXT, owes)
-        last = len(w["people"]) + 1
-        tk.Frame(self.table, bg=FAINT, height=1).grid(row=last, column=0, columnspan=12, sticky="ew", pady=(4, 2))
-        put(last + 1, 0, "TOTAL", TEXT, True, "w", "w")
-        for c, val in enumerate(totals):
-            put(last + 1, 8 + c, str(val), TEXT, True)
-
         for child in self.pending.winfo_children():
             child.destroy()
         for p in w.get("pending", [])[:3]:
@@ -303,6 +296,10 @@ class WidgetWindow:
         if self._hub_result is not None:
             (error,), self._hub_result = self._hub_result, None
             self._hub_opened(error)
+        team = self._team
+        if team is not self._team_seen:
+            self._team_seen = team
+            self._render_people(team)
         week = self._week
         if week is not None and week is not self._week_seen:
             self._week_seen = week

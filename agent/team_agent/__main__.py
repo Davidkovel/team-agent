@@ -22,7 +22,7 @@ async def main(cfg: Config):
         ai=ClaudeAgentProvider(cfg.model, cfg.max_turns, cfg.max_budget_usd),
         store=LocalStore(cfg.data_dir),
     )
-    local_api = LocalAPI(cfg.local_port, local_token(cfg.data_dir), agent.state.to_dict, agent.handle_command)
+    local_api = LocalAPI(cfg.local_port, local_token(cfg.data_dir), agent.state.to_dict, agent.handle_command, agent.hub_session)
     agent.on_change = local_api.broadcast
     await asyncio.gather(agent.run(), local_api.serve(), backend.listen(agent.wake))
 

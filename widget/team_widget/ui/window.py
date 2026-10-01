@@ -1,12 +1,13 @@
 import ctypes
+import math
 import threading
 import time
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 from .. import hub
 from ..api.agent_client import AgentClient
@@ -54,6 +55,49 @@ class Bar(tk.Canvas):
             self.create_line(r, r, max(end, r + 1), r, width=h - 2, capstyle="round", fill=self._color)
 
 
+def _font(px: int):
+    for name in ("segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"):
+        try:
+            return ImageFont.truetype(name, px)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+class Ring(tk.Label):
+    """Circular percentage meter. Drawn with Pillow at 4x and downsampled, so the arc is smooth."""
+
+    SCALE = 4
+
+    def __init__(self, parent, size, bg=CARD):
+        super().__init__(parent, bg=bg, bd=0)
+        self.size, self.stroke, self._bg, self._key = size, max(6, size // 9), bg, None
+        self.set(None)
+
+    def set(self, pct, color=PURPLE, text=None):
+        key = (pct, color, text)
+        if key == self._key:
+            return
+        self._key = key
+        n, w = self.size * self.SCALE, self.stroke * self.SCALE
+        img = Image.new("RGB", (n, n), self._bg)
+        draw = ImageDraw.Draw(img)
+        box = (self.SCALE, self.SCALE, n - self.SCALE, n - self.SCALE)
+        draw.arc(box, 0, 360, fill=CARD2, width=w)
+        value = max(0, min(100, pct or 0))
+        if value > 0:
+            draw.arc(box, -90, -90 + 360 * value / 100, fill=color, width=w)
+            radius = n / 2 - self.SCALE - w / 2  # centre line of the stroke
+            for angle in (-90, -90 + 360 * value / 100):  # rounded ends
+                x = n / 2 + radius * math.cos(math.radians(angle))
+                y = n / 2 + radius * math.sin(math.radians(angle))
+                draw.ellipse((x - w / 2, y - w / 2, x + w / 2, y + w / 2), fill=color)
+        label = text if text is not None else f"{value}%"
+        draw.text((n / 2, n / 2), label, anchor="mm", fill=TEXT if pct is not None else MUTED, font=_font(int(n * 0.25)))
+        self._image = ImageTk.PhotoImage(img.resize((self.size, self.size), Image.LANCZOS))
+        self.config(image=self._image)
+
+
 def meter_color(pct):
     return "#f87171" if pct >= 85 else "#fbbf24" if pct >= 60 else PURPLE
 
@@ -94,23 +138,29 @@ class WidgetWindow:
 
         # task card
         task = self._card()
-        self._caption(task, "TAREFA")
-        self.task = tk.Label(task, text="", bg=CARD, fg=TEXT, font=(FONT, 11, "bold"), anchor="w", justify="left", wraplength=WIDTH - 60)
-        self.task.pack(fill="x", pady=(2, 6))
-        row = tk.Frame(task, bg=CARD)
-        row.pack(fill="x")
-        self.bar = Bar(row)
-        self.bar.pack(side="left", fill="x", expand=True)
-        self.progress_text = tk.Label(row, text="", bg=CARD, fg=MUTED, font=(FONT, 9, "bold"), width=5, anchor="e")
-        self.progress_text.pack(side="right")
-        self.details = tk.Label(task, text="", bg=CARD, fg=MUTED, font=(FONT, 9), anchor="w", justify="left", wraplength=WIDTH - 60)
-        self.details.pack(fill="x", pady=(6, 0))
+        self.ring = Ring(task, 88)
+        self.ring.pack(side="left", padx=(0, 14))
+        info = tk.Frame(task, bg=CARD)
+        info.pack(side="left", fill="both", expand=True)
+        self._caption(info, "TAREFA")
+        self.task = tk.Label(info, text="", bg=CARD, fg=TEXT, font=(FONT, 11, "bold"), anchor="w", justify="left", wraplength=WIDTH - 162)
+        self.task.pack(fill="x", pady=(2, 4))
+        self.details = tk.Label(info, text="", bg=CARD, fg=MUTED, font=(FONT, 9), anchor="w", justify="left", wraplength=WIDTH - 162)
+        self.details.pack(fill="x")
 
-        # usage card
+        # what the agent did (kept by the agent across restarts)
+        done = self._card()
+        self._caption(done, "O QUE FOI FEITO")
+        self.history = tk.Frame(done, bg=CARD)
+        self.history.pack(fill="x", pady=(4, 0))
+
+        # usage card: one ring per service
         use = self._card()
         self._caption(use, "ESTA SEMANA")
-        self.week_label, self.week_bar = self._meter_row(use)
-        self.higgs_label, self.higgs_bar = self._meter_row(use)
+        meters = tk.Frame(use, bg=CARD)
+        meters.pack(fill="x", pady=(8, 0))
+        self.week_ring, self.week_label = self._ring_meter(meters, 0, "Claude")
+        self.higgs_ring, self.higgs_label = self._ring_meter(meters, 1, "Higgsfield")
 
         # team
         team = self._card()
@@ -121,12 +171,7 @@ class WidgetWindow:
         # buttons
         self.open_hub = tk.Button(root, text="Abrir o Hub", command=self._open_hub, bg=PURPLE, fg="white", relief="flat",
                                   activebackground=PURPLE2, activeforeground="white", font=(FONT, 10, "bold"), cursor="hand2")
-        self.open_hub.pack(fill="x", pady=(10, 6), ipady=5)
-        buttons = tk.Frame(root, bg=BG)
-        buttons.pack(fill="x")
-        self.toggle = self._button(buttons, "Pausar", self._toggle, 0)
-        self._button(buttons, "Parar", lambda: self.client.send("stop"), 1)
-        self._button(buttons, "Ajuda", self._help, 2)
+        self.open_hub.pack(fill="x", pady=(10, 0), ipady=5)
 
         root.update_idletasks()
         x = root.winfo_screenwidth() - WIDTH - 24
@@ -152,19 +197,16 @@ class WidgetWindow:
     def _caption(self, parent, text):
         tk.Label(parent, text=text, bg=CARD, fg=MUTED, font=(FONT, 8, "bold"), anchor="w").pack(fill="x")
 
-    def _meter_row(self, parent):
-        label = tk.Label(parent, text="", bg=CARD, fg=TEXT, font=(FONT, 9), anchor="w")
-        label.pack(fill="x", pady=(6, 2))
-        bar = Bar(parent)
-        bar.pack(fill="x")
-        return label, bar
-
-    def _button(self, parent, text, command, col):
-        button = tk.Button(parent, text=text, command=command, bg=CARD, fg=TEXT, relief="flat", cursor="hand2",
-                           activebackground=CARD2, activeforeground=TEXT, font=(FONT, 9))
-        button.grid(row=0, column=col, sticky="ew", padx=2, ipady=3)
-        parent.grid_columnconfigure(col, weight=1)
-        return button
+    def _ring_meter(self, parent, col, title):
+        cell = tk.Frame(parent, bg=CARD)
+        cell.grid(row=0, column=col, sticky="nsew")
+        parent.grid_columnconfigure(col, weight=1, uniform="meters")
+        ring = Ring(cell, 68)
+        ring.pack()
+        tk.Label(cell, text=title, bg=CARD, fg=TEXT, font=(FONT, 9, "bold")).pack(pady=(6, 0))
+        hint = tk.Label(cell, text="", bg=CARD, fg=MUTED, font=(FONT, 8), wraplength=(WIDTH - 60) // 2, justify="center")
+        hint.pack()
+        return ring, hint
 
     # ------------------------------------------------------------ actions
 
@@ -174,14 +216,6 @@ class WidgetWindow:
 
     def hide(self):
         self.root.withdraw()
-
-    def _toggle(self):
-        self.client.send("resume" if self.toggle["text"] == "Retomar" else "pause")
-
-    def _help(self):
-        message = simpledialog.askstring("Pedir ajuda", "Do que precisas?", parent=self.root)
-        if message:
-            self.client.send("help", message=message)
 
     def _on_configure(self, event):
         if event.widget is self.root and self.root.state() == "zoomed":
@@ -195,7 +229,7 @@ class WidgetWindow:
         self.open_hub.config(text="A abrir…", state="disabled")
 
         def work():
-            self._hub_result = (hub.maximize(),)  # picked up by _tick; Tk is not thread-safe
+            self._hub_result = (hub.maximize(self.client.hub_session()),)  # opens already signed in  # picked up by _tick; Tk is not thread-safe
 
         self._hub_result = None
         threading.Thread(target=work, daemon=True).start()  # starting the server can take a few seconds
@@ -235,13 +269,12 @@ class WidgetWindow:
         return "\n".join(lines)
 
     @staticmethod
-    def _meter(label, bar, title, pct, hint):
+    def _meter(ring, label, pct, hint):
+        label["text"] = hint
         if pct is None:
-            label["text"] = f"{title}  ·  {hint}"
-            bar.set(0)
+            ring.set(None, text="—")
         else:
-            label["text"] = f"{title}  ·  {pct}%" + (f"  ·  {hint}" if hint else "")
-            bar.set(pct, meter_color(pct))
+            ring.set(pct, meter_color(pct))
 
     def _render(self, state: dict):
         status = state.get("status", "OFFLINE")
@@ -266,16 +299,32 @@ class WidgetWindow:
         progress = state.get("progress") or 0
         self.task["text"] = state.get("task") or ("Liga o agente para receber tarefas" if status == "OFFLINE" else "Sem tarefa agora")
         self.task["fg"] = TEXT if state.get("task") else MUTED
-        self.bar.set(progress)
-        self.progress_text["text"] = f"{progress}%" if state.get("task") else ""
+        if state.get("task"):
+            self.ring.set(progress, COLORS["WORKING"] if progress >= 100 else PURPLE)
+        else:
+            self.ring.set(None, text="—")
         self.details["text"] = self._details(state)
 
         me = state.get("user")
         mine = next((m for m in state.get("team") or [] if m["user"] == me), {})
-        self._meter(self.week_label, self.week_bar, "Claude", mine.get("week_pct"),
-                    f"${mine.get('week_cost_usd', 0):.2f} de ${mine.get('week_budget_usd', 0):.0f}" if mine else "liga o agente para ver")
-        self._meter(self.higgs_label, self.higgs_bar, "Higgsfield", mine.get("higgsfield_pct"),
-                    "" if mine.get("higgsfield_pct") is not None else "define no Hub, em Equipa")
+        spent = mine.get("week_cost_usd") or 0
+        self._meter(self.week_ring, self.week_label, mine.get("week_pct") if spent else None,
+                    f"${spent:.2f} de ${mine.get('week_budget_usd', 0):.0f}" if spent else "ainda sem uso" if mine else "liga o agente")
+
+        for child in self.history.winfo_children():
+            child.destroy()
+        entries = (state.get("history") or [])[-5:][::-1]
+        if not entries:
+            tk.Label(self.history, text="Ainda nada. O que o agente fizer aparece aqui.", bg=CARD, fg=MUTED, font=(FONT, 9),
+                     anchor="w", justify="left", wraplength=WIDTH - 60).pack(fill="x")
+        for entry in entries:
+            row = tk.Frame(self.history, bg=CARD)
+            row.pack(fill="x", pady=1)
+            tk.Label(row, text=time.strftime("%H:%M", time.localtime(entry["time"])), bg=CARD, fg=MUTED, font=(FONT, 8)).pack(side="left", anchor="n", pady=(1, 0))
+            tk.Label(row, text=entry["text"], bg=CARD, fg=TEXT, font=(FONT, 9), anchor="w", justify="left",
+                     wraplength=WIDTH - 100).pack(side="left", padx=(8, 0), fill="x")
+        self._meter(self.higgs_ring, self.higgs_label, mine.get("higgsfield_pct"),
+                    "créditos usados" if mine.get("higgsfield_pct") is not None else "define no Hub")
 
         for child in self.team.winfo_children():
             child.destroy()
@@ -290,6 +339,5 @@ class WidgetWindow:
             detail = f"{m['task']}  {m['progress']}%" if m.get("task") else LABELS.get(m["status"], m["status"])
             tk.Label(row, text=detail, bg=CARD, fg=MUTED, font=(FONT, 9), anchor="w").pack(side="left", fill="x")
 
-        self.toggle["text"] = "Retomar" if status in ("PAUSED", "ERROR") or (status == "WAITING" and not state.get("pending_approval")) else "Pausar"
         if self.root.state() == "normal" and self.root.winfo_width() in (1, WIDTH):  # don't fight a manual resize
             self.root.geometry(f"{WIDTH}x{self.root.winfo_reqheight()}")

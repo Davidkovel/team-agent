@@ -29,7 +29,7 @@ How you work:
 class TeamAgent:
     def __init__(self, cfg: Config, backend, tasks: TaskProvider, ai: AIProvider, store: LocalStore):
         self.cfg, self.backend, self.tasks, self.ai, self.store = cfg, backend, tasks, ai, store
-        self.state = AgentState(dashboard_url=cfg.server_url)
+        self.state = AgentState(dashboard_url=cfg.server_url, history=store.history()[-8:])
         self.on_change: Callable[[], None] = lambda: None
         self._wake = asyncio.Event()
         self._task: dict | None = None      # task this agent currently holds (running, paused or stuck)
@@ -115,6 +115,7 @@ class TeamAgent:
             return
         if task:
             log.info("Received TASK-%s: %s", task["id"], task["title"])
+            self._remember(f"Recebi a tarefa: {task['title']}")
             await self.notify(f"New task: {task['title']}")
             self._start(task, resume=False)
 
@@ -197,6 +198,7 @@ class TeamAgent:
         s, tid = self.state, task["id"]
         if self._intent == "stop":
             log.info("TASK-%s stopped", tid)
+            self._remember(f"Tarefa parada: {task['title']}")
             await self._release("STOPPED")
         elif self._intent == "pause":
             log.info("TASK-%s paused", tid)
@@ -204,10 +206,12 @@ class TeamAgent:
             await self._set_status("PAUSED", "PAUSED")
         elif self._result is not None:
             log.info("TASK-%s completed", tid)
+            self._remember(f"Tarefa concluída: {task['title']} — {self._result[:160]}")
             await self.notify(f"Task completed: {task['title']}")
             await self._release("COMPLETED", result=self._result)
         elif not result.ok:
             log.info("TASK-%s error: %s", tid, result.error)
+            self._remember(f"Erro em {task['title']}: {result.error[:80]}")
             s.error = result.error
             await self.record("error", result.error)
             await self._set_status("ERROR", "NEEDS_HELP")
@@ -256,6 +260,15 @@ class TeamAgent:
         self.state.usage = self._usage_view(saved)
         await self._safe(self.backend.report_usage(task_id=task_id, cost_usd=delta, **result.usage), "usage")
 
+    def _remember(self, text: str):
+        """Local, persistent record of what this agent did (survives restarts)."""
+        self.store.add_history({"time": time.time(), "text": text})
+        self.state.history = self.store.history()[-8:]
+
+    async def hub_session(self) -> str | None:
+        reply = await self._safe(self.backend.session(), "hub session")
+        return reply["token"] if reply else None
+
     async def _safe(self, call, what: str):
         try:
             return await call
@@ -291,6 +304,8 @@ class TeamAgent:
 
     async def report_progress(self, progress: int, current_action: str, last_action: str, next_action: str):
         s = self.state
+        if last_action and last_action != s.last_action:
+            self._remember(last_action)
         s.progress, s.current_action, s.last_action, s.next_action = progress, current_action, last_action, next_action
         log.info("%s%% %s", progress, last_action or current_action)
         await self._safe(self.backend.update_task(
@@ -319,6 +334,7 @@ class TeamAgent:
         if self._intent:
             return False
         log.info("Approval %s: %s", status.lower(), action)
+        self._remember(f"{'Aprovado' if status == 'APPROVED' else 'Recusado'}: {action}")
         await self.record("decision", f"Owner {status.lower()}: {action}")
         await self._set_status("WORKING", "IN_PROGRESS")
         return status == "APPROVED"

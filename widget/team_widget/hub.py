@@ -78,7 +78,7 @@ def open_fullscreen(url: str):
     webbrowser.open(url)
 
 
-def maximize() -> str | None:
+def maximize(session: str | None = None) -> str | None:
     """Returns an error message for the widget to show, or None when the Hub opened."""
     url = hub_url()
     if not is_up(url):
@@ -86,5 +86,5 @@ def maximize() -> str | None:
             return f"Hub não responde em {url}"
         if not start_local_server(url):
             return "Não consegui arrancar o servidor do Hub"
-    open_fullscreen(url)
+    open_fullscreen(f"{url}/#login={session}" if session else url)
     return None

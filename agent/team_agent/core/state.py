@@ -20,6 +20,7 @@ class AgentState:
     usage: dict = field(default_factory=dict)
     team: list = field(default_factory=list)
     notifications: list = field(default_factory=list)
+    history: list = field(default_factory=list)  # what the agent did, newest last
     dashboard_url: str = ""
 
     def to_dict(self) -> dict:

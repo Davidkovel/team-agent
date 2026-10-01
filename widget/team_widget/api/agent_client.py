@@ -16,6 +16,7 @@ class AgentClient(threading.Thread):
         self.port, self.token_path, self.store = port, token_path, store
         self._loop: asyncio.AbstractEventLoop | None = None
         self._ws = None
+        self._session, self._got_session = None, threading.Event()
 
     def run(self):
         self._loop = asyncio.new_event_loop()
@@ -29,12 +30,27 @@ class AgentClient(threading.Thread):
                     await ws.send(json.dumps({"token": token}))
                     self._ws = ws
                     async for raw in ws:
-                        self.store.set(json.loads(raw))
+                        message = json.loads(raw)
+                        if "session" in message:
+                            self._session = message["session"]
+                            self._got_session.set()
+                        else:
+                            self.store.set(message)
             except Exception:
                 pass
             self._ws = None
             self.store.set_offline()
             await asyncio.sleep(3)
+
+    def hub_session(self, timeout: float = 5) -> str | None:
+        """A signed-in Hub session for this agent's user, or None when the agent is not reachable."""
+        if not self._ws:
+            return None
+        self._session = None
+        self._got_session.clear()
+        self.send("session")
+        self._got_session.wait(timeout)
+        return self._session
 
     def send(self, action: str, **extra):
         if self._ws and self._loop:

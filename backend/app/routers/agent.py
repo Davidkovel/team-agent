@@ -12,7 +12,7 @@ from ..config import settings
 from ..db import get_db
 from ..models import UNFINISHED, Approval, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
-from ..security import agent_user
+from ..security import agent_user, make_jwt
 from ..services import approval_out, event_out, log_activity, save_agent_state, task_out, team_view
 
 router = APIRouter(prefix="/api/agent")
@@ -77,6 +77,12 @@ async def own_task(task_id: int, user: User, db: AsyncSession) -> Task:
 @router.get("/me")
 async def whoami(user: User = Depends(agent_user)):
     return {"username": user.username, "display_name": user.display_name, "role": user.role}
+
+
+@router.post("/session")
+async def session(user: User = Depends(agent_user)):
+    """Lets the widget open the Hub already signed in as the agent's user."""
+    return {"token": make_jwt(user)}
 
 
 @router.post("/heartbeat")

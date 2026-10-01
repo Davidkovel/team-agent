@@ -21,6 +21,9 @@ class BackendClient:
     async def whoami(self) -> dict:
         return await self._call("GET", "/me")
 
+    async def session(self) -> dict:
+        return await self._call("POST", "/session")
+
     async def heartbeat(self, state: dict) -> dict:
         return await self._call("POST", "/heartbeat", state)
 

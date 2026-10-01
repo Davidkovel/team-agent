@@ -23,9 +23,10 @@ def local_token(data_dir: Path) -> str:
 
 class LocalAPI:
     def __init__(self, port: int, token: str, get_state: Callable[[], dict],
-                 on_command: Callable[[dict], Awaitable[None]]):
+                 on_command: Callable[[dict], Awaitable[None]],
+                 get_session: Callable[[], Awaitable[str | None]] | None = None):
         self.port, self.token = port, token
-        self.get_state, self.on_command = get_state, on_command
+        self.get_state, self.on_command, self.get_session = get_state, on_command, get_session
         self._clients: set = set()
 
     async def serve(self):
@@ -44,7 +45,11 @@ class LocalAPI:
             self._clients.add(ws)
             await ws.send(json.dumps(self.get_state()))
             async for raw in ws:
-                await self.on_command(json.loads(raw))
+                message = json.loads(raw)
+                if message.get("action") == "session" and self.get_session:
+                    await ws.send(json.dumps({"session": await self.get_session()}))
+                else:
+                    await self.on_command(message)
         except Exception:
             pass
         finally:

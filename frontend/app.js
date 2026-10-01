@@ -32,6 +32,11 @@ const meter = (title, pct, hint = "") => `
   <div class="meter"><div class="row"><span>${esc(title)}${hint ? ` · ${esc(hint)}` : ""}</span><b>${pct == null ? "—" : pct + "%"}</b></div>
   <div class="track"><i class="${meterClass(pct)}" style="width:${pct ?? 0}%"></i></div></div>`;
 
+const handoff = location.hash.match(/^#login=(.+)$/); // opened from the widget: already signed in
+if (handoff) {
+  sessionStorage.setItem("token", handoff[1]);
+  history.replaceState(null, "", location.pathname + "#/home");
+}
 let token = sessionStorage.getItem("token");
 let me = null;
 let companies = [];

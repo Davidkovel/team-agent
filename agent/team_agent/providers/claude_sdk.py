@@ -6,6 +6,7 @@ only through our ToolRegistry, exposed as an in-process MCP server, so every
 action passes the PermissionPolicy.
 """
 import os
+import shutil
 from pathlib import Path
 
 from ..core.logs import log
@@ -14,6 +15,19 @@ from .base import AIProvider, RunResult
 
 MCP_SERVER = "team"
 BUILTIN_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch", "NotebookEdit", "Task"]
+
+
+def native_cli() -> str | None:
+    """A native claude executable. The SDK refuses npm's claude.cmd shim on Windows,
+    so look for the real binary next to it. None lets the SDK use its own lookup."""
+    if override := os.environ.get("TEAM_AGENT_CLAUDE_PATH"):
+        return override
+    candidates = [Path.home() / ".local" / "bin" / "claude.exe"]
+    if shim := shutil.which("claude"):
+        if not shim.lower().endswith((".cmd", ".bat")):
+            return None
+        candidates.append(Path(shim).parent / "node_modules" / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe")
+    return next((str(c) for c in candidates if c.is_file()), None)
 
 
 class ClaudeAgentProvider(AIProvider):
@@ -26,8 +40,7 @@ class ClaudeAgentProvider(AIProvider):
             import claude_agent_sdk  # noqa: F401
         except ImportError:
             return "claude-agent-sdk is not installed (pip install claude-agent-sdk)"
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            return "ANTHROPIC_API_KEY is not set"
+        # Without ANTHROPIC_API_KEY the SDK falls back to this computer's own Claude Code login.
         return None
 
     def _mcp_server(self, registry: ToolRegistry):
@@ -48,6 +61,7 @@ class ClaudeAgentProvider(AIProvider):
 
         options = ClaudeAgentOptions(
             model=self.model,
+            cli_path=native_cli(),
             system_prompt=system_prompt,
             cwd=workspace,
             mcp_servers={MCP_SERVER: self._mcp_server(registry)},

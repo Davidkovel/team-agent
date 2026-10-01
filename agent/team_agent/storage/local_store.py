@@ -11,11 +11,21 @@ class LocalStore:
         self.path = data_dir / "state.json"
         self.data: dict = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {}
 
+    def history(self) -> list:
+        return self.data.get("history", [])
+
+    def add_history(self, entry: dict):
+        self.data["history"] = (self.history() + [entry])[-50:]
+        self._save()
+
     def usage(self, task_id: int) -> dict:
         default = {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "session_cost": 0.0, "session_id": None}
         return {**default, **self.data.get("usage", {}).get(str(task_id), {})}
 
     def save_usage(self, task_id: int, usage: dict):
         self.data.setdefault("usage", {})[str(task_id)] = usage
+        self._save()
+
+    def _save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self.data, indent=2), encoding="utf-8")

@@ -11,7 +11,9 @@ def load_env_file(path: Path):
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+            value = value.strip().strip('"').strip("'")
+            if value:  # an empty ANTHROPIC_API_KEY= must not shadow the local Claude login
+                os.environ.setdefault(key.strip(), value)
 
 
 @dataclass

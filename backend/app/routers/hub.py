@@ -1,0 +1,145 @@
+import mimetypes
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .. import hub
+from ..db import get_db
+from ..models import Activity, Meter, User
+from ..realtime import rt
+from ..security import current_user, hash_password, require_owner, user_from_jwt
+from ..services import iso, log_activity
+from .auth import user_out
+
+router = APIRouter(prefix="/api")
+
+USERNAME_RE = re.compile(r"^[a-z0-9_]{2,30}$")
+
+
+class FileBody(BaseModel):
+    content: str
+
+
+METER_SERVICES = {"higgsfield"}
+
+
+class MeterBody(BaseModel):
+    pct: int = Field(ge=0, le=100)
+
+
+class NewUser(BaseModel):
+    username: str
+    display_name: str
+    password: str
+    role: str = "member"
+
+
+def _section_or_404(company_id: str, section_id: str) -> tuple[dict, dict]:
+    found = hub.get_section(company_id, section_id)
+    if not found:
+        raise HTTPException(404, "Section not found")
+    return found
+
+
+@router.get("/hub/companies")
+async def list_companies(user: User = Depends(current_user)):
+    out = []
+    for company in hub.companies().values():
+        sections = []
+        for s in company.get("sections", []):
+            listing = hub.list_section(company["id"], s)
+            sections.append({"id": s["id"], "label": s["label"], "icon": s.get("icon", ""), "kind": s["kind"],
+                             "description": s.get("description", ""), "editable": bool(s.get("editable")),
+                             "count": len(listing["items"])})
+        out.append({"id": company["id"], "name": company["name"], "short": company.get("short", company["name"]),
+                    "tagline": company.get("tagline", ""), "sections": sections})
+    return out
+
+
+@router.get("/hub/{company_id}/{section_id}")
+async def section_items(company_id: str, section_id: str, user: User = Depends(current_user)):
+    _, section = _section_or_404(company_id, section_id)
+    return hub.list_section(company_id, section) | {"kind": section["kind"], "editable": bool(section.get("editable"))}
+
+
+@router.get("/hub/{company_id}/{section_id}/file")
+async def read_file(company_id: str, section_id: str, id: str, user: User = Depends(current_user)):
+    _, section = _section_or_404(company_id, section_id)
+    path = hub.resolve_item(section, id)
+    if not path or path.stat().st_size > hub.MAX_TEXT_BYTES:
+        raise HTTPException(404, "File not found or too large to show")
+    return {"name": path.name, "content": path.read_text(encoding="utf-8", errors="replace"),
+            "editable": bool(section.get("editable"))}
+
+
+@router.put("/hub/{company_id}/{section_id}/file")
+async def write_file(company_id: str, section_id: str, id: str, body: FileBody,
+                     user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    company, section = _section_or_404(company_id, section_id)
+    if not section.get("editable"):
+        raise HTTPException(403, "This section is read-only")
+    path = hub.resolve_item(section, id)
+    if not path:
+        raise HTTPException(404, "File not found")
+    path.write_text(body.content, encoding="utf-8", newline="")
+    await log_activity(db, user, "library_edit",
+                       f"{user.display_name} editou {path.name} em {company['name']} › {section['label']}")
+    return {"ok": True}
+
+
+@router.get("/hub/{company_id}/{section_id}/media")
+async def media(company_id: str, section_id: str, id: str, token: str = Query(...), db: AsyncSession = Depends(get_db)):
+    # <video>/<img> cannot send an Authorization header, so media accepts the JWT as a query parameter.
+    if not await user_from_jwt(token, db):
+        raise HTTPException(401, "Invalid token")
+    _, section = _section_or_404(company_id, section_id)
+    path = hub.resolve_item(section, id)
+    if not path:
+        raise HTTPException(404, "File not found")
+    return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+
+
+@router.get("/history")
+async def history(limit: int = 100, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """What everyone did, whether or not they wrote it down. Visible to the whole team."""
+    rows = (await db.execute(select(Activity).order_by(Activity.id.desc()).limit(min(limit, 300)))).scalars()
+    return [{"id": a.id, "user": a.user.username, "name": a.user.display_name, "kind": a.kind,
+             "message": a.message, "task_id": a.task_id, "created_at": iso(a.created_at)} for a in rows]
+
+
+@router.put("/meters/{service}")
+async def set_meter(service: str, body: MeterBody, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Each person sets their own % for services we cannot read automatically."""
+    if service not in METER_SERVICES:
+        raise HTTPException(404, "Unknown meter")
+    meter = await db.get(Meter, (user.id, service))
+    if not meter:
+        meter = Meter(user_id=user.id, service=service)
+        db.add(meter)
+    meter.pct = body.pct
+    await db.commit()
+    await rt.publish("presence", user.id, "team")
+    return {"service": service, "pct": meter.pct}
+
+
+@router.post("/users")
+async def create_user(body: NewUser, owner: User = Depends(require_owner), db: AsyncSession = Depends(get_db)):
+    username = body.username.strip().lower()
+    if not USERNAME_RE.match(username):
+        raise HTTPException(422, "Username: 2-30 letters, digits or _")
+    if len(body.password) < 8:
+        raise HTTPException(422, "Password needs at least 8 characters")
+    if body.role not in ("member", "owner"):
+        raise HTTPException(422, "Role must be member or owner")
+    if (await db.execute(select(User).where(User.username == username))).scalar_one_or_none():
+        raise HTTPException(409, "Username already exists")
+    user = User(username=username, display_name=body.display_name.strip() or username, role=body.role,
+                password_hash=hash_password(body.password))
+    db.add(user)
+    await db.commit()
+    await log_activity(db, owner, "user_created", f"{owner.display_name} criou o utilizador {user.display_name}")
+    return user_out(user)

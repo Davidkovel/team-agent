@@ -1,0 +1,8 @@
+[
+  {"name": "Higgsfield", "description": "Gera fotos e retratos com IA para os anúncios. Ligado no projecto do tema.", "tag": "Em uso"},
+  {"name": "Shopify", "description": "Plugin e ligação à loja: produtos, coleções, encomendas e código do tema.", "tag": "Instalado"},
+  {"name": "Figma", "description": "Ler designs do Figma e passá-los para código.", "tag": "Instalado"},
+  {"name": "Adobe for Creativity", "description": "Redimensionar fotos e vídeos, templates e PDFs.", "tag": "Instalado"},
+  {"name": "Superpowers", "description": "Método de trabalho: desenhar antes de construir, testar, rever.", "tag": "Instalado"},
+  {"name": "Claude in Chrome", "description": "Controla o browser para ver o site e fazer capturas.", "tag": "Instalado"}
+]

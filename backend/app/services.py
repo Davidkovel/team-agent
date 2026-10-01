@@ -1,9 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Activity, AgentState, Approval, Task, TaskEvent, User
+from .config import settings
+from .models import Activity, AgentState, Approval, Meter, Task, TaskEvent, UsageRecord, User
 from .realtime import rt
 
 
@@ -46,6 +47,12 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
     permitted Team information only: status, task title, progress."""
     users = (await db.execute(select(User).order_by(User.id))).scalars().all()
     states = {s.user_id: s for s in (await db.execute(select(AgentState))).scalars()}
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    week_cost = dict((await db.execute(
+        select(UsageRecord.user_id, func.sum(UsageRecord.cost_usd)).where(UsageRecord.created_at >= since)
+        .group_by(UsageRecord.user_id))).all())
+    meters = {(m.user_id, m.service): m.pct for m in (await db.execute(select(Meter))).scalars()}
+    budget = settings.weekly_budget_usd
     out = []
     for u in users:
         presence = await rt.store.get_presence(u.id)
@@ -56,6 +63,9 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
             "task": presence.get("task", "") if presence else "",
             "progress": presence.get("progress", 0) if presence else 0,
             "last_seen": iso(saved.last_seen) if saved else None,
+            "week_cost_usd": round(week_cost.get(u.id) or 0, 2), "week_budget_usd": budget,
+            "week_pct": min(100, round((week_cost.get(u.id) or 0) / budget * 100)) if budget else None,
+            "higgsfield_pct": meters.get((u.id, "higgsfield")),
         }
         if presence and (viewer.role == "owner" or viewer.id == u.id):
             for key in ("task_id", "current_action", "last_action", "next_action", "error", "usage", "started_at"):

@@ -1,4 +1,4 @@
-from .window import COLORS, WidgetWindow
+﻿from .window import COLORS, LOGO, WidgetWindow
 
 
 def start_tray(window: WidgetWindow):
@@ -10,8 +10,11 @@ def start_tray(window: WidgetWindow):
         return None
 
     def image(status: str):
-        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-        ImageDraw.Draw(img).ellipse((8, 8, 56, 56), fill=COLORS.get(status, COLORS["OFFLINE"]))
+        """The logo with a small status-coloured dot in the corner."""
+        img = Image.open(LOGO).convert("RGBA").resize((64, 64), Image.LANCZOS)
+        draw = ImageDraw.Draw(img)
+        draw.ellipse((38, 38, 62, 62), fill="#121216")
+        draw.ellipse((42, 42, 58, 58), fill=COLORS.get(status, COLORS["OFFLINE"]))
         return img
 
     def on_ui(fn):
@@ -23,21 +26,21 @@ def start_tray(window: WidgetWindow):
         window.root.after(0, window.root.destroy)
 
     send = window.client.send
-    icon = pystray.Icon("team-agent", image("OFFLINE"), "Team Agent", pystray.Menu(
-        pystray.MenuItem("Show widget", on_ui(window.show), default=True),
-        pystray.MenuItem("Hide widget", on_ui(window.hide)),
-        pystray.MenuItem("Open Dashboard", on_ui(window._open_dashboard)),
-        pystray.MenuItem("Open Current Task", on_ui(window._open_task)),
+    icon = pystray.Icon("team-agent", image("OFFLINE"), "Agente AMG", pystray.Menu(
+        pystray.MenuItem("Mostrar widget", on_ui(window.show), default=True),
+        pystray.MenuItem("Esconder widget", on_ui(window.hide)),
+        pystray.MenuItem("Abrir o Hub", on_ui(window._open_dashboard)),
+        pystray.MenuItem("Abrir tarefa atual", on_ui(window._open_task)),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Pause Agent", lambda *_: send("pause")),
-        pystray.MenuItem("Resume Agent", lambda *_: send("resume")),
-        pystray.MenuItem("Stop Current Task", lambda *_: send("stop")),
+        pystray.MenuItem("Pausar agente", lambda *_: send("pause")),
+        pystray.MenuItem("Retomar agente", lambda *_: send("resume")),
+        pystray.MenuItem("Parar tarefa atual", lambda *_: send("stop")),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Quit widget (agent keeps running)", quit_widget),
+        pystray.MenuItem("Fechar widget (o agente continua)", quit_widget),
     ))
 
     def on_status(status: str):
-        icon.icon, icon.title = image(status), f"Team Agent - {status}"
+        icon.icon, icon.title = image(status), f"Agente AMG - {status}"
 
     window.on_status = on_status
     icon.run_detached()

@@ -26,6 +26,7 @@ async def login(body: Login, db: AsyncSession = Depends(get_db)):
     user = (await db.execute(select(User).where(User.username == body.username))).scalar_one_or_none()
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(401, "Invalid credentials")
+    await log_activity(db, user, "login", f"{user.display_name} entrou no Hub")
     return {"token": make_jwt(user), "user": user_out(user)}
 
 

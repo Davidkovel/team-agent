@@ -1,0 +1,60 @@
+{
+  "name": "BareDesk",
+  "short": "BDS",
+  "tagline": "Loja Shopify · tema, anúncios e marca",
+  "sections": [
+    {
+      "id": "tema", "label": "Tema", "icon": "🎨", "kind": "files",
+      "description": "O tema Shopify da loja (só leitura).",
+      "sources": [
+        {"source": "theme", "path": "layout", "label": "layout"},
+        {"source": "theme", "path": "sections", "label": "sections"},
+        {"source": "theme", "path": "snippets", "label": "snippets"},
+        {"source": "theme", "path": "templates", "label": "templates"},
+        {"source": "theme", "path": "config", "label": "config"},
+        {"source": "theme", "path": "locales", "label": "locales"}
+      ]
+    },
+    {
+      "id": "skills", "label": "Skills", "icon": "⚡", "kind": "cards", "editable": true,
+      "description": "Skills que a equipa usa neste projecto. Clica numa para ler ou editar.",
+      "sources": [
+        {"source": "theme", "path": ".claude/skills", "cards": "skills", "label": "Projecto"},
+        {"source": "claude_skills", "path": "", "cards": "skills", "only": ["motion-reel-codigo"], "label": "Pessoal"}
+      ]
+    },
+    {
+      "id": "plugins", "label": "Plugins", "icon": "🧩", "kind": "static", "file": "plugins.json",
+      "description": "Plugins e ligações que fazem parte do trabalho."
+    },
+    {
+      "id": "videos", "label": "Vídeos", "icon": "🎬", "kind": "videos",
+      "description": "Anúncios e reels.",
+      "sources": [
+        {"source": "theme", "path": "ads", "label": "Anúncios"},
+        {"source": "anuncio", "path": "", "label": "Reel", "exts": [".mp4"], "recursive": false},
+        {"source": "marca", "path": "", "label": "Marca"}
+      ]
+    },
+    {
+      "id": "fotos", "label": "Fotos", "icon": "🖼️", "kind": "photos",
+      "description": "Fotos de produto, capturas e logos.",
+      "sources": [
+        {"source": "theme", "path": "shots", "label": "Capturas"},
+        {"source": "theme", "path": "ads/still", "label": "Anúncios"},
+        {"source": "marca", "path": "", "label": "Marca"},
+        {"source": "anuncio", "path": "stills", "label": "Reel"}
+      ]
+    },
+    {
+      "id": "docs", "label": "Documentos", "icon": "📄", "kind": "files", "editable": true,
+      "description": "Guiões, notas e documentação.",
+      "sources": [
+        {"source": "theme", "path": "docs", "label": "docs", "exts": [".md"]},
+        {"source": "theme", "path": "CLAUDE.md", "label": "Projecto"},
+        {"source": "theme", "path": "README.md", "label": "Projecto"},
+        {"source": "anuncio", "path": "guiao.md", "label": "Reel"}
+      ]
+    }
+  ]
+}

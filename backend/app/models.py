@@ -105,6 +105,15 @@ class UsageRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Meter(Base):
+    """Usage % of a service that has no API we can read (e.g. Higgsfield credits); set by hand."""
+    __tablename__ = "meters"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    service: Mapped[str] = mapped_column(String(30), primary_key=True)
+    pct: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
 class AgentState(Base):
     """Last known agent snapshot; live presence lives in Redis with a TTL."""
     __tablename__ = "agent_state"

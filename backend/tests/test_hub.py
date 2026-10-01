@@ -110,6 +110,29 @@ def test_week_percentage_and_higgsfield_meter(client, library):
     assert seen["higgsfield_pct"] == 42  # the whole team sees everyone's meters
 
 
+def test_commit_feed_falls_back_to_local_git(client, library, monkeypatch):
+    import subprocess
+    from app import commits
+
+    repo = library / "project"
+    git = ["git", "-C", str(repo), "-c", "user.name=Marco", "-c", "user.email=m@x.io"]
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run([*git, "add", "-A"], check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "Primeiro commit\n\ncorpo"], check=True)
+    (library / "repos.json").write_text(json.dumps([{"name": "Proj", "github": "acme/proj", "source": "proj"}]), encoding="utf-8")
+
+    def offline(repo, limit):
+        raise OSError("no network")
+
+    monkeypatch.setattr(commits, "_github", offline)
+    commits._cache.clear()
+    _, mark = login(client, "mark")
+    feed = client.get("/api/commits", headers=mark).json()
+    assert feed[0]["repo"] == "Proj" and feed[0]["author"] == "Marco" and feed[0]["message"] == "Primeiro commit"
+    assert feed[0]["via"] == "local" and feed[0]["url"].startswith("https://github.com/acme/proj/commit/")
+    assert client.get("/api/commits").status_code == 401
+
+
 def test_only_owner_creates_users(client, library):
     _, mark = login(client, "mark")
     body = {"username": "ana", "display_name": "Ana", "password": "longenough1"}

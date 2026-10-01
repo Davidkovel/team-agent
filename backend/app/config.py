@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     weekly_budget_usd: float = 20.0
     # True: no hierarchy - every signed-in person sees and can do everything. False: only role=owner can.
     team_mode: bool = True
+    # Optional: lets the commit feed read private GitHub repos (a token with read access to contents).
+    github_token: str = ""
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"
     david_password: str = "david-change-me"

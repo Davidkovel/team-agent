@@ -25,6 +25,7 @@ const ICONS = {
   docs: '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
   expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>',
+  code: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M18 11.5c0 4-6 3-11.2 5"/>',
 };
 const icon = (name) => `<svg class="i" viewBox="0 0 24 24">${ICONS[name] || ICONS.building}</svg>`;
 const meterClass = (pct) => (pct >= 85 ? "bad" : pct >= 60 ? "warn" : "");
@@ -85,7 +86,7 @@ $("modal").onclick = (e) => { if (e.target === $("modal") || e.target.dataset.cl
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- routing ---------- */
-const TABS = [["home", "Início", "home"], ["empresas", "Empresas", "building"], ["tarefas", "Tarefas", "tasks"], ["equipa", "Equipa", "users"], ["historico", "Histórico", "history"]];
+const TABS = [["home", "Início", "home"], ["empresas", "Empresas", "building"], ["tarefas", "Tarefas", "tasks"], ["codigo", "Código", "code"], ["equipa", "Equipa", "users"], ["historico", "Histórico", "history"]];
 
 function route() {
   const hash = location.hash;
@@ -98,7 +99,7 @@ function route() {
 function render() {
   const r = route();
   $("tabs").innerHTML = TABS.map(([id, label, ic]) => `<a class="tab ${id === r.tab ? "active" : ""}" href="#/${id}">${icon(ic)}${label}</a>`).join("");
-  const views = { home: viewHome, empresas: viewCompanies, tarefas: viewTasks, equipa: viewTeam, historico: viewHistory };
+  const views = { home: viewHome, empresas: viewCompanies, tarefas: viewTasks, codigo: viewCode, equipa: viewTeam, historico: viewHistory };
   views[r.tab](r).catch((e) => { if (e.message !== "unauthorized") $("view").innerHTML = `<p class="error">${esc(e.message)}</p>`; });
 }
 window.addEventListener("hashchange", render);
@@ -169,6 +170,43 @@ async function loadTimeline() {
   }).join("") : '<div class="empty">Nada por aqui ainda.</div>';
 }
 
+function commitHtml(c, withRepo = true) {
+  const link = (inner) => (c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">${inner}</a>` : inner);
+  return `<div class="event"><span class="avatar">${initial(c.author)}</span>
+    <div><b>${esc(c.author)}</b> <span class="muted">${esc(c.message)}</span>
+      <div>${withRepo ? `<span class="tag">${esc(c.repo)}</span> ` : ""}${link(`<code>${esc(c.sha.slice(0, 7))}</code>`)}</div></div>
+    <span class="when">${time(c.date)}</span></div>`;
+}
+
+let commitRepo = "";
+async function loadCommits() {
+  if ($("commit-list")) {
+    const all = await api("/api/commits?limit=100");
+    const repos = [...new Set(all.map((c) => c.repo))];
+    $("repo-chips").innerHTML = ["", ...repos].map((r) => `<span class="chip ${r === commitRepo ? "active" : ""}" data-r="${esc(r)}">${esc(r || "Todos")}</span>`).join("");
+    const items = commitRepo ? all.filter((c) => c.repo === commitRepo) : all;
+    let last = "";
+    $("commit-list").innerHTML = items.length ? items.map((c) => {
+      const d = dayLabel(c.date);
+      const head = d !== last ? `<div class="day">${esc(d)}</div>` : "";
+      last = d;
+      return head + commitHtml(c);
+    }).join("") : '<div class="empty">Sem commits para mostrar. Confirma o repositório em library/repos.json.</div>';
+  }
+  if ($("recent-commits")) {
+    const recent = await api("/api/commits?limit=5");
+    $("recent-commits").innerHTML = recent.length ? recent.map((c) => commitHtml(c)).join("") : '<p class="muted">Sem commits para mostrar.</p>';
+  }
+}
+
+async function viewCode() {
+  $("view").innerHTML = `
+    <div class="page-head"><div><h2>Código</h2><p>Quem mexeu em quê no GitHub, por ordem.</p></div></div>
+    <div class="chips" id="repo-chips"></div><div class="timeline" id="commit-list"><p class="muted">A carregar…</p></div>`;
+  $("repo-chips").onclick = (e) => { if (e.target.dataset.r !== undefined) { commitRepo = e.target.dataset.r; loadCommits(); } };
+  await loadCommits();
+}
+
 async function loadApprovals() {
   if (!$("approvals")) return;
   const pending = (await api("/api/approvals")).filter((a) => a.status === "PENDING");
@@ -218,13 +256,14 @@ async function viewHome() {
     <div class="grid" id="meters"></div>
     <div class="section-title">Aprovações</div><div id="approvals"></div>
     <div class="section-title">Equipa agora</div><div class="grid" id="team"></div>
+    <div class="section-title">Últimos commits</div><div class="timeline" id="recent-commits"></div>
     <div class="section-title">O que se fez há pouco</div><div class="timeline" id="recent"></div>`;
   $("home-companies").innerHTML = companies.length ? companies.map((c) => `
     <a class="card click big-card" href="#/empresas/${esc(c.id)}">
       <span class="co-logo">${esc(c.short)}</span>
       <div><h3>${esc(c.name)}</h3><p>${esc(c.tagline)}</p></div>
     </a>`).join("") : '<div class="empty">Ainda não há empresas.</div>';
-  await Promise.all([loadStats(), loadMeters(), loadApprovals(), loadTeam(), loadRecent()]);
+  await Promise.all([loadStats(), loadMeters(), loadApprovals(), loadTeam(), loadRecent(), loadCommits()]);
 }
 
 async function viewCompanies(r) {

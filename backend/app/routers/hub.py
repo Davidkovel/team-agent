@@ -1,3 +1,4 @@
+import asyncio
 import mimetypes
 import re
 
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import hub
+from .. import commits, hub
 from ..db import get_db
 from ..models import Activity, Meter, User
 from ..realtime import rt
@@ -127,6 +128,12 @@ async def history(limit: int = 100, user: User = Depends(current_user), db: Asyn
     rows = (await db.execute(select(Activity).order_by(Activity.id.desc()).limit(min(limit, 300)))).scalars()
     return [{"id": a.id, "user": a.user.username, "name": a.user.display_name, "kind": a.kind,
              "message": a.message, "task_id": a.task_id, "created_at": iso(a.created_at)} for a in rows]
+
+
+@router.get("/commits")
+async def commits_feed(limit: int = 40, user: User = Depends(current_user)):
+    """Latest commits across the team's repositories (GitHub first, local git as fallback)."""
+    return await asyncio.to_thread(commits.recent, min(max(limit, 1), 100))
 
 
 @router.put("/meters/{service}")

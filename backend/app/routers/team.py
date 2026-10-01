@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_db
 from ..models import Activity, Approval, UsageRecord, User
 from ..realtime import rt
-from ..security import current_user, require_owner
+from ..security import current_user, require_owner, sees_all
 from ..services import approval_out, iso, log_activity, team_view
 
 router = APIRouter(prefix="/api")
@@ -26,7 +26,7 @@ async def team(user: User = Depends(current_user), db: AsyncSession = Depends(ge
 @router.get("/activity")
 async def activity(limit: int = 50, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     query = select(Activity).order_by(Activity.id.desc()).limit(min(limit, 200))
-    if user.role != "owner":
+    if not sees_all(user):
         query = query.where(Activity.user_id == user.id)
     return [
         {"id": a.id, "user": a.user.username, "kind": a.kind, "message": a.message,
@@ -42,7 +42,7 @@ async def usage(user: User = Depends(current_user), db: AsyncSession = Depends(g
                func.sum(UsageRecord.cache_read_tokens), func.sum(UsageRecord.cost_usd), func.count(UsageRecord.id))
         .join(User, User.id == UsageRecord.user_id).group_by(User.username)
     )
-    if user.role != "owner":
+    if not sees_all(user):
         query = query.where(UsageRecord.user_id == user.id)
     return [
         {"user": name, "input_tokens": inp or 0, "output_tokens": out or 0, "cache_read_tokens": cache or 0,
@@ -54,7 +54,7 @@ async def usage(user: User = Depends(current_user), db: AsyncSession = Depends(g
 @router.get("/approvals")
 async def approvals(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     query = select(Approval).order_by(Approval.id.desc()).limit(100)
-    if user.role != "owner":
+    if not sees_all(user):
         query = query.where(Approval.user_id == user.id)
     return [approval_out(a) for a in (await db.execute(query)).scalars()]
 

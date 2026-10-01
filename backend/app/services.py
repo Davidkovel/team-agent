@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
 from .models import Activity, AgentState, Approval, Meter, Task, TaskEvent, UsageRecord, User
+from . import hub
 from .realtime import rt
+from .security import sees_all
 
 
 def iso(dt: datetime | None) -> str | None:
@@ -36,8 +38,13 @@ def approval_out(a: Approval) -> dict:
     }
 
 
-async def log_activity(db: AsyncSession, user: User, kind: str, message: str, task_id: int | None = None):
-    db.add(Activity(user_id=user.id, task_id=task_id, kind=kind, message=message))
+async def log_activity(db: AsyncSession, user: User, kind: str, message: str, task_id: int | None = None,
+                       company: str | None = None):
+    if company is None and task_id is not None:
+        task = await db.get(Task, task_id)  # a task created for a company counts as work for that company
+        if task and task.project in hub.companies():
+            company = task.project
+    db.add(Activity(user_id=user.id, task_id=task_id, kind=kind, message=message, company=company))
     await db.commit()
     await rt.publish("activity", user.id)
 
@@ -58,7 +65,7 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
         presence = await rt.store.get_presence(u.id)
         saved = states.get(u.id)
         entry = {
-            "user": u.username, "display_name": u.display_name, "role": u.role,
+            "user": u.username, "display_name": u.display_name, "role": "equipa" if settings.team_mode else u.role,
             "status": presence["status"] if presence else "OFFLINE",
             "task": presence.get("task", "") if presence else "",
             "progress": presence.get("progress", 0) if presence else 0,
@@ -67,7 +74,7 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
             "week_pct": min(100, round((week_cost.get(u.id) or 0) / budget * 100)) if budget else None,
             "higgsfield_pct": meters.get((u.id, "higgsfield")),
         }
-        if presence and (viewer.role == "owner" or viewer.id == u.id):
+        if presence and (sees_all(viewer) or viewer.id == u.id):
             for key in ("task_id", "current_action", "last_action", "next_action", "error", "usage", "started_at"):
                 entry[key] = presence.get(key)
         out.append(entry)

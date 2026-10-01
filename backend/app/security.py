@@ -69,8 +69,12 @@ async def current_user(authorization: str | None = Header(None), db: AsyncSessio
     return user
 
 
+def sees_all(user: User) -> bool:
+    return settings.team_mode or user.role == "owner"
+
+
 async def require_owner(user: User = Depends(current_user)) -> User:
-    if user.role != "owner":
+    if not sees_all(user):
         raise HTTPException(403, "Owner only")
     return user
 

@@ -87,6 +87,7 @@ class Activity(Base):
     task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"))
     kind: Mapped[str] = mapped_column(String(30))
     message: Mapped[str] = mapped_column(Text)
+    company: Mapped[str | None] = mapped_column(String(50), index=True)  # library company id the work was for
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
     user: Mapped[User] = relationship(foreign_keys=[user_id], lazy="joined")

@@ -3,9 +3,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..db import get_db
 from ..models import User
-from ..security import current_user, make_jwt, new_agent_token, verify_password
+from ..security import sees_all, current_user, make_jwt, new_agent_token, verify_password
 from ..services import log_activity
 
 router = APIRouter(prefix="/api")
@@ -17,7 +18,7 @@ class Login(BaseModel):
 
 
 def user_out(u: User) -> dict:
-    return {"id": u.id, "username": u.username, "display_name": u.display_name, "role": u.role,
+    return {"id": u.id, "username": u.username, "display_name": u.display_name, "role": u.role, "lead": sees_all(u), "team_mode": settings.team_mode,
             "has_agent_token": bool(u.agent_token_hash)}
 
 

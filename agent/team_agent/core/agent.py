@@ -18,7 +18,7 @@ SYSTEM_PROMPT = """You are {name}'s Team Agent: an autonomous AI worker running 
 
 How you work:
 - You can act only through the provided tools. Files, git and commands are confined to the task workspace (the current directory).
-- Call update_progress after every meaningful step, with an honest percentage and concrete last/next actions. Your teammates and the owner watch this live.
+- Call update_progress after every meaningful step, with an honest percentage. Write current_action, last_action and next_action in European Portuguese, at most 8 words each: a plain statement of what was done, without details or reasons. Your teammates read these as the short report of your work.
 - Every tool call is checked by a permission policy. Safe actions run immediately. Sensitive ones pause until the owner approves. A BLOCKED or REJECTED result is final: do not retry it or look for a workaround.
 - Before any action with outside effect that the tools do not gate themselves (publishing ads or content, production changes, spending money), call request_approval first and proceed only if approved. If you cannot perform such an action with your tools, prepare everything as a draft in the workspace and say so in the result.
 - Use record_decision for choices a future session would need to understand.
@@ -206,12 +206,12 @@ class TeamAgent:
             await self._set_status("PAUSED", "PAUSED")
         elif self._result is not None:
             log.info("TASK-%s completed", tid)
-            self._remember(f"Tarefa concluída: {task['title']} — {self._result[:160]}")
+            self._remember(f"Concluído: {task['title']}")
             await self.notify(f"Task completed: {task['title']}")
             await self._release("COMPLETED", result=self._result)
         elif not result.ok:
             log.info("TASK-%s error: %s", tid, result.error)
-            self._remember(f"Erro em {task['title']}: {result.error[:80]}")
+            self._remember(f"Erro: {result.error.split(':')[0][:50]}")
             s.error = result.error
             await self.record("error", result.error)
             await self._set_status("ERROR", "NEEDS_HELP")
@@ -262,6 +262,9 @@ class TeamAgent:
 
     def _remember(self, text: str):
         """Local, persistent record of what this agent did (survives restarts)."""
+        text = " ".join(text.split())
+        if len(text) > 70:
+            text = text[:69].rstrip() + "…"
         self.store.add_history({"time": time.time(), "text": text})
         self.state.history = self.store.history()[-8:]
 

@@ -128,7 +128,7 @@ class Realtime:
             return conn.kind == "agent" and conn.user_id == event["user_id"]
         if conn.kind == "agent":
             return False
-        if event["audience"] == "team" or conn.role == "owner":
+        if event["audience"] == "team" or settings.team_mode or conn.role == "owner":
             return True
         return conn.user_id == event["user_id"]
 

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_db
 from ..models import Task, TaskEvent, User
 from ..realtime import rt
-from ..security import current_user
+from ..security import current_user, sees_all
 from ..services import event_out, log_activity, task_out
 
 router = APIRouter(prefix="/api/tasks")
@@ -31,7 +31,7 @@ async def get_task(task_id: int, user: User, db: AsyncSession) -> Task:
     task = await db.get(Task, task_id)
     if not task:
         raise HTTPException(404, "Task not found")
-    if user.role != "owner" and task.assignee_id != user.id:
+    if not sees_all(user) and task.assignee_id != user.id:
         raise HTTPException(403, "Not your task")
     return task
 
@@ -41,13 +41,13 @@ async def create_task(body: TaskCreate, user: User = Depends(current_user), db: 
     assignee = (await db.execute(select(User).where(User.username == body.assignee))).scalar_one_or_none()
     if not assignee:
         raise HTTPException(404, "Assignee not found")
-    if user.role != "owner" and assignee.id != user.id:
+    if not sees_all(user) and assignee.id != user.id:
         raise HTTPException(403, "Members can only create tasks for themselves")
     task = Task(**body.model_dump(exclude={"assignee"}), assignee_id=assignee.id, created_by=user.id)
     db.add(task)
     await db.commit()
     await db.refresh(task)
-    await log_activity(db, assignee, "task_assigned", f"TASK-{task.id} assigned to {assignee.display_name}: {task.title}", task.id)
+    await log_activity(db, assignee, "task_assigned", f"recebeu a tarefa: {task.title}", task.id)
     await rt.publish("task", assignee.id)
     await rt.publish("wake", assignee.id, "agent")
     return task_out(task)
@@ -56,7 +56,7 @@ async def create_task(body: TaskCreate, user: User = Depends(current_user), db: 
 @router.get("")
 async def list_tasks(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     query = select(Task).order_by(Task.id.desc())
-    if user.role != "owner":
+    if not sees_all(user):
         query = query.where(Task.assignee_id == user.id)
     return [task_out(t) for t in (await db.execute(query)).scalars()]
 

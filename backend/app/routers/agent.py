@@ -17,6 +17,10 @@ from ..services import approval_out, event_out, log_activity, save_agent_state, 
 
 router = APIRouter(prefix="/api/agent")
 
+# Short, human wording for the team history.
+STATUS_TEXT = {"IN_PROGRESS": "começou", "WAITING_APPROVAL": "espera aprovação em", "PAUSED": "pausou",
+               "NEEDS_HELP": "precisa de ajuda em", "COMPLETED": "concluiu", "FAILED": "falhou em", "STOPPED": "parou"}
+
 
 class Heartbeat(BaseModel):
     status: Literal["ONLINE", "WORKING", "IDLE", "WAITING", "PAUSED", "ERROR"]
@@ -133,9 +137,9 @@ async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent
         db.add(TaskEvent(task_id=task.id, kind="action", message=task.last_action, data={"progress": task.progress}))
     await db.commit()
     if task.status != old_status:
-        await log_activity(db, user, "task_status", f"TASK-{task.id} {old_status} -> {task.status}", task.id)
+        await log_activity(db, user, "task_status", f"{STATUS_TEXT.get(task.status, task.status)}: {task.title}", task.id)
     elif new_action:
-        await log_activity(db, user, "task_action", f"TASK-{task.id} ({task.progress}%): {task.last_action}", task.id)
+        await log_activity(db, user, "task_action", f"{task.last_action} ({task.progress}%)", task.id)
     await rt.publish("task", user.id)
     return task_out(task)
 

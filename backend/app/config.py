@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     heartbeat_timeout: int = 30
     # What each person may spend on Claude per week (estimated SDK cost); drives the "Claude semana %" meter.
     weekly_budget_usd: float = 20.0
+    # True: no hierarchy - every signed-in person sees and can do everything. False: only role=owner can.
+    team_mode: bool = True
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"
     david_password: str = "david-change-me"

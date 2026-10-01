@@ -98,7 +98,7 @@ def test_full_task_lifecycle_with_approval_and_recovery(client):
     assert client.get("/api/agent/recovery", headers=mark_agent).json()["task"] is None
     assert client.get("/api/usage", headers=owner).json()[0]["input_tokens"] == 100
     assert client.get("/api/usage", headers=david).json() == []
-    assert any("COMPLETED" in a["message"] for a in client.get("/api/activity", headers=owner).json())
+    assert any("concluiu" in a["message"] for a in client.get("/api/activity", headers=owner).json())
 
 
 def test_agent_cannot_touch_foreign_task(client):
@@ -118,3 +118,27 @@ def test_websocket_visibility(client):
         client.post("/api/tasks", headers=owner, json={"title": "for david", "assignee": "david"})
         # David's first event must be about himself, not Mark's private task.
         assert dws.receive_json()["user_id"] != 2
+
+
+def test_team_mode_everyone_sees_all_and_company_work_is_counted(client):
+    from app.config import settings
+    owner, mark, david = login(client, "owner"), login(client, "mark"), login(client, "david")
+    settings.team_mode = True
+    try:
+        assert client.get("/api/me", headers=mark).json()["lead"] is True
+        task = client.post("/api/tasks", headers=mark, json={"title": "BareDesk ads", "assignee": "david", "project": "baredesk"})
+        assert task.status_code == 200
+        tid = task.json()["id"]
+        assert any(t["title"] == "BareDesk ads" for t in client.get("/api/tasks", headers=mark).json())
+        david_agent = agent(client, "david", david)
+        client.post(f"/api/agent/tasks/{tid}/update", headers=david_agent,
+                    json={"status": "IN_PROGRESS"})
+        client.post(f"/api/agent/tasks/{tid}/update", headers=david_agent,
+                    json={"progress": 30, "last_action": "Escrevi 3 textos"})
+        ap = client.post("/api/agent/approvals", headers=david_agent, json={"task_id": tid, "action": "Publicar"}).json()
+        assert client.post(f"/api/approvals/{ap['id']}/decide", headers=mark, json={"approve": True}).status_code == 200
+        work = client.get("/api/work/baredesk", headers=owner).json()
+        assert "david" in {p["user"] for p in work["people"]}
+        assert any("Escrevi 3 textos" in i["message"] for i in work["items"])
+    finally:
+        settings.team_mode = False

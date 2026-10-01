@@ -87,7 +87,8 @@ async def write_file(company_id: str, section_id: str, id: str, body: FileBody,
         raise HTTPException(404, "File not found")
     path.write_text(body.content, encoding="utf-8", newline="")
     await log_activity(db, user, "library_edit",
-                       f"{user.display_name} editou {path.name} em {company['name']} › {section['label']}")
+                       f"{user.display_name} editou {path.name} em {company['name']} › {section['label']}",
+                       company=company["id"])
     return {"ok": True}
 
 
@@ -101,6 +102,23 @@ async def media(company_id: str, section_id: str, id: str, token: str = Query(..
     if not path:
         raise HTTPException(404, "File not found")
     return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+
+
+@router.get("/work/{company_id}")
+async def company_work(company_id: str, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Who worked on this company: a count per person and the latest things done."""
+    if company_id not in hub.companies():
+        raise HTTPException(404, "Company not found")
+    query = select(Activity).where(Activity.company == company_id).order_by(Activity.id.desc()).limit(300)
+    rows = (await db.execute(query)).scalars().all()
+    people: dict[str, dict] = {}
+    for a in rows:
+        entry = people.setdefault(a.user.username, {"user": a.user.username, "name": a.user.display_name,
+                                                    "count": 0, "last": iso(a.created_at)})
+        entry["count"] += 1
+    return {"people": sorted(people.values(), key=lambda p: -p["count"]),
+            "items": [{"id": a.id, "user": a.user.username, "name": a.user.display_name, "message": a.message,
+                       "task_id": a.task_id, "created_at": iso(a.created_at)} for a in rows[:8]]}
 
 
 @router.get("/history")

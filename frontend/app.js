@@ -176,7 +176,7 @@ async function loadApprovals() {
     <div class="card approval">
       <span>🟡 O agente de <b>${esc(a.user)}</b> pede aprovação: <b>${esc(a.action)}</b>
         ${a.task_id ? `(TASK-${a.task_id})` : ""}<br><span class="muted">${esc(a.detail)}</span></span>
-      <span>${me.role === "owner"
+      <span>${me.lead
         ? `<button class="primary" data-ap="${a.id}" data-ok="1">Aprovar</button> <button class="danger" data-ap="${a.id}">Recusar</button>`
         : '<span class="muted">À espera do Owner</span>'}</span>
     </div>`).join("") : '<p class="muted">Nada à espera de aprovação.</p>';
@@ -233,11 +233,19 @@ async function viewCompanies(r) {
   const section = company.sections.find((s) => s.id === r.section) || company.sections[0];
   $("view").innerHTML = `
     <div class="chips">${companies.map((c) => `<a class="chip ${c.id === company.id ? "active" : ""}" href="#/empresas/${esc(c.id)}">${esc(c.short)} · ${esc(c.name)}</a>`).join("")}</div>
+    <div id="work"></div>
     <div class="split">
       <nav class="side">${company.sections.map((s) => `
         <a class="${s.id === section.id ? "active" : ""}" href="#/empresas/${esc(company.id)}/${esc(s.id)}">${icon(s.id)}${esc(s.label)}<span class="n">${s.count}</span></a>`).join("")}</nav>
       <section><div class="page-head"><div><h2>${esc(section.label)}</h2><p>${esc(section.description)}</p></div></div><div id="section-body"><p class="muted">A carregar…</p></div></section>
     </div>`;
+  api(`/api/work/${company.id}`).then((w) => {
+    if (!$("work")) return;
+    $("work").innerHTML = `<div class="section-title">Quem trabalhou em ${esc(company.name)}</div><div class="card">
+      ${w.people.length
+        ? `<div class="chips">${w.people.map((p) => `<span class="chip">${esc(p.name)} · ${p.count}</span>`).join("")}</div>${w.items.map(eventHtml).join("")}`
+        : '<p class="muted">Ainda ninguém. Cria uma tarefa para esta empresa ou edita um ficheiro dela e aparece aqui.</p>'}</div>`;
+  }).catch(() => {});
   const data = await api(`/api/hub/${company.id}/${section.id}`);
   const body = $("section-body");
   if (!body) return;
@@ -322,8 +330,8 @@ async function viewTasks() {
     <form id="task-form" class="card form">
       <input id="t-title" placeholder="Título" required>
       <input id="t-goal" placeholder="Objetivo">
-      <input id="t-project" placeholder="Pasta do projeto (opcional)">
-      <select id="t-assignee">${users.filter((u) => me.role === "owner" || u.username === me.username).map((u) => `<option value="${esc(u.username)}">${esc(u.display_name)}</option>`).join("")}</select>
+      <select id="t-project"><option value="">Sem empresa</option>${companies.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select>
+      <select id="t-assignee">${users.filter((u) => me.lead || u.username === me.username).map((u) => `<option value="${esc(u.username)}">${esc(u.display_name)}</option>`).join("")}</select>
       <textarea class="wide" id="t-description" placeholder="Descrição"></textarea>
       <textarea class="wide" id="t-requirements" placeholder="Requisitos, um por linha"></textarea>
       <button class="primary wide">Criar tarefa</button>
@@ -382,7 +390,7 @@ async function viewTeam() {
     </form>
     <div class="section-title">Agentes</div>
     <div class="grid" id="team"></div>
-    ${me.role === "owner" ? `
+    ${me.lead ? `
     <div class="section-title">Criar utilizador</div>
     <form id="user-form" class="card form">
       <input id="u-name" placeholder="Nome (ex: David)" required>
@@ -455,7 +463,7 @@ async function start() {
   try { me = await api("/api/me"); } catch { return; }
   $("login").hidden = true;
   $("app").hidden = false;
-  $("whoami").textContent = `${me.display_name} · ${me.role}`;
+  $("whoami").textContent = me.team_mode ? me.display_name : `${me.display_name} · ${me.role}`;
   $("maximize").innerHTML = icon("expand");
   companies = await api("/api/hub/companies").catch(() => []);
   render();

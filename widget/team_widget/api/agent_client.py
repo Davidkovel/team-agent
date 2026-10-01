@@ -1,0 +1,41 @@
+import asyncio
+import json
+import threading
+from pathlib import Path
+
+import websockets
+
+from ..state.store import StateStore
+
+
+class AgentClient(threading.Thread):
+    """WebSocket client for the agent's local API. Reconnects forever; no agent -> OFFLINE."""
+
+    def __init__(self, port: int, token_path: Path, store: StateStore):
+        super().__init__(daemon=True)
+        self.port, self.token_path, self.store = port, token_path, store
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._ws = None
+
+    def run(self):
+        self._loop = asyncio.new_event_loop()
+        self._loop.run_until_complete(self._main())
+
+    async def _main(self):
+        while True:
+            try:
+                token = self.token_path.read_text(encoding="utf-8").strip()
+                async with websockets.connect(f"ws://127.0.0.1:{self.port}") as ws:
+                    await ws.send(json.dumps({"token": token}))
+                    self._ws = ws
+                    async for raw in ws:
+                        self.store.set(json.loads(raw))
+            except Exception:
+                pass
+            self._ws = None
+            self.store.set_offline()
+            await asyncio.sleep(3)
+
+    def send(self, action: str, **extra):
+        if self._ws and self._loop:
+            asyncio.run_coroutine_threadsafe(self._ws.send(json.dumps({"action": action, **extra})), self._loop)

@@ -1,0 +1,4 @@
+claude-agent-sdk>=0.2.144
+httpx>=0.27
+websockets>=13
+pytest>=8.0

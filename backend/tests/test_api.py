@@ -118,3 +118,27 @@ def test_websocket_visibility(client):
         client.post("/api/tasks", headers=owner, json={"title": "for david", "assignee": "david"})
         # David's first event must be about himself, not Mark's private task.
         assert dws.receive_json()["user_id"] != 2
+
+
+def test_workspace_docs_and_finance(client):
+    owner, mark, david = login(client, "owner"), login(client, "mark"), login(client, "david")
+    shared = client.post("/api/docs", headers=mark, json={"section": "skills", "folder": "Ads", "title": "Meta copy", "content": "x"}).json()
+    private = client.post("/api/docs", headers=mark, json={"section": "notes", "title": "Mine", "shared": False}).json()
+    assert [d["title"] for d in client.get("/api/docs?section=skills", headers=david).json()] == ["Meta copy"]
+    assert client.get("/api/docs?section=notes", headers=david).json() == []
+    assert client.put(f"/api/docs/{private['id']}", headers=david, json={"section": "notes", "title": "hack"}).status_code == 404
+    # A teammate can edit a shared doc but not hide or delete it.
+    body = {"section": "skills", "folder": "Ads", "title": "Meta copy v2", "content": "y"}
+    assert client.put(f"/api/docs/{shared['id']}", headers=david, json=body).json()["title"] == "Meta copy v2"
+    assert client.put(f"/api/docs/{shared['id']}", headers=david, json={**body, "shared": False}).status_code == 403
+    assert client.delete(f"/api/docs/{shared['id']}", headers=david).status_code == 403
+    assert client.delete(f"/api/docs/{shared['id']}", headers=owner).status_code == 200
+
+    assert client.get("/api/finance", headers=mark).status_code == 403
+    client.post("/api/finance", headers=owner, json={"kind": "income", "amount": 1000, "date": "2026-10-01"})
+    client.post("/api/finance", headers=owner, json={"kind": "expense", "amount": 300, "date": "2026-10-02"})
+    f = client.get("/api/finance", headers=owner).json()
+    assert (f["income"], f["expenses"]) == (1000, 300)
+    assert f["profit"] == round(700 - f["ai_cost"], 2) and f["months"][0]["month"] == "2026-10"
+    assert "finance" in client.get("/api/overview", headers=owner).json()
+    assert "finance" not in client.get("/api/overview", headers=mark).json()

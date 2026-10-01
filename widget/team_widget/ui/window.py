@@ -1,154 +1,104 @@
-import time
-import tkinter as tk
-import webbrowser
-from tkinter import simpledialog, ttk
+"""Widget shell: one small always-on-top window that becomes the full workspace
+when it is maximized (or made wide), and a compact widget again when restored.
 
-from ..api.agent_client import AgentClient
+Compact mode renders local HTML that talks to the Local Agent's WebSocket API.
+Workspace mode shows the team web app served by the backend.
+"""
+import os
+import threading
+from pathlib import Path
+
+import webview
+
 from ..state.store import StateStore
 
-BG, CARD, TEXT, MUTED = "#0f1218", "#1a1f29", "#e6e9ef", "#8b94a5"
-COLORS = {"WORKING": "#3ecf8e", "ONLINE": "#3ecf8e", "IDLE": "#5b8def", "WAITING": "#f5c04a",
-          "PAUSED": "#f5c04a", "ERROR": "#f26d6d", "OFFLINE": "#5c6473"}
-WIDTH = 300
+WIDGET_HTML = str(Path(__file__).parent / "web" / "widget.html")
+COMPACT = (340, 620)
+WORKSPACE_MIN_WIDTH = 700  # wider than this -> show the workspace
 
 
-def elapsed(started_at) -> str:
-    if not started_at:
-        return "-"
-    seconds = int(time.time() - started_at)
-    return f"{seconds // 3600}h {seconds % 3600 // 60:02d}m" if seconds >= 3600 else f"{seconds // 60}m {seconds % 60:02d}s"
+class Api:
+    """Methods callable from the page as window.pywebview.api.*"""
+
+    def __init__(self, shell: "WidgetShell"):
+        self._shell = shell
+
+    def config(self) -> dict:
+        return {"port": self._shell.port, "token": self._shell.local_token()}
+
+    def expand(self, task_id=None):
+        self._shell.expand(task_id)
+
+    def compact(self):
+        self._shell.compact()
 
 
-class WidgetWindow:
-    def __init__(self, store: StateStore, client: AgentClient):
-        self.store, self.client = store, client
-        self.on_status = lambda status: None  # tray hook
-        self._version = -1
+class WidgetShell:
+    def __init__(self, port: int, token_path: Path, store: StateStore):
+        self.port, self.token_path, self.store = port, token_path, store
+        self.mode = "compact"
+        self.quitting = False
+        self._task_id = None
+        screen = webview.screens[0]
+        self.window = webview.create_window(
+            "Team Agent", url=WIDGET_HTML, js_api=Api(self), on_top=True,
+            width=COMPACT[0], height=COMPACT[1], min_size=(300, 420),
+            x=screen.width - COMPACT[0] - 24, y=60, background_color="#0c0f14")
+        self.window.events.resized += self._on_resized
+        self.window.events.closing += self._on_closing
 
-        root = self.root = tk.Tk()
-        root.title("Team Agent")
-        root.configure(bg=BG, padx=12, pady=10)
-        root.attributes("-topmost", True)
-        root.resizable(False, False)
-        root.protocol("WM_DELETE_WINDOW", self.hide)  # closing hides to tray; the agent keeps running
-        ttk.Style().theme_use("clam")
-        ttk.Style().configure("TProgressbar", troughcolor=CARD, background="#5b8def", bordercolor=CARD)
+    def local_token(self) -> str:
+        try:
+            return self.token_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
 
-        self.status = self._label("", size=12, bold=True)
-        self.alert = self._label("", color=COLORS["WAITING"])
-        self._label("Task", MUTED)
-        self.task = self._label("")
-        self.progress_text = self._label("", MUTED)
-        self.bar = ttk.Progressbar(root, length=WIDTH - 24, maximum=100)
-        self.bar.pack(fill="x", pady=(2, 6))
-        self.fields = {}
-        for key, title in (("current_action", "Now"), ("last_action", "Last action"), ("next_action", "Next")):
-            self._label(title, MUTED)
-            self.fields[key] = self._label("")
-        self.meta = self._label("", MUTED)
-        self._label("Team", MUTED)
-        self.team = self._label("")
+    def workspace_url(self) -> str:
+        base = (self.store.get().get("dashboard_url") or os.environ.get("TEAM_SERVER_URL") or "http://localhost:8000")
+        return base.rstrip("/") + (f"/#task-{self._task_id}" if self._task_id else "/")
 
-        buttons = tk.Frame(root, bg=BG)
-        buttons.pack(fill="x", pady=(8, 0))
-        self.toggle = self._button(buttons, "Pause", self._toggle, 0, 0)
-        self._button(buttons, "Stop", lambda: self.client.send("stop"), 0, 1)
-        self._button(buttons, "Help", self._help, 0, 2)
-        self._button(buttons, "Open Task", self._open_task, 1, 0)
-        self._button(buttons, "Dashboard", self._open_dashboard, 1, 1, span=2)
+    # ------------------------------------------------------------ mode switching
 
-        root.update_idletasks()
-        x = root.winfo_screenwidth() - WIDTH - 24
-        root.geometry(f"{WIDTH}x{root.winfo_reqheight()}+{x}+60")
-        self._tick()
+    def _on_resized(self, width, height):
+        if height < 100:  # minimized / not yet shown
+            return
+        mode = "workspace" if width >= WORKSPACE_MIN_WIDTH else "compact"
+        if mode == self.mode:
+            return
+        self.mode = mode
+        url = self.workspace_url() if mode == "workspace" else WIDGET_HTML
+        self._task_id = None
+        # Window calls made from inside a window event deadlock the UI thread, so switch from a worker.
+        threading.Thread(target=self._switch, args=(mode, url), daemon=True).start()
 
-    def _label(self, text, color=TEXT, size=9, bold=False):
-        label = tk.Label(self.root, text=text, bg=BG, fg=color, anchor="w", justify="left",
-                         wraplength=WIDTH - 24, font=("Segoe UI", size, "bold" if bold else "normal"))
-        label.pack(fill="x")
-        return label
+    def _switch(self, mode: str, url: str):
+        self.window.on_top = mode == "compact"
+        self.window.load_url(url)
 
-    def _button(self, parent, text, command, row, col, span=1):
-        button = tk.Button(parent, text=text, command=command, bg=CARD, fg=TEXT, relief="flat",
-                           activebackground="#2a313f", activeforeground=TEXT, font=("Segoe UI", 9))
-        button.grid(row=row, column=col, columnspan=span, sticky="ew", padx=2, pady=2)
-        parent.grid_columnconfigure(col, weight=1)
-        return button
+    def expand(self, task_id=None):
+        self._task_id = task_id
+        if self.mode == "workspace":
+            self.window.load_url(self.workspace_url())
+            self._task_id = None
+        else:
+            self.window.maximize()
 
-    # ------------------------------------------------------------ actions
+    def compact(self):
+        self.window.restore()
+        self.window.resize(*COMPACT)
+
+    # ------------------------------------------------------------ tray integration
+
+    def _on_closing(self):
+        if self.quitting:
+            return True
+        self.window.hide()  # closing hides to the tray; the agent keeps running
+        return False
 
     def show(self):
-        self.root.deiconify()
-        self.root.lift()
+        self.window.show()
+        self.window.restore()
 
-    def hide(self):
-        self.root.withdraw()
-
-    def _toggle(self):
-        self.client.send("resume" if self.toggle["text"] == "Resume" else "pause")
-
-    def _help(self):
-        message = simpledialog.askstring("Request help", "What do you need help with?", parent=self.root)
-        if message:
-            self.client.send("help", message=message)
-
-    def _open_dashboard(self):
-        if url := self.store.get().get("dashboard_url"):
-            webbrowser.open(url)
-
-    def _open_task(self):
-        state = self.store.get()
-        if state.get("dashboard_url") and state.get("task_id"):
-            webbrowser.open(f"{state['dashboard_url']}/#task-{state['task_id']}")
-
-    # ------------------------------------------------------------ rendering
-
-    def _tick(self):
-        state = self.store.get()
-        if self.store.version != self._version:
-            self._version = self.store.version
-            self._render(state)
-        if state.get("started_at"):
-            self.meta["text"] = self._meta(state)
-        self.root.after(500, self._tick)
-
-    def _meta(self, state: dict) -> str:
-        parts = [f"Elapsed {elapsed(state.get('started_at'))}"]
-        usage = state.get("usage") or {}
-        if usage.get("budget_pct") is not None:
-            parts.append(f"Claude budget {usage['budget_pct']}% (${usage.get('cost_usd', 0):.2f})")
-        return "  ·  ".join(parts)
-
-    def _render(self, state: dict):
-        status = state.get("status", "OFFLINE")
-        self.on_status(status)
-        name = state.get("display_name") or "Team Agent"
-        self.root.title(f"{name} - {status}")
-        self.status.config(text=f"● {status}", fg=COLORS.get(status, MUTED))
-
-        if status == "OFFLINE":
-            alert = "Local agent is not running."
-        elif state.get("pending_approval"):
-            alert = f"Waiting for approval: {state['pending_approval']}"
-        elif state.get("error"):
-            alert = f"Error: {state['error']}"
-        elif not state.get("connected"):
-            alert = "Server unreachable - working offline."
-        else:
-            notes = state.get("notifications") or []
-            alert = notes[-1]["message"] if notes else ""
-        self.alert.config(text=alert, fg=COLORS["ERROR"] if state.get("error") or status == "OFFLINE" else COLORS["WAITING"])
-
-        self.task["text"] = state.get("task") or "No active task"
-        progress = state.get("progress") or 0
-        self.progress_text["text"] = f"Progress {progress}%"
-        self.bar["value"] = progress
-        for key, label in self.fields.items():
-            label["text"] = state.get(key) or "-"
-        self.meta["text"] = self._meta(state) if state.get("task_id") else ""
-        me = state.get("user")
-        self.team["text"] = "\n".join(
-            f"{m['display_name']}: {m['status']}" + (f" - {m['task']} {m['progress']}%" if m.get("task") else "")
-            for m in state.get("team") or [] if m["user"] != me) or "-"
-        self.toggle["text"] = "Resume" if status in ("PAUSED", "ERROR") or (status == "WAITING" and not state.get("pending_approval")) else "Pause"
-        self.root.geometry(f"{WIDTH}x{self.root.winfo_reqheight()}")
+    def quit(self):
+        self.quitting = True
+        self.window.destroy()

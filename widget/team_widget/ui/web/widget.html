@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Team Agent</title>
+<style>
+  :root { --bg:#0c0f14; --card:#171c25; --line:#262d3a; --text:#e8ebf1; --muted:#8a93a6; --accent:#6c8cff;
+    --ok:#3ecf8e; --warn:#f5c04a; --err:#f26d6d; --off:#5c6473; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px; background:var(--bg); color:var(--text); font:13px/1.45 "Segoe UI", system-ui, sans-serif; user-select:none; }
+  [hidden] { display:none !important; }
+  .top { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .top b { font-size:14px; } .top b::first-letter { color:var(--accent); }
+  #expand { margin-left:auto; }
+  #status { font-size:16px; font-weight:650; } #status::before { content:"●"; margin-right:7px; }
+  .WORKING, .ONLINE { color:var(--ok); } .IDLE { color:var(--accent); } .WAITING, .PAUSED { color:var(--warn); }
+  .ERROR { color:var(--err); } .OFFLINE { color:var(--off); }
+  #alert { margin:6px 0 0; padding:7px 9px; border-radius:8px; border:1px solid var(--warn); color:var(--warn); font-size:12px; }
+  #alert.bad { border-color:var(--err); color:var(--err); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:10px; }
+  label { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-top:8px; }
+  label:first-child { margin-top:0; }
+  #task { font-size:15px; font-weight:600; }
+  .progress { display:flex; justify-content:space-between; color:var(--muted); margin-top:8px; }
+  .bar { height:7px; background:#0f131a; border-radius:99px; overflow:hidden; margin-top:4px; }
+  .bar i { display:block; height:100%; width:0; background:var(--accent); border-radius:99px; transition:width .4s; }
+  .meta { display:flex; justify-content:space-between; color:var(--muted); font-size:12px; margin-top:10px; }
+  #team div { display:flex; justify-content:space-between; gap:8px; padding:2px 0; }
+  #team span:last-child { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .actions { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:10px; }
+  button { font:inherit; color:var(--text); background:var(--card); border:1px solid var(--line); border-radius:8px; padding:7px 4px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
+  #help-box { display:flex; gap:6px; margin-top:8px; }
+  #help-box input { flex:1; min-width:0; font:inherit; color:var(--text); background:#0f131a; border:1px solid var(--line); border-radius:8px; padding:7px 9px; }
+</style>
+</head>
+<body>
+  <div class="top"><b>◆ Team Agent</b><span id="who" style="color:var(--muted)"></span>
+    <button id="expand" class="primary" title="Open the full workspace">⤢ Workspace</button></div>
+  <div id="status" class="OFFLINE">OFFLINE</div>
+  <div id="alert" hidden></div>
+
+  <div class="card">
+    <label>Task</label><div id="task">No active task</div>
+    <div class="progress"><span>Progress</span><span id="pct">0%</span></div>
+    <div class="bar"><i id="bar"></i></div>
+    <label>Now</label><div id="current_action">-</div>
+    <label>Last action</label><div id="last_action">-</div>
+    <label>Next</label><div id="next_action">-</div>
+    <div class="meta"><span id="elapsed"></span><span id="usage"></span></div>
+  </div>
+
+  <div class="card"><label>Team</label><div id="team">-</div></div>
+
+  <div class="actions">
+    <button id="toggle">Pause</button><button id="stop">Stop</button><button id="help">Help</button>
+  </div>
+  <div class="actions" style="grid-template-columns:1fr 1fr">
+    <button id="open-task">Open task</button><button id="open-ws">Dashboard</button>
+  </div>
+  <div id="help-box" hidden><input id="help-text" placeholder="What do you need help with?"><button id="help-send" class="primary">Send</button></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const OFFLINE = { status: "OFFLINE", team: [], notifications: [] };
+let cfg = null, ws = null, state = OFFLINE;
+
+function elapsed(start) {
+  if (!start) return "";
+  const s = Math.floor(Date.now() / 1000 - start);
+  return "Elapsed " + (s >= 3600 ? `${Math.floor(s / 3600)}h ${String(Math.floor(s % 3600 / 60)).padStart(2, "0")}m`
+                                 : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`);
+}
+
+function render(s) {
+  state = s;
+  const status = s.status || "OFFLINE";
+  $("status").textContent = status;
+  $("status").className = status;
+  $("who").textContent = s.display_name || "";
+
+  const notes = s.notifications || [];
+  const alert = status === "OFFLINE" ? "Local agent is not running."
+    : s.pending_approval ? "Waiting for approval: " + s.pending_approval
+    : s.error ? "Error: " + s.error
+    : !s.connected ? "Server unreachable."
+    : notes.length ? notes[notes.length - 1].message : "";
+  $("alert").hidden = !alert;
+  $("alert").textContent = alert;
+  $("alert").className = status === "OFFLINE" || s.error ? "bad" : "";
+
+  $("task").textContent = s.task || "No active task";
+  const pct = s.progress || 0;
+  $("pct").textContent = pct + "%";
+  $("bar").style.width = pct + "%";
+  for (const key of ["current_action", "last_action", "next_action"]) $(key).textContent = s[key] || "-";
+  const u = s.usage || {};
+  $("usage").textContent = u.budget_pct != null ? `Claude budget ${u.budget_pct}% ($${(u.cost_usd || 0).toFixed(2)})` : "";
+  $("elapsed").textContent = elapsed(s.started_at);
+
+  const others = (s.team || []).filter((m) => m.user !== s.user);
+  $("team").replaceChildren(...others.map((m) => {
+    const row = document.createElement("div"), name = document.createElement("span"), info = document.createElement("span");
+    name.textContent = m.display_name; name.className = m.status;
+    info.textContent = m.status + (m.task ? ` · ${m.task} ${m.progress}%` : "");
+    row.append(name, info);
+    return row;
+  }));
+  if (!others.length) $("team").textContent = "-";
+
+  const resumable = ["PAUSED", "ERROR"].includes(status) || (status === "WAITING" && !s.pending_approval);
+  $("toggle").textContent = resumable ? "Resume" : "Pause";
+}
+
+const send = (action, extra = {}) => ws && ws.readyState === 1 && ws.send(JSON.stringify({ action, ...extra }));
+
+async function connect() {
+  cfg = await pywebview.api.config();
+  ws = new WebSocket(`ws://127.0.0.1:${cfg.port}`);
+  ws.onopen = () => ws.send(JSON.stringify({ token: cfg.token }));
+  ws.onmessage = (e) => render(JSON.parse(e.data));
+  ws.onclose = () => { render(OFFLINE); setTimeout(connect, 3000); };
+}
+
+$("toggle").onclick = () => send($("toggle").textContent === "Resume" ? "resume" : "pause");
+$("stop").onclick = () => send("stop");
+$("help").onclick = () => { $("help-box").hidden = !$("help-box").hidden; $("help-text").focus(); };
+$("help-send").onclick = () => {
+  if ($("help-text").value.trim()) send("help", { message: $("help-text").value.trim() });
+  $("help-text").value = ""; $("help-box").hidden = true;
+};
+$("expand").onclick = $("open-ws").onclick = () => pywebview.api.expand(null);
+$("open-task").onclick = () => pywebview.api.expand(state.task_id || null);
+
+setInterval(() => { $("elapsed").textContent = elapsed(state.started_at); }, 1000);
+window.addEventListener("pywebviewready", connect);
+</script>
+</body>
+</html>

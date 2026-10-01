@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Team Dashboard</title>
+  <title>Team Workspace</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <section id="login" hidden>
     <form id="login-form" class="card">
-      <h1>Team Dashboard</h1>
+      <div class="brand">◆ Team Workspace</div>
       <input id="username" placeholder="Username" autocomplete="username" required>
       <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
       <button>Sign in</button>
@@ -17,41 +17,26 @@
     </form>
   </section>
 
-  <main id="app" hidden>
-    <header>
-      <h1>Team Dashboard</h1>
-      <span id="live" class="pill">connecting</span>
-      <span id="whoami"></span>
-      <button id="agent-token">Agent token</button>
-      <button id="logout">Sign out</button>
-    </header>
-    <p id="token-box" class="card" hidden></p>
-
-    <h2>Team</h2>
-    <div id="team" class="grid"></div>
-
-    <h2>Approvals</h2>
-    <div id="approvals"></div>
-
-    <h2>Tasks</h2>
-    <form id="task-form" class="card row">
-      <input id="t-title" placeholder="Title" required>
-      <input id="t-goal" placeholder="Goal">
-      <input id="t-project" placeholder="Project folder (optional)">
-      <select id="t-assignee"></select>
-      <textarea id="t-description" placeholder="Description"></textarea>
-      <textarea id="t-requirements" placeholder="Requirements, one per line"></textarea>
-      <button>Create task</button>
-    </form>
-    <div class="table-wrap"><table id="tasks"></table></div>
-    <div id="task-detail" class="card" hidden></div>
-
-    <div class="cols">
-      <div><h2>Activity</h2><ul id="activity" class="feed"></ul></div>
-      <div><h2>Usage</h2><div class="table-wrap"><table id="usage"></table></div>
-        <p class="hint">Tokens and cost are estimates reported by the Claude Agent SDK, not billing data.</p></div>
-    </div>
-  </main>
+  <div id="app" hidden>
+    <aside>
+      <div class="brand">◆ Team Workspace</div>
+      <nav id="nav"></nav>
+      <div class="me">
+        <div id="whoami"></div>
+        <button id="agent-token" class="ghost">Agent token</button>
+        <button id="logout" class="ghost">Sign out</button>
+      </div>
+    </aside>
+    <main>
+      <header>
+        <h1 id="title"></h1>
+        <span id="live" class="pill">connecting</span>
+        <button id="to-widget" class="ghost" hidden>▣ Back to widget</button>
+      </header>
+      <p id="token-box" class="card" hidden></p>
+      <section id="view"></section>
+    </main>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>

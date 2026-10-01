@@ -1,7 +1,15 @@
-from .window import COLORS, WidgetWindow
+import threading
+import time
+
+from ..api.agent_client import AgentClient
+from ..state.store import StateStore
+from .window import WidgetShell
+
+COLORS = {"WORKING": "#3ecf8e", "ONLINE": "#3ecf8e", "IDLE": "#6c8cff", "WAITING": "#f5c04a",
+          "PAUSED": "#f5c04a", "ERROR": "#f26d6d", "OFFLINE": "#5c6473"}
 
 
-def start_tray(window: WidgetWindow):
+def start_tray(shell: WidgetShell, store: StateStore, client: AgentClient):
     """System tray icon coloured by agent status. Returns None where no tray backend exists."""
     try:
         import pystray
@@ -14,31 +22,30 @@ def start_tray(window: WidgetWindow):
         ImageDraw.Draw(img).ellipse((8, 8, 56, 56), fill=COLORS.get(status, COLORS["OFFLINE"]))
         return img
 
-    def on_ui(fn):
-        # pystray runs in its own thread; tkinter must only be touched from the UI thread.
-        return lambda *_: window.root.after(0, fn)
-
     def quit_widget(icon, _):
         icon.stop()
-        window.root.after(0, window.root.destroy)
+        shell.quit()
 
-    send = window.client.send
     icon = pystray.Icon("team-agent", image("OFFLINE"), "Team Agent", pystray.Menu(
-        pystray.MenuItem("Show widget", on_ui(window.show), default=True),
-        pystray.MenuItem("Hide widget", on_ui(window.hide)),
-        pystray.MenuItem("Open Dashboard", on_ui(window._open_dashboard)),
-        pystray.MenuItem("Open Current Task", on_ui(window._open_task)),
+        pystray.MenuItem("Show widget", lambda *_: shell.show(), default=True),
+        pystray.MenuItem("Open workspace", lambda *_: (shell.show(), shell.expand())),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Pause Agent", lambda *_: send("pause")),
-        pystray.MenuItem("Resume Agent", lambda *_: send("resume")),
-        pystray.MenuItem("Stop Current Task", lambda *_: send("stop")),
+        pystray.MenuItem("Pause Agent", lambda *_: client.send("pause")),
+        pystray.MenuItem("Resume Agent", lambda *_: client.send("resume")),
+        pystray.MenuItem("Stop Current Task", lambda *_: client.send("stop")),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Quit widget (agent keeps running)", quit_widget),
     ))
 
-    def on_status(status: str):
-        icon.icon, icon.title = image(status), f"Team Agent - {status}"
+    def follow_status():
+        last = None
+        while True:
+            status = store.get().get("status", "OFFLINE")
+            if status != last:
+                last = status
+                icon.icon, icon.title = image(status), f"Team Agent - {status}"
+            time.sleep(1)
 
-    window.on_status = on_status
     icon.run_detached()
+    threading.Thread(target=follow_status, daemon=True).start()
     return icon

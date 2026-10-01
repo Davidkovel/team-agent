@@ -105,6 +105,32 @@ class UsageRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Doc(Base):
+    """Workspace document: a note or a skill, grouped by folder name."""
+    __tablename__ = "docs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    section: Mapped[str] = mapped_column(String(10), index=True)  # notes | skills
+    folder: Mapped[str] = mapped_column(String(100), default="General")
+    title: Mapped[str] = mapped_column(String(200))
+    content: Mapped[str] = mapped_column(Text, default="")
+    shared: Mapped[bool] = mapped_column(default=True)  # False -> visible to the author only
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+    author: Mapped[User] = relationship(foreign_keys=[author_id], lazy="joined")
+
+
+class FinanceEntry(Base):
+    __tablename__ = "finance"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10))  # income | expense
+    amount: Mapped[float] = mapped_column(Float)
+    description: Mapped[str] = mapped_column(String(200), default="")
+    category: Mapped[str] = mapped_column(String(50), default="")
+    date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
 class AgentState(Base):
     """Last known agent snapshot; live presence lives in Redis with a TTL."""
     __tablename__ = "agent_state"

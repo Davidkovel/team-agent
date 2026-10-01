@@ -338,12 +338,13 @@ async function loadCommits() {
 async function viewCode() {
   $("view").innerHTML = `
     <div class="page-head"><div><h2>Código</h2><p>Quem mexeu, onde e quanto, em cada commit do GitHub. Atualiza sozinho.</p></div></div>
+    <div id="worktree"></div>
     <div class="chips" id="author-chips"></div><div class="chips" id="repo-chips"></div>
     <div class="grid" id="who-summary"></div>
     <div class="section-title">Commits</div>
     <div class="timeline" id="commit-list"><p class="muted">A carregar…</p></div>
     <p class="more"><span class="muted" id="commit-count"></span> <button class="ghost" id="more-commits">Ver mais commits</button></p>`;
-  $("more-commits").onclick = async () => { commitLimit += 100; await loadCommits(); };
+  $("more-commits").onclick = async () => { commitLimit += 100; await Promise.all([loadWorktree(), loadCommits()]); };
   $("repo-chips").onclick = (e) => { if (e.target.dataset.r !== undefined) { commitRepo = e.target.dataset.r; loadCommits(); } };
   $("author-chips").onclick = (e) => { if (e.target.dataset.a !== undefined) { commitAuthor = e.target.dataset.a; loadCommits(); } };
   await loadCommits();
@@ -391,6 +392,36 @@ const MONTHS = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "
 const shortDate = (iso) => { const d = new Date(iso + "T12:00:00"); return `${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]}`; };
 const cell = (n, dim = "") => `<td class="num ${n ? "" : "zero"} ${dim}">${n}</td>`;
 
+
+// Work in progress: files edited since the last commit. Shown the moment someone touches something, no commit or push needed.
+const wtAgo = (epoch) => (epoch ? ago(new Date(epoch * 1000).toISOString()) : "—");
+const WT_STATUS = { alterado: "ALTERADO", novo: "NOVO", apagado: "APAGADO" };
+
+function pendingBlock(pending) {
+  if (!pending?.length) return '<div class="pending none"><span class="pending-title">A MEXER AGORA · SEM COMMIT</span><span class="muted small">Nada por guardar: tudo o que foi feito já tem commit.</span></div>';
+  return `<div class="pending"><div class="pending-title">A MEXER AGORA · SEM COMMIT</div>${pending.map((r) => `
+    <div class="pending-row"><b>${esc(r.repo)}</b><span>${r.count} ficheiro${r.count === 1 ? "" : "s"}</span>
+      <span><span class="add">+${r.added}</span> <span class="del">−${r.deleted}</span></span><span class="muted">${wtAgo(r.newest)}</span><span class="muted">no PC de ${esc(r.user || "?")}</span></div>
+    <div class="pending-files">${r.files.slice(0, 3).map((f) => `<span><i>${WT_STATUS[f.status] || f.status}</i> ${esc(f.path)}</span>`).join("")}${r.count > 3 ? `<span class="muted">… e mais ${r.count - 3}</span>` : ""}</div>`).join("")}</div>`;
+}
+
+let worktreeSig = "";
+async function loadWorktree() {
+  if (!$("worktree")) return;
+  const data = await api("/api/worktree");
+  const sig = JSON.stringify(data.map((r) => [r.repo, r.count, r.newest, r.added, r.deleted]));
+  if (sig === worktreeSig && $("worktree").dataset.ready) return; // nothing changed: keep open file lists as they are
+  worktreeSig = sig;
+  $("worktree").dataset.ready = "1";
+  $("worktree").innerHTML = `<div class="section-title">A mexer agora · sem commit</div>` + (data.length ? data.map((r) => `
+    <div class="card wt-card">
+      <div class="wt-head"><b>${esc(r.repo)}</b><span class="tag">${esc(r.branch)}</span><span class="muted">no PC de ${esc(r.user || "?")}</span><span class="spacer"></span>
+        <span>${r.count} ficheiro${r.count === 1 ? "" : "s"}</span> <span><span class="add">+${r.added}</span> <span class="del">−${r.deleted}</span></span><span class="muted">último ${wtAgo(r.newest)}</span></div>
+      <details class="files" open><summary>Ficheiros ainda por guardar</summary>
+        ${r.files.map((f) => `<div class="file"><span><i class="wt-status ${f.status}">${WT_STATUS[f.status] || f.status}</i> <code>${esc(f.path)}</code></span><span class="muted">${wtAgo(f.mtime)} ${f.status === "apagado" ? "" : `<span class="add">+${f.added}</span> <span class="del">−${f.deleted}</span>`}</span></div>`).join("")}
+      </details></div>`).join("") : '<div class="empty">Nada por guardar: tudo o que foi feito já tem commit.</div>');
+}
+
 // The weekly ledger: one row per person, a mark for every day they showed up, then what they did and what they still owe.
 function ledgerHtml(w) {
   const head = w.days.map((d, i) => `<th class="day ${i === w.today ? "today" : ""}">${esc(d.slice(0, 3)).toUpperCase()}</th>`).join("");
@@ -412,6 +443,7 @@ function ledgerHtml(w) {
         <tbody>${rows}</tbody>
         <tfoot><tr><td class="who">TOTAL</td><td colspan="7"></td>${cell(sum("logins"))}${cell(sum("commits"))}${cell(sum("edits"))}${cell(sum("tasks_done"))}${cell(sum("tasks_open"))}<td colspan="2"></td></tr></tfoot>
       </table></div>
+      ${pendingBlock(w.pending)}
       <div class="feed-title">ÚLTIMOS MOVIMENTOS</div>
       <div class="feed">${feed || '<div class="feed-row"><span class="muted">Sem movimentos esta semana.</span></div>'}</div>
     </section>`;
@@ -957,6 +989,7 @@ async function start() {
   await loadStats().catch(() => {}); // names first, so every view shows Kovel/Marco/David
   render();
   checkNews().catch(() => {});
+  setInterval(() => { loadWorktree().catch(() => {}); loadWeek().catch(() => {}); }, 8000); // uncommitted work shows up within seconds
   setInterval(() => loadCommits().catch(() => {}), 30000); // new commits from teammates show up by themselves
   setInterval(() => { loadTeam().catch(() => {}); loadAgents().catch(() => {}); loadStats().catch(() => {}); checkNews().catch(() => {}); }, 15000); // catches OFFLINE even if the socket dropped
   connect();

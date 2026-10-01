@@ -115,6 +115,9 @@ class WidgetWindow:
         self.table = tk.Frame(self.ledger, bg=CARD)
         self.table.pack(fill="x", pady=(6, 0))
         tk.Frame(self.ledger, bg=FAINT, height=1).pack(fill="x", pady=(8, 6))
+        tk.Label(self.ledger, text="A MEXER AGORA · SEM COMMIT", bg=CARD, fg="#ff9f1c", font=(MONO, 8, "bold"), anchor="w").pack(fill="x")
+        self.pending = tk.Frame(self.ledger, bg=CARD)
+        self.pending.pack(fill="x", pady=(3, 8))
         tk.Label(self.ledger, text="ÚLTIMOS MOVIMENTOS", bg=CARD, fg=MUTED, font=(MONO, 8, "bold"), anchor="w").pack(fill="x")
         self.feed = tk.Frame(self.ledger, bg=CARD)
         self.feed.pack(fill="x", pady=(3, 0))
@@ -186,7 +189,7 @@ class WidgetWindow:
                     self._week = json.load(res)
             except (OSError, ValueError, urllib.error.URLError):
                 pass
-            time.sleep(15)
+            time.sleep(8)
 
     def _render_week(self, w: dict):
         for child in self.table.winfo_children():
@@ -222,6 +225,18 @@ class WidgetWindow:
         put(last + 1, 0, "TOTAL", TEXT, True, "w", "w")
         for c, val in enumerate(totals):
             put(last + 1, 8 + c, str(val), TEXT, True)
+
+        for child in self.pending.winfo_children():
+            child.destroy()
+        for p in w.get("pending", [])[:3]:
+            row = tk.Frame(self.pending, bg=CARD)
+            row.pack(fill="x")
+            ago = max(0, int(time.time() - (p["newest"] or time.time())) // 60)
+            when = "agora" if ago < 1 else f"{ago} min" if ago < 60 else f"{ago // 60} h"
+            tk.Label(row, text=clip(p["repo"].upper(), 12), bg=CARD, fg=TEXT, font=(MONO, 8, "bold"), width=12, anchor="w").pack(side="left")
+            tk.Label(row, text=f"{p['count']} fich  +{p['added']} -{p['deleted']}  {when}", bg=CARD, fg=MUTED, font=(MONO, 8), anchor="w").pack(side="left")
+        if not w.get("pending"):
+            tk.Label(self.pending, text="Nada por guardar.", bg=CARD, fg=FAINT, font=(MONO, 8)).pack(anchor="w")
 
         for child in self.feed.winfo_children():
             child.destroy()

@@ -429,3 +429,15 @@ table.ledger { width: 100%; border-collapse: collapse; font: 13px Consolas, "Cas
 .theater .player { height: 100vh; grid-template-columns: 1fr; } .theater .player-list { display: none; }
 /* real fullscreen of the player */
 .player:fullscreen { height: 100vh; grid-template-columns: 1fr; background: #000; } .player:fullscreen .player-list { display: none; }
+
+/* work in progress (not committed yet) */
+.pending { border-top: 1px solid var(--line); padding: 10px 14px 12px; }
+.pending-title { display: block; font: 700 10px Consolas, monospace; letter-spacing: .18em; color: #ff9f1c; margin-bottom: 6px; }
+.pending.none .pending-title { color: #8a8a8a; }
+.pending-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: baseline; font: 13px Consolas, "Cascadia Mono", monospace; color: #e0e0e0; padding-top: 4px; }
+.pending-row b { color: #fff; text-transform: uppercase; letter-spacing: .05em; min-width: 110px; }
+.pending-files { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 6px 0; font: 12px Consolas, monospace; color: #9a9a9a; }
+.pending-files i, .wt-status { font-style: normal; font-size: 10px; letter-spacing: .1em; border: 1px solid #555; padding: 0 5px; margin-right: 6px; color: #cfcfcf; }
+.wt-card { margin-bottom: 12px; border-left: 3px solid #ff9f1c; }
+.wt-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; } .wt-head .spacer { flex: 1; }
+.wt-status.novo { border-color: #d0d0d0; color: #fff; } .wt-status.apagado { border-color: #ff9f1c; color: #ff9f1c; }

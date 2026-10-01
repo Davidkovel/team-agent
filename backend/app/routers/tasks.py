@@ -72,5 +72,6 @@ async def task_detail(task_id: int, user: User = Depends(current_user), db: Asyn
 async def control(task_id: int, body: Control, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     task = await get_task(task_id, user, db)
     await rt.command(task.assignee_id, {"type": body.action, "task_id": task.id})
-    await log_activity(db, task.assignee, "control", f"{user.display_name} requested {body.action} for TASK-{task.id}", task.id)
+    verb = {"pause": "pausar", "resume": "retomar", "stop": "parar"}[body.action]
+    await log_activity(db, user, "control", f"{user.display_name} pediu para {verb} a tarefa: {task.title}", task.id)
     return {"queued": body.action}

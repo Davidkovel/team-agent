@@ -7,11 +7,14 @@ Each section points at one or more *sources* (named folders mapped in
 import json
 import os
 import re
+import shutil
+import time
 from pathlib import Path
 
 from .config import settings
 
-SKIP_DIRS = {"node_modules", ".git", "__pycache__", ".venv", ".next", "dist"}
+TRASH = ".lixo"  # "deleting" in the gallery moves files here; nothing is ever erased
+SKIP_DIRS = {"node_modules", ".git", "__pycache__", ".venv", ".next", "dist", TRASH}
 MAX_ITEMS = 1500
 MAX_TEXT_BYTES = 1_000_000
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
@@ -153,3 +156,100 @@ def resolve_item(section: dict, item_id: str) -> Path | None:
     if not target.is_file() or not (target == base or target.is_relative_to(base)):
         return None
     return target
+
+
+# ---- gallery management: rename / move / trash / restore (videos and photos only) ----
+BAD_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+
+class ManageError(ValueError):
+    """A request the gallery refuses; the message is shown to the person."""
+
+
+def manageable(section: dict) -> bool:
+    return section["kind"] in ("videos", "photos")
+
+
+def clean_name(name: str) -> str:
+    name = (name or "").strip()
+    if not name or len(name) > 120 or BAD_NAME.search(name) or name.startswith(".") or name.endswith("."):
+        raise ManageError("Nome inválido: sem barras nem os símbolos : * ? \" < > |, sem ponto no início, até 120 letras.")
+    return name
+
+
+def _locate(section: dict, item_id: str) -> tuple[int, Path, Path]:
+    """(entry index, base folder, file) for an item; never outside the entry's folder."""
+    path = resolve_item(section, item_id)
+    index = int(item_id.split(":", 1)[0])
+    base = entry_base(section["sources"][index])
+    if path is None or base is None or not base.is_dir():
+        raise ManageError("Ficheiro não encontrado.")
+    return index, base.resolve(), path
+
+
+def _id(index: int, base: Path, file: Path) -> str:
+    return f"{index}:{file.relative_to(base).as_posix()}"
+
+
+def rename_item(section: dict, item_id: str, new_name: str) -> str:
+    index, base, path = _locate(section, item_id)
+    new = clean_name(new_name)
+    if Path(new).suffix.lower() != path.suffix.lower():
+        raise ManageError(f"Mantém a extensão {path.suffix}.")
+    target = path.with_name(new)
+    if target.exists():
+        raise ManageError("Já existe um ficheiro com esse nome.")
+    path.rename(target)
+    return _id(index, base, target)
+
+
+def move_item(section: dict, item_id: str, folder: str) -> str:
+    index, base, path = _locate(section, item_id)
+    parts = [clean_name(p) for p in folder.replace("\\", "/").split("/") if p.strip()]
+    dest = base.joinpath(*parts).resolve()
+    if not dest.is_relative_to(base) or (parts and parts[0] == TRASH):
+        raise ManageError("Pasta inválida.")
+    target = dest / path.name
+    if target.exists():
+        raise ManageError("Essa pasta já tem um ficheiro com o mesmo nome.")
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(path), str(target))
+    return _id(index, base, target)
+
+
+def trash_item(section: dict, item_id: str) -> str:
+    index, base, path = _locate(section, item_id)
+    rel = path.relative_to(base)
+    target = base / TRASH / rel
+    if target.exists():
+        target = target.with_name(f"{int(time.time())}-{rel.name}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(path), str(target))
+    return _id(index, base, target)
+
+
+def restore_item(section: dict, item_id: str) -> str:
+    index, base, path = _locate(section, item_id)
+    rel = path.relative_to(base).as_posix()
+    if not rel.startswith(TRASH + "/"):
+        raise ManageError("Este ficheiro não está no lixo.")
+    target = base / rel[len(TRASH) + 1:]
+    if target.exists():
+        raise ManageError("Já existe um ficheiro com esse nome no sítio original.")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(path), str(target))
+    return _id(index, base, target)
+
+
+def list_trash(section: dict) -> list[dict]:
+    items = []
+    exts = ()
+    for index, entry in enumerate(section.get("sources", [])):
+        base = entry_base(entry)
+        if base is None or not base.is_dir() or not (base / TRASH).is_dir():
+            continue
+        exts = exts_of(section, entry)
+        for file in sorted((base / TRASH).rglob("*")):
+            if file.is_file() and (not exts or file.name.lower().endswith(exts)):
+                items.append(_item(index, base, file, section) | {"folder": "" if file.parent == base / TRASH else file.parent.relative_to(base / TRASH).as_posix()})
+    return items

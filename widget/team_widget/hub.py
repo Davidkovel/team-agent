@@ -40,7 +40,7 @@ def is_up(url: str) -> bool:
         return False
 
 
-def _is_local(url: str) -> bool:
+def is_local(url: str) -> bool:
     return urlparse(url).hostname in ("127.0.0.1", "localhost", "::1")
 
 
@@ -82,7 +82,7 @@ def maximize(session: str | None = None) -> str | None:
     """Returns an error message for the widget to show, or None when the Hub opened."""
     url = hub_url()
     if not is_up(url):
-        if not _is_local(url):
+        if not is_local(url):
             return f"Hub não responde em {url}"
         if not start_local_server(url):
             return "Não consegui arrancar o servidor do Hub"

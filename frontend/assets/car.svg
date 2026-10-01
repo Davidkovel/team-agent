@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 440" fill="none" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Flat, graphic AMG-style coupe seen from the front. Black / graphite / silver / silver only: no gradients, no glow. -->
+  <g stroke="#c8ccce" stroke-width="2.4">
+    <!-- tyres -->
+    <rect x="112" y="262" width="104" height="118" rx="22" fill="#050505"/>
+    <rect x="784" y="262" width="104" height="118" rx="22" fill="#050505"/>
+    <rect x="132" y="286" width="64" height="70" rx="12" fill="#0b0b0b" stroke="#e6e6e6"/>
+    <rect x="804" y="286" width="64" height="70" rx="12" fill="#0b0b0b" stroke="#e6e6e6"/>
+    <!-- body -->
+    <path d="M126 318 C112 262 130 222 176 210 L300 200 L700 200 L824 210 C870 222 888 262 874 318 L872 362 C872 374 864 380 852 380 L148 380 C136 380 128 374 128 362 Z" fill="#101010"/>
+    <!-- roof and glass -->
+    <path d="M318 132 C400 96 600 96 682 132 L724 200 L276 200 Z" fill="#0a0a0a"/>
+    <path d="M346 138 C420 112 580 112 654 138 L690 196 L310 196 Z" fill="#000000" stroke="#e6e6e6"/>
+    <path d="M470 118 L452 194 M530 118 L548 194" stroke="#2c2c2c" stroke-width="2"/>
+    <!-- mirrors -->
+    <path d="M250 206 L292 200 L296 226 L262 232 Z" fill="#0a0a0a"/>
+    <path d="M750 206 L708 200 L704 226 L738 232 Z" fill="#0a0a0a"/>
+    <!-- hood with two power lines -->
+    <path d="M276 200 L724 200 L784 262 L216 262 Z" fill="#1a1a1a"/>
+    <path d="M430 204 L396 258 M570 204 L604 258" stroke="#c8ccce" stroke-width="2"/>
+    <!-- headlights -->
+    <path d="M206 262 L350 270 L336 292 L214 282 Z" fill="#000000" stroke="#ffffff"/>
+    <path d="M794 262 L650 270 L664 292 L786 282 Z" fill="#000000" stroke="#ffffff"/>
+    <path d="M226 272 L330 277" stroke="#ffffff" stroke-width="5"/>
+    <path d="M774 272 L670 277" stroke="#ffffff" stroke-width="5"/>
+    <!-- vertical-bar grille -->
+    <path d="M322 296 L678 296 L656 352 L344 352 Z" fill="#000000"/>
+    <g stroke="#c8ccce" stroke-width="5">
+      <path d="M346 302 L354 346 M370 302 L376 346 M394 302 L398 346 M418 302 L420 346 M442 302 L442 346 M466 302 L465 346 M490 302 L488 346"/>
+      <path d="M510 302 L512 346 M534 302 L535 346 M558 302 L558 346 M582 302 L580 346 M606 302 L602 346 M630 302 L624 346 M654 302 L646 346"/>
+    </g>
+    <!-- badge: circle with a three-pointed star -->
+    <circle cx="500" cy="298" r="23" fill="#101010"/>
+    <path d="M500 280 L500 298 L484 307 M500 298 L516 307" stroke-width="3"/>
+    <!-- lower air intakes -->
+    <path d="M178 326 L306 326 L296 366 L190 366 Z" fill="#000000"/>
+    <path d="M822 326 L694 326 L704 366 L810 366 Z" fill="#000000"/>
+    <path d="M194 340 L300 340 M196 352 L298 352 M806 340 L700 340 M804 352 L702 352" stroke-width="2"/>
+  </g>
+  <!-- silver splitter and ground line -->
+  <path d="M150 372 L850 372" stroke="#e6e6e6" stroke-width="5"/>
+  <path d="M60 388 L940 388" stroke="#c8ccce" stroke-width="2" opacity=".35"/>
+</svg>

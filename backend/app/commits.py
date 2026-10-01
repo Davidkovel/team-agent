@@ -1,21 +1,28 @@
-"""Recent commits of the team's repositories.
+"""Recent commits of the team's repositories, with who / where / how much.
 
 `library/repos.json` lists them: {"name", "github": "owner/repo", "source": "<key in sources.json> | self"}.
-GitHub's API is tried first (GITHUB_TOKEN is needed for private repos); if that fails the local checkout's
-`git log` is used, so the feed still works offline.
+When a local checkout exists we `git fetch` and read `git log --numstat`, which gives the changed files of every
+commit (what teammates pushed included). Without a checkout we fall back to GitHub's API (GITHUB_TOKEN is needed
+for private repos); that one only knows the message and author, not the files.
 """
 import json
+import os
 import subprocess
 import time
 import urllib.request
+from collections import defaultdict
 from pathlib import Path
 
-from .config import settings
 from . import hub
+from .config import settings
 
 CACHE_SECONDS = 60
 FETCH_COUNT = 100
+MAX_FILES = 80
 _cache: dict[str, tuple[float, list[dict]]] = {}
+
+REC, FIELD, BODY_END = "\x1e", "\x1f", "\x1d"
+GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}  # never wait for a password in the background
 
 
 def repos() -> list[dict]:
@@ -40,19 +47,64 @@ def _github(repo: dict, limit: int) -> list[dict]:
     with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=6) as res:
         rows = json.load(res)
     return [{"sha": r["sha"], "author": (r["commit"]["author"] or {}).get("name", "?"), "date": r["commit"]["author"]["date"],
-             "message": r["commit"]["message"].splitlines()[0], "url": r["html_url"], "via": "github"} for r in rows]
+             "message": r["commit"]["message"].splitlines()[0], "body": "", "url": r["html_url"], "via": "github",
+             "files": None, "areas": [], "stats": None} for r in rows]
+
+
+def _areas(files: list[dict]) -> list[dict]:
+    """Groups changed files by their top-level folder: that is the 'where' of a commit."""
+    groups = defaultdict(lambda: {"files": 0, "added": 0, "deleted": 0})
+    for f in files:
+        name = f["path"].split("/", 1)[0] if "/" in f["path"] else "(raiz)"
+        groups[name]["files"] += 1
+        groups[name]["added"] += f["added"]
+        groups[name]["deleted"] += f["deleted"]
+    return sorted(({"name": k, **v} for k, v in groups.items()), key=lambda a: -(a["added"] + a["deleted"]))
+
+
+def _clean_body(body: str) -> str:
+    """Commit body without the Co-Authored-By trailers, which only add noise to the feed."""
+    lines = [l for l in body.strip().splitlines() if not l.lower().startswith("co-authored-by:")]
+    return "\n".join(lines).strip()[:600]
+
+
+def _parse(raw: str, repo: dict) -> list[dict]:
+    base = f"https://github.com/{repo['github']}/commit/" if repo.get("github") else ""
+    out = []
+    for record in raw.split(REC):
+        if not record.strip() or BODY_END not in record:
+            continue
+        head, numstat = record.split(BODY_END, 1)
+        parts = head.split(FIELD)
+        if len(parts) < 5:
+            continue
+        sha, author, date, subject, body = parts[:5]
+        files = []
+        for line in numstat.strip().splitlines():
+            nums = line.split("\t", 2)  # "added<TAB>deleted<TAB>path"; binary files report "-"
+            if len(nums) < 3:
+                continue
+            files.append({"path": nums[2], "added": int(nums[0]) if nums[0].isdigit() else 0,
+                          "deleted": int(nums[1]) if nums[1].isdigit() else 0, "binary": nums[0] == "-"})
+        out.append({"sha": sha.strip(), "author": author, "date": date, "message": subject, "body": _clean_body(body),
+                    "url": base + sha.strip() if base else "", "via": "local",
+                    "files": files[:MAX_FILES], "areas": _areas(files),
+                    "stats": {"files": len(files), "added": sum(f["added"] for f in files), "deleted": sum(f["deleted"] for f in files)}})
+    return out
 
 
 def _local(repo: dict, limit: int) -> list[dict]:
     path = _local_path(repo)
     if not path or not (path / ".git").exists():
         return []
-    out = subprocess.run(["git", "-C", str(path), "log", f"-n{limit}", "--format=%H%x1f%an%x1f%aI%x1f%s"],
-                         capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
-    rows = [line.split("\x1f") for line in out.stdout.splitlines() if line.count("\x1f") == 3]
-    base = f"https://github.com/{repo['github']}/commit/" if repo.get("github") else ""
-    return [{"sha": sha, "author": author, "date": date, "message": message, "url": base + sha if base else "", "via": "local"}
-            for sha, author, date, message in rows]
+    try:  # pick up what teammates pushed; fine if it fails (offline, private repo without saved login)
+        subprocess.run(["git", "-C", str(path), "fetch", "--quiet", "--all"], capture_output=True, timeout=20, env=GIT_ENV)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    fmt = f"{REC}%H{FIELD}%an{FIELD}%aI{FIELD}%s{FIELD}%b{BODY_END}"
+    out = subprocess.run(["git", "-C", str(path), "log", "--all", f"-n{limit}", "--no-renames", "--numstat", f"--format={fmt}"],
+                         capture_output=True, timeout=20, env=GIT_ENV)
+    return _parse(out.stdout.decode("utf-8", errors="replace"), repo)
 
 
 def recent(limit: int = 40) -> list[dict]:
@@ -64,7 +116,7 @@ def recent(limit: int = 40) -> list[dict]:
             commits = hit[1]
         else:
             commits = []
-            for source in (_github, _local):
+            for source in (_local, _github):
                 if source is _github and not repo.get("github"):
                     continue
                 try:

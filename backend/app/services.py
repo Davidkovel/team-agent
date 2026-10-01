@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
@@ -90,3 +91,48 @@ async def save_agent_state(db: AsyncSession, user_id: int, status: str, seen: bo
     if seen:
         state.last_seen = datetime.now(timezone.utc)
     await db.commit()
+
+
+# ---- "online" without an agent: having the Hub or the widget open counts ----
+# Connections only touch the live presence store; the database bookkeeping (last_seen, the "ficou online"/"saiu" lines in
+# the history) is done by one background task, in order (see presence_watcher in main.py). A WebSocket that closes never
+# writes to the database, so nothing is left half-written when it is cancelled.
+SOFT_VIA = ("hub", "widget")  # presence that comes from an open Hub/widget; a live agent heartbeat always wins over it
+SOFT_TTL = 90                 # a Hub tab pings every ~10 s; browsers may slow a background tab to about once a minute
+WIDGET_SEEN: dict[int, float] = {}  # user id -> when this computer's widget last pinged (per process; the TTL covers the rest)
+ONLINE_VIA: dict[int, str] = {}     # how each online person got online: "agent", "hub" or "widget"
+PENDING_ONLINE: set[int] = set()    # became online through the Hub/widget; the watcher still has to write that down
+
+
+def widget_recent(user_id: int, within: float = 40) -> bool:
+    return time.time() - WIDGET_SEEN.get(user_id, 0) < within
+
+
+def dashboard_open(user_id: int) -> bool:
+    return any(c.kind == "dashboard" and c.user_id == user_id for c in rt.connections)
+
+
+async def hub_seen(user_id: int, via: str = "hub") -> bool:
+    """The person's Hub/widget is open, so they are online. Returns True when this made them newly online."""
+    current = await rt.store.get_presence(user_id)
+    if current is not None and current.get("via") not in SOFT_VIA:
+        return False  # the agent's own heartbeat owns the status while it is alive
+    await rt.store.set_presence(user_id, {"status": "ONLINE", "via": via, "task": "", "progress": 0, "last_seen": time.time()}, SOFT_TTL)
+    if current is not None:
+        return False
+    if user_id not in rt.online:
+        ONLINE_VIA[user_id] = via
+        PENDING_ONLINE.add(user_id)
+    await rt.publish("presence", user_id, "team")
+    return True
+
+
+async def hub_gone(user_id: int):
+    """The last Hub window closed: drop the presence now instead of waiting for the TTL (unless the widget still vouches for them)."""
+    if widget_recent(user_id) or dashboard_open(user_id):
+        return
+    current = await rt.store.get_presence(user_id)
+    if current is None or current.get("via") not in SOFT_VIA:
+        return
+    await rt.store.clear_presence(user_id)
+    await rt.publish("presence", user_id, "team")

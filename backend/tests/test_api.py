@@ -112,12 +112,17 @@ def test_agent_cannot_touch_foreign_task(client):
 def test_websocket_visibility(client):
     owner, david = login(client, "owner"), login(client, "david")
     otok, dtok = owner["Authorization"][7:], david["Authorization"][7:]
+    def task_event(ws):  # opening a dashboard also announces "presence" to everyone; that is not what is tested here
+        while (event := ws.receive_json())["type"] == "presence":
+            pass
+        return event
+
     with client.websocket_connect(f"/ws?token={otok}") as ows, client.websocket_connect(f"/ws?token={dtok}") as dws:
         client.post("/api/tasks", headers=owner, json={"title": "private", "assignee": "mark"})
-        assert ows.receive_json()["type"] == "activity"
+        assert task_event(ows)["type"] == "activity"
         client.post("/api/tasks", headers=owner, json={"title": "for david", "assignee": "david"})
         # David's first event must be about himself, not Mark's private task.
-        assert dws.receive_json()["user_id"] != 2
+        assert task_event(dws)["user_id"] != 2
 
 
 def test_team_mode_everyone_sees_all_and_company_work_is_counted(client):

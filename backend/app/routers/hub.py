@@ -64,7 +64,8 @@ async def list_companies(user: User = Depends(current_user)):
 @router.get("/hub/{company_id}/{section_id}")
 async def section_items(company_id: str, section_id: str, user: User = Depends(current_user)):
     _, section = _section_or_404(company_id, section_id)
-    return hub.list_section(company_id, section) | {"kind": section["kind"], "editable": bool(section.get("editable"))}
+    return hub.list_section(company_id, section) | {"kind": section["kind"], "editable": bool(section.get("editable")),
+                                                    "manage": hub.manageable(section)}
 
 
 @router.get("/hub/{company_id}/{section_id}/file")
@@ -103,6 +104,46 @@ async def media(company_id: str, section_id: str, id: str, token: str = Query(..
     if not path:
         raise HTTPException(404, "File not found")
     return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+
+
+class ItemOp(BaseModel):
+    id: str
+    name: str = ""    # rename
+    folder: str = ""  # move ("" = the section's top folder)
+
+
+OPS = {
+    "rename": ("renomeou", lambda s, b: hub.rename_item(s, b.id, b.name)),
+    "move": ("moveu", lambda s, b: hub.move_item(s, b.id, b.folder)),
+    "trash": ("mandou para o lixo", lambda s, b: hub.trash_item(s, b.id)),
+    "restore": ("restaurou do lixo", lambda s, b: hub.restore_item(s, b.id)),
+}
+
+
+@router.get("/hub/{company_id}/{section_id}/trash")
+async def section_trash(company_id: str, section_id: str, user: User = Depends(current_user)):
+    _, section = _section_or_404(company_id, section_id)
+    return {"items": hub.list_trash(section) if hub.manageable(section) else [], "kind": section["kind"]}
+
+
+@router.post("/hub/{company_id}/{section_id}/item/{op}")
+async def manage_item(company_id: str, section_id: str, op: str, body: ItemOp,
+                      user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    company, section = _section_or_404(company_id, section_id)
+    if op not in OPS:
+        raise HTTPException(404, "Unknown action")
+    if not hub.manageable(section):
+        raise HTTPException(403, "Esta secção não é uma galeria.")
+    verb, run = OPS[op]
+    old_name = body.id.split(":", 1)[-1].rsplit("/", 1)[-1]
+    try:
+        new_id = run(section, body)
+    except hub.ManageError as e:
+        raise HTTPException(400, str(e))
+    detail = {"rename": f" para {body.name.strip()}", "move": f" para {body.folder.strip() or 'a pasta principal'}"}.get(op, "")
+    await log_activity(db, user, f"library_{op}", f"{user.display_name} {verb} {old_name}{detail} em {company['name']} › {section['label']}",
+                       company=company["id"])
+    return {"ok": True, "id": new_id}
 
 
 @router.get("/work/{company_id}")
@@ -147,6 +188,7 @@ async def set_meter(service: str, body: MeterBody, user: User = Depends(current_
         db.add(meter)
     meter.pct = body.pct
     await db.commit()
+    await log_activity(db, user, "meter", f"{user.display_name} atualizou o consumo de {service.capitalize()} para {body.pct}%")
     await rt.publish("presence", user.id, "team")
     return {"service": service, "pct": meter.pct}
 

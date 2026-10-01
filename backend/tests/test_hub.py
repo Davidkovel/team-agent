@@ -130,6 +130,10 @@ def test_commit_feed_falls_back_to_local_git(client, library, monkeypatch):
     feed = client.get("/api/commits", headers=mark).json()
     assert feed[0]["repo"] == "Proj" and feed[0]["author"] == "Marco" and feed[0]["message"] == "Primeiro commit"
     assert feed[0]["via"] == "local" and feed[0]["url"].startswith("https://github.com/acme/proj/commit/")
+    # where / how much: the files of the commit, grouped by top-level folder
+    assert feed[0]["stats"]["files"] == 2 and feed[0]["stats"]["added"] >= 1
+    assert {a["name"] for a in feed[0]["areas"]} == {"skills", "videos"}
+    assert any(f["path"] == "skills/boa/SKILL.md" for f in feed[0]["files"])
     assert client.get("/api/commits").status_code == 401
 
 
@@ -143,3 +147,42 @@ def test_only_owner_creates_users(client, library):
     assert client.post("/api/users", json={**body, "username": "bob", "password": "short"}, headers=owner).status_code == 422
     r = client.post("/api/auth/login", json={"username": "ana", "password": "longenough1"})
     assert r.status_code == 200
+
+
+def test_gallery_rename_move_trash_restore_and_stay_inside(client, library):
+    _, owner = login(client, "owner")
+    base = library / "project" / "videos"
+    (base / "a.mp4").write_bytes(b"1")
+    url = "/api/hub/acme/videos"
+
+    def op(action, **body):
+        return client.post(f"{url}/item/{action}", headers=owner, json=body)
+
+    try:
+        assert op("rename", id="0:a.mp4", name="b.mp4").json()["id"] == "0:b.mp4" and (base / "b.mp4").exists()
+        assert op("rename", id="0:b.mp4", name="b.exe").status_code == 400          # keeps its extension
+        assert op("rename", id="0:b.mp4", name="../x.mp4").status_code == 400       # no paths in names
+        assert op("rename", id="0:b.mp4", name="ad.mp4").status_code == 400         # never overwrites
+        moved = op("move", id="0:b.mp4", folder="Verao/2026").json()["id"]
+        assert moved == "0:Verao/2026/b.mp4" and (base / "Verao" / "2026" / "b.mp4").exists()
+        for bad in ("../..", "..", ".lixo", "a/../../x"):
+            assert op("move", id=moved, folder=bad).status_code == 400
+        trashed = op("trash", id=moved).json()["id"]
+        assert (base / ".lixo" / "Verao" / "2026" / "b.mp4").exists() and not (base / "Verao" / "2026" / "b.mp4").exists()
+        assert "b.mp4" not in [i["name"] for i in client.get(url, headers=owner).json()["items"]]
+        assert [i["id"] for i in client.get(f"{url}/trash", headers=owner).json()["items"]] == [trashed]
+        assert op("restore", id=trashed).status_code == 200 and (base / "Verao" / "2026" / "b.mp4").exists()
+        assert op("restore", id="0:ad.mp4").status_code == 400                      # not in the trash
+        assert client.get(url, headers=owner).json()["manage"] is True
+        messages = " ".join(a["message"] for a in client.get("/api/history", headers=owner).json())
+        assert "mandou para o lixo" in messages and "restaurou do lixo" in messages and "renomeou" in messages
+    finally:
+        for f in (base / "a.mp4", base / "b.mp4", base / "Verao" / "2026" / "b.mp4", base / ".lixo" / "Verao" / "2026" / "b.mp4"):
+            f.unlink(missing_ok=True)
+
+
+def test_gallery_actions_only_on_galleries_and_need_login(client, library):
+    _, owner = login(client, "owner")
+    assert client.post("/api/hub/acme/skills/item/trash", headers=owner, json={"id": "0:boa/SKILL.md"}).status_code == 403
+    assert client.post("/api/hub/acme/videos/item/trash", json={"id": "0:ad.mp4"}).status_code == 401
+    assert (library / "project" / "videos" / "ad.mp4").exists()

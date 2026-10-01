@@ -1,4 +1,4 @@
-﻿from .window import COLORS, LOGO, WidgetWindow
+from .window import COLORS, LOGO, WidgetWindow
 
 
 def start_tray(window: WidgetWindow):
@@ -13,7 +13,7 @@ def start_tray(window: WidgetWindow):
         """The logo with a small status-coloured dot in the corner."""
         img = Image.open(LOGO).convert("RGBA").resize((64, 64), Image.LANCZOS)
         draw = ImageDraw.Draw(img)
-        draw.ellipse((38, 38, 62, 62), fill="#121216")
+        draw.ellipse((38, 38, 62, 62), fill="#000000")
         draw.ellipse((42, 42, 58, 58), fill=COLORS.get(status, COLORS["OFFLINE"]))
         return img
 

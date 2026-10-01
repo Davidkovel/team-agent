@@ -15,10 +15,9 @@
   <section id="login" hidden>
     <div class="login-wrap">
       <div class="login-hero">
-        <img class="logo xl" src="logo.svg" alt="">
-        <img class="car" src="assets/amg-car.svg" alt="">
-        <h1>AGENTE <span>AMG</span></h1>
-        <p>A casa da equipa: empresas, skills, vídeos e tudo o que cada um está a fazer, num só sítio.</p>
+        <img class="logo xl" src="logo.png" alt="">
+        <img class="wordmark xl" src="assets/amg-wordmark.png" alt="Agente AMG">
+        <p>Tudo sob controlo. Cada commit, cada ficheiro, cada pessoa. Sempre à vista.</p>
       </div>
       <form id="login-form" class="login-card">
         <h2>Entrar</h2>
@@ -33,18 +32,21 @@
 
   <div id="app" hidden>
     <header class="topbar">
-      <a class="brand" href="#/home"><img class="logo" src="logo.svg" alt=""><span class="brand-text"><b>AGENTE AMG</b><small>a casa da equipa</small></span></a>
+      <a class="brand" href="#/home"><img class="logo" src="logo.png" alt=""><span class="brand-text"><img class="wordmark" src="assets/amg-wordmark.png" alt="Agente AMG"><small>central de comando</small></span></a>
       <nav class="tabs" id="tabs"></nav>
       <div class="right">
         <span id="live" class="pill">a ligar</span>
+        <button id="bell" class="icon-btn bell" title="Notificações" aria-label="Notificações"><svg class="i" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 1112 0v6l2 2H4z"/><path d="M10 21a2 2 0 004 0"/></svg><span id="bell-n" class="bell-n" hidden>0</span></button>
         <span id="whoami" class="who"></span>
         <button id="maximize" class="icon-btn" title="Ecrã inteiro"></button>
         <button id="logout" class="ghost">Sair</button>
       </div>
     </header>
+    <div id="hud" class="hud" aria-label="Estado da equipa"></div>
     <main id="view"></main>
   </div>
 
+  <div id="toasts" class="toasts" aria-live="polite"></div>
   <div id="modal" class="modal" hidden><div class="modal-box" id="modal-box"></div></div>
   <script src="app.js"></script>
 </body>

@@ -2,7 +2,8 @@
 
 Nothing is installed unless you run this yourself:
 
-    python scripts/autostart.py install
+    python scripts/autostart.py install            # agent and widget
+    python scripts/autostart.py install widget     # only the widget (or: agent)
     python scripts/autostart.py remove
 
 Run it with the Python (venv) that has the agent and widget dependencies.
@@ -47,9 +48,12 @@ def content(name: str) -> str:
 
 def main():
     action = sys.argv[1] if len(sys.argv) > 1 else ""
-    if action not in ("install", "remove"):
+    chosen = sys.argv[2:] or list(APPS)  # e.g. `install widget` to leave the agent out
+    if action not in ("install", "remove") or not set(chosen) <= set(APPS):
         sys.exit(__doc__)
     for name, path in targets().items():
+        if name not in chosen:
+            continue
         if action == "install":
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content(name), encoding="utf-8")

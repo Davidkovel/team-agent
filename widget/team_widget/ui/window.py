@@ -1,27 +1,33 @@
 import ctypes
-import math
+import json
 import threading
 import time
 import tkinter as tk
+import urllib.error
+import urllib.request
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
 
-from PIL import Image, ImageDraw, ImageFont, ImageTk
+from PIL import Image, ImageTk
 
 from .. import hub
 from ..api.agent_client import AgentClient
 from ..state.store import StateStore
 
-BG, CARD, CARD2, TEXT, MUTED = "#121216", "#1b1b22", "#2b2b36", "#f0eff7", "#9a97ad"
-PURPLE, PURPLE2 = "#8b5cf6", "#c084fc"
-COLORS = {"WORKING": "#4ade80", "ONLINE": "#4ade80", "IDLE": "#60a5fa", "WAITING": "#fbbf24",
-          "PAUSED": "#fbbf24", "ERROR": "#f87171", "OFFLINE": "#6b6880"}
+BG, CARD, CARD2, TEXT, MUTED = "#000000", "#070707", "#161616", "#e6e6e6", "#8a8a8a"
+ACCENT, ACCENT2 = "#e6e6e6", "#ffffff"
+COLORS = {"WORKING": "#4ade80", "ONLINE": "#4ade80", "IDLE": "#c8ccce", "WAITING": "#fbbf24",
+          "PAUSED": "#fbbf24", "ERROR": "#ff9f1c", "OFFLINE": "#6b6880"}
 LABELS = {"WORKING": "A trabalhar", "ONLINE": "Online", "IDLE": "Livre", "WAITING": "À espera",
           "PAUSED": "Em pausa", "ERROR": "Erro", "OFFLINE": "Agente desligado"}
-WIDTH = 340
-LOGO = Path(__file__).resolve().parents[1] / "assets" / "logo.png"
+WIDTH = 372
+ASSETS = Path(__file__).resolve().parents[1] / "assets"
+LOGO, WORDMARK, CAR = ASSETS / "logo.png", ASSETS / "amg-wordmark.png", ASSETS / "car.png"
 FONT = "Segoe UI"
+MONO = "Consolas"
+FAINT = "#4a4a4a"
 
 
 def elapsed(started_at) -> str:
@@ -32,74 +38,31 @@ def elapsed(started_at) -> str:
 
 
 class Bar(tk.Canvas):
-    """Thin rounded progress bar."""
+    """Flat progress bar (no rounding, no animation)."""
 
-    def __init__(self, parent, bg=CARD, height=10):
+    def __init__(self, parent, bg=CARD, height=6):
         super().__init__(parent, height=height, bg=bg, highlightthickness=0, bd=0)
-        self._pct, self._color = 0, PURPLE
+        self._pct, self._color = 0, ACCENT
         self.bind("<Configure>", lambda e: self._draw())
 
-    def set(self, pct, color=PURPLE):
+    def set(self, pct, color=ACCENT):
         self._pct, self._color = max(0, min(100, pct or 0)), color
         self._draw()
 
     def _draw(self):
         self.delete("all")
         w, h = self.winfo_width(), int(self["height"])
-        r = h // 2
-        if w < 2 * r + 2:
-            return
-        self.create_line(r, r, w - r, r, width=h - 2, capstyle="round", fill=CARD2)
-        end = r + (w - 2 * r) * self._pct / 100
+        self.create_rectangle(0, 0, w, h, fill=CARD2, width=0)
         if self._pct > 0:
-            self.create_line(r, r, max(end, r + 1), r, width=h - 2, capstyle="round", fill=self._color)
-
-
-def _font(px: int):
-    for name in ("segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"):
-        try:
-            return ImageFont.truetype(name, px)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
-class Ring(tk.Label):
-    """Circular percentage meter. Drawn with Pillow at 4x and downsampled, so the arc is smooth."""
-
-    SCALE = 4
-
-    def __init__(self, parent, size, bg=CARD):
-        super().__init__(parent, bg=bg, bd=0)
-        self.size, self.stroke, self._bg, self._key = size, max(6, size // 9), bg, None
-        self.set(None)
-
-    def set(self, pct, color=PURPLE, text=None):
-        key = (pct, color, text)
-        if key == self._key:
-            return
-        self._key = key
-        n, w = self.size * self.SCALE, self.stroke * self.SCALE
-        img = Image.new("RGB", (n, n), self._bg)
-        draw = ImageDraw.Draw(img)
-        box = (self.SCALE, self.SCALE, n - self.SCALE, n - self.SCALE)
-        draw.arc(box, 0, 360, fill=CARD2, width=w)
-        value = max(0, min(100, pct or 0))
-        if value > 0:
-            draw.arc(box, -90, -90 + 360 * value / 100, fill=color, width=w)
-            radius = n / 2 - self.SCALE - w / 2  # centre line of the stroke
-            for angle in (-90, -90 + 360 * value / 100):  # rounded ends
-                x = n / 2 + radius * math.cos(math.radians(angle))
-                y = n / 2 + radius * math.sin(math.radians(angle))
-                draw.ellipse((x - w / 2, y - w / 2, x + w / 2, y + w / 2), fill=color)
-        label = text if text is not None else f"{value}%"
-        draw.text((n / 2, n / 2), label, anchor="mm", fill=TEXT if pct is not None else MUTED, font=_font(int(n * 0.25)))
-        self._image = ImageTk.PhotoImage(img.resize((self.size, self.size), Image.LANCZOS))
-        self.config(image=self._image)
+            self.create_rectangle(0, 0, w * self._pct / 100, h, fill=self._color, width=0)
 
 
 def meter_color(pct):
-    return "#f87171" if pct >= 85 else "#fbbf24" if pct >= 60 else PURPLE
+    return "#ff9f1c" if pct >= 85 else "#fbbf24" if pct >= 60 else ACCENT
+
+
+def clip(text: str, n: int) -> str:
+    return text if len(text) <= n else text[: n - 1] + "…"
 
 
 class WidgetWindow:
@@ -109,6 +72,7 @@ class WidgetWindow:
         self._version = -1
         self._opening_hub = False
         self._hub_result = None
+        self._week, self._week_seen = None, None  # weekly ledger from the Hub on this computer
 
         root = self.root = tk.Tk()
         root.title("Agente AMG")
@@ -117,65 +81,72 @@ class WidgetWindow:
         root.minsize(WIDTH, 120)
         root.bind("<Configure>", self._on_configure)
         root.protocol("WM_DELETE_WINDOW", self.hide)  # closing hides to tray; the agent keeps running
-        self._logo = ImageTk.PhotoImage(Image.open(LOGO).resize((40, 40), Image.LANCZOS))
+        self._logo = ImageTk.PhotoImage(Image.open(LOGO).resize((36, 36), Image.LANCZOS))
         root.iconphoto(True, ImageTk.PhotoImage(Image.open(LOGO).resize((64, 64), Image.LANCZOS)))
         self._dark_titlebar()
 
-        # header: logo, name, status chip
+        # header: logo, wordmark, agent status
         head = tk.Frame(root, bg=BG)
         head.pack(fill="x")
         tk.Label(head, image=self._logo, bg=BG).pack(side="left")
         names = tk.Frame(head, bg=BG)
         names.pack(side="left", padx=10)
-        tk.Label(names, text="AGENTE AMG", bg=BG, fg=TEXT, font=(FONT, 11, "bold")).pack(anchor="w")
-        self.user_label = tk.Label(names, text="", bg=BG, fg=MUTED, font=(FONT, 9))
+        mark = Image.open(WORDMARK)
+        self._wordmark = ImageTk.PhotoImage(mark.resize((round(mark.width * 11 / mark.height), 11), Image.LANCZOS))
+        tk.Label(names, image=self._wordmark, bg=BG).pack(anchor="w")
+        self.user_label = tk.Label(names, text="CENTRAL DE COMANDO", bg=BG, fg=MUTED, font=(MONO, 8))
         self.user_label.pack(anchor="w")
-        self.chip = tk.Label(head, text="", bg=CARD, fg=MUTED, font=(FONT, 9, "bold"), padx=10, pady=4)
+        self.chip = tk.Label(head, text="", bg=CARD, fg=MUTED, font=(MONO, 8, "bold"), padx=8, pady=3)
         self.chip.pack(side="right")
 
+        self._car = ImageTk.PhotoImage(Image.open(CAR))
+        self.car_label = tk.Label(root, image=self._car, bg=BG, bd=0)
+        self.car_label.pack(pady=(2, 0))
         self.alert = tk.Label(root, text="", bg=BG, fg=COLORS["WAITING"], font=(FONT, 9), anchor="w", justify="left", wraplength=WIDTH - 28)
-        self.alert.pack(fill="x", pady=(8, 0))
 
-        # task card
-        task = self._card()
-        self.ring = Ring(task, 88)
-        self.ring.pack(side="left", padx=(0, 14))
-        info = tk.Frame(task, bg=CARD)
-        info.pack(side="left", fill="both", expand=True)
-        self._caption(info, "TAREFA")
-        self.task = tk.Label(info, text="", bg=CARD, fg=TEXT, font=(FONT, 11, "bold"), anchor="w", justify="left", wraplength=WIDTH - 162)
-        self.task.pack(fill="x", pady=(2, 4))
-        self.details = tk.Label(info, text="", bg=CARD, fg=MUTED, font=(FONT, 9), anchor="w", justify="left", wraplength=WIDTH - 162)
-        self.details.pack(fill="x")
+        # the weekly ledger
+        self.ledger = self._card(pady=(6, 0))
+        top = tk.Frame(self.ledger, bg=CARD)
+        top.pack(fill="x")
+        self.ledger_title = tk.Label(top, text="RELATÓRIO SEMANAL", bg=CARD, fg=TEXT, font=(MONO, 9, "bold"), anchor="w")
+        self.ledger_title.pack(side="left")
+        self.demo_tag = tk.Label(top, text="EXEMPLO", bg=CARD, fg=MUTED, font=(MONO, 7, "bold"), padx=4,
+                                 highlightthickness=1, highlightbackground=FAINT)
+        self.table = tk.Frame(self.ledger, bg=CARD)
+        self.table.pack(fill="x", pady=(6, 0))
+        tk.Frame(self.ledger, bg=FAINT, height=1).pack(fill="x", pady=(8, 6))
+        tk.Label(self.ledger, text="ÚLTIMOS MOVIMENTOS", bg=CARD, fg=MUTED, font=(MONO, 8, "bold"), anchor="w").pack(fill="x")
+        self.feed = tk.Frame(self.ledger, bg=CARD)
+        self.feed.pack(fill="x", pady=(3, 0))
 
-        # what the agent did (kept by the agent across restarts)
-        done = self._card()
-        self._caption(done, "O QUE FOI FEITO")
-        self.history = tk.Frame(done, bg=CARD)
-        self.history.pack(fill="x", pady=(4, 0))
+        # the agent's current task, only while there is one
+        self.task_card = self._card(pack=False)
+        row = tk.Frame(self.task_card, bg=CARD)
+        row.pack(fill="x")
+        tk.Label(row, text="TAREFA", bg=CARD, fg=MUTED, font=(MONO, 8, "bold")).pack(side="left")
+        self.progress_text = tk.Label(row, text="", bg=CARD, fg=TEXT, font=(MONO, 9, "bold"))
+        self.progress_text.pack(side="right")
+        self.task = tk.Label(self.task_card, text="", bg=CARD, fg=TEXT, font=(FONT, 10, "bold"), anchor="w", justify="left", wraplength=WIDTH - 54)
+        self.task.pack(fill="x", pady=(3, 4))
+        self.bar = Bar(self.task_card)
+        self.bar.pack(fill="x")
+        self.details = tk.Label(self.task_card, text="", bg=CARD, fg=MUTED, font=(MONO, 8), anchor="w", justify="left", wraplength=WIDTH - 54)
+        self.details.pack(fill="x", pady=(4, 0))
 
-        # usage card: one ring per service
-        use = self._card()
-        self._caption(use, "ESTA SEMANA")
-        meters = tk.Frame(use, bg=CARD)
-        meters.pack(fill="x", pady=(8, 0))
-        self.week_ring, self.week_label = self._ring_meter(meters, 0, "Claude")
-        self.higgs_ring, self.higgs_label = self._ring_meter(meters, 1, "Higgsfield")
+        # usage, only when the agent reports it
+        self.use_card = self._card(pack=False)
+        tk.Label(self.use_card, text="CONSUMO DA SEMANA", bg=CARD, fg=MUTED, font=(MONO, 8, "bold"), anchor="w").pack(fill="x")
+        self.week_label, self.week_bar = self._meter_row(self.use_card)
+        self.higgs_label, self.higgs_bar = self._meter_row(self.use_card)
 
-        # team
-        team = self._card()
-        self._caption(team, "EQUIPA")
-        self.team = tk.Frame(team, bg=CARD)
-        self.team.pack(fill="x")
-
-        # buttons
-        self.open_hub = tk.Button(root, text="Abrir o Hub", command=self._open_hub, bg=PURPLE, fg="white", relief="flat",
-                                  activebackground=PURPLE2, activeforeground="white", font=(FONT, 10, "bold"), cursor="hand2")
-        self.open_hub.pack(fill="x", pady=(10, 0), ipady=5)
+        self.open_hub = tk.Button(root, text="ABRIR O HUB", command=self._open_hub, bg=ACCENT, fg="black", relief="flat",
+                                  activebackground=ACCENT2, activeforeground="black", font=(MONO, 10, "bold"), cursor="hand2")
+        self.open_hub.pack(side="bottom", fill="x", pady=(10, 0), ipady=5)
 
         root.update_idletasks()
         x = root.winfo_screenwidth() - WIDTH - 24
         root.geometry(f"{WIDTH}x{root.winfo_reqheight()}+{x}+60")
+        threading.Thread(target=self._poll_week, daemon=True).start()
         self._tick()
 
     # ------------------------------------------------------------ building blocks
@@ -189,24 +160,87 @@ class WidgetWindow:
         except Exception:
             pass
 
-    def _card(self):
-        card = tk.Frame(self.root, bg=CARD, padx=12, pady=10)
-        card.pack(fill="x", pady=(10, 0))
+    def _card(self, pady=(8, 0), pack=True):
+        card = tk.Frame(self.root, bg=CARD, padx=12, pady=10, highlightthickness=1, highlightbackground=CARD2)
+        if pack:
+            card.pack(fill="x", pady=pady)
         return card
 
-    def _caption(self, parent, text):
-        tk.Label(parent, text=text, bg=CARD, fg=MUTED, font=(FONT, 8, "bold"), anchor="w").pack(fill="x")
+    def _meter_row(self, parent):
+        label = tk.Label(parent, text="", bg=CARD, fg=TEXT, font=(MONO, 9), anchor="w")
+        label.pack(fill="x", pady=(6, 2))
+        bar = Bar(parent)
+        bar.pack(fill="x")
+        return label, bar
 
-    def _ring_meter(self, parent, col, title):
-        cell = tk.Frame(parent, bg=CARD)
-        cell.grid(row=0, column=col, sticky="nsew")
-        parent.grid_columnconfigure(col, weight=1, uniform="meters")
-        ring = Ring(cell, 68)
-        ring.pack()
-        tk.Label(cell, text=title, bg=CARD, fg=TEXT, font=(FONT, 9, "bold")).pack(pady=(6, 0))
-        hint = tk.Label(cell, text="", bg=CARD, fg=MUTED, font=(FONT, 8), wraplength=(WIDTH - 60) // 2, justify="center")
-        hint.pack()
-        return ring, hint
+    # ------------------------------------------------------------ weekly ledger (from the Hub on this computer)
+
+    def _poll_week(self):
+        """Keeps the ledger fresh. Starts the local Hub server if it is not running, so the widget never shows an empty table."""
+        while True:
+            url = hub.hub_url()
+            try:
+                if not hub.is_up(url) and hub.is_local(url):
+                    hub.start_local_server(url)
+                with urllib.request.urlopen(url + "/api/local/week", timeout=5) as res:
+                    self._week = json.load(res)
+            except (OSError, ValueError, urllib.error.URLError):
+                pass
+            time.sleep(15)
+
+    def _render_week(self, w: dict):
+        for child in self.table.winfo_children():
+            child.destroy()
+        self.ledger_title["text"] = f"RELATÓRIO SEMANAL  ·  SEM {w['week']}"
+        if w.get("demo"):
+            self.demo_tag.pack(side="right")
+        else:
+            self.demo_tag.pack_forget()
+
+        def put(r, c, text, fg=TEXT, bold=False, anchor="e", sticky="e"):
+            tk.Label(self.table, text=text, bg=CARD, fg=fg, font=(MONO, 9, "bold" if bold else "normal"), anchor=anchor).grid(
+                row=r, column=c, sticky=sticky, padx=1)
+
+        put(0, 0, "AGENTE", MUTED, True, "w", "w")
+        for i, d in enumerate(w["days"]):
+            put(0, 1 + i, d[0].upper(), TEXT if i == w["today"] else MUTED, i == w["today"], "center", "ew")
+        for c, title in enumerate(("ENT", "CMT", "OK", "PEN")):
+            put(0, 8 + c, title, MUTED, True)
+        totals = [0, 0, 0, 0]
+        for r, p in enumerate(w["people"], start=1):
+            put(r, 0, clip(p["name"].upper(), 8), TEXT if p["status"] == "ativo" else FAINT, True, "w", "w")
+            for i, on in enumerate(p["days"]):
+                future = i > w["today"]
+                put(r, 1 + i, "·" if future else "■" if on else "□", "#333333" if future else TEXT if on else "#555555", False, "center", "ew")
+            for c, (key, val) in enumerate((("logins", p["logins"]), ("commits", p["commits"]),
+                                            ("tasks_done", p["tasks_done"]), ("tasks_open", p["tasks_open"]))):
+                totals[c] += val
+                owes = key == "tasks_open" and bool(val)
+                put(r, 8 + c, str(val), "#ff9f1c" if owes else FAINT if not val else TEXT, owes)
+        last = len(w["people"]) + 1
+        tk.Frame(self.table, bg=FAINT, height=1).grid(row=last, column=0, columnspan=12, sticky="ew", pady=(4, 2))
+        put(last + 1, 0, "TOTAL", TEXT, True, "w", "w")
+        for c, val in enumerate(totals):
+            put(last + 1, 8 + c, str(val), TEXT, True)
+
+        for child in self.feed.winfo_children():
+            child.destroy()
+        feed = w.get("feed", [])[:5]
+        for f in feed:
+            when = datetime.fromisoformat(f["when"]).astimezone().strftime("%d/%m %H:%M")
+            row = tk.Frame(self.feed, bg=CARD)
+            row.pack(fill="x")
+            tk.Label(row, text=when, bg=CARD, fg=FAINT, font=(MONO, 8)).pack(side="left")
+            tk.Label(row, text=clip(f["who"].upper(), 8), bg=CARD, fg=TEXT, font=(MONO, 8, "bold"), width=8, anchor="w").pack(side="left", padx=(6, 0))
+            tk.Label(row, text=clip(f["text"], 24), bg=CARD, fg=MUTED, font=(MONO, 8), anchor="w").pack(side="left")
+        if not feed:
+            tk.Label(self.feed, text="Sem movimentos esta semana.", bg=CARD, fg=MUTED, font=(MONO, 8)).pack(anchor="w")
+        self._fit()
+
+    def _fit(self):
+        if self.root.state() == "normal" and self.root.winfo_width() in (1, WIDTH):  # don't fight a manual resize
+            self.root.update_idletasks()
+            self.root.geometry(f"{WIDTH}x{self.root.winfo_reqheight()}")
 
     # ------------------------------------------------------------ actions
 
@@ -226,17 +260,17 @@ class WidgetWindow:
         if self._opening_hub:
             return
         self._opening_hub = True
-        self.open_hub.config(text="A abrir…", state="disabled")
+        self.open_hub.config(text="A ABRIR…", state="disabled")
 
         def work():
-            self._hub_result = (hub.maximize(self.client.hub_session()),)  # opens already signed in  # picked up by _tick; Tk is not thread-safe
+            self._hub_result = (hub.maximize(self.client.hub_session()),)  # opens already signed in; read by _tick (Tk is not thread-safe)
 
         self._hub_result = None
         threading.Thread(target=work, daemon=True).start()  # starting the server can take a few seconds
 
     def _hub_opened(self, error):
         self._opening_hub = False
-        self.open_hub.config(text="Abrir o Hub", state="normal")
+        self.open_hub.config(text="ABRIR O HUB", state="normal")
         if error:
             messagebox.showerror("Hub", error, parent=self.root)
 
@@ -254,6 +288,10 @@ class WidgetWindow:
         if self._hub_result is not None:
             (error,), self._hub_result = self._hub_result, None
             self._hub_opened(error)
+        week = self._week
+        if week is not None and week is not self._week_seen:
+            self._week_seen = week
+            self._render_week(week)
         state = self.store.get()
         if self.store.version != self._version:
             self._version = self.store.version
@@ -263,25 +301,23 @@ class WidgetWindow:
         self.root.after(500, self._tick)
 
     def _details(self, state: dict) -> str:
-        lines = [f"{label}: {state[key]}" for key, label in (("current_action", "Agora"), ("next_action", "A seguir")) if state.get(key)]
+        lines = [f"{label}: {state[key]}" for key, label in (("current_action", "agora"), ("next_action", "a seguir")) if state.get(key)]
         if state.get("started_at"):
-            lines.append(f"Há {elapsed(state['started_at'])}")
+            lines.append(f"há {elapsed(state['started_at'])}")
         return "\n".join(lines)
 
     @staticmethod
-    def _meter(ring, label, pct, hint):
-        label["text"] = hint
-        if pct is None:
-            ring.set(None, text="—")
-        else:
-            ring.set(pct, meter_color(pct))
+    def _meter(label, bar, title, pct, hint):
+        value = "—" if pct is None else f"{pct}%"
+        label["text"] = f"{title:<11}{value:>5}   {hint}"
+        bar.set(pct, meter_color(pct or 0))
 
     def _render(self, state: dict):
         status = state.get("status", "OFFLINE")
         self.on_status(status)
-        name = state.get("display_name") or "Agente AMG"
-        self.user_label["text"] = name if state.get("display_name") else "sem ligação"
-        self.chip.config(text=f"●  {LABELS.get(status, status)}", fg=COLORS.get(status, MUTED))
+        self.chip.config(text=f"●  {LABELS.get(status, status).upper()}", fg=COLORS.get(status, MUTED))
+        name = state.get("display_name")
+        self.user_label["text"] = f"{name.upper()}  ·  CENTRAL DE COMANDO" if name else "CENTRAL DE COMANDO"
 
         if status == "OFFLINE":
             alert = ""
@@ -294,50 +330,30 @@ class WidgetWindow:
         else:
             notes = state.get("notifications") or []
             alert = notes[-1]["message"] if notes else ""
-        self.alert.config(text=alert, fg=COLORS["ERROR"] if state.get("error") else COLORS["WAITING"])
-
-        progress = state.get("progress") or 0
-        self.task["text"] = state.get("task") or ("Liga o agente para receber tarefas" if status == "OFFLINE" else "Sem tarefa agora")
-        self.task["fg"] = TEXT if state.get("task") else MUTED
-        if state.get("task"):
-            self.ring.set(progress, COLORS["WORKING"] if progress >= 100 else PURPLE)
+        if alert:
+            self.alert.config(text=alert, fg=COLORS["ERROR"] if state.get("error") else COLORS["WAITING"])
+            self.alert.pack(fill="x", pady=(6, 0), before=self.ledger)
         else:
-            self.ring.set(None, text="—")
-        self.details["text"] = self._details(state)
+            self.alert.pack_forget()
+
+        if state.get("task"):
+            progress = state.get("progress") or 0
+            self.task["text"] = state["task"]
+            self.progress_text["text"] = f"{progress}%"
+            self.bar.set(progress, COLORS["WORKING"] if progress >= 100 else ACCENT)
+            self.details["text"] = self._details(state)
+            self.task_card.pack(fill="x", pady=(8, 0), before=self.open_hub)
+        else:
+            self.task_card.pack_forget()
 
         me = state.get("user")
         mine = next((m for m in state.get("team") or [] if m["user"] == me), {})
-        spent = mine.get("week_cost_usd") or 0
-        self._meter(self.week_ring, self.week_label, mine.get("week_pct") if spent else None,
-                    f"${spent:.2f} de ${mine.get('week_budget_usd', 0):.0f}" if spent else "ainda sem uso" if mine else "liga o agente")
-
-        for child in self.history.winfo_children():
-            child.destroy()
-        entries = (state.get("history") or [])[-5:][::-1]
-        if not entries:
-            tk.Label(self.history, text="Ainda nada. O que o agente fizer aparece aqui.", bg=CARD, fg=MUTED, font=(FONT, 9),
-                     anchor="w", justify="left", wraplength=WIDTH - 60).pack(fill="x")
-        for entry in entries:
-            row = tk.Frame(self.history, bg=CARD)
-            row.pack(fill="x", pady=1)
-            tk.Label(row, text=time.strftime("%H:%M", time.localtime(entry["time"])), bg=CARD, fg=MUTED, font=(FONT, 8)).pack(side="left", anchor="n", pady=(1, 0))
-            tk.Label(row, text=entry["text"], bg=CARD, fg=TEXT, font=(FONT, 9), anchor="w", justify="left",
-                     wraplength=WIDTH - 100).pack(side="left", padx=(8, 0), fill="x")
-        self._meter(self.higgs_ring, self.higgs_label, mine.get("higgsfield_pct"),
-                    "créditos usados" if mine.get("higgsfield_pct") is not None else "define no Hub")
-
-        for child in self.team.winfo_children():
-            child.destroy()
-        others = [m for m in state.get("team") or [] if m["user"] != me]
-        if not others:
-            tk.Label(self.team, text="—", bg=CARD, fg=MUTED, font=(FONT, 9)).pack(anchor="w")
-        for m in others:
-            row = tk.Frame(self.team, bg=CARD)
-            row.pack(fill="x", pady=1)
-            tk.Label(row, text="●", bg=CARD, fg=COLORS.get(m["status"], MUTED), font=(FONT, 9)).pack(side="left")
-            tk.Label(row, text=m["display_name"], bg=CARD, fg=TEXT, font=(FONT, 9, "bold")).pack(side="left", padx=(6, 8))
-            detail = f"{m['task']}  {m['progress']}%" if m.get("task") else LABELS.get(m["status"], m["status"])
-            tk.Label(row, text=detail, bg=CARD, fg=MUTED, font=(FONT, 9), anchor="w").pack(side="left", fill="x")
-
-        if self.root.state() == "normal" and self.root.winfo_width() in (1, WIDTH):  # don't fight a manual resize
-            self.root.geometry(f"{WIDTH}x{self.root.winfo_reqheight()}")
+        if mine:
+            spent = mine.get("week_cost_usd") or 0
+            self._meter(self.week_label, self.week_bar, "CLAUDE", mine.get("week_pct") if spent else None,
+                        f"${spent:.2f}/${mine.get('week_budget_usd', 0):.0f}")
+            self._meter(self.higgs_label, self.higgs_bar, "HIGGSFIELD", mine.get("higgsfield_pct"), "créditos")
+            self.use_card.pack(fill="x", pady=(8, 0), before=self.open_hub)
+        else:
+            self.use_card.pack_forget()
+        self._fit()

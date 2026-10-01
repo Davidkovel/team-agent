@@ -13,7 +13,7 @@ from ..db import get_db
 from ..models import UNFINISHED, Approval, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
 from ..security import agent_user, make_jwt
-from ..services import approval_out, event_out, log_activity, save_agent_state, task_out, team_view
+from ..services import ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, approval_out, event_out, log_activity, save_agent_state, task_out, team_view
 
 router = APIRouter(prefix="/api/agent")
 
@@ -91,12 +91,15 @@ async def session(user: User = Depends(agent_user)):
 
 @router.post("/heartbeat")
 async def heartbeat(body: Heartbeat, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
-    was_online = await rt.store.get_presence(user.id) is not None
+    before = await rt.store.get_presence(user.id)
+    was_online = before is not None and before.get("via") not in SOFT_VIA  # an open Hub/widget is not the agent
     await rt.store.set_presence(user.id, {**body.model_dump(), "last_seen": time.time()}, settings.heartbeat_timeout)
     await save_agent_state(db, user.id, body.status)
     rt.online.add(user.id)
+    ONLINE_VIA[user.id] = "agent"
+    PENDING_ONLINE.discard(user.id)
     if not was_online:
-        await log_activity(db, user, "agent_online", f"{user.display_name}'s agent is online")
+        await log_activity(db, user, "agent_online", f"{user.display_name} ligou o agente")
     await rt.publish("presence", user.id, "team")
     return {"commands": await rt.store.pop_commands(user.id), "team": await team_view(db, user)}
 
@@ -150,7 +153,7 @@ async def add_event(task_id: int, body: EventIn, user: User = Depends(agent_user
     db.add(TaskEvent(task_id=task.id, **body.model_dump()))
     await db.commit()
     if body.kind == "error":
-        await log_activity(db, user, "task_error", f"TASK-{task.id} error: {body.message}", task.id)
+        await log_activity(db, user, "task_error", f"erro na tarefa {task.title}: {body.message}", task.id)
     await rt.publish("task", user.id)
     return {"ok": True}
 
@@ -164,7 +167,7 @@ async def request_approval(body: ApprovalIn, user: User = Depends(agent_user), d
     await db.commit()
     await db.refresh(approval)
     await log_activity(db, user, "approval_requested",
-                       f"{user.display_name}'s agent is waiting for approval: {body.action}", body.task_id)
+                       f"{user.display_name} espera aprovação: {body.action}", body.task_id)
     await rt.publish("approval", user.id)
     return approval_out(approval)
 
@@ -193,5 +196,5 @@ async def request_help(body: HelpIn, user: User = Depends(agent_user), db: Async
         task = await own_task(body.task_id, user, db)
         db.add(TaskEvent(task_id=task.id, kind="note", message=f"Help requested: {body.message}"))
         await db.commit()
-    await log_activity(db, user, "help_requested", f"{user.display_name} needs help: {body.message}", body.task_id)
+    await log_activity(db, user, "help_requested", f"{user.display_name} pede ajuda: {body.message}", body.task_id)
     return {"ok": True}

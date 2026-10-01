@@ -51,5 +51,5 @@ async def issue_agent_token(username: str, user: User = Depends(current_user), d
         raise HTTPException(404, "User not found")
     raw, target.agent_token_hash = new_agent_token()
     await db.commit()
-    await log_activity(db, target, "agent_token", f"Agent token issued for {target.display_name}")
+    await log_activity(db, user, "agent_token", f"{user.display_name} gerou o token do agente de {target.display_name}")
     return {"agent_token": raw}

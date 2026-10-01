@@ -1,0 +1,60 @@
+"""Endpoints for the desktop widget running on the same computer as the server.
+
+The widget has no login, so these only answer requests that come from this machine (like /api/local/week).
+Anyone on the network must use the normal, token-protected endpoints instead.
+"""
+import time
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..db import get_db
+from ..models import User
+from ..realtime import rt
+from ..services import WIDGET_SEEN, hub_seen
+
+router = APIRouter(prefix="/api/local")
+
+LOCAL_HOSTS = ("127.0.0.1", "::1", "localhost")
+
+
+def only_local(request: Request):
+    if (request.client.host if request.client else "") not in LOCAL_HOSTS:
+        raise HTTPException(403, "Only available from the server computer")
+
+
+class WidgetPing(BaseModel):
+    user: str  # login (owner/mark/david) or the name people see (Kovel/Marco/David)
+
+
+@router.get("/team")
+async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
+    """Who is online right now, for the widget's icons. Works with no agent and no login."""
+    only_local(request)
+    out = []
+    for u in (await db.execute(select(User).order_by(User.id))).scalars():
+        presence = await rt.store.get_presence(u.id)
+        out.append({"user": u.username, "name": u.display_name, "online": presence is not None,
+                    "status": presence["status"] if presence else "OFFLINE",
+                    "task": presence.get("task", "") if presence else "",
+                    "via": (presence.get("via") or "agent") if presence else None})
+    return out
+
+
+@router.post("/presence")
+async def local_presence(body: WidgetPing, request: Request, db: AsyncSession = Depends(get_db),
+                         x_team_widget: str | None = Header(None)):
+    """The widget on this computer says "this person is here". The custom header keeps web pages from calling it."""
+    only_local(request)
+    if x_team_widget != "1":
+        raise HTTPException(403, "Widget only")
+    wanted = body.user.strip().lower()
+    users = (await db.execute(select(User))).scalars().all()
+    user = next((u for u in users if wanted in (u.username.lower(), u.display_name.lower())), None)
+    if not user:
+        raise HTTPException(404, "Unknown user")
+    WIDGET_SEEN[user.id] = time.time()
+    await hub_seen(user.id, "widget")
+    return {"ok": True, "name": user.display_name}

@@ -38,6 +38,9 @@ class MemoryStore:
         entry = self._presence.get(user_id)
         return entry[1] if entry and entry[0] > time.time() else None
 
+    async def clear_presence(self, user_id: int):
+        self._presence.pop(user_id, None)
+
     async def push_command(self, user_id: int, command: dict):
         self._commands[user_id].append(command)
 
@@ -77,6 +80,9 @@ class RedisStore:
     async def get_presence(self, user_id: int) -> dict | None:
         raw = await self._redis.get(f"presence:{user_id}")
         return json.loads(raw) if raw else None
+
+    async def clear_presence(self, user_id: int):
+        await self._redis.delete(f"presence:{user_id}")
 
     async def push_command(self, user_id: int, command: dict):
         await self._redis.rpush(f"commands:{user_id}", json.dumps(command))

@@ -70,8 +70,9 @@ async def decide(approval_id: int, body: Decision, owner: User = Depends(require
     approval.decided_by = owner.id
     approval.decided_at = datetime.now(timezone.utc)
     await db.commit()
-    await log_activity(db, approval.user, "approval_decided",
-                       f"{owner.display_name} {approval.status.lower()}: {approval.action}", approval.task_id)
+    verb = "aprovou" if approval.status == "APPROVED" else "recusou"
+    await log_activity(db, owner, "approval_decided",
+                       f"{owner.display_name} {verb} o pedido de {approval.user.display_name}: {approval.action}", approval.task_id)
     await rt.publish("approval", approval.user_id)
     await rt.command(approval.user_id, {"type": "approval", "approval_id": approval.id, "status": approval.status})
     return approval_out(approval)

@@ -50,17 +50,29 @@ async def log_activity(db: AsyncSession, user: User, kind: str, message: str, ta
     await rt.publish("activity", user.id)
 
 
-async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
-    """Owner and the agent's own user see full state; teammates see the
-    permitted Team information only: status, task title, progress."""
-    users = (await db.execute(select(User).order_by(User.id))).scalars().all()
-    states = {s.user_id: s for s in (await db.execute(select(AgentState))).scalars()}
+async def usage_numbers(db: AsyncSession) -> tuple[dict, dict, float]:
+    """Claude spend of the last 7 days per user, the service meters (Higgsfield credits), and the weekly budget."""
     since = datetime.now(timezone.utc) - timedelta(days=7)
     week_cost = dict((await db.execute(
         select(UsageRecord.user_id, func.sum(UsageRecord.cost_usd)).where(UsageRecord.created_at >= since)
         .group_by(UsageRecord.user_id))).all())
     meters = {(m.user_id, m.service): m.pct for m in (await db.execute(select(Meter))).scalars()}
-    budget = settings.weekly_budget_usd
+    return week_cost, meters, settings.weekly_budget_usd
+
+
+def usage_fields(user_id: int, week_cost: dict, meters: dict, budget: float) -> dict:
+    cost = week_cost.get(user_id) or 0
+    return {"week_cost_usd": round(cost, 2), "week_budget_usd": budget,
+            "week_pct": min(100, round(cost / budget * 100)) if budget else None,
+            "higgsfield_pct": meters.get((user_id, "higgsfield"))}
+
+
+async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
+    """Owner and the agent's own user see full state; teammates see the
+    permitted Team information only: status, task title, progress."""
+    users = (await db.execute(select(User).order_by(User.id))).scalars().all()
+    states = {s.user_id: s for s in (await db.execute(select(AgentState))).scalars()}
+    week_cost, meters, budget = await usage_numbers(db)
     out = []
     for u in users:
         presence = await rt.store.get_presence(u.id)
@@ -71,9 +83,7 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
             "task": presence.get("task", "") if presence else "",
             "progress": presence.get("progress", 0) if presence else 0,
             "last_seen": iso(saved.last_seen) if saved else None,
-            "week_cost_usd": round(week_cost.get(u.id) or 0, 2), "week_budget_usd": budget,
-            "week_pct": min(100, round((week_cost.get(u.id) or 0) / budget * 100)) if budget else None,
-            "higgsfield_pct": meters.get((u.id, "higgsfield")),
+            **usage_fields(u.id, week_cost, meters, budget),
         }
         if presence and (sees_all(viewer) or viewer.id == u.id):
             for key in ("task_id", "current_action", "last_action", "next_action", "error", "usage", "started_at"):

@@ -430,6 +430,13 @@ class WidgetWindow(QWidget):
         self.people_row.setSpacing(16)
         col.addWidget(self.people)
 
+        # credits: Claude and Higgsfield, always there (a dash until the Hub has numbers)
+        self.use_card = Card()
+        self.use_card.box.addWidget(caption("CRÉDITOS DA SEMANA"))
+        self.week_meter = self._meter_row(self.use_card)
+        self.higgs_meter = self._meter_row(self.use_card)
+        col.addWidget(self.use_card)
+
         self.alert = Card(COLORS["WAITING"])
         self.alert_text = label("", 9, COLORS["WAITING"], wrap=True)
         self.alert.box.addWidget(self.alert_text)
@@ -461,14 +468,6 @@ class WidgetWindow(QWidget):
         self.task_card.box.addWidget(self.details)
         self.task_card.hide()
         col.addWidget(self.task_card)
-
-        # usage, only when the agent reports it
-        self.use_card = Card()
-        self.use_card.box.addWidget(caption("CONSUMO DA SEMANA"))
-        self.week_meter = self._meter_row(self.use_card)
-        self.higgs_meter = self._meter_row(self.use_card)
-        self.use_card.hide()
-        col.addWidget(self.use_card)
 
         col.addSpacing(2)
         self.open_hub = PrimaryButton("ABRIR O HUB")
@@ -723,6 +722,7 @@ class WidgetWindow(QWidget):
         if team is not self._team_seen:
             if team != self._team_seen:
                 self._render_people(team)
+                self._render_usage()
             self._team_seen = team
         week = self._week
         if week is not None and week is not self._week_seen:
@@ -790,13 +790,15 @@ class WidgetWindow(QWidget):
         else:
             self.task_card.hide()
 
-        me = state.get("user")
-        mine = next((m for m in state.get("team") or [] if m["user"] == me), {})
-        if mine:
-            spent = mine.get("week_cost_usd") or 0
-            self._meter(self.week_meter, "Claude", mine.get("week_pct") if spent else None,
-                        f"${spent:.2f} / ${mine.get('week_budget_usd', 0):.0f}")
-            self._meter(self.higgs_meter, "Higgsfield", mine.get("higgsfield_pct"), "créditos")
-            self.use_card.show()
-        else:
-            self.use_card.hide()
+        self._render_usage(state)
+
+    def _render_usage(self, state: dict | None = None):
+        """Claude and Higgsfield credits of whoever sits here: from the Hub's team list, else from the agent's own report."""
+        state = state or self.store.get()
+        hub_team = self._team or []
+        who = self._identity(hub_team) or state.get("user")
+        mine = next((m for m in hub_team if m.get("user") == who and "week_cost_usd" in m), None)             or next((m for m in state.get("team") or [] if m.get("user") == who), {})
+        spent = mine.get("week_cost_usd") or 0
+        self._meter(self.week_meter, "Claude", mine.get("week_pct") if spent else None,
+                    f"${spent:.2f} / ${mine.get('week_budget_usd', 0):.0f}" if mine else "sem dados")
+        self._meter(self.higgs_meter, "Higgsfield", mine.get("higgsfield_pct"), "créditos")

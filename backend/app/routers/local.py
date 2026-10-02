@@ -16,7 +16,7 @@ from ..config import settings
 from ..db import get_db
 from ..models import User
 from ..realtime import rt
-from ..services import WIDGET_SEEN, hub_seen
+from ..services import WIDGET_SEEN, hub_seen, usage_fields, usage_numbers
 
 router = APIRouter(prefix="/api/local")
 
@@ -54,12 +54,14 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
     """Who is online right now, for the widget's icons. Works with no agent and no login."""
     local_or_team_key(request)
     out = []
+    week_cost, meters, budget = await usage_numbers(db)
     for u in (await db.execute(select(User).order_by(User.id))).scalars():
         presence = await rt.store.get_presence(u.id)
         out.append({"user": u.username, "name": u.display_name, "online": presence is not None,
                     "status": presence["status"] if presence else "OFFLINE",
                     "task": presence.get("task", "") if presence else "",
-                    "via": (presence.get("via") or "agent") if presence else None})
+                    "via": (presence.get("via") or "agent") if presence else None,
+                    **usage_fields(u.id, week_cost, meters, budget)})
     return out
 
 

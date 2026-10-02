@@ -5,8 +5,15 @@ Read this after a `git clone` or `git pull`. The goal on every PC is the same: t
 ## The team setup
 
 - Three people: `owner` (shown as Kovel), `mark` (Marco), `david` (David). Windows PCs, all in the same **Radmin VPN** network.
-- **Host = Kovel's PC**, Radmin IP `26.68.80.191`. The Hub (backend, port 8000) lives only there. Marco's Radmin IP is `26.244.76.112`.
+- **Host = Kovel's PC**, Radmin IP `26.68.80.191`. The Hub (backend, port 8000) lives only there. Radmin IPs: Marco `26.244.76.112`, David `26.245.177.206`.
 - The team key (`-Key`) is a secret: ask the person for it, never write it into the repo.
+- **A member PC does not need the key** (2 Oct, David's PC was set up this way). `local_or_team_key`
+  (`backend/app/routers/local.py`) lets a widget in by the key **or** by `only_local`, and the host's
+  `WIDGET_NETWORKS=26.0.0.0/8` trusts the whole Radmin network. So when nobody remembers the key, write
+  `~/.team-agent/widget.json` by hand — `{"hub_url": "http://26.68.80.191:8000", "user": "David"}`, no `key` —
+  and run `.\scripts\iniciar.ps1`: the person shows online. With no key the widget also never starts a Hub of
+  its own (`is_local` is false), so there is no second Hub to confuse things. The key is still needed on the
+  host — it is what makes its Hub listen on `0.0.0.0` — and for a widget outside the Radmin network.
 
 ## Make it work
 

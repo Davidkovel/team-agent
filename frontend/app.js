@@ -125,14 +125,13 @@ async function loadStats() {
   teamNames = Object.fromEntries(team.map((m) => [m.user, m.display_name]));
   const active = tasks.filter((t) => ["IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP"].includes(t.status)).length;
   const pending = approvals.filter((a) => a.status === "PENDING").length;
-  const done = tasks.filter((t) => t.status === "COMPLETED").length;
   const week = team.reduce((sum, m) => sum + (Number(m.week_cost_usd) || 0), 0);
   drawHud(team, active, pending, week);
   const badge = (id, n) => { const b = document.querySelector(`[data-badge="${id}"]`); if (b) { b.textContent = n; b.hidden = !n; } };
   badge("aprovacoes", pending); badge("tarefas", active);
   if (!$("tiles")) return;
   $("tiles").innerHTML = [[active, "Em curso", "blue"], [pending, "Aprovações", pending ? "orange" : ""],
-    [done, "Concluídas", "green"], [`$${week.toFixed(2)}`, "Gasto esta semana"]]
+    [`$${week.toFixed(2)}`, "Gasto esta semana"]]
     .map(([n, label, tone = ""]) => `<div class="tile ${tone}"><span>${label}</span><b>${n}</b></div>`).join("");
 }
 
@@ -484,15 +483,10 @@ async function loadTodayKey() {
 
 async function viewHome() {
   const today = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
+  // Clean entry: a glance (3 numbers) and the companies. The details live in the tabs.
   $("view").innerHTML = `
     ${pageHead("Início", today)}
     <div class="tiles" id="tiles"></div>
-    <div class="widgets">
-      ${widget("Hoje", "#/semana", '<div class="wr-items list" id="today-key"></div>')}
-      ${widget("Por fazer", "#/tarefas", '<div class="plan" id="today"></div>')}
-      ${widget("Aprovações", "#/aprovacoes", '<div id="approvals"></div>')}
-      ${widget("Agentes", "#/equipa", '<div class="agents compact" id="agents"></div>')}
-    </div>
     <div class="group-title">Empresas</div>
     <div class="grid" id="home-companies"></div>`;
   $("home-companies").innerHTML = companies.length ? companies.map((c) => `
@@ -500,7 +494,7 @@ async function viewHome() {
       <span class="co-logo">${esc(c.short)}</span>
       <div><h3>${esc(c.name)}</h3><p>${esc(c.tagline)}</p></div>
     </a>`).join("") : '<div class="empty">Ainda não há empresas.</div>';
-  await Promise.all([loadStats(), loadTodayKey(), loadToday(), loadApprovals(), loadAgents()]);
+  await Promise.all([loadStats(), loadAgents()]);
 }
 
 async function viewWeek() {

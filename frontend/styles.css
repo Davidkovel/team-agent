@@ -538,7 +538,7 @@ main { padding: 8px 24px 60px; max-width: 1280px; }
 .large-title h1 { font-size: 34px; font-weight: 700; letter-spacing: -.03em; margin-top: 2px; }
 
 /* summary tiles like iOS widgets */
-.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .tile { min-width: 0; padding: 14px 16px; border-radius: 18px; display: flex; flex-direction: column; gap: 6px; }
 .tile span { color: var(--muted); font-size: 13px; font-weight: 600; }
 .tile b { font: 700 30px/1 var(--display); letter-spacing: -.02em; }

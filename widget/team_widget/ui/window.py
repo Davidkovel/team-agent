@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import (QColor, QConicalGradient, QFont, QFontMetricsF, QIcon, QLinearGradient, QPainter, QPainterPath, QPen,
-                           QPixmap, QRadialGradient)
+                           QPixmap, QPolygonF, QRadialGradient)
 from PySide6.QtWidgets import (QAbstractButton, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
                                QVBoxLayout, QWidget)
 
@@ -31,6 +31,7 @@ from .motion import clock
 
 TEXT, MUTED, FAINT = "#eceff1", "#8b9096", "#50545a"
 SILVER, RED = "#d7dbe0", "#d0564b"        # chrome; the needle tip, the red line and the tail light
+ROSE, ROSE2 = "#e9c1aa", "#f6e0d3"        # champagne, for the team rings and the credits
 ACCENT = SILVER
 COLORS = {"WORKING": "#8fc79c", "ONLINE": "#8fc79c", "IDLE": "#c8ccce", "WAITING": "#d8c08a",
           "PAUSED": "#d8c08a", "ERROR": "#d9796b", "OFFLINE": "#5b5f65"}
@@ -45,7 +46,7 @@ GROW, SHRINK = 0.42, 0.32   # seconds
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 LOGO = ASSETS / "logo.png"
 UI, MONO = ("Segoe UI Variable Text", "Segoe UI"), ("Cascadia Mono", "Consolas")
-DISPLAY = ("Segoe UI Variable Display", "Segoe UI")
+DISPLAY, SERIF = ("Segoe UI Variable Display", "Segoe UI"), ("Palatino Linotype", "Georgia")
 WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 # street lights far behind, out of focus: (x, y as share of the width/height, radius, strength, colour)
@@ -257,7 +258,7 @@ class Card(QWidget):
 class Platter(QWidget):
     """An iOS-style module: a rounded dark platter, a title (and a note on the right) inside it, then its content."""
 
-    def __init__(self, title: str = "", note: str = ""):
+    def __init__(self, title: str = "", note: str = "", serif=False):
         super().__init__()
         self.box = QVBoxLayout(self)
         self.box.setContentsMargins(14, 12, 14, 12)
@@ -265,10 +266,16 @@ class Platter(QWidget):
         self.note = None
         if title:
             head = QHBoxLayout()
-            head.addWidget(label(title, 10, TEXT, QFont.DemiBold, DISPLAY))
+            if serif:
+                t = QLabel(title)
+                t.setFont(font(12.5, QFont.Normal, SERIF, italic=True))
+                t.setStyleSheet(f"color: {TEXT}; background: transparent;")
+                head.addWidget(t)
+            else:
+                head.addWidget(label(title, 10, TEXT, QFont.DemiBold, DISPLAY))
             head.addStretch(1)
-            self.note = label(note, 8.5, MUTED)
-            head.addWidget(self.note)
+            self.note = label(note, 6.5, FAINT, QFont.Bold, UI, 1.6) if serif else label(note, 8.5, MUTED)
+            head.addWidget(self.note, 0, Qt.AlignBottom if serif else Qt.AlignVCenter)
             self.box.addLayout(head)
 
     def paintEvent(self, _):
@@ -517,124 +524,206 @@ class Tacho(QWidget):
         p.drawLine(mid, tip)
 
 
-class Segments(QWidget):
-    """A segment bar like a fuel or boost gauge: the name, a value, a note, and lit blocks."""
-    COUNT = 24
+def paint_star(p: QPainter, c: QPointF, r: float, lit: float, t: float):
+    """The three-pointed star in black glass: dark facets, a thin bright ridge, and light that breaks into
+    colour as it slides slowly round the rim, like the emblem under a studio lamp."""
+    p.save()
+    face = QRadialGradient(QPointF(c.x() - r * 0.3, c.y() - r * 0.4), r * 1.4)
+    face.setColorAt(0, QColor(26, 27, 30))
+    face.setColorAt(1, QColor(4, 4, 5))
+    p.setPen(Qt.NoPen)
+    p.setBrush(face)
+    p.drawEllipse(c, r, r)
+    # the ring of the emblem: near black, with two moving reflections that split into orange, white and blue
+    rim = QConicalGradient(c, (t * 12) % 360)
+    a = int(255 * lit)
+    for at, colour in ((0, QColor(12, 12, 13)), (0.05, QColor(12, 12, 13)), (0.09, QColor(255, 128, 56, a)),
+                       (0.115, QColor(255, 255, 255, a)), (0.14, QColor(84, 150, 255, a)), (0.2, QColor(12, 12, 13)),
+                       (0.53, QColor(12, 12, 13)), (0.57, QColor(110, 165, 255, a)), (0.6, QColor(255, 255, 255, a)),
+                       (0.625, QColor(255, 120, 60, a)), (0.68, QColor(12, 12, 13)), (1, QColor(12, 12, 13))):
+        rim.setColorAt(at, colour)
+    p.setPen(QPen(rim, r * 0.17))
+    p.setBrush(Qt.NoBrush)
+    p.drawEllipse(c, r * 0.84, r * 0.84)
+    p.setPen(QPen(QColor(255, 255, 255, int(18 + 30 * lit)), 0.8))   # the chrome edge of the ring
+    p.drawEllipse(c, r * 0.93, r * 0.93)
+    # the star: three slender points, each with a lit and a shadowed facet
+    for angle in (-90, 30, 150):
+        a_ = math.radians(angle)
+        d = QPointF(math.cos(a_), math.sin(a_))
+        n = QPointF(-d.y(), d.x())
+        tip = c + d * (r * 0.8)
+        left, right = c + n * (r * 0.17), c - n * (r * 0.17)
+        lit_face = QLinearGradient(c, tip)
+        lit_face.setColorAt(0, QColor(int(60 + 70 * lit), int(63 + 70 * lit), int(70 + 72 * lit)))
+        lit_face.setColorAt(1, QColor(int(30 + 40 * lit), int(32 + 40 * lit), int(36 + 42 * lit)))
+        p.setPen(Qt.NoPen)
+        p.setBrush(lit_face)
+        p.drawPolygon(QPolygonF([c, left, tip]))
+        p.setBrush(QColor(6, 6, 7))
+        p.drawPolygon(QPolygonF([c, tip, right]))
+        p.setPen(pen(QColor(255, 255, 255, int(40 + 170 * lit)), max(0.7, r * 0.04)))
+        p.drawLine(c, tip)
+    p.restore()
 
-    def __init__(self, title):
+
+class Person(Hover):
+    """One teammate: a ring that fills when they are online, the Mercedes star in the middle, the name, and when
+    they clocked in. Your own ring clocks you in when you tap it."""
+
+    def __init__(self):
         super().__init__()
-        self.setFixedHeight(40)
-        self._title, self._pct, self._value, self._note = title, None, "—", ""
-        self._glide = Glide(self, 900)
-        self._f_title, self._f_value, self._f_note = font(9, QFont.DemiBold, UI), font(10.5, QFont.DemiBold, DISPLAY), font(8, QFont.Normal, UI)
+        self.setFixedSize(92, 106)
+        self._name, self._user, self._online, self._status, self._ponto, self._me = "—", None, False, "OFFLINE", None, False
+        self._fill = Glide(self, 900)
+        self._f_name, self._f_sub = font(7, QFont.Bold, UI, 1.8), font(6.5, QFont.DemiBold, UI, 1.2)
+        self.setEnabled(False)
+        clock().frame.connect(self._frame)
 
-    def set(self, pct, value: str, note=""):
-        self._pct, self._value, self._note = pct, value, note
+    def _frame(self, _):
+        if self.isVisible():
+            self.update()
+
+    def set(self, person: dict | None, me: bool):
+        if person is None:
+            self._name, self._user, self._online, self._status, self._ponto = "—", None, False, "OFFLINE", None
+        else:
+            self._name, self._user, self._online = person["name"], person.get("user"), person["online"]
+            self._status, self._ponto = person.get("status", "OFFLINE"), person.get("ponto")
+        self._me = me
+        self.setEnabled(me and not self._ponto and person is not None)
+        self.setCursor(Qt.PointingHandCursor if self.isEnabled() else Qt.ArrowCursor)
+        self.setToolTip("Bater o ponto" if self.isEnabled() else (f"Ponto às {hhmm(self._ponto)}" if self._ponto else ""))
+        self._fill.to(1.0 if self._online else 0.0)
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        c, r = QPointF(46, 34), 28
+        box = QRectF(c.x() - r, c.y() - r, 2 * r, 2 * r)
+        p.setPen(pen(QColor(255, 255, 255, 18), 3.5))
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(c, r, r)
+        k = self._fill.value
+        if k > 0.002:
+            p.setPen(pen(rgba(ROSE, 0.16), 8))
+            p.drawArc(box, 90 * 16, -int(360 * 16 * k))
+            p.setPen(pen(QColor(ROSE), 3.5))
+            p.drawArc(box, 90 * 16, -int(360 * 16 * k))
+        paint_star(p, c, r - 3.5 + 1.5 * self.hover, 0.25 + 0.75 * k, time.time())
+        dot = QPointF(c.x() + r * 0.71, c.y() + r * 0.71)
+        p.setPen(QPen(QColor(18, 18, 20), 2.5))
+        p.setBrush(QColor(COLORS["ONLINE"] if self._online else COLORS["OFFLINE"]))
+        p.drawEllipse(dot, 4.6, 4.6)
+        if self._ponto:  # a white tick once they clocked in
+            badge_at = QPointF(c.x() + r * 0.71, c.y() - r * 0.71)
+            p.setBrush(QColor("#ffffff"))
+            p.drawEllipse(badge_at, 6.5, 6.5)
+            p.setPen(pen(QColor("#000000"), 1.5))
+            p.setBrush(Qt.NoBrush)
+            path = QPainterPath(QPointF(badge_at.x() - 3, badge_at.y() + 0.2))
+            path.lineTo(badge_at.x() - 0.8, badge_at.y() + 2.3)
+            path.lineTo(badge_at.x() + 3, badge_at.y() - 2)
+            p.drawPath(path)
+        p.setPen(QColor(TEXT) if self._online else QColor(MUTED))
+        p.setFont(self._f_name)
+        p.drawText(QRectF(0, 70, 92, 14), Qt.AlignCenter, clip(self._name.upper(), 9))
+        if self._ponto:
+            sub, colour = f"PONTO {hhmm(self._ponto)}", ROSE2
+        elif self._me and self.isEnabled():
+            sub, colour = "TOCA P/ PONTO", ROSE
+        else:
+            sub = {"WORKING": "A TRABALHAR", "WAITING": "À ESPERA", "PAUSED": "EM PAUSA", "ERROR": "ERRO"}.get(
+                self._status, "ONLINE") if self._online else "OFFLINE"
+            colour = MUTED if self._online else FAINT
+        p.setPen(QColor(colour))
+        p.setFont(self._f_sub)
+        p.drawText(QRectF(0, 86, 92, 14), Qt.AlignCenter, sub)
+
+
+class UsageRow(QWidget):
+    """26% SESSÃO ............ renova em 1h 21m, with a hairline bar under it."""
+
+    def __init__(self, what):
+        super().__init__()
+        self.setFixedHeight(38)
+        self._what, self._pct, self._hint = what, None, ""
+        self._glide = Glide(self, 900)
+        self._f_big, self._f_pct, self._f_what, self._f_hint = (font(15, QFont.DemiBold, DISPLAY), font(8, QFont.DemiBold, DISPLAY),
+                                                                font(6.5, QFont.Bold, UI, 1.8), font(7.5, QFont.Normal, UI))
+
+    def set(self, pct, hint=""):
+        self._pct, self._hint = pct, hint
         self._glide.to(max(0, min(100, pct or 0)) / 100)
         self.update()
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        w = self.width()
+        value = "—" if self._pct is None else f"{round(self._pct)}"
+        p.setFont(self._f_big)
         p.setPen(QColor(TEXT))
-        p.setFont(self._f_title)
-        p.drawText(QRectF(0, 0, w, 18), Qt.AlignLeft | Qt.AlignVCenter, self._title)
-        p.setFont(self._f_value)
-        p.drawText(QRectF(0, 0, w, 18), Qt.AlignRight | Qt.AlignVCenter, self._value)
-        vw = QFontMetricsF(self._f_value).horizontalAdvance(self._value)
+        p.drawText(QPointF(0, 22), value)
+        x = QFontMetricsF(self._f_big).horizontalAdvance(value) + 2
+        if self._pct is not None:
+            p.setFont(self._f_pct)
+            p.drawText(QPointF(x, 22), "%")
+            x += 14
+        p.setPen(QColor(MUTED))
+        p.setFont(self._f_what)
+        p.drawText(QPointF(x + 4, 21), self._what)
         p.setPen(QColor(FAINT))
-        p.setFont(self._f_note)
-        p.drawText(QRectF(0, 0, w - vw - 10, 18), Qt.AlignRight | Qt.AlignVCenter, self._note)
-        gap = 3.0
-        seg = (w - gap * (self.COUNT - 1)) / self.COUNT
-        lit = self._glide.value * self.COUNT
+        p.setFont(self._f_hint)
+        p.drawText(QRectF(0, 8, self.width(), 16), Qt.AlignRight | Qt.AlignVCenter, self._hint)
+        y, w = 31, self.width()
         p.setPen(Qt.NoPen)
-        for i in range(self.COUNT):
-            x = i * (seg + gap)
-            on = max(0.0, min(1.0, lit - i))
-            hot = (i + 1) / self.COUNT > 0.85
-            p.setBrush(QColor(255, 255, 255, 14))
-            p.drawRoundedRect(QRectF(x, 25, seg, 9), 2, 2)
-            if on > 0:
-                p.setBrush(rgba(RED if hot else SILVER, 0.25 + 0.75 * on))
-                p.drawRoundedRect(QRectF(x, 25, seg, 9), 2, 2)
+        p.setBrush(QColor(255, 255, 255, 16))
+        p.drawRoundedRect(QRectF(0, y, w, 2.5), 1.25, 1.25)
+        if self._glide.value > 0:
+            fill = QLinearGradient(0, 0, w * self._glide.value, 0)
+            fill.setColorAt(0, rgba(ROSE, 0.5))
+            fill.setColorAt(1, QColor(ROSE if (self._pct or 0) < 60 else meter_color(self._pct or 0)))
+            p.setBrush(fill)
+            p.drawRoundedRect(QRectF(0, y, max(2.5, w * self._glide.value), 2.5), 1.25, 1.25)
 
 
-class GridRow(Hover):
-    """One teammate on the starting grid: position (by who clocked in first), a three-letter tag, the name,
-    an online light, and the clock-in time. Your own row clocks you in when you tap it."""
+class HalfGauge(QWidget):
+    """Higgsfield credits as half a dial."""
 
     def __init__(self):
         super().__init__()
-        self.setFixedHeight(42)
-        self._pos, self._person, self._me = None, None, False
-        self._f_pos, self._f_tag, self._f_name, self._f_time = (font(8.5, QFont.Bold, DISPLAY), font(10.5, QFont.Black, DISPLAY, italic=True),
-                                                                font(8.5, QFont.Normal, UI), font(10, QFont.DemiBold, DISPLAY))
-        self._f_pill = font(8, QFont.DemiBold, UI)
-        self.setEnabled(False)
+        self.setFixedHeight(96)
+        self._pct = None
+        self._glide = Glide(self, 1100)
+        self._f_value, self._f_what = font(19, QFont.DemiBold, DISPLAY), font(6.5, QFont.Bold, UI, 1.8)
 
-    last = False
-
-    def set(self, position: int | None, person: dict, me: bool):
-        self._pos, self._person, self._me = position, person, me
-        can = me and not person.get("ponto") and person.get("user") is not None
-        self.setEnabled(can)
-        self.setCursor(Qt.PointingHandCursor if can else Qt.ArrowCursor)
-        self.setToolTip("Bater o ponto" if can else "")
+    def set(self, pct):
+        self._pct = pct
+        self._glide.to(max(0, min(100, pct or 0)) / 100)
         self.update()
 
     def paintEvent(self, _):
-        if not self._person:
-            return
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect()).adjusted(0, 2, 0, -2)
-        person, online = self._person, self._person.get("online")
-        if not self.last:
-            p.setPen(QPen(QColor(255, 255, 255, 18), 1))
-            p.drawLine(QPointF(42, self.height() - 0.5), QPointF(self.width(), self.height() - 0.5))
-        if self._me and self.hover:
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(255, 255, 255, int(12 * self.hover)))
-            p.drawRoundedRect(r, 10, 10)
-        box = QRectF(r.left(), r.center().y() - 11, 26, 22)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(SILVER) if self._pos else QColor(255, 255, 255, 18))
-        p.drawRoundedRect(box, 6, 6)
-        p.setPen(QColor("#111214") if self._pos else QColor(FAINT))
-        p.setFont(self._f_pos)
-        p.drawText(box, Qt.AlignCenter, f"P{self._pos}" if self._pos else "–")
-        p.setPen(QColor(TEXT) if online else QColor(MUTED))
-        p.setFont(self._f_tag)
-        p.drawText(QRectF(r.left() + 36, r.top(), 40, r.height()), Qt.AlignVCenter | Qt.AlignLeft, person["name"][:3].upper())
-        p.setPen(QColor(MUTED) if online else QColor(FAINT))
-        p.setFont(self._f_name)
-        state = {"WORKING": "a trabalhar", "WAITING": "à espera", "PAUSED": "em pausa", "ERROR": "erro"}.get(person.get("status"), "online") \
-            if online else "offline"
-        p.drawText(QRectF(r.left() + 78, r.top(), 120, r.height()), Qt.AlignVCenter | Qt.AlignLeft, f"{person['name']} · {state}")
-        light = QPointF(r.right() - 62, r.center().y())
-        if online:
-            glow_disc(p, light, 8, 8, COLORS["ONLINE"], 0.45)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(COLORS["ONLINE"] if online else COLORS["OFFLINE"]))
-        p.drawEllipse(light, 3.4, 3.4)
-        right = QRectF(r.right() - 50, r.top(), 50, r.height())
-        if person.get("ponto"):
-            p.setPen(QColor(TEXT))
-            p.setFont(self._f_time)
-            p.drawText(right, Qt.AlignVCenter | Qt.AlignRight, hhmm(person["ponto"]))
-        elif self.isEnabled():
-            pill = QRectF(r.right() - 52, r.center().y() - 11, 52, 22)
-            p.setBrush(QColor(SILVER).lighter(int(100 + 8 * self.hover)))
-            p.drawRoundedRect(pill, 11, 11)
-            p.setPen(QColor("#111214"))
-            p.setFont(self._f_pill)
-            p.drawText(pill, Qt.AlignCenter, "Ponto")
-        else:
-            p.setPen(QColor(FAINT))
-            p.setFont(self._f_time)
-            p.drawText(right, Qt.AlignVCenter | Qt.AlignRight, "--:--")
+        r = 70
+        c = QPointF(self.width() / 2, 86)
+        box = QRectF(c.x() - r, c.y() - r, 2 * r, 2 * r)
+        p.setPen(pen(QColor(255, 255, 255, 16), 6))
+        p.drawArc(box, 180 * 16, -180 * 16)
+        k = self._glide.value
+        if k > 0.002:
+            colour = ROSE if (self._pct or 0) < 60 else meter_color(self._pct or 0)
+            p.setPen(pen(rgba(colour, 0.15), 12))
+            p.drawArc(box, 180 * 16, -int(180 * 16 * k))
+            p.setPen(pen(QColor(colour), 6))
+            p.drawArc(box, 180 * 16, -int(180 * 16 * k))
+        p.setPen(QColor(TEXT) if self._pct is not None else QColor(FAINT))
+        p.setFont(self._f_value)
+        p.drawText(QRectF(0, c.y() - 42, self.width(), 30), Qt.AlignCenter, "—" if self._pct is None else f"{round(self._pct)}%")
+        p.setPen(QColor(MUTED))
+        p.setFont(self._f_what)
+        p.drawText(QRectF(0, c.y() - 12, self.width(), 14), Qt.AlignCenter, "CRÉDITOS GASTOS" if self._pct is not None else "POR DEFINIR NO HUB")
 
 
 class Divider(QWidget):
@@ -911,25 +1000,32 @@ class WidgetWindow(QWidget):
         dial.box.addWidget(self.tacho, 0, Qt.AlignHCenter)
         col.addWidget(dial)
 
-        use = Platter("Consumo")
-        self.claude_session = Segments("Claude · sessão de 5 h")
-        use.box.addWidget(self.claude_session)
-        self.higgs = Segments("Higgsfield · créditos")
-        use.box.addWidget(self.higgs)
-        col.addWidget(use)
-
-        grid = Platter("Grelha de hoje")
-        grid.box.setSpacing(0)
-        self.grid_note = grid.note
-        self.rows = [GridRow() for _ in range(3)]
-        for r in self.rows:
-            r.clicked.connect(self.punch_ponto)
-            grid.box.addWidget(r)
-        self.rows[-1].last = True
+        team = Platter("Equipa")
+        self.grid_note = team.note
+        people = QHBoxLayout()
+        people.setSpacing(0)
+        self.persons = [Person() for _ in range(3)]
+        for person in self.persons:
+            person.clicked.connect(self.punch_ponto)
+            people.addWidget(person, 1, Qt.AlignHCenter)
+        team.box.addLayout(people)
         self.hub_note = label("O Hub não está a responder.", 8.5, FAINT)
+        self.hub_note.setAlignment(Qt.AlignCenter)
         self.hub_note.hide()
-        grid.box.addWidget(self.hub_note)
-        col.addWidget(grid)
+        team.box.addWidget(self.hub_note)
+        col.addWidget(team)
+
+        claude = Platter("Claude", serif=True)
+        self.claude_head = claude.note
+        self.claude_session, self.claude_week = UsageRow("SESSÃO"), UsageRow("SEMANA")
+        claude.box.addWidget(self.claude_session)
+        claude.box.addWidget(self.claude_week)
+        col.addWidget(claude)
+
+        higgs = Platter("Higgsfield", "NO HUB", serif=True)
+        self.higgs = HalfGauge()
+        higgs.box.addWidget(self.higgs)
+        col.addWidget(higgs)
 
         # only when there is something to say
         self.alert = Card(COLORS["WAITING"])
@@ -1153,21 +1249,16 @@ class WidgetWindow(QWidget):
         return next((p["user"] for p in team if wanted in (p["user"].lower(), p["name"].lower())), None)
 
     def _render_people(self, team):
-        """The starting grid: whoever clocked in first is P1; the rest follow in team order. When the Hub is quiet,
-        the last names seen, all offline."""
+        """Kovel, Marco and David as three rings; when the Hub is quiet, the last names seen, all offline."""
         if team:
             self._last_team = team
         shown = team or [{**p, "online": False, "status": "OFFLINE", "ponto": None} for p in self._last_team]
         me = self._identity(shown) if shown else None
-        clocked = sorted((p for p in shown if p.get("ponto")), key=lambda p: p["ponto"])
-        order = clocked + [p for p in shown if not p.get("ponto")]
-        for i, row in enumerate(self.rows):
-            if i < len(order):
-                row.set(i + 1 if order[i].get("ponto") else None, order[i], order[i]["user"] == me)
-                row.show()
-            else:
-                row.hide()
-        self.grid_note.setText(f"{len(clocked)} de {len(shown)} com ponto" if shown else "")
+        for i, person in enumerate(self.persons):
+            person.set(shown[i] if i < len(shown) else None, bool(shown) and i < len(shown) and shown[i]["user"] == me)
+            person.setVisible(i < len(shown) or not shown)
+        clocked = sum(1 for p in shown if p.get("ponto"))
+        self.grid_note.setText(f"{clocked} de {len(shown)} com ponto" if shown else "")
         self.hub_note.setVisible(team is None)
         self._render_state()
 
@@ -1298,8 +1389,8 @@ class WidgetWindow(QWidget):
         if not who:
             self.notify("Ponto", "O Hub não respondeu. Tenta outra vez daqui a pouco.")
             return
-        for row in self.rows:
-            row.setEnabled(False)
+        for person in self.persons:
+            person.setEnabled(False)
 
         def work():
             try:
@@ -1420,15 +1511,15 @@ class WidgetWindow(QWidget):
         plan = claude_plan_usage()
         if plan:
             self._load = plan["week"]
-            note = until(plan["five_reset"]) or (f"lido {ago(plan['saved_at'])}" if plan["saved_at"] else "")
-            five = plan["five"]
-            self.claude_session.set(five, "—" if five is None else f"{round(five)}%", note)
+            self.claude_session.set(plan["five"], until(plan["five_reset"]))
+            self.claude_week.set(plan["week"], until(plan["week_reset"]))
+            self.claude_head.setText(ago(plan["saved_at"]).upper() if plan["saved_at"] else "")
         else:
             spent = mine.get("week_cost_usd") or 0
             self._load = mine.get("week_pct") if spent else None
-            self.claude_session.set(None, "—", "sem dados do Claude Code")
-        used = mine.get("higgsfield_pct")
-        self.higgs.set(None if used is None else 100 - used, "—" if used is None else f"{100 - used}% livres",
-                       "por definir no Hub" if used is None else "")
+            self.claude_session.set(None, "sem dados da sessão")
+            self.claude_week.set(self._load, f"${spent:.2f} de ${mine.get('week_budget_usd', 0):.0f}" if mine else "sem dados")
+            self.claude_head.setText("")
+        self.higgs.set(mine.get("higgsfield_pct"))
         self.tacho.set_load(self._load)
         self._render_state()

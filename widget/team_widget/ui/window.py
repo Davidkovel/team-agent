@@ -4,6 +4,7 @@ Frameless, rounded, drawn with anti-aliasing, and every animation runs off one f
 at the monitor's refresh rate (see motion.py). Closing it hides it to the tray; the agent keeps running.
 """
 import getpass
+import json
 import os
 import threading
 import time
@@ -45,6 +46,21 @@ def elapsed(started_at) -> str:
 
 def meter_color(pct):
     return COLORS["ERROR"] if pct >= 85 else COLORS["WAITING"] if pct >= 60 else ACCENT
+
+
+def claude_plan_usage():
+    """The real plan limits, saved by claude_statusline.py every time Claude Code answers: (weekly %, hint) or None."""
+    try:
+        saved = json.loads((hub.DATA_DIR / "claude_usage.json").read_text(encoding="utf-8"))
+        limits = saved["rate_limits"]
+        week = limits["seven_day"]["used_percentage"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    five = (limits.get("five_hour") or {}).get("used_percentage")
+    hint = "semana" + (f" · 5h {round(five)}%" if five is not None else "")
+    if time.time() - saved.get("saved_at", 0) > 6 * 3600:
+        hint += " · desatualizado"
+    return week, hint
 
 
 def clip(text: str, n: int) -> str:
@@ -444,6 +460,7 @@ class WidgetWindow(QWidget):
         self._week, self._week_seen = None, None  # what is being touched right now, from the Hub on this computer
         self._team, self._team_seen = [], False   # who is online, from the Hub on this computer (None = Hub not answering)
         self._backdrop = None
+        self._usage_at = 0.0
 
         self.setWindowTitle("Agente AMG")
         self.setWindowIcon(QIcon(str(LOGO)))
@@ -786,6 +803,9 @@ class WidgetWindow(QWidget):
             if (self._week_seen or {}).get("pending") != week.get("pending"):
                 self._render_week(week)
             self._week_seen = week
+        if time.time() - self._usage_at > 10:
+            self._usage_at = time.time()
+            self._render_usage()
         state = self.store.get()
         if self.store.version != self._version:
             self._version = self.store.version
@@ -848,6 +868,10 @@ class WidgetWindow(QWidget):
         who = self._identity(hub_team) or state.get("user")
         mine = next((m for m in hub_team if m.get("user") == who and "week_cost_usd" in m), None)             or next((m for m in state.get("team") or [] if m.get("user") == who), {})
         spent = mine.get("week_cost_usd") or 0
-        self.claude_gauge.set("Claude", mine.get("week_pct") if spent else None,
-                              f"${spent:.2f} / ${mine.get('week_budget_usd', 0):.0f}" if mine else "sem dados")
+        plan = claude_plan_usage()
+        if plan:
+            self.claude_gauge.set("Claude", plan[0], plan[1])
+        else:
+            self.claude_gauge.set("Claude", mine.get("week_pct") if spent else None,
+                                  f"${spent:.2f} / ${mine.get('week_budget_usd', 0):.0f}" if mine else "sem dados")
         self.higgs_gauge.set("Higgsfield", mine.get("higgsfield_pct"), "créditos")

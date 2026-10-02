@@ -30,19 +30,17 @@
     </div>
   </section>
 
-  <div id="app" hidden>
-    <header class="topbar">
-      <a class="brand" href="#/home"><img class="logo" src="logo.png" alt=""><span class="brand-text"><img class="wordmark" src="assets/amg-wordmark.png" alt="Agente AMG"><small>central de comando</small></span></a>
+  <div id="app" class="mac" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="#/home"><img class="logo" src="logo.png" alt=""><span class="brand-text"><img class="wordmark" src="assets/amg-wordmark.png" alt="Agente AMG"></span></a>
       <nav class="tabs" id="tabs"></nav>
-      <div class="right">
+      <div class="side-foot">
+        <span id="whoami" class="who"></span>
         <span id="live" class="pill">a ligar</span>
         <button id="bell" class="icon-btn bell" title="Notificações" aria-label="Notificações"><svg class="i" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 1112 0v6l2 2H4z"/><path d="M10 21a2 2 0 004 0"/></svg><span id="bell-n" class="bell-n" hidden>0</span></button>
-        <span id="whoami" class="who"></span>
         <button id="maximize" class="icon-btn" title="Ecrã inteiro"></button>
-        <button id="logout" class="ghost">Sair</button>
       </div>
-    </header>
-    <div id="hud" class="hud" aria-label="Estado da equipa"></div>
+    </aside>
     <main id="view"></main>
   </div>
 

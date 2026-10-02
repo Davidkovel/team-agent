@@ -25,6 +25,9 @@ const ICONS = {
   docs: '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
   expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+  wallet: '<rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2"/>',
   code: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M18 11.5c0 4-6 3-11.2 5"/>',
 };
 const icon = (name) => `<svg class="i" viewBox="0 0 24 24">${ICONS[name] || ICONS.building}</svg>`;
@@ -80,7 +83,6 @@ $("login-form").onsubmit = async (e) => {
   sessionStorage.setItem("token", token);
   start();
 };
-$("logout").onclick = logout;
 $("maximize").onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
 
 /* ---------- modal ---------- */
@@ -90,7 +92,13 @@ $("modal").onclick = (e) => { if (e.target === $("modal") || e.target.closest("[
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- routing ---------- */
-const TABS = [["home", "Início", "home"], ["empresas", "Empresas", "building"], ["tarefas", "Tarefas", "tasks"], ["codigo", "Código", "code"], ["equipa", "Equipa", "users"], ["historico", "Histórico", "history"]];
+// sidebar: [group, [id, label, icon]...]
+const NAV = [
+  ["", [["home", "Início", "home"], ["semana", "Semana", "calendar"], ["tarefas", "Tarefas", "tasks"], ["aprovacoes", "Aprovações", "check"]]],
+  ["Trabalho", [["empresas", "Empresas", "building"], ["codigo", "Código", "code"], ["historico", "Histórico", "history"]]],
+  ["Equipa", [["equipa", "Agentes", "users"], ["gastos", "Gastos", "wallet"]]],
+];
+const TABS = NAV.flatMap(([, items]) => items);
 
 function route() {
   const hash = location.hash;
@@ -102,8 +110,11 @@ function route() {
 
 function render() {
   const r = route();
-  $("tabs").innerHTML = TABS.map(([id, label, ic]) => `<a class="tab ${id === r.tab ? "active" : ""}" href="#/${id}">${icon(ic)}${label}</a>`).join("");
-  const views = { home: viewHome, empresas: viewCompanies, tarefas: viewTasks, codigo: viewCode, equipa: viewTeam, historico: viewHistory };
+  $("tabs").innerHTML = NAV.map(([group, items]) => `${group ? `<div class="nav-group">${group}</div>` : ""}${items.map(([id, label, ic]) =>
+    `<a class="tab ${id === r.tab ? "active" : ""}" href="#/${id}">${icon(ic)}<span>${label}</span><i class="badge" data-badge="${id}" hidden></i></a>`).join("")}`).join("");
+  $("view").scrollTop = 0;
+  const views = { home: viewHome, semana: viewWeek, tarefas: viewTasks, aprovacoes: viewApprovals, empresas: viewCompanies, codigo: viewCode,
+    historico: viewHistory, equipa: viewTeam, gastos: viewSpend };
   views[r.tab](r).catch((e) => { if (e.message !== "unauthorized") $("view").innerHTML = `<p class="error">${esc(e.message)}</p>`; });
 }
 window.addEventListener("hashchange", render);
@@ -112,16 +123,17 @@ window.addEventListener("hashchange", render);
 async function loadStats() {
   const [team, tasks, approvals] = await Promise.all([api("/api/team"), api("/api/tasks"), api("/api/approvals")]);
   teamNames = Object.fromEntries(team.map((m) => [m.user, m.display_name]));
-  const online = team.filter((m) => m.status !== "OFFLINE").length;
   const active = tasks.filter((t) => ["IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP"].includes(t.status)).length;
   const pending = approvals.filter((a) => a.status === "PENDING").length;
   const done = tasks.filter((t) => t.status === "COMPLETED").length;
   const week = team.reduce((sum, m) => sum + (Number(m.week_cost_usd) || 0), 0);
   drawHud(team, active, pending, week);
+  const badge = (id, n) => { const b = document.querySelector(`[data-badge="${id}"]`); if (b) { b.textContent = n; b.hidden = !n; } };
+  badge("aprovacoes", pending); badge("tarefas", active);
   if (!$("tiles")) return;
-  $("tiles").innerHTML = [[`${online}/${team.length}`, "agentes online", online ? "ok" : ""], [active, "tarefas ativas"], [pending, "aprovações", pending ? "warn" : ""],
-    [done, "tarefas concluídas"], [`$${week.toFixed(2)}`, "gasto esta semana"], [companies.length, "empresas"]]
-    .map(([n, label, tone = ""]) => `<div class="tile ${tone}"><b>${n}</b><span>${label}</span></div>`).join("");
+  $("tiles").innerHTML = [[active, "Em curso", "blue"], [pending, "Aprovações", pending ? "orange" : ""],
+    [done, "Concluídas", "green"], [`$${week.toFixed(2)}`, "Gasto esta semana"]]
+    .map(([n, label, tone = ""]) => `<div class="tile ${tone}"><span>${label}</span><b>${n}</b></div>`).join("");
 }
 
 /* HUD: always-visible strip, so everybody is in the loop on every tab */
@@ -407,8 +419,8 @@ const wtAgo = (epoch) => (epoch ? ago(new Date(epoch * 1000).toISOString()) : "�
 const WT_STATUS = { alterado: "ALTERADO", novo: "NOVO", apagado: "APAGADO" };
 
 function pendingBlock(pending) {
-  if (!pending?.length) return '<div class="pending none"><span class="pending-title">A MEXER AGORA · SEM COMMIT</span><span class="muted small">Nada por guardar: tudo o que foi feito já tem commit.</span></div>';
-  return `<div class="pending"><div class="pending-title">A MEXER AGORA · SEM COMMIT</div>${pending.map((r) => `
+  if (!pending?.length) return '<div class="pending none"><span class="pending-title">A mexer agora, sem commit</span><span class="muted small">Nada por guardar: tudo o que foi feito já tem commit.</span></div>';
+  return `<div class="pending"><div class="pending-title">A mexer agora, sem commit</div>${pending.map((r) => `
     <div class="pending-row"><b>${esc(r.repo)}</b><span>${r.count} ficheiro${r.count === 1 ? "" : "s"}</span>
       <span><span class="add">+${r.added}</span> <span class="del">−${r.deleted}</span></span><span class="muted">${wtAgo(r.newest)}</span><span class="muted">no PC de ${esc(r.user || "?")}</span></div>
     <div class="pending-files">${r.files.slice(0, 3).map((f) => `<span><i>${WT_STATUS[f.status] || f.status}</i> ${esc(f.path)}</span>`).join("")}${r.count > 3 ? `<span class="muted">… e mais ${r.count - 3}</span>` : ""}</div>`).join("")}</div>`;
@@ -432,7 +444,10 @@ async function loadWorktree() {
 }
 
 // The weekly ledger: one row per person, a mark for every day they showed up, then what they did and what they still owe.
-const KEY_LABEL = { task_done: "FEITO", commit: "COMMIT", task_created: "NOVA", library_edit: "EDIÇÃO" };
+const KEY_LABEL = { task_done: "Feito", commit: "Commit", task_created: "Nova", library_edit: "Edição" };
+const DAY_SHOWN = 5;
+const keyText = (f) => f.what === "commit" ? f.text.replace(/^commit em ([^:]+): /, (_, repo) => `${repo} · `) : f.text;
+const keyRow = (f) => `<div class="wr-item"><span class="wr-tag ${f.what}">${KEY_LABEL[f.what]}</span><b>${esc(f.who)}</b><span>${esc(keyText(f))}</span><span class="t">${time(f.when)}</span></div>`;
 function weekReportHtml(w) {
   const days = w.days.map((d, i) => {
     if (i > w.today) return "";
@@ -440,12 +455,13 @@ function weekReportHtml(w) {
     const date = new Date(w.from + "T12:00:00"); date.setDate(date.getDate() + i);
     return `<div class="wr-day ${i === w.today ? "today" : ""}">
       <div class="wr-date"><b>${esc(d)}</b><span>${shortDate(date.toISOString().slice(0, 10))}</span></div>
-      <div class="wr-items">${items.length ? items.map((f) => `<div class="wr-item"><span class="wr-tag ${f.what}">${KEY_LABEL[f.what]}</span><b>${esc(f.who)}</b><span>${esc(f.text)}</span><span class="t">${time(f.when)}</span></div>`).join("")
+      <div class="wr-items">${items.length ? items.slice(0, DAY_SHOWN).map(keyRow).join("")
+        + (items.length > DAY_SHOWN ? `<details class="wr-more"><summary>Mais ${items.length - DAY_SHOWN}</summary>${items.slice(DAY_SHOWN).map(keyRow).join("")}</details>` : "")
         : '<div class="wr-item muted">Nada de importante.</div>'}</div></div>`;
   }).reverse().join("");
   return `
     <section class="ledger-box">
-      <div class="ledger-head"><span>RELATÓRIO DA SEMANA <i>SEM ${w.week} · ${shortDate(w.from)} – ${shortDate(w.to)}</i></span>${w.demo ? '<span class="demo-tag">DADOS DE EXEMPLO</span>' : ""}</div>
+      <div class="ledger-head"><span>Relatório da semana <i>Semana ${w.week} · ${shortDate(w.from)} – ${shortDate(w.to)}</i></span>${w.demo ? '<span class="demo-tag">Dados de exemplo</span>' : ""}</div>
       <div class="wr">${days}</div>
       ${pendingBlock(w.pending)}
     </section>`;
@@ -456,29 +472,51 @@ async function loadWeek() {
   $("week").innerHTML = weekReportHtml(await api("/api/week"));
 }
 
+const pageHead = (title, sub = "") => `<header class="large-title">${sub ? `<small>${esc(sub)}</small>` : ""}<h1>${esc(title)}</h1></header>`;
+const widget = (title, href, body) => `<section class="widget"><div class="widget-head"><b>${esc(title)}</b>${href ? `<a href="${href}">Ver tudo ›</a>` : ""}</div>${body}</section>`;
+
+async function loadTodayKey() {
+  if (!$("today-key")) return;
+  const w = await api("/api/week");
+  const items = w.by_day[w.today] || [];
+  $("today-key").innerHTML = items.length ? items.slice(0, 6).map(keyRow).join("") : '<p class="muted pad">Ainda nada hoje.</p>';
+}
+
 async function viewHome() {
+  const today = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   $("view").innerHTML = `
-    <div id="week"></div>
-    <div class="section-title">Agentes agora</div>
-    <div class="agents" id="agents"></div>
-    <div class="home-cols">
-      <div><div class="section-title">O que temos para fazer</div><div class="plan" id="today"></div></div>
-      <div><div class="section-title">Aprovações</div><div id="approvals"></div></div>
+    ${pageHead("Início", today)}
+    <div class="tiles" id="tiles"></div>
+    <div class="widgets">
+      ${widget("Hoje", "#/semana", '<div class="wr-items list" id="today-key"></div>')}
+      ${widget("Por fazer", "#/tarefas", '<div class="plan" id="today"></div>')}
+      ${widget("Aprovações", "#/aprovacoes", '<div id="approvals"></div>')}
+      ${widget("Agentes", "#/equipa", '<div class="agents compact" id="agents"></div>')}
     </div>
-    <div class="section-title">Empresas</div>
-    <div class="grid" id="home-companies"></div>
-    <div class="home-cols">
-      <div><div class="section-title">O que se fez há pouco</div><div class="timeline" id="recent"></div></div>
-      <div><div class="section-title">Últimos commits</div><div class="timeline" id="recent-commits"></div></div>
-    </div>
-    <div class="section-title">Quanto cada um já gastou</div>
-    <div class="grid" id="meters"></div>`;
+    <div class="group-title">Empresas</div>
+    <div class="grid" id="home-companies"></div>`;
   $("home-companies").innerHTML = companies.length ? companies.map((c) => `
     <a class="card click big-card" href="#/empresas/${esc(c.id)}">
       <span class="co-logo">${esc(c.short)}</span>
       <div><h3>${esc(c.name)}</h3><p>${esc(c.tagline)}</p></div>
     </a>`).join("") : '<div class="empty">Ainda não há empresas.</div>';
-  await Promise.all([loadWeek(), loadStats(), loadAgents(), loadToday(), loadMeters(), loadApprovals(), loadRecent(), loadCommits()]);
+  await Promise.all([loadStats(), loadTodayKey(), loadToday(), loadApprovals(), loadAgents()]);
+}
+
+async function viewWeek() {
+  $("view").innerHTML = `${pageHead("Semana", "O que se fez, dia a dia")}<div id="week"></div>
+    <div class="group-title">Últimos commits</div><div class="group timeline" id="recent-commits"></div>`;
+  await Promise.all([loadWeek(), loadCommits()]);
+}
+
+async function viewApprovals() {
+  $("view").innerHTML = `${pageHead("Aprovações", "O que os agentes pedem para fazer")}<div class="group" id="approvals"></div>`;
+  await loadApprovals();
+}
+
+async function viewSpend() {
+  $("view").innerHTML = `${pageHead("Gastos", "Quanto cada um já gastou esta semana")}<div class="grid" id="meters"></div>`;
+  await loadMeters();
 }
 
 async function viewCompanies(r) {
@@ -840,8 +878,7 @@ async function openFile(ctx, item) {
 async function viewTasks() {
   const users = await api("/api/users");
   $("view").innerHTML = `
-    <div class="page-head"><div><h2>Tarefas</h2><p>O que cada agente está a fazer.</p></div></div>
-    <div class="section-title">Aprovações</div><div id="approvals"></div>
+    ${pageHead("Tarefas", "O que cada agente está a fazer")}
     <div class="section-title">Nova tarefa</div>
     <form id="task-form" class="card form">
       <input id="t-title" placeholder="Título" required>
@@ -892,11 +929,9 @@ async function showTask(id) {
 
 async function viewTeam() {
   $("view").innerHTML = `
-    <div class="page-head"><div><h2>Equipa</h2><p>Quem está ligado e o que está a fazer.</p></div>
+    <div class="page-head">${pageHead("Agentes", "Quem está ligado e o que está a fazer")}
       <button id="agent-token">${icon("key")}O meu token de agente</button></div>
     <p id="token-box" class="card" hidden></p>
-    <div class="section-title">Quanto cada um já gastou</div>
-    <div class="grid" id="meters"></div>
     <form id="higgs-form" class="card" style="margin-top:16px">
       <b>O meu Higgsfield</b> <span class="muted">· quanto dos créditos já gastei (o Higgsfield não deixa ler isto sozinho)</span>
       <div class="range-row" style="margin-top:12px">
@@ -991,7 +1026,7 @@ async function start() {
   await loadStats().catch(() => {}); // names first, so every view shows Kovel/Marco/David
   render();
   checkNews().catch(() => {});
-  setInterval(() => { loadWorktree().catch(() => {}); loadWeek().catch(() => {}); }, 8000); // uncommitted work shows up within seconds
+  setInterval(() => { loadWorktree().catch(() => {}); loadWeek().catch(() => {}); loadTodayKey().catch(() => {}); }, 8000); // uncommitted work shows up within seconds
   setInterval(() => loadCommits().catch(() => {}), 30000); // new commits from teammates show up by themselves
   setInterval(() => { loadTeam().catch(() => {}); loadAgents().catch(() => {}); loadStats().catch(() => {}); checkNews().catch(() => {}); loadRecent().catch(() => {}); loadToday().catch(() => {}); loadApprovals().catch(() => {}); }, 15000); // catches OFFLINE and new activity even if the socket dropped
   connect();

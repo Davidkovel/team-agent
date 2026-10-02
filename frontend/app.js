@@ -400,7 +400,6 @@ async function loadUsage() {
 
 const MONTHS = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
 const shortDate = (iso) => { const d = new Date(iso + "T12:00:00"); return `${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]}`; };
-const cell = (n, dim = "") => `<td class="num ${n ? "" : "zero"} ${dim}">${n}</td>`;
 
 
 // Work in progress: files edited since the last commit. Shown the moment someone touches something, no commit or push needed.
@@ -433,43 +432,32 @@ async function loadWorktree() {
 }
 
 // The weekly ledger: one row per person, a mark for every day they showed up, then what they did and what they still owe.
-function ledgerHtml(w) {
-  const head = w.days.map((d, i) => `<th class="day ${i === w.today ? "today" : ""}">${esc(d.slice(0, 3)).toUpperCase()}</th>`).join("");
-  const rows = w.people.map((p) => `
-    <tr class="${p.status === "parado" ? "idle" : ""}">
-      <td class="who"><b>${esc(p.name)}</b><span class="state ${p.status}">${p.status.toUpperCase()}</span></td>
-      ${p.days.map((on, i) => `<td class="mark ${i > w.today ? "future" : on ? "on" : "off"} ${i === w.today ? "today" : ""}">${i > w.today ? "·" : on ? "■" : "□"}</td>`).join("")}
-      ${cell(p.logins)}${cell(p.commits)}${cell(p.edits)}${cell(p.tasks_done)}${cell(p.tasks_open, p.tasks_open ? "owes" : "")}
-      <td class="num lines"><span class="add">+${p.added}</span> <span class="del">−${p.deleted}</span></td>
-      <td class="last">${p.last_activity ? ago(p.last_activity) : "—"}</td>
-    </tr>`).join("");
-  const sum = (k) => w.people.reduce((n, p) => n + p[k], 0);
-  const feed = w.feed.slice(0, 8).map((f) => `<div class="feed-row"><span class="t">${time(f.when)}</span><b>${esc(f.who)}</b><span>${esc(f.text)}</span></div>`).join("");
+const KEY_LABEL = { task_done: "FEITO", commit: "COMMIT", task_created: "NOVA", library_edit: "EDIÇÃO" };
+function weekReportHtml(w) {
+  const days = w.days.map((d, i) => {
+    if (i > w.today) return "";
+    const items = w.by_day[i] || [];
+    const date = new Date(w.from + "T12:00:00"); date.setDate(date.getDate() + i);
+    return `<div class="wr-day ${i === w.today ? "today" : ""}">
+      <div class="wr-date"><b>${esc(d)}</b><span>${shortDate(date.toISOString().slice(0, 10))}</span></div>
+      <div class="wr-items">${items.length ? items.map((f) => `<div class="wr-item"><span class="wr-tag ${f.what}">${KEY_LABEL[f.what]}</span><b>${esc(f.who)}</b><span>${esc(f.text)}</span><span class="t">${time(f.when)}</span></div>`).join("")
+        : '<div class="wr-item muted">Nada de importante.</div>'}</div></div>`;
+  }).reverse().join("");
   return `
     <section class="ledger-box">
-      <div class="ledger-head"><span>RELATÓRIO SEMANAL <i>SEM ${w.week} · ${shortDate(w.from)} – ${shortDate(w.to)}</i></span>${w.demo ? '<span class="demo-tag">DADOS DE EXEMPLO</span>' : ""}</div>
-      <div class="table-wrap"><table class="ledger">
-        <thead><tr><th class="who">AGENTE</th>${head}<th>ENTR.</th><th>COMMITS</th><th>EDIÇÕES</th><th>FEITAS</th><th>POR FAZER</th><th>LINHAS</th><th class="last">ÚLTIMA ATIV.</th></tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr><td class="who">TOTAL</td><td colspan="7"></td>${cell(sum("logins"))}${cell(sum("commits"))}${cell(sum("edits"))}${cell(sum("tasks_done"))}${cell(sum("tasks_open"))}<td colspan="2"></td></tr></tfoot>
-      </table></div>
+      <div class="ledger-head"><span>RELATÓRIO DA SEMANA <i>SEM ${w.week} · ${shortDate(w.from)} – ${shortDate(w.to)}</i></span>${w.demo ? '<span class="demo-tag">DADOS DE EXEMPLO</span>' : ""}</div>
+      <div class="wr">${days}</div>
       ${pendingBlock(w.pending)}
-      <div class="feed-title">ÚLTIMOS MOVIMENTOS</div>
-      <div class="feed">${feed || '<div class="feed-row"><span class="muted">Sem movimentos esta semana.</span></div>'}</div>
     </section>`;
 }
 
 async function loadWeek() {
   if (!$("week")) return;
-  $("week").innerHTML = ledgerHtml(await api("/api/week"));
+  $("week").innerHTML = weekReportHtml(await api("/api/week"));
 }
 
 async function viewHome() {
   $("view").innerHTML = `
-    <div class="hero">
-      <div><h2>Olá, <span>${esc(me.display_name)}</span></h2><p>Tudo sob controlo. Nada passa despercebido.</p><div class="tiles" id="tiles"></div></div>
-      <div class="presence" id="presence" aria-label="Quem está online"></div>
-    </div>
     <div id="week"></div>
     <div class="section-title">Agentes agora</div>
     <div class="agents" id="agents"></div>
@@ -1009,4 +997,12 @@ async function start() {
   connect();
 }
 
-token ? start() : logout();
+async function autoLogin() {
+  const res = await fetch("/api/auth/auto", { method: "POST" }).catch(() => null);
+  if (res?.ok) { token = (await res.json()).token; sessionStorage.setItem("token", token); return start(); }
+  const ip = res ? (await res.json().catch(() => ({}))).detail?.ip : "";
+  logout();
+  if (ip) $("login-error").textContent = `Este computador (${ip}) ainda não está associado a ninguém. Entra como admin ou adiciona-o em IP_USERS.`;
+}
+
+token ? start() : autoLogin();

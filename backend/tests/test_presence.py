@@ -149,3 +149,24 @@ def test_team_mode_shows_the_real_names_and_everybody_is_owner(client, monkeypat
         assert client.get("/api/me", headers=login(client, "mark")[1]).json()["role"] == "owner"
     finally:
         client.portal.call(restore)
+
+
+def test_other_computer_needs_the_team_key_to_show_online(client, monkeypatch):
+    from app.config import settings
+    stranger = TestClient(app, client=("26.1.2.3", 5000))  # e.g. a Radmin address
+    ping = {"X-Team-Widget": "1"}
+    monkeypatch.setattr(settings, "team_key", "")
+    assert stranger.get("/api/local/team", headers={"X-Team-Key": ""}).status_code == 403  # no key set on the host: stays local-only
+    monkeypatch.setattr(settings, "team_key", "segredo")
+    assert stranger.get("/api/local/team", headers={"X-Team-Key": "errado"}).status_code == 403
+    assert stranger.post("/api/local/presence", json={"user": "owner"}, headers={**ping, "X-Team-Key": "errado"}).status_code == 403
+    assert stranger.get("/api/local/week", headers={"X-Team-Key": "segredo"}).status_code == 403  # the ledger never opens to the network
+    try:
+        with stranger:
+            ok = stranger.post("/api/local/presence", json={"user": "mark"}, headers={**ping, "X-Team-Key": "segredo"})
+            assert ok.status_code == 200
+            team = {m["user"]: m for m in stranger.get("/api/local/team", headers={"X-Team-Key": "segredo"}).json()}
+            assert team["mark"]["online"]
+    finally:
+        services.WIDGET_SEEN.clear()
+        asyncio.run(rt.store.clear_presence(2))

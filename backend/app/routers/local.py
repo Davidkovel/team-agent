@@ -3,6 +3,7 @@
 The widget has no login, so these only answer requests that come from this machine (like /api/local/week).
 Anyone on the network must use the normal, token-protected endpoints instead.
 """
+import hmac
 import ipaddress
 import time
 
@@ -36,6 +37,14 @@ def only_local(request: Request):
     raise HTTPException(403, "Only available from the server computer")
 
 
+def local_or_team_key(request: Request):
+    """Presence only: the server computer, or another computer's widget that knows TEAM_KEY."""
+    key = request.headers.get("x-team-key", "")
+    if settings.team_key and hmac.compare_digest(key.encode(), settings.team_key.encode()):
+        return
+    only_local(request)
+
+
 class WidgetPing(BaseModel):
     user: str  # login (owner/mark/david) or the name people see (Kovel/Marco/David)
 
@@ -43,7 +52,7 @@ class WidgetPing(BaseModel):
 @router.get("/team")
 async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
     """Who is online right now, for the widget's icons. Works with no agent and no login."""
-    only_local(request)
+    local_or_team_key(request)
     out = []
     for u in (await db.execute(select(User).order_by(User.id))).scalars():
         presence = await rt.store.get_presence(u.id)
@@ -58,7 +67,7 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
 async def local_presence(body: WidgetPing, request: Request, db: AsyncSession = Depends(get_db),
                          x_team_widget: str | None = Header(None)):
     """The widget on this computer says "this person is here". The custom header keeps web pages from calling it."""
-    only_local(request)
+    local_or_team_key(request)
     if x_team_widget != "1":
         raise HTTPException(403, "Widget only")
     wanted = body.user.strip().lower()

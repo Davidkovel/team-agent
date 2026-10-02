@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     widget_networks: str = ""
     # Optional: lets the commit feed read private GitHub repos (a token with read access to contents).
     github_token: str = ""
+    # Shared key that lets the widgets of other computers (over Radmin/LAN) show who is online. Empty = this computer only.
+    team_key: str = ""
+    # Sign-in by computer, no password: "ip=login,ip=login". The server computer itself is 127.0.0.1.
+    ip_users: str = "127.0.0.1=mark,::1=mark"
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"
     david_password: str = "david-change-me"

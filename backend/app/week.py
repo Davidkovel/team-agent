@@ -17,6 +17,7 @@ DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 OPEN = ("ASSIGNED", "IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP")
 DEMO = "__demo__"
 FEED_KINDS = {"login", "library_edit", "task_done", "task_created", "user_created"}
+KEY_KINDS = ("task_done", "commit", "task_created", "library_edit")  # what goes in the day-by-day report; logins don't
 
 
 def _utc(dt: datetime | None) -> datetime | None:
@@ -115,10 +116,16 @@ async def summary(db: AsyncSession, now: datetime | None = None, with_commits: b
             feed.append({"when": when.isoformat(), "who": r["name"], "what": "commit", "text": f"commit em {c['repo']}: {c['message']}"})
 
     feed.sort(key=lambda f: f["when"], reverse=True)
+    by_day = [[] for _ in DAYS]
+    for f in feed:
+        if f["what"] in KEY_KINDS:
+            by_day[datetime.fromisoformat(f["when"]).astimezone().weekday()].append(f)
+    for items in by_day:
+        items.sort(key=lambda f: (KEY_KINDS.index(f["what"]), f["when"]))
     people = list(rows.values())
     for r in people:
         r["status"] = "ativo" if (r["logins"] or r["commits"] or r["tasks_done"] or r["edits"]) else "parado"
     iso_year, iso_week, _ = start.isocalendar()
     return {"week": iso_week, "from": start.date().isoformat(), "to": (start + timedelta(days=6)).date().isoformat(), "days": DAYS,
-            "today": now.weekday(), "demo": demo, "people": people, "feed": feed[:10],
+            "today": now.weekday(), "demo": demo, "people": people, "feed": feed[:10], "by_day": by_day,
             "pending": await asyncio.to_thread(worktree.pending)}

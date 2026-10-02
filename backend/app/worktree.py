@@ -6,6 +6,7 @@ timestamps say when. Git does not record WHO edits an uncommitted file, so the r
 """
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -16,6 +17,8 @@ MAX_FILES = 200
 SKIP = ("__pycache__/", ".pytest_cache/", ".venv/", "node_modules/", ".git/")
 SKIP_END = (".pyc", ".db", ".db-wal", ".db-shm", ".log")
 _cache: dict[str, tuple[float, dict | None]] = {}
+_refreshing: set[str] = set()
+_lock = threading.Lock()
 LABELS = {"M": "alterado", "A": "novo", "D": "apagado", "?": "novo"}
 
 
@@ -63,19 +66,38 @@ def _one(repo: dict) -> dict | None:
             "newest": max(stamps) if stamps else None, "files": files[:MAX_FILES]}
 
 
+def _refresh(repo: dict):
+    try:
+        try:
+            result = _one(repo)
+        except Exception:
+            result = None
+        _cache[repo["name"]] = (time.time(), result)
+    finally:
+        with _lock:
+            _refreshing.discard(repo["name"])
+
+
 def pending() -> list[dict]:
-    """Repos with uncommitted work, most recently touched first. Cached for a few seconds: it is polled often."""
+    """Repos with uncommitted work, most recently touched first. Polled often, so after the first read the answer
+    comes from the cache at once and git runs in the background."""
     now, out = time.time(), []
     for repo in commits.repos():
         hit = _cache.get(repo["name"])
-        if hit and now - hit[0] < CACHE_SECONDS:
-            result = hit[1]
-        else:
+        if hit is None:
             try:
                 result = _one(repo)
             except Exception:
                 result = None
             _cache[repo["name"]] = (now, result)
+        else:
+            result = hit[1]
+            if now - hit[0] >= CACHE_SECONDS:
+                with _lock:
+                    start = repo["name"] not in _refreshing
+                    _refreshing.add(repo["name"])
+                if start:
+                    threading.Thread(target=_refresh, args=(repo,), daemon=True).start()
         if result:
             out.append(result)
     return sorted(out, key=lambda r: r["newest"] or 0, reverse=True)

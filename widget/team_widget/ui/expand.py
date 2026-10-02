@@ -9,16 +9,71 @@ double-click the bar or use the middle button to switch between full screen and 
     expander.collapsed.connect(widget.show_panel)
     expander.expand(widget.frameGeometry(), url)   # then hide the widget
 """
-from PySide6.QtCore import QEasingCurve, QEvent, QParallelAnimationGroup, QPropertyAnimation, QRect, Qt, QUrl, Signal
-from PySide6.QtGui import QColor, QGuiApplication, QPainter
+import os
+
+# GPU raster and zero-copy for the embedded Hub: Chromium blocks many laptop GPUs by default and falls back to
+# software painting, which is what made scrolling and clicks feel heavy. Must be set before the web engine starts.
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS",
+                      "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-smooth-scrolling")
+
+from PySide6.QtCore import QElapsedTimer, QEasingCurve, QEvent, QRect, QRectF, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+
+from .motion import FrameClock, clock
 
 BG = QColor(7, 7, 8)
 GROW_MS = 460
 SHRINK_MS = 320
 EDGE = 6           # px around the Hub that resize the window
 WINDOWED = (0.72, 0.8)   # size of the "smaller window" as a share of the screen
+
+
+class Ghost(QWidget):
+    """The shape that grows and shrinks. Resizing the real window every frame makes Chromium lay the Hub out
+    60+ times a second, which is what stuttered; this one only repaints a rounded rectangle on a still window,
+    at the monitor's refresh rate (never below 144 Hz, like the rest of the widget)."""
+
+    def __init__(self):
+        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self._rect = QRectF()
+        self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.PreciseTimer)
+        self._timer.timeout.connect(self._step)
+        self._clock = QElapsedTimer()
+
+    def run(self, start: QRect, end: QRect, ms: int, curve, done):
+        area = start.united(end)
+        self.setGeometry(area)
+        self._from = QRectF(start.translated(-area.topLeft()))
+        self._to = QRectF(end.translated(-area.topLeft()))
+        self._rect, self._ms, self._curve, self._done = self._from, ms, QEasingCurve(curve), done
+        self.show()
+        clock().start()  # 1 ms Windows timer resolution, else frames land every 15.6 ms
+        self._clock.start()
+        self._timer.start(max(1, int(1000 / FrameClock.target_fps())))
+
+    def _step(self):
+        t = min(1.0, self._clock.elapsed() / self._ms)
+        k, a, b = self._curve.valueForProgress(t), self._from, self._to
+        self._rect = QRectF(a.x() + (b.x() - a.x()) * k, a.y() + (b.y() - a.y()) * k,
+                            a.width() + (b.width() - a.width()) * k, a.height() + (b.height() - a.height()) * k)
+        self.repaint()
+        if t >= 1.0:
+            self._timer.stop()
+            self._done()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(self._rect.adjusted(.5, .5, -.5, -.5), 14, 14)
+        p.fillPath(path, BG)
+        p.setPen(QPen(QColor(255, 255, 255, 34), 1))
+        p.drawPath(path)
 
 
 class DragBar(QWidget):
@@ -69,7 +124,7 @@ class HubExpander(QWidget):
 
         self.view = QWebEngineView()
         self.view.page().setBackgroundColor(BG)
-        self._content = [bar, self.view]
+        self._ghost = Ghost()
 
         box = QVBoxLayout(self)
         box.setContentsMargins(EDGE, EDGE, EDGE, EDGE)  # the border strip is where resizing grabs
@@ -138,7 +193,7 @@ class HubExpander(QWidget):
             return
         end = self._windowed_rect() if self._full else self._screen().availableGeometry()
         self._full = not self._full
-        self._run(self.geometry(), end, 260, QEasingCurve.OutCubic, lambda: setattr(self, "_busy", False))
+        self._morph(self.geometry(), end, 220, QEasingCurve.OutCubic, keep_window=True)
 
     # ------------------------------------------------------------ grow / shrink
 
@@ -151,46 +206,38 @@ class HubExpander(QWidget):
         if self.view.url().toString() != url:
             self.view.load(QUrl(url))  # loads while it grows, so the Hub is ready when the motion ends
         screen = QGuiApplication.screenAt(origin.center()) or QGuiApplication.primaryScreen()
-        self._show_content(False)
-        self.setGeometry(origin)
-        self.setWindowOpacity(1)
-        self.showNormal()
-        self.raise_()
-        self.activateWindow()
-        self._run(origin, screen.availableGeometry(), GROW_MS, QEasingCurve.OutQuart, self._grown)
+        self._morph(origin, screen.availableGeometry(), GROW_MS, QEasingCurve.OutQuart, keep_window=True)
 
     def collapse(self):
         """Shrinks back onto the widget and hides; the widget comes back via `collapsed`."""
         if self._busy or not self.isVisible():
             return
-        self._show_content(False)
-        self._run(self.geometry(), self._origin, SHRINK_MS, QEasingCurve.InCubic, self._shrunk)
+        self._morph(self.geometry(), self._origin, SHRINK_MS, QEasingCurve.InCubic, keep_window=False)
 
-    def _run(self, start: QRect, end: QRect, ms: int, curve, done):
+    def _morph(self, start: QRect, end: QRect, ms: int, curve, keep_window: bool):
+        """The ghost moves from start to end while the real window waits, invisible, already at its final size."""
         self._busy = True
-        geo = QPropertyAnimation(self, b"geometry", self)
-        geo.setStartValue(start)
-        geo.setEndValue(end)
-        geo.setDuration(ms)
-        geo.setEasingCurve(curve)
-        self._anim = QParallelAnimationGroup(self)
-        self._anim.addAnimation(geo)
-        self._anim.finished.connect(done)
-        self._anim.start()
+        # The real window stays out of the way while the ghost moves: nothing else competes for the GPU.
+        self.setWindowOpacity(0)  # layered-window alpha: DWM does it, the web view keeps its pixels and its input
+        if keep_window:
+            self.setGeometry(end)  # laid out at the final size now, shown when the ghost lands
+        else:
+            self.hide()
+        self._ghost.run(start, end, ms, curve, lambda: self._landed(keep_window))
 
-    def _grown(self):
+    def _landed(self, keep_window: bool):
         self._busy = False
-        self._show_content(True)  # no QGraphicsEffect on the web view: it swallows every click and keystroke
-        self.view.setFocus()
-
-    def _shrunk(self):
-        self._busy = False
-        self.hide()
-        self.collapsed.emit()
-
-    def _show_content(self, on: bool):
-        for w in self._content:
-            w.setVisible(on)
+        if keep_window:
+            if not self.isVisible():
+                self.showNormal()
+            self.setWindowOpacity(1)
+            self.raise_()
+            self.activateWindow()
+            self.view.setFocus()
+            QTimer.singleShot(50, self._ghost.hide)  # a few frames of overlap while the Hub paints, so nothing flashes
+        else:
+            self._ghost.hide()
+            self.collapsed.emit()
 
     # ------------------------------------------------------------ minimize from anywhere
 

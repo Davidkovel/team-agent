@@ -8,6 +8,7 @@ for private repos); that one only knows the message and author, not the files.
 import json
 import os
 import subprocess
+import threading
 import time
 import urllib.request
 from collections import defaultdict
@@ -20,6 +21,8 @@ CACHE_SECONDS = 60
 FETCH_COUNT = 100
 MAX_FILES = 80
 _cache: dict[str, tuple[float, list[dict]]] = {}
+_refreshing: set[str] = set()
+_lock = threading.Lock()
 
 REC, FIELD, BODY_END = "\x1e", "\x1f", "\x1d"
 GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}  # never wait for a password in the background
@@ -107,24 +110,44 @@ def _local(repo: dict, limit: int) -> list[dict]:
     return _parse(out.stdout.decode("utf-8", errors="replace"), repo)
 
 
+def _fetch(repo: dict) -> list[dict]:
+    for source in (_local, _github):
+        if source is _github and not repo.get("github"):
+            continue
+        try:
+            commits = source(repo, FETCH_COUNT)
+        except Exception:
+            commits = []
+        if commits:
+            return commits
+    return []
+
+
+def _refresh(repo: dict):
+    try:
+        _cache[repo["name"]] = (time.time(), _fetch(repo))
+    finally:
+        with _lock:
+            _refreshing.discard(repo["name"])
+
+
 def recent(limit: int = 40) -> list[dict]:
+    """Never makes the caller wait for git once a repo was read: stale data is returned at once and refreshed
+    in the background (git log + fetch takes seconds and the Hub polls this every few seconds)."""
     now, items = time.time(), []
     for repo in repos():
         key = repo["name"]  # always fetch FETCH_COUNT once; callers slice
         hit = _cache.get(key)
-        if hit and now - hit[0] < CACHE_SECONDS:
-            commits = hit[1]
-        else:
-            commits = []
-            for source in (_local, _github):
-                if source is _github and not repo.get("github"):
-                    continue
-                try:
-                    commits = source(repo, FETCH_COUNT)
-                except Exception:
-                    commits = []
-                if commits:
-                    break
+        if hit is None:
+            commits = _fetch(repo)
             _cache[key] = (now, commits)
+        else:
+            commits = hit[1]
+            if now - hit[0] >= CACHE_SECONDS:
+                with _lock:
+                    start = key not in _refreshing
+                    _refreshing.add(key)
+                if start:
+                    threading.Thread(target=_refresh, args=(repo,), daemon=True).start()
         items += [{**c, "repo": repo["name"]} for c in commits]
     return sorted(items, key=lambda c: c["date"], reverse=True)[:limit]

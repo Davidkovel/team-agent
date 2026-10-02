@@ -1,35 +1,39 @@
-import ctypes
+"""The widget: a small dark panel in the style of a modern OS control centre.
+
+Frameless, rounded, drawn with anti-aliasing, and every animation runs off one frame clock
+at the monitor's refresh rate (see motion.py). Closing it hides it to the tray; the agent keeps running.
+"""
 import getpass
-import json
 import os
 import threading
 import time
-import tkinter as tk
 import urllib.error
-import urllib.request
 import webbrowser
-from datetime import datetime
 from pathlib import Path
-from tkinter import messagebox
 
-from PIL import Image, ImageTk
+from PySide6.QtCore import QEasingCurve, QEvent, QPointF, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
+from PySide6.QtWidgets import QAbstractButton, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy, QVBoxLayout, QWidget
 
 from .. import hub
 from ..api.agent_client import AgentClient
 from ..state.store import StateStore
+from .car import CarView
+from .motion import clock
 
-BG, CARD, CARD2, TEXT, MUTED = "#000000", "#070707", "#161616", "#e6e6e6", "#8a8a8a"
+TEXT, MUTED, FAINT = "#f2f4f5", "#8a8a8a", "#4a4a4a"
 ACCENT, ACCENT2 = "#e6e6e6", "#ffffff"
+AMBER = "#ff9f1c"
 COLORS = {"WORKING": "#4ade80", "ONLINE": "#4ade80", "IDLE": "#c8ccce", "WAITING": "#fbbf24",
           "PAUSED": "#fbbf24", "ERROR": "#ff9f1c", "OFFLINE": "#6b6880"}
 LABELS = {"WORKING": "A trabalhar", "ONLINE": "Online", "IDLE": "Livre", "WAITING": "À espera",
           "PAUSED": "Em pausa", "ERROR": "Erro", "OFFLINE": "Agente desligado"}
-WIDTH = 372
+WIDTH = 380            # the panel; the window adds SHADOW on every side
+SHADOW = 18
+RADIUS = 20
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
-LOGO, CAR = ASSETS / "logo.png", ASSETS / "car.png"
-FONT = "Segoe UI"
-MONO = "Consolas"
-FAINT = "#4a4a4a"
+LOGO, WORDMARK = ASSETS / "logo.png", ASSETS / "amg-wordmark.png"
+UI, MONO = ("Segoe UI Variable Text", "Segoe UI"), ("Cascadia Mono", "Consolas")
 
 
 def elapsed(started_at) -> str:
@@ -37,26 +41,6 @@ def elapsed(started_at) -> str:
         return ""
     seconds = int(time.time() - started_at)
     return f"{seconds // 3600}h {seconds % 3600 // 60:02d}m" if seconds >= 3600 else f"{seconds // 60}m {seconds % 60:02d}s"
-
-
-class Bar(tk.Canvas):
-    """Flat progress bar (no rounding, no animation)."""
-
-    def __init__(self, parent, bg=CARD, height=6):
-        super().__init__(parent, height=height, bg=bg, highlightthickness=0, bd=0)
-        self._pct, self._color = 0, ACCENT
-        self.bind("<Configure>", lambda e: self._draw())
-
-    def set(self, pct, color=ACCENT):
-        self._pct, self._color = max(0, min(100, pct or 0)), color
-        self._draw()
-
-    def _draw(self):
-        self.delete("all")
-        w, h = self.winfo_width(), int(self["height"])
-        self.create_rectangle(0, 0, w, h, fill=CARD2, width=0)
-        if self._pct > 0:
-            self.create_rectangle(0, 0, w * self._pct / 100, h, fill=self._color, width=0)
 
 
 def meter_color(pct):
@@ -67,103 +51,511 @@ def clip(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
-class WidgetWindow:
+def rgba(colour: str, alpha: float) -> QColor:
+    c = QColor(colour)
+    c.setAlphaF(alpha)
+    return c
+
+
+def font(size, weight=QFont.Normal, families=UI, spacing=0.0) -> QFont:
+    f = QFont()
+    f.setFamilies(list(families))
+    f.setPointSizeF(size)
+    f.setWeight(weight)
+    f.setStyleStrategy(QFont.PreferAntialias)
+    if spacing:
+        f.setLetterSpacing(QFont.AbsoluteSpacing, spacing)
+    return f
+
+
+def label(text="", size=9.0, colour=TEXT, weight=QFont.Normal, families=UI, spacing=0.0, wrap=False) -> QLabel:
+    w = QLabel(text)
+    w.setFont(font(size, weight, families, spacing))
+    w.setStyleSheet(f"color: {colour}; background: transparent;")
+    w.setWordWrap(wrap)
+    return w
+
+
+def caption(text, colour=MUTED) -> QLabel:
+    return label(text, 7.5, colour, QFont.DemiBold, spacing=1.1)
+
+
+def recolour(w: QLabel, colour: str):
+    w.setStyleSheet(f"color: {colour}; background: transparent;")
+
+
+def animate(owner, ms, on_value, start=0.0, end=1.0, curve=QEasingCurve.OutCubic) -> QVariantAnimation:
+    a = QVariantAnimation(owner)
+    a.setDuration(ms)
+    a.setStartValue(float(start))
+    a.setEndValue(float(end))
+    a.setEasingCurve(curve)
+    a.valueChanged.connect(on_value)
+    return a
+
+
+# ------------------------------------------------------------------ building blocks
+
+
+class Card(QWidget):
+    """Rounded tile with a hairline border, like a control-centre module."""
+
+    def __init__(self, tint: str | None = None):
+        super().__init__()
+        self.tint = tint
+        self.box = QVBoxLayout(self)
+        self.box.setContentsMargins(14, 12, 14, 13)
+        self.box.setSpacing(6)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        if self.tint:
+            p.setBrush(rgba(self.tint, 0.09))
+            p.setPen(QPen(rgba(self.tint, 0.28), 1))
+        else:
+            fill = QLinearGradient(0, 0, 0, r.height())
+            fill.setColorAt(0, QColor(22, 22, 24))
+            fill.setColorAt(1, QColor(14, 14, 16))
+            p.setBrush(fill)
+            p.setPen(QPen(QColor(255, 255, 255, 17), 1))
+        p.drawRoundedRect(r, 14, 14)
+
+
+class Meter(QWidget):
+    """Rounded progress bar that glides to its new value."""
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(6)
+        self._shown, self._colour = 0.0, QColor(ACCENT)
+        self._anim = animate(self, 700, self._set_shown)
+
+    def _set_shown(self, value):
+        self._shown = value
+        self.update()
+
+    def set(self, pct, colour=ACCENT):
+        self._colour = QColor(colour)
+        target = max(0, min(100, pct or 0)) / 100
+        if abs(target - self._shown) > 0.001:
+            self._anim.stop()
+            self._anim.setStartValue(self._shown)
+            self._anim.setEndValue(target)
+            self._anim.start()
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        h = self.height()
+        p.setBrush(QColor(255, 255, 255, 20))
+        p.drawRoundedRect(QRectF(0, 0, self.width(), h), h / 2, h / 2)
+        if self._shown > 0:
+            w = max(h, self.width() * self._shown)
+            fill = QLinearGradient(0, 0, w, 0)
+            fill.setColorAt(0, rgba(self._colour.name(), 0.55))
+            fill.setColorAt(1, self._colour)
+            p.setBrush(fill)
+            p.drawRoundedRect(QRectF(0, 0, w, h), h / 2, h / 2)
+
+
+class Hover(QAbstractButton):
+    """A button whose hover and press states fade instead of snapping."""
+
+    def __init__(self):
+        super().__init__()
+        self.setCursor(Qt.PointingHandCursor)
+        self.hover = self.press = 0.0
+        self._hover = animate(self, 180, lambda v: self._set("hover", v))
+        self._press = animate(self, 110, lambda v: self._set("press", v))
+        self.pressed.connect(lambda: self._to(self._press, self.press, 1))
+        self.released.connect(lambda: self._to(self._press, self.press, 0))
+
+    def _set(self, name, value):
+        setattr(self, name, value)
+        self.update()
+
+    @staticmethod
+    def _to(anim, current, end):
+        anim.stop()
+        anim.setStartValue(current)
+        anim.setEndValue(float(end))
+        anim.start()
+
+    def enterEvent(self, e):
+        self._to(self._hover, self.hover, 1)
+        super().enterEvent(e)
+
+    def leaveEvent(self, e):
+        self._to(self._hover, self.hover, 0)
+        super().leaveEvent(e)
+
+
+class PrimaryButton(Hover):
+    def __init__(self, text):
+        super().__init__()
+        self.setText(text)
+        self.setFixedHeight(42)
+        self.setFont(font(8.5, QFont.Bold, spacing=1.4))
+
+    def sizeHint(self):
+        return QSize(200, 42)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        s = 1 - 0.02 * self.press
+        p.translate(r.center())
+        p.scale(s, s)
+        p.translate(-r.center())
+        if not self.isEnabled():
+            p.setPen(QPen(QColor(255, 255, 255, 20), 1))
+            p.setBrush(QColor(24, 24, 26))
+            p.drawRoundedRect(r, 13, 13)
+            p.setPen(QColor(MUTED))
+        else:
+            p.setPen(Qt.NoPen)
+            for i in range(4, 0, -1):          # soft halo that grows on hover
+                p.setBrush(QColor(255, 255, 255, int(7 * self.hover)))
+                p.drawRoundedRect(r.adjusted(-i * 0.6, -i * 0.6, i * 0.6, i * 0.6), 13 + i * 0.6, 13 + i * 0.6)
+            fill = QLinearGradient(0, r.top(), 0, r.bottom())
+            fill.setColorAt(0, QColor(ACCENT).lighter(int(100 + 9 * self.hover)))
+            fill.setColorAt(1, QColor(200, 204, 206).lighter(int(100 + 9 * self.hover)))
+            p.setBrush(fill)
+            p.drawRoundedRect(r, 13, 13)
+            p.setPen(QColor(0, 0, 0))
+        p.setFont(self.font())
+        p.drawText(r, Qt.AlignCenter, self.text())
+
+
+class IconButton(Hover):
+    """Round title-bar button: 'hide' (a dash) or 'hub' (open full size)."""
+
+    def __init__(self, glyph, tip):
+        super().__init__()
+        self.glyph = glyph
+        self.setFixedSize(28, 28)
+        self.setToolTip(tip)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, int(8 + 22 * self.hover + 14 * self.press)))
+        p.drawEllipse(QRectF(0.5, 0.5, 27, 27))
+        c = QColor(MUTED)
+        c = QColor(int(c.red() + (242 - c.red()) * self.hover), int(c.green() + (244 - c.green()) * self.hover),
+                   int(c.blue() + (245 - c.blue()) * self.hover))
+        pen = QPen(c, 1.5)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        p.setPen(pen)
+        if self.glyph == "hide":
+            p.drawLine(QPointF(9.5, 14), QPointF(18.5, 14))
+        else:  # two corners pulling apart
+            path = QPainterPath(QPointF(15.5, 9.5))
+            path.lineTo(18.5, 9.5)
+            path.lineTo(18.5, 12.5)
+            path.moveTo(12.5, 18.5)
+            path.lineTo(9.5, 18.5)
+            path.lineTo(9.5, 15.5)
+            path.moveTo(18.5, 9.5)
+            path.lineTo(15, 13)
+            path.moveTo(9.5, 18.5)
+            path.lineTo(13, 15)
+            p.drawPath(path)
+
+
+class StatusChip(QWidget):
+    """Pill with the agent's status; the dot breathes while the agent works or waits."""
+
+    def __init__(self):
+        super().__init__()
+        self.setFont(font(7.5, QFont.Bold, spacing=1.0))
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._text, self._colour, self._pulse, self._t = "", QColor(COLORS["OFFLINE"]), False, 0.0
+        clock().frame.connect(self._frame)
+
+    def set(self, text, colour, pulse):
+        self._text, self._colour, self._pulse = text.upper(), QColor(colour), pulse
+        self.updateGeometry()
+        self.update()
+
+    def _frame(self, t):
+        self._t = t
+        if self._pulse and self.isVisible():
+            self.update()
+
+    def sizeHint(self):
+        return QSize(int(QFontMetricsF(self.font()).horizontalAdvance(self._text)) + 34, 26)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        p.setBrush(rgba(self._colour.name(), 0.10))
+        p.setPen(QPen(rgba(self._colour.name(), 0.26), 1))
+        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
+        dot = QPointF(r.left() + 13, r.center().y())
+        if self._pulse:
+            wave = (self._t % 1.8) / 1.8
+            glow = QRadialGradient(dot, 3 + 7 * wave)
+            glow.setColorAt(0, rgba(self._colour.name(), 0.55 * (1 - wave)))
+            glow.setColorAt(1, rgba(self._colour.name(), 0))
+            p.setPen(Qt.NoPen)
+            p.setBrush(glow)
+            p.drawEllipse(dot, 3 + 7 * wave, 3 + 7 * wave)
+        p.setPen(Qt.NoPen)
+        p.setBrush(self._colour)
+        p.drawEllipse(dot, 3.2, 3.2)
+        p.setPen(self._colour)
+        p.setFont(self.font())
+        p.drawText(r.adjusted(22, 0, -10, 0), Qt.AlignVCenter | Qt.AlignLeft, self._text)
+
+
+class Avatar(QWidget):
+    def __init__(self, name: str, online: bool):
+        super().__init__()
+        self.setFixedSize(46, 46)
+        self.initial, self.online = (name[:1] or "?").upper(), online
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        c = QPointF(22, 22)
+        fill = QRadialGradient(QPointF(16, 12), 34)
+        fill.setColorAt(0, QColor(44, 46, 48) if self.online else QColor(24, 24, 26))
+        fill.setColorAt(1, QColor(14, 14, 16))
+        p.setBrush(fill)
+        p.setPen(QPen(rgba(COLORS["ONLINE"], 0.85) if self.online else QColor(255, 255, 255, 22), 1.5))
+        p.drawEllipse(c, 20.5, 20.5)
+        p.setPen(QColor(TEXT) if self.online else QColor("#5d5d63"))
+        p.setFont(font(13, QFont.DemiBold, ("Segoe UI Variable Display", "Segoe UI")))
+        p.drawText(QRectF(1, 1, 42, 42), Qt.AlignCenter, self.initial)
+        dot = QPointF(37, 37)
+        p.setPen(QPen(QColor(10, 10, 12), 3))
+        p.setBrush(QColor(COLORS["ONLINE"] if self.online else COLORS["OFFLINE"]))
+        p.drawEllipse(dot, 5.5, 5.5)
+
+
+class TitleBar(QWidget):
+    """Drag the widget by its top; double-click opens the Hub (what maximizing did before)."""
+
+    def __init__(self, on_double_click):
+        super().__init__()
+        self._on_double_click = on_double_click
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton and self.window().windowHandle():
+            self.window().windowHandle().startSystemMove()
+
+    def mouseDoubleClickEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self._on_double_click()
+
+
+# ------------------------------------------------------------------ the window
+
+
+class WidgetWindow(QWidget):
+    hub_ready = Signal(object)  # (error, url) from the thread that wakes the Hub
+
     def __init__(self, store: StateStore, client: AgentClient):
+        super().__init__(None, Qt.Window | Qt.FramelessWindowHint)
         self.store, self.client = store, client
+        self.hub_ready.connect(self._hub_opened)
         self.on_status = lambda status: None  # tray hook
         self._version = -1
         self._opening_hub = False
-        self._hub_result = None
-        self._week, self._week_seen = None, None  # what is being touched / just happened, from the Hub on this computer
+        self._expander = None
+        self._week, self._week_seen = None, None  # what is being touched right now, from the Hub on this computer
         self._team, self._team_seen = [], False   # who is online, from the Hub on this computer (None = Hub not answering)
+        self._backdrop = None
 
-        root = self.root = tk.Tk()
-        root.title("Agente AMG")
-        root.configure(bg=BG, padx=14, pady=12)
-        # Normal window with the usual minimize / maximize buttons. Maximizing it opens the Hub (see _on_configure).
-        root.minsize(WIDTH, 120)
-        root.bind("<Configure>", self._on_configure)
-        root.protocol("WM_DELETE_WINDOW", self.hide)  # closing hides to tray; the agent keeps running
-        root.iconphoto(True, ImageTk.PhotoImage(Image.open(LOGO).resize((64, 64), Image.LANCZOS)))
-        self._dark_titlebar()
+        self.setWindowTitle("Agente AMG")
+        self.setWindowIcon(QIcon(str(LOGO)))
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        outer = QVBoxLayout(self)
+        outer.setSizeConstraint(QLayout.SetFixedSize)
+        outer.setContentsMargins(SHADOW, SHADOW, SHADOW, SHADOW)
+        panel = QWidget()
+        panel.setFixedWidth(WIDTH)
+        outer.addWidget(panel)
+        col = QVBoxLayout(panel)
+        col.setContentsMargins(16, 12, 16, 16)
+        col.setSpacing(10)
 
-        # header: who is online (one icon per person), then this agent's status
-        self.people = tk.Frame(root, bg=BG)
-        self.people.pack(fill="x")
-        head = tk.Frame(root, bg=BG)
-        head.pack(fill="x", pady=(8, 0))
-        self.user_label = tk.Label(head, text="CENTRAL DE COMANDO", bg=BG, fg=MUTED, font=(MONO, 8))
-        self.user_label.pack(side="left")
-        self.chip = tk.Label(head, text="", bg=CARD, fg=MUTED, font=(MONO, 8, "bold"), padx=8, pady=3)
-        self.chip.pack(side="right")
+        # title bar: wordmark, hub and hide; under it who this is and the agent's status
+        bar = TitleBar(self._open_hub)
+        rows = QVBoxLayout(bar)
+        rows.setContentsMargins(2, 0, 0, 0)
+        rows.setSpacing(8)
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        mark = QLabel()
+        dpr = self.devicePixelRatioF()
+        pix = QPixmap(str(WORDMARK)).scaledToHeight(int(round(11 * dpr)), Qt.SmoothTransformation)
+        pix.setDevicePixelRatio(dpr)
+        mark.setPixmap(pix)
+        mark.setStyleSheet("background: transparent;")
+        row.addWidget(mark, 0, Qt.AlignVCenter)
+        row.addStretch(1)
+        hub_button = IconButton("hub", "Abrir o Hub")
+        hub_button.clicked.connect(self._open_hub)
+        row.addWidget(hub_button, 0, Qt.AlignVCenter)
+        hide_button = IconButton("hide", "Esconder (o agente continua)")
+        hide_button.clicked.connect(self.hide_panel)
+        row.addWidget(hide_button, 0, Qt.AlignVCenter)
+        rows.addLayout(row)
+        row = QHBoxLayout()
+        self.user_label = caption("CENTRAL DE COMANDO")
+        row.addWidget(self.user_label, 0, Qt.AlignVCenter)
+        row.addStretch(1)
+        self.chip = StatusChip()
+        row.addWidget(self.chip, 0, Qt.AlignVCenter)
+        rows.addLayout(row)
+        col.addWidget(bar)
 
-        self._car = ImageTk.PhotoImage(Image.open(CAR))
-        self.car_label = tk.Label(root, image=self._car, bg=BG, bd=0)
-        self.car_label.pack(pady=(2, 0))
-        self.alert = tk.Label(root, text="", bg=BG, fg=COLORS["WAITING"], font=(FONT, 9), anchor="w", justify="left", wraplength=WIDTH - 28)
+        self.car = CarView()
+        col.addWidget(self.car)
 
-        # what people are touching right now and what just happened (the weekly table and calendar live in the Hub)
-        self.ledger = self._card(pady=(6, 0))
-        tk.Label(self.ledger, text="A MEXER AGORA · SEM COMMIT", bg=CARD, fg="#ff9f1c", font=(MONO, 8, "bold"), anchor="w").pack(fill="x")
-        self.pending = tk.Frame(self.ledger, bg=CARD)
-        self.pending.pack(fill="x", pady=(3, 8))
-        tk.Label(self.ledger, text="ÚLTIMOS MOVIMENTOS", bg=CARD, fg=MUTED, font=(MONO, 8, "bold"), anchor="w").pack(fill="x")
-        self.feed = tk.Frame(self.ledger, bg=CARD)
-        self.feed.pack(fill="x", pady=(3, 0))
+        # who is online: one avatar per person
+        self.people = QWidget()
+        self.people_row = QHBoxLayout(self.people)
+        self.people_row.setContentsMargins(2, 0, 0, 0)
+        self.people_row.setSpacing(16)
+        col.addWidget(self.people)
+
+        self.alert = Card(COLORS["WAITING"])
+        self.alert_text = label("", 9, COLORS["WAITING"], wrap=True)
+        self.alert.box.addWidget(self.alert_text)
+        self.alert.box.setContentsMargins(14, 10, 14, 10)
+        self.alert.hide()
+        col.addWidget(self.alert)
+
+        # what people are touching right now (the weekly table and calendar live in the Hub)
+        self.ledger = Card()
+        self.ledger.box.addWidget(caption("A MEXER AGORA · SEM COMMIT", AMBER))
+        self.pending = QVBoxLayout()
+        self.pending.setSpacing(5)
+        self.ledger.box.addLayout(self.pending)
+        col.addWidget(self.ledger)
 
         # the agent's current task, only while there is one
-        self.task_card = self._card(pack=False)
-        row = tk.Frame(self.task_card, bg=CARD)
-        row.pack(fill="x")
-        tk.Label(row, text="TAREFA", bg=CARD, fg=MUTED, font=(MONO, 8, "bold")).pack(side="left")
-        self.progress_text = tk.Label(row, text="", bg=CARD, fg=TEXT, font=(MONO, 9, "bold"))
-        self.progress_text.pack(side="right")
-        self.task = tk.Label(self.task_card, text="", bg=CARD, fg=TEXT, font=(FONT, 10, "bold"), anchor="w", justify="left", wraplength=WIDTH - 54)
-        self.task.pack(fill="x", pady=(3, 4))
-        self.bar = Bar(self.task_card)
-        self.bar.pack(fill="x")
-        self.details = tk.Label(self.task_card, text="", bg=CARD, fg=MUTED, font=(MONO, 8), anchor="w", justify="left", wraplength=WIDTH - 54)
-        self.details.pack(fill="x", pady=(4, 0))
+        self.task_card = Card()
+        head = QHBoxLayout()
+        head.addWidget(caption("TAREFA"))
+        head.addStretch(1)
+        self.progress_text = label("", 9, TEXT, QFont.DemiBold, MONO)
+        head.addWidget(self.progress_text)
+        self.task_card.box.addLayout(head)
+        self.task = label("", 10.5, TEXT, QFont.DemiBold, wrap=True)
+        self.task_card.box.addWidget(self.task)
+        self.bar = Meter()
+        self.task_card.box.addWidget(self.bar)
+        self.details = label("", 8.5, MUTED, wrap=True)
+        self.task_card.box.addWidget(self.details)
+        self.task_card.hide()
+        col.addWidget(self.task_card)
 
         # usage, only when the agent reports it
-        self.use_card = self._card(pack=False)
-        tk.Label(self.use_card, text="CONSUMO DA SEMANA", bg=CARD, fg=MUTED, font=(MONO, 8, "bold"), anchor="w").pack(fill="x")
-        self.week_label, self.week_bar = self._meter_row(self.use_card)
-        self.higgs_label, self.higgs_bar = self._meter_row(self.use_card)
+        self.use_card = Card()
+        self.use_card.box.addWidget(caption("CONSUMO DA SEMANA"))
+        self.week_meter = self._meter_row(self.use_card)
+        self.higgs_meter = self._meter_row(self.use_card)
+        self.use_card.hide()
+        col.addWidget(self.use_card)
 
-        self.open_hub = tk.Button(root, text="ABRIR O HUB", command=self._open_hub, bg=ACCENT, fg="black", relief="flat",
-                                  activebackground=ACCENT2, activeforeground="black", font=(MONO, 10, "bold"), cursor="hand2")
-        self.open_hub.pack(side="bottom", fill="x", pady=(10, 0), ipady=5)
+        col.addSpacing(2)
+        self.open_hub = PrimaryButton("ABRIR O HUB")
+        self.open_hub.clicked.connect(self._open_hub)
+        col.addWidget(self.open_hub)
 
-        root.update_idletasks()
-        x = root.winfo_screenwidth() - WIDTH - 24
-        root.geometry(f"{WIDTH}x{root.winfo_reqheight()}+{x}+60")
+        self._render_people(self._team)
+        self._render_week({})
+        self._fade = animate(self, 220, self.setWindowOpacity)
+        self._fade.finished.connect(self._fade_done)
+        self._place()
         threading.Thread(target=self._poll_hub, daemon=True).start()
+        self._ticker = QTimer(self)
+        self._ticker.timeout.connect(self._tick)
+        self._ticker.start(500)
         self._tick()
 
     # ------------------------------------------------------------ building blocks
 
-    def _dark_titlebar(self):
-        try:  # Windows 10/11: dark title bar to match the widget
-            self.root.update()
-            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
-            value = ctypes.c_int(1)
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
-        except Exception:
-            pass
+    def _meter_row(self, card: Card):
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 6, 0, 0)
+        title = label("", 9, TEXT, QFont.DemiBold)
+        hint = label("", 8.5, MUTED)
+        value = label("", 9, TEXT, QFont.DemiBold, MONO)
+        row.addWidget(title)
+        row.addWidget(hint)
+        row.addStretch(1)
+        row.addWidget(value)
+        card.box.addLayout(row)
+        meter = Meter()
+        card.box.addWidget(meter)
+        return title, hint, value, meter
 
-    def _card(self, pady=(8, 0), pack=True):
-        card = tk.Frame(self.root, bg=CARD, padx=12, pady=10, highlightthickness=1, highlightbackground=CARD2)
-        if pack:
-            card.pack(fill="x", pady=pady)
-        return card
+    def _place(self):
+        self.adjustSize()
+        screen = self.screen().availableGeometry()
+        self.move(screen.right() - self.width() + SHADOW - 24, screen.top() + 60 - SHADOW)
 
-    def _meter_row(self, parent):
-        label = tk.Label(parent, text="", bg=CARD, fg=TEXT, font=(MONO, 9), anchor="w")
-        label.pack(fill="x", pady=(6, 2))
-        bar = Bar(parent)
-        bar.pack(fill="x")
-        return label, bar
+    @staticmethod
+    def _clear(layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                WidgetWindow._clear(item.layout())
+
+    # ------------------------------------------------------------ the panel itself
+
+    def _paint_backdrop(self) -> QPixmap:
+        """Shadow and panel, painted once per size."""
+        dpr = self.devicePixelRatioF()
+        pix = QPixmap(int(self.width() * dpr), int(self.height() * dpr))
+        pix.setDevicePixelRatio(dpr)
+        pix.fill(Qt.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing)
+        panel = QRectF(self.rect()).adjusted(SHADOW, SHADOW, -SHADOW, -SHADOW)
+        p.setPen(Qt.NoPen)
+        for i in range(SHADOW, 0, -1):
+            p.setBrush(QColor(0, 0, 0, int(34 * (1 - i / SHADOW) ** 2)))
+            p.drawRoundedRect(panel.adjusted(-i, -i + 5, i, i + 5), RADIUS + i, RADIUS + i)
+        p.setBrush(QColor(7, 7, 8))
+        p.drawRoundedRect(panel, RADIUS, RADIUS)
+        glow = QRadialGradient(QPointF(panel.left() + panel.width() * 0.12, panel.top() - 30), panel.width() * 0.95)
+        glow.setColorAt(0, QColor(200, 204, 206, 26))
+        glow.setColorAt(1, QColor(200, 204, 206, 0))
+        p.setBrush(glow)
+        p.drawRoundedRect(panel, RADIUS, RADIUS)
+        p.setBrush(Qt.NoBrush)
+        edge = QLinearGradient(0, panel.top(), 0, panel.bottom())
+        edge.setColorAt(0, QColor(255, 255, 255, 46))
+        edge.setColorAt(0.4, QColor(255, 255, 255, 16))
+        edge.setColorAt(1, QColor(255, 255, 255, 12))
+        p.setPen(QPen(edge, 1))
+        p.drawRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), RADIUS, RADIUS)
+        p.end()
+        return pix
+
+    def paintEvent(self, e):
+        if self._backdrop is None or self._backdrop.deviceIndependentSize().toSize() != self.size():
+            self._backdrop = self._paint_backdrop()
+        p = QPainter(self)
+        p.setCompositionMode(QPainter.CompositionMode_Source)
+        p.setClipRegion(e.region())
+        p.drawPixmap(0, 0, self._backdrop)
 
     # ------------------------------------------------------------ the Hub on this computer: who is online, what is happening
 
@@ -176,111 +568,145 @@ class WidgetWindow:
             try:
                 if not hub.is_up(url) and hub.is_local(url):
                     hub.start_local_server(url)
-                with urllib.request.urlopen(url + "/api/local/team", timeout=5) as res:
-                    team = json.load(res)
+                team = hub.get_json(url + "/api/local/team")
                 who = self._identity(team)
                 if who:
                     hub.ping_presence(url, who)
-                    with urllib.request.urlopen(url + "/api/local/team", timeout=5) as res:
-                        team = json.load(res)  # again, so this person already shows as online
+                    team = hub.get_json(url + "/api/local/team")  # again, so this person already shows as online
                 self._team = team
-                if tick % 2 == 0:
-                    with urllib.request.urlopen(url + "/api/local/week", timeout=5) as res:
-                        self._week = json.load(res)
             except (OSError, ValueError, urllib.error.URLError):
                 self._team = None  # the Hub is not answering
+            if tick % 2 == 0 and self._team is not None:
+                try:
+                    self._week = hub.get_json(url + "/api/local/week")  # only the server computer may read this; others keep the last value
+                except (OSError, ValueError, urllib.error.URLError):
+                    pass
             tick += 1
             time.sleep(4)
 
     def _identity(self, team):
         """Who sits at this computer: TEAM_WIDGET_USER, else the agent's user, else the Windows account name (marco -> Marco)."""
-        wanted = (os.environ.get("TEAM_WIDGET_USER") or self.store.get().get("user") or getpass.getuser() or "").strip().lower()
+        wanted = (os.environ.get("TEAM_WIDGET_USER") or hub.configured_user() or self.store.get().get("user") or getpass.getuser() or "").strip().lower()
         return next((p["user"] for p in team if wanted in (p["user"].lower(), p["name"].lower())), None)
 
     def _render_people(self, team):
-        for child in self.people.winfo_children():
-            child.destroy()
+        self._clear(self.people_row)
         if team is None:
-            tk.Label(self.people, text="Hub desligado", bg=BG, fg=MUTED, font=(MONO, 8)).pack(anchor="w")
+            self.people_row.addWidget(label("Hub desligado", 8.5, MUTED))
+            self.people_row.addStretch(1)
             return
         states = {"WORKING": "a trabalhar", "WAITING": "à espera", "PAUSED": "em pausa", "ERROR": "erro", "IDLE": "livre"}
         for person in team:
             on = person["online"]
-            cell = tk.Frame(self.people, bg=BG)
-            cell.pack(side="left", padx=(0, 16))
-            icon = tk.Canvas(cell, width=52, height=52, bg=BG, highlightthickness=0, bd=0)
-            icon.create_rectangle(2, 2, 50, 50, fill="#0f3d3a" if on else "#15181a", outline=COLORS["ONLINE"] if on else "#2a2f31", width=2)
-            icon.create_text(26, 26, text=person["name"][:1].upper(), fill="#ffffff" if on else "#6b6880", font=(FONT, 20, "bold"))
-            icon.create_oval(37, 37, 49, 49, fill=COLORS["ONLINE"] if on else COLORS["OFFLINE"], outline=BG, width=2)
-            icon.pack()
-            tk.Label(cell, text=clip(person["name"].upper(), 8), bg=BG, fg=TEXT if on else FAINT, font=(MONO, 8, "bold")).pack()
-            tk.Label(cell, text=states.get(person["status"], "online") if on else "offline", bg=BG,
-                     fg=COLORS["ONLINE"] if on else FAINT, font=(MONO, 7)).pack()
-        self._fit()
+            cell = QVBoxLayout()
+            cell.setSpacing(2)
+            cell.addWidget(Avatar(person["name"], on), 0, Qt.AlignHCenter)
+            cell.addSpacing(3)
+            cell.addWidget(label(clip(person["name"], 10), 8.5, TEXT if on else FAINT, QFont.DemiBold), 0, Qt.AlignHCenter)
+            cell.addWidget(label(states.get(person["status"], "online") if on else "offline", 7.5,
+                                 COLORS["ONLINE"] if on else FAINT), 0, Qt.AlignHCenter)
+            self.people_row.addLayout(cell)
+        self.people_row.addStretch(1)
 
     def _render_week(self, w: dict):
-        for child in self.pending.winfo_children():
-            child.destroy()
+        self._clear(self.pending)
         for p in w.get("pending", [])[:3]:
-            row = tk.Frame(self.pending, bg=CARD)
-            row.pack(fill="x")
+            row = QHBoxLayout()
+            row.setSpacing(8)
             ago = max(0, int(time.time() - (p["newest"] or time.time())) // 60)
             when = "agora" if ago < 1 else f"{ago} min" if ago < 60 else f"{ago // 60} h"
-            tk.Label(row, text=clip(p["repo"].upper(), 12), bg=CARD, fg=TEXT, font=(MONO, 8, "bold"), width=12, anchor="w").pack(side="left")
-            tk.Label(row, text=f"{p['count']} fich  +{p['added']} -{p['deleted']}  {when}", bg=CARD, fg=MUTED, font=(MONO, 8), anchor="w").pack(side="left")
+            name = label(clip(p["repo"], 16), 9, TEXT, QFont.DemiBold)
+            name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            row.addWidget(name)
+            row.addWidget(label(f"{p['count']} fich  +{p['added']} −{p['deleted']}", 8.5, MUTED, families=MONO))
+            row.addWidget(label(when, 8.5, FAINT))
+            self.pending.addLayout(row)
         if not w.get("pending"):
-            tk.Label(self.pending, text="Nada por guardar.", bg=CARD, fg=FAINT, font=(MONO, 8)).pack(anchor="w")
-
-        for child in self.feed.winfo_children():
-            child.destroy()
-        feed = w.get("feed", [])[:5]
-        for f in feed:
-            when = datetime.fromisoformat(f["when"]).astimezone().strftime("%d/%m %H:%M")
-            row = tk.Frame(self.feed, bg=CARD)
-            row.pack(fill="x")
-            tk.Label(row, text=when, bg=CARD, fg=FAINT, font=(MONO, 8)).pack(side="left")
-            tk.Label(row, text=clip(f["who"].upper(), 8), bg=CARD, fg=TEXT, font=(MONO, 8, "bold"), width=8, anchor="w").pack(side="left", padx=(6, 0))
-            tk.Label(row, text=clip(f["text"], 24), bg=CARD, fg=MUTED, font=(MONO, 8), anchor="w").pack(side="left")
-        if not feed:
-            tk.Label(self.feed, text="Sem movimentos esta semana.", bg=CARD, fg=MUTED, font=(MONO, 8)).pack(anchor="w")
-        self._fit()
-
-    def _fit(self):
-        if self.root.state() == "normal" and self.root.winfo_width() in (1, WIDTH):  # don't fight a manual resize
-            self.root.update_idletasks()
-            self.root.geometry(f"{WIDTH}x{self.root.winfo_reqheight()}")
+            self.pending.addWidget(label("Nada por guardar.", 9, FAINT))
 
     # ------------------------------------------------------------ actions
 
-    def show(self):
-        self.root.deiconify()
-        self.root.lift()
+    def show_panel(self, fade=True):
+        self._fade.stop()
+        if not self.isVisible():
+            self.setWindowOpacity(0 if fade else 1)
+            self.show()
+        self.raise_()
+        self.activateWindow()
+        if fade:
+            self._fade.setStartValue(self.windowOpacity())
+            self._fade.setEndValue(1.0)
+            self._fade.start()
+        else:
+            self.setWindowOpacity(1)
 
-    def hide(self):
-        self.root.withdraw()
+    def hide_panel(self):
+        if not self.isVisible():
+            return
+        self._fade.stop()
+        self._fade.setStartValue(self.windowOpacity())
+        self._fade.setEndValue(0.0)
+        self._fade.start()
 
-    def _on_configure(self, event):
-        if event.widget is self.root and self.root.state() == "zoomed":
-            self.root.state("normal")  # the widget goes back to its small size; the Hub is its own window
-            self._open_hub()
+    def _fade_done(self):
+        if self._fade.endValue() == 0.0:
+            self.hide()
+
+    def showEvent(self, e):
+        clock().start()
+        super().showEvent(e)
+
+    def hideEvent(self, e):
+        clock().stop()  # nothing to animate while the widget is in the tray
+        super().hideEvent(e)
+
+    def closeEvent(self, e):
+        e.ignore()  # closing hides to tray; the agent keeps running
+        self.hide_panel()
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.hide_panel()
+        else:
+            super().keyPressEvent(e)
+
+    def changeEvent(self, e):
+        if e.type() == QEvent.WindowStateChange and self.isMaximized():  # e.g. Win+Up: the widget becomes the Hub
+            QTimer.singleShot(0, self.showNormal)
+            QTimer.singleShot(0, self._open_hub)
+        super().changeEvent(e)
 
     def _open_hub(self):
+        """The command centre grows into the whole screen with the Hub inside (expand.py); minimizing shrinks it back."""
         if self._opening_hub:
             return
         self._opening_hub = True
-        self.open_hub.config(text="A ABRIR…", state="disabled")
+        self.open_hub.setText("A ABRIR…")
+        self.open_hub.setEnabled(False)
 
-        def work():
-            self._hub_result = (hub.maximize(self.client.hub_session()),)  # opens already signed in; read by _tick (Tk is not thread-safe)
+        def work():  # starting the server can take a few seconds
+            error = hub.ready()
+            session = None if error else self.client.hub_session()
+            self.hub_ready.emit((error, hub.hub_url() + (f"/#login={session}" if session else "")))
 
-        self._hub_result = None
-        threading.Thread(target=work, daemon=True).start()  # starting the server can take a few seconds
+        threading.Thread(target=work, daemon=True).start()
 
-    def _hub_opened(self, error):
+    def _hub_opened(self, result):
+        error, url = result
         self._opening_hub = False
-        self.open_hub.config(text="ABRIR O HUB", state="normal")
+        self.open_hub.setText("ABRIR O HUB")
+        self.open_hub.setEnabled(True)
         if error:
-            messagebox.showerror("Hub", error, parent=self.root)
+            self.show_panel()
+            QMessageBox.warning(self, "Hub", error)
+            return
+        if self._expander is None:  # made on first use: the web engine is heavy and most sessions never open it
+            from .expand import HubExpander
+            self._expander = HubExpander()
+            self._expander.collapsed.connect(lambda: self.show_panel(fade=False))
+        panel = self.geometry().adjusted(SHADOW, SHADOW, -SHADOW, -SHADOW)
+        self._expander.expand(panel, url)
+        self.hide()  # the expander starts exactly on top of the panel
 
     def _open_dashboard(self):
         self._open_hub()
@@ -293,24 +719,22 @@ class WidgetWindow:
     # ------------------------------------------------------------ rendering
 
     def _tick(self):
-        if self._hub_result is not None:
-            (error,), self._hub_result = self._hub_result, None
-            self._hub_opened(error)
         team = self._team
         if team is not self._team_seen:
+            if team != self._team_seen:
+                self._render_people(team)
             self._team_seen = team
-            self._render_people(team)
         week = self._week
         if week is not None and week is not self._week_seen:
+            if (self._week_seen or {}).get("pending") != week.get("pending"):
+                self._render_week(week)
             self._week_seen = week
-            self._render_week(week)
         state = self.store.get()
         if self.store.version != self._version:
             self._version = self.store.version
             self._render(state)
         elif state.get("started_at"):
-            self.details["text"] = self._details(state)
-        self.root.after(500, self._tick)
+            self.details.setText(self._details(state))
 
     def _details(self, state: dict) -> str:
         lines = [f"{label}: {state[key]}" for key, label in (("current_action", "agora"), ("next_action", "a seguir")) if state.get(key)]
@@ -319,17 +743,20 @@ class WidgetWindow:
         return "\n".join(lines)
 
     @staticmethod
-    def _meter(label, bar, title, pct, hint):
-        value = "—" if pct is None else f"{pct}%"
-        label["text"] = f"{title:<11}{value:>5}   {hint}"
-        bar.set(pct, meter_color(pct or 0))
+    def _meter(parts, title, pct, hint):
+        name, hint_label, value, meter = parts
+        name.setText(title)
+        hint_label.setText(hint)
+        value.setText("—" if pct is None else f"{pct}%")
+        meter.set(pct, meter_color(pct or 0))
 
     def _render(self, state: dict):
         status = state.get("status", "OFFLINE")
         self.on_status(status)
-        self.chip.config(text=f"●  {LABELS.get(status, status).upper()}", fg=COLORS.get(status, MUTED))
+        self.car.set_status(status)
+        self.chip.set(LABELS.get(status, status), COLORS.get(status, MUTED), status in ("WORKING", "WAITING"))
         name = state.get("display_name")
-        self.user_label["text"] = f"{name.upper()}  ·  CENTRAL DE COMANDO" if name else "CENTRAL DE COMANDO"
+        self.user_label.setText(f"{name.upper()}  ·  CENTRAL DE COMANDO" if name else "CENTRAL DE COMANDO")
 
         if status == "OFFLINE":
             alert = ""
@@ -343,29 +770,33 @@ class WidgetWindow:
             notes = state.get("notifications") or []
             alert = notes[-1]["message"] if notes else ""
         if alert:
-            self.alert.config(text=alert, fg=COLORS["ERROR"] if state.get("error") else COLORS["WAITING"])
-            self.alert.pack(fill="x", pady=(6, 0), before=self.ledger)
+            tint = COLORS["ERROR"] if state.get("error") else COLORS["WAITING"]
+            self.alert.tint = tint
+            recolour(self.alert_text, tint)
+            self.alert_text.setText(alert)
+            self.alert.show()
+            self.alert.update()
         else:
-            self.alert.pack_forget()
+            self.alert.hide()
 
         if state.get("task"):
             progress = state.get("progress") or 0
-            self.task["text"] = state["task"]
-            self.progress_text["text"] = f"{progress}%"
+            self.task.setText(state["task"])
+            self.progress_text.setText(f"{progress}%")
             self.bar.set(progress, COLORS["WORKING"] if progress >= 100 else ACCENT)
-            self.details["text"] = self._details(state)
-            self.task_card.pack(fill="x", pady=(8, 0), before=self.open_hub)
+            self.details.setText(self._details(state))
+            self.details.setVisible(bool(self.details.text()))
+            self.task_card.show()
         else:
-            self.task_card.pack_forget()
+            self.task_card.hide()
 
         me = state.get("user")
         mine = next((m for m in state.get("team") or [] if m["user"] == me), {})
         if mine:
             spent = mine.get("week_cost_usd") or 0
-            self._meter(self.week_label, self.week_bar, "CLAUDE", mine.get("week_pct") if spent else None,
-                        f"${spent:.2f}/${mine.get('week_budget_usd', 0):.0f}")
-            self._meter(self.higgs_label, self.higgs_bar, "HIGGSFIELD", mine.get("higgsfield_pct"), "créditos")
-            self.use_card.pack(fill="x", pady=(8, 0), before=self.open_hub)
+            self._meter(self.week_meter, "Claude", mine.get("week_pct") if spent else None,
+                        f"${spent:.2f} / ${mine.get('week_budget_usd', 0):.0f}")
+            self._meter(self.higgs_meter, "Higgsfield", mine.get("higgsfield_pct"), "créditos")
+            self.use_card.show()
         else:
-            self.use_card.pack_forget()
-        self._fit()
+            self.use_card.hide()

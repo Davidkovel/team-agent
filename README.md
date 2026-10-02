@@ -140,9 +140,10 @@ cd widget && python -m team_widget
 |---|---|---|---|---|
 | Electron | 150+ МБ | 100+ МБ | да | Node |
 | Tauri | ~30 МБ | ~10 МБ | да | Rust toolchain + WebView2 |
-| **Python: tkinter + pystray** | ~40 МБ | 0 (Python уже стоит для агента) | да | ничего |
+| Python: tkinter + pystray | ~40 МБ | 0 (Python уже стоит для агента) | да | ничего |
+| **Python: Qt (PySide6)** | больше, чем tkinter | pip-пакет | да | ничего |
 
-Выбран Python: агенту Python уже нужен, поэтому нет второго runtime и шага сборки; старт меньше секунды; работает на Windows, macOS и Linux. Tauri выиграл бы по RAM и внешнему виду, но требует Rust на каждой машине сборки. Widget общается только с локальным WebSocket API агента (`agent/team_agent/transport/local_api.py`), поэтому его можно заменить на Tauri, не трогая агент и backend.
+Выбран Python: агенту Python уже нужен, поэтому нет второго runtime и шага сборки; работает на Windows, macOS и Linux. Сначала был tkinter, но он не умеет сглаживание и плавную анимацию, поэтому widget переписан на Qt: окно без рамки со скруглёнными углами, машина в профиль нарисована векторами (`ui/car.py`), все анимации идут от одних часов с частотой монитора и не ниже 144 FPS (`ui/motion.py`). Кнопка Hub разворачивает widget на весь экран с Hub внутри (`ui/expand.py`, QtWebEngine), «Свернуть» возвращает его обратно. Widget общается только с локальным WebSocket API агента (`agent/team_agent/transport/local_api.py`), поэтому его можно заменить на Tauri, не трогая агент и backend.
 
 ## Автозапуск (опционально)
 

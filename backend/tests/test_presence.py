@@ -100,6 +100,22 @@ def test_widget_ping_marks_online_and_is_local_and_header_protected(client):
     assert stranger.post("/api/local/presence", json={"user": "owner"}, headers={"X-Team-Widget": "1"}).status_code == 403
 
 
+def test_widget_on_a_trusted_network_counts_as_local(client, monkeypatch):
+    from app.config import settings
+    vpn = TestClient(app, client=("26.10.20.30", 5000))  # a teammate's widget over the VPN
+    monkeypatch.setattr(settings, "widget_networks", "")  # whatever this machine's .env says
+    assert vpn.get("/api/local/team").status_code == 403
+    monkeypatch.setattr(settings, "widget_networks", "26.0.0.0/8, 10.8.0.0/24")
+    try:
+        assert vpn.post("/api/local/presence", json={"user": "mark"}, headers={"X-Team-Widget": "1"}).status_code == 200
+        assert {m["user"]: m for m in vpn.get("/api/local/team").json()}["mark"]["online"]
+        assert vpn.get("/api/local/week").status_code == 200
+        assert TestClient(app, client=("203.0.113.9", 5000)).get("/api/local/team").status_code == 403
+    finally:
+        services.WIDGET_SEEN.clear()
+        asyncio.run(rt.store.clear_presence(2))
+
+
 def test_history_is_in_portuguese_and_names_who_did_it(client):
     _, owner = login(client, "owner")
     tid = client.post("/api/tasks", headers=owner, json={"title": "Reels de Natal", "assignee": "mark"}).json()["id"]

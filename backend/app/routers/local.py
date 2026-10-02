@@ -3,6 +3,7 @@
 The widget has no login, so these only answer requests that come from this machine (like /api/local/week).
 Anyone on the network must use the normal, token-protected endpoints instead.
 """
+import ipaddress
 import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..db import get_db
 from ..models import User
 from ..realtime import rt
@@ -21,8 +23,17 @@ LOCAL_HOSTS = ("127.0.0.1", "::1", "localhost")
 
 
 def only_local(request: Request):
-    if (request.client.host if request.client else "") not in LOCAL_HOSTS:
-        raise HTTPException(403, "Only available from the server computer")
+    """This computer, or a widget on one of the trusted networks (WIDGET_NETWORKS, e.g. the team's VPN)."""
+    host = request.client.host if request.client else ""
+    if host in LOCAL_HOSTS:
+        return
+    try:
+        addr = ipaddress.ip_address(host)
+        if any(addr in ipaddress.ip_network(n.strip(), strict=False) for n in settings.widget_networks.split(",") if n.strip()):
+            return
+    except ValueError:
+        pass
+    raise HTTPException(403, "Only available from the server computer")
 
 
 class WidgetPing(BaseModel):

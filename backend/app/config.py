@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     weekly_budget_usd: float = 20.0
     # True: no hierarchy - every signed-in person sees and can do everything. False: only role=owner can.
     team_mode: bool = True
+    # Networks (comma-separated CIDRs, e.g. the Radmin VPN "26.0.0.0/8") whose widgets may use /api/local/* like this computer.
+    widget_networks: str = ""
     # Optional: lets the commit feed read private GitHub repos (a token with read access to contents).
     github_token: str = ""
     owner_password: str = "owner-change-me"

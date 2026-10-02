@@ -797,3 +797,29 @@ a.wk-sha:hover { color: #fff; }
 .sidebar { background: #1c1c1e; }
 .modal { background: rgba(0, 0, 0, .72); }
 .toast, .pop-menu { background: #2c2c2e; }
+
+/* The studio, the same as the widget's: a black car shot at night. Light from above, a lit concrete floor with
+   its horizon, street lights far behind, out of focus. One fixed layer behind everything, so scrolling stays cheap. */
+.mac { position: relative; isolation: isolate; }
+.mac::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 7%, rgba(255, 241, 220, .06) 0 10px, transparent 26px),
+    radial-gradient(circle at 34% 12%, rgba(255, 241, 220, .07) 0 4px, transparent 12px),
+    radial-gradient(circle at 57% 4%, rgba(255, 255, 255, .05) 0 3px, transparent 10px),
+    radial-gradient(circle at 71% 9%, rgba(255, 241, 220, .045) 0 8px, transparent 22px),
+    radial-gradient(circle at 86% 5%, rgba(255, 255, 255, .035) 0 16px, transparent 36px),
+    radial-gradient(circle at 93% 14%, rgba(255, 241, 220, .07) 0 3px, transparent 11px),
+    radial-gradient(circle at 26% 17%, rgba(208, 86, 75, .09) 0 3px, transparent 10px),
+    radial-gradient(ellipse 80% 42% at 50% -8%, rgba(255, 255, 255, .06), transparent 70%),
+    linear-gradient(180deg, transparent calc(74% - 1px), rgba(255, 255, 255, .07) 74%, transparent calc(74% + 1px)),
+    linear-gradient(180deg, transparent 74%, rgba(255, 255, 255, .025) 82%, rgba(255, 255, 255, .06) 100%),
+    radial-gradient(ellipse 70% 24% at 55% 104%, rgba(255, 255, 255, .07), transparent 70%),
+    radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(0, 0, 0, .55)),
+    linear-gradient(180deg, #0e0e10, #08080a 60%, #0b0b0c);
+}
+body { background: #08080a; }
+.sidebar { background: rgba(12, 12, 14, .9); }
+.mac > main { background: transparent; }
+.sidebar .wordmark { width: 140px; }
+.lock-mark { width: 200px; margin-bottom: 18px; }

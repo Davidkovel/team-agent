@@ -51,6 +51,7 @@ def start_tray(window: WidgetWindow):
         return a
 
     menu.setDefaultAction(item("Mostrar widget", window.show_panel))
+    item("Abrir a central de comando", lambda: (window.show_panel(fade=False), window.expand()))
     item("Esconder widget", window.hide_panel)
     item("Abrir o Hub", window._open_dashboard)
     item("Abrir tarefa atual", window._open_task)

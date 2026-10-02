@@ -23,9 +23,9 @@ from .motion import clock
 
 TEXT, MUTED, FAINT = "#f2f4f5", "#8a8a8a", "#4a4a4a"
 ACCENT, ACCENT2 = "#e6e6e6", "#ffffff"
-AMBER = "#ff9f1c"
-COLORS = {"WORKING": "#4ade80", "ONLINE": "#4ade80", "IDLE": "#c8ccce", "WAITING": "#fbbf24",
-          "PAUSED": "#fbbf24", "ERROR": "#ff9f1c", "OFFLINE": "#6b6880"}
+# quiet tones only: black, silver, and a hint of colour where a state needs one
+COLORS = {"WORKING": "#9cc9a6", "ONLINE": "#9cc9a6", "IDLE": "#c8ccce", "WAITING": "#cdbb8f",
+          "PAUSED": "#cdbb8f", "ERROR": "#d39a7c", "OFFLINE": "#5d5d63"}
 LABELS = {"WORKING": "A trabalhar", "ONLINE": "Online", "IDLE": "Livre", "WAITING": "À espera",
           "PAUSED": "Em pausa", "ERROR": "Erro", "OFFLINE": "Agente desligado"}
 WIDTH = 380            # the panel; the window adds SHADOW on every side
@@ -44,7 +44,7 @@ def elapsed(started_at) -> str:
 
 
 def meter_color(pct):
-    return "#ff9f1c" if pct >= 85 else "#fbbf24" if pct >= 60 else ACCENT
+    return COLORS["ERROR"] if pct >= 85 else COLORS["WAITING"] if pct >= 60 else ACCENT
 
 
 def clip(text: str, n: int) -> str:
@@ -331,7 +331,7 @@ class Avatar(QWidget):
         fill.setColorAt(0, QColor(44, 46, 48) if self.online else QColor(24, 24, 26))
         fill.setColorAt(1, QColor(14, 14, 16))
         p.setBrush(fill)
-        p.setPen(QPen(rgba(COLORS["ONLINE"], 0.85) if self.online else QColor(255, 255, 255, 22), 1.5))
+        p.setPen(QPen(rgba(COLORS["ONLINE"], 0.55) if self.online else QColor(255, 255, 255, 22), 1.5))
         p.drawEllipse(c, 20.5, 20.5)
         p.setPen(QColor(TEXT) if self.online else QColor("#5d5d63"))
         p.setFont(font(13, QFont.DemiBold, ("Segoe UI Variable Display", "Segoe UI")))
@@ -439,7 +439,7 @@ class WidgetWindow(QWidget):
 
         # what people are touching right now (the weekly table and calendar live in the Hub)
         self.ledger = Card()
-        self.ledger.box.addWidget(caption("A MEXER AGORA · SEM COMMIT", AMBER))
+        self.ledger.box.addWidget(caption("A MEXER AGORA · SEM COMMIT"))
         self.pending = QVBoxLayout()
         self.pending.setSpacing(5)
         self.ledger.box.addLayout(self.pending)

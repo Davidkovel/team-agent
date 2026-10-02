@@ -162,6 +162,75 @@ class Meter(QWidget):
             p.drawRoundedRect(QRectF(0, 0, w, h), h / 2, h / 2)
 
 
+class Ring(QWidget):
+    """A round gauge: the arc glides to its value, the percentage sits in the middle."""
+    SIZE, STROKE = 84, 8
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedSize(self.SIZE, self.SIZE)
+        self._shown, self._pct, self._colour = 0.0, None, QColor(ACCENT)
+        self._anim = animate(self, 900, self._set_shown)
+
+    def _set_shown(self, value):
+        self._shown = value
+        self.update()
+
+    def set(self, pct, colour=ACCENT):
+        self._pct, self._colour = pct, QColor(colour)
+        target = max(0, min(100, pct or 0)) / 100
+        if abs(target - self._shown) > 0.001:
+            self._anim.stop()
+            self._anim.setStartValue(self._shown)
+            self._anim.setEndValue(target)
+            self._anim.start()
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        inset = self.STROKE / 2 + 3
+        box = QRectF(inset, inset, self.SIZE - 2 * inset, self.SIZE - 2 * inset)
+        track = QPen(QColor(255, 255, 255, 22), self.STROKE)
+        track.setCapStyle(Qt.RoundCap)
+        p.setPen(track)
+        p.drawArc(box, 0, 360 * 16)
+        if self._shown > 0:
+            span = -int(360 * 16 * self._shown)                  # clockwise from the top
+            glow = QPen(rgba(self._colour.name(), 0.16), self.STROKE + 6)
+            glow.setCapStyle(Qt.RoundCap)
+            p.setPen(glow)
+            p.drawArc(box, 90 * 16, span)
+            arc = QPen(self._colour, self.STROKE)
+            arc.setCapStyle(Qt.RoundCap)
+            p.setPen(arc)
+            p.drawArc(box, 90 * 16, span)
+        p.setPen(QColor(TEXT) if self._pct is not None else QColor(FAINT))
+        p.setFont(font(14.5 if self._pct is not None else 13, QFont.DemiBold, MONO))
+        p.drawText(QRectF(self.rect()), Qt.AlignCenter, "—" if self._pct is None else f"{round(self._pct)}%")
+
+
+class Gauge(QWidget):
+    """A ring with the service name and a small hint under it."""
+
+    def __init__(self):
+        super().__init__()
+        col = QVBoxLayout(self)
+        col.setContentsMargins(0, 2, 0, 0)
+        col.setSpacing(4)
+        self.ring = Ring()
+        self.name = label("", 9, TEXT, QFont.DemiBold)
+        self.hint = label("", 8, MUTED)
+        col.addWidget(self.ring, 0, Qt.AlignHCenter)
+        col.addWidget(self.name, 0, Qt.AlignHCenter)
+        col.addWidget(self.hint, 0, Qt.AlignHCenter)
+
+    def set(self, title, pct, hint):
+        self.name.setText(title)
+        self.hint.setText(hint)
+        self.ring.set(pct, meter_color(pct or 0))
+
+
 class Hover(QAbstractButton):
     """A button whose hover and press states fade instead of snapping."""
 
@@ -433,8 +502,11 @@ class WidgetWindow(QWidget):
         # credits: Claude and Higgsfield, always there (a dash until the Hub has numbers)
         self.use_card = Card()
         self.use_card.box.addWidget(caption("CRÉDITOS DA SEMANA"))
-        self.week_meter = self._meter_row(self.use_card)
-        self.higgs_meter = self._meter_row(self.use_card)
+        gauges = QHBoxLayout()
+        self.claude_gauge, self.higgs_gauge = Gauge(), Gauge()
+        gauges.addWidget(self.claude_gauge, 1)
+        gauges.addWidget(self.higgs_gauge, 1)
+        self.use_card.box.addLayout(gauges)
         col.addWidget(self.use_card)
 
         self.alert = Card(COLORS["WAITING"])
@@ -486,21 +558,6 @@ class WidgetWindow(QWidget):
         self._tick()
 
     # ------------------------------------------------------------ building blocks
-
-    def _meter_row(self, card: Card):
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 6, 0, 0)
-        title = label("", 9, TEXT, QFont.DemiBold)
-        hint = label("", 8.5, MUTED)
-        value = label("", 9, TEXT, QFont.DemiBold, MONO)
-        row.addWidget(title)
-        row.addWidget(hint)
-        row.addStretch(1)
-        row.addWidget(value)
-        card.box.addLayout(row)
-        meter = Meter()
-        card.box.addWidget(meter)
-        return title, hint, value, meter
 
     def _place(self):
         self.adjustSize()
@@ -742,14 +799,6 @@ class WidgetWindow(QWidget):
             lines.append(f"há {elapsed(state['started_at'])}")
         return "\n".join(lines)
 
-    @staticmethod
-    def _meter(parts, title, pct, hint):
-        name, hint_label, value, meter = parts
-        name.setText(title)
-        hint_label.setText(hint)
-        value.setText("—" if pct is None else f"{pct}%")
-        meter.set(pct, meter_color(pct or 0))
-
     def _render(self, state: dict):
         status = state.get("status", "OFFLINE")
         self.on_status(status)
@@ -799,6 +848,6 @@ class WidgetWindow(QWidget):
         who = self._identity(hub_team) or state.get("user")
         mine = next((m for m in hub_team if m.get("user") == who and "week_cost_usd" in m), None)             or next((m for m in state.get("team") or [] if m.get("user") == who), {})
         spent = mine.get("week_cost_usd") or 0
-        self._meter(self.week_meter, "Claude", mine.get("week_pct") if spent else None,
-                    f"${spent:.2f} / ${mine.get('week_budget_usd', 0):.0f}" if mine else "sem dados")
-        self._meter(self.higgs_meter, "Higgsfield", mine.get("higgsfield_pct"), "créditos")
+        self.claude_gauge.set("Claude", mine.get("week_pct") if spent else None,
+                              f"${spent:.2f} / ${mine.get('week_budget_usd', 0):.0f}" if mine else "sem dados")
+        self.higgs_gauge.set("Higgsfield", mine.get("higgsfield_pct"), "créditos")

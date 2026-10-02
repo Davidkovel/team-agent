@@ -22,7 +22,7 @@ DATA_DIR = Path.home() / ".team-agent"
 def _config() -> dict:
     """~/.team-agent/widget.json: {"hub_url": "http://<host IP>:8000", "key": "<TEAM_KEY>", "user": "Marco"} - set once, no env vars."""
     try:
-        return json.loads((DATA_DIR / "widget.json").read_text(encoding="utf-8"))
+        return json.loads((DATA_DIR / "widget.json").read_text(encoding="utf-8-sig"))  # utf-8-sig: PowerShell 5.1 writes a BOM
     except (OSError, ValueError):
         return {}
 

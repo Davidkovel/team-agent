@@ -16,8 +16,8 @@ from .models import Activity, Task, User
 DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 OPEN = ("ASSIGNED", "IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP")
 DEMO = "__demo__"
-FEED_KINDS = {"login", "library_edit", "task_done", "task_created", "user_created"}
-KEY_KINDS = ("task_done", "commit", "task_created", "library_edit")  # what goes in the day-by-day report; logins don't
+FEED_KINDS = {"login", "library_edit", "task_done", "task_created", "user_created", "ponto"}
+KEY_KINDS = ("ponto", "task_done", "commit", "task_created", "library_edit")  # what goes in the day-by-day report; logins don't
 
 
 def _utc(dt: datetime | None) -> datetime | None:
@@ -30,6 +30,8 @@ def _sentence(a: Activity, name: str) -> str:
     """One short line for the feed, without repeating the person's name."""
     if a.kind == "login":
         return "entrou no Hub"
+    if a.kind == "ponto":
+        return "bateu o ponto"
     if a.kind == "task_done":
         return "concluiu: " + a.message.split(": ", 1)[-1]
     msg = a.message
@@ -86,7 +88,7 @@ async def summary(db: AsyncSession, now: datetime | None = None, with_commits: b
         elif a.kind == "library_edit":
             r["edits"] += 1
         if a.kind in FEED_KINDS:
-            feed.append({"when": when.isoformat(), "who": r["name"], "what": a.kind, "text": _sentence(a, r["name"])})
+            feed.append({"when": when.isoformat(), "user": r["user"], "who": r["name"], "what": a.kind, "text": _sentence(a, r["name"])})
 
     for t in (await db.execute(select(Task))).scalars():
         r = rows.get(t.assignee_id)
@@ -105,15 +107,18 @@ async def summary(db: AsyncSession, now: datetime | None = None, with_commits: b
             if when.astimezone() < start:
                 continue
             u = person_for(c["author"], users, alias_map)
-            if not u:
-                continue
-            r = rows[u.id]
-            r["commits"] += 1
-            r["added"] += (c.get("stats") or {}).get("added", 0)
-            r["deleted"] += (c.get("stats") or {}).get("deleted", 0)
-            if not r["last_activity"] or when.isoformat() > r["last_activity"]:
-                r["last_activity"] = when.isoformat()
-            feed.append({"when": when.isoformat(), "who": r["name"], "what": "commit", "text": f"commit em {c['repo']}: {c['message']}"})
+            r = rows[u.id] if u else None
+            if r:
+                r["commits"] += 1
+                r["added"] += (c.get("stats") or {}).get("added", 0)
+                r["deleted"] += (c.get("stats") or {}).get("deleted", 0)
+                if not r["last_activity"] or when.isoformat() > r["last_activity"]:
+                    r["last_activity"] = when.isoformat()
+            # someone outside the team still shows up, under the name Git has for them
+            feed.append({"when": when.isoformat(), "user": r["user"] if r else None, "who": r["name"] if r else c["author"],
+                         "author": c["author"], "what": "commit", "text": f"commit em {c['repo']}: {c['message']}",
+                         "repo": c["repo"], "message": c["message"], "sha": (c.get("sha") or "")[:7], "url": c.get("url"),
+                         "stats": c.get("stats")})
 
     feed.sort(key=lambda f: f["when"], reverse=True)
     by_day = [[] for _ in DAYS]
@@ -121,7 +126,7 @@ async def summary(db: AsyncSession, now: datetime | None = None, with_commits: b
         if f["what"] in KEY_KINDS:
             by_day[datetime.fromisoformat(f["when"]).astimezone().weekday()].append(f)
     for items in by_day:
-        items.sort(key=lambda f: (KEY_KINDS.index(f["what"]), f["when"]))
+        items.sort(key=lambda f: f["when"], reverse=True)  # newest first, by the clock, whatever kind it is
     people = list(rows.values())
     for r in people:
         r["status"] = "ativo" if (r["logins"] or r["commits"] or r["tasks_done"] or r["edits"]) else "parado"

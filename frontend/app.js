@@ -51,7 +51,24 @@ const nameOf = (u) => teamNames[u] || u;
 const STATUS_PT = { ONLINE: "online", WORKING: "a trabalhar", IDLE: "livre", WAITING: "à espera", PAUSED: "em pausa", ERROR: "erro", OFFLINE: "offline" };
 const TASK_PT = { ASSIGNED: "por começar", IN_PROGRESS: "em curso", WAITING_APPROVAL: "à espera de aprovação", PAUSED: "em pausa", NEEDS_HELP: "precisa de ajuda", COMPLETED: "concluída", FAILED: "falhou", STOPPED: "parada" };
 
+// Reads are shared for a moment and never asked twice at once: over the VPN each request costs 0.15-0.9 s.
+// Any write, and any live event, clears it, so nothing shown is stale after a change.
+const readCache = new Map(); // path -> { at, promise }
 async function api(path, options = {}) {
+  if (options.method && options.method !== "GET") { readCache.clear(); return request(path, options); }
+  const hit = readCache.get(path);
+  if (hit && Date.now() - hit.at < 3000) return hit.promise;
+  const promise = request(path, options).catch((e) => { readCache.delete(path); throw e; });
+  readCache.set(path, { at: Date.now(), promise });
+  return promise;
+}
+
+// Rebuilding the page every few seconds stutters; only touch the DOM when what it shows changed.
+function paint(el, html) {
+  if (el && el._html !== html) { el._html = html; el.innerHTML = html; }
+}
+
+async function request(path, options = {}) {
   const res = await fetch(path, {
     ...options,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -130,9 +147,9 @@ async function loadStats() {
   const badge = (id, n) => { const b = document.querySelector(`[data-badge="${id}"]`); if (b) { b.textContent = n; b.hidden = !n; } };
   badge("aprovacoes", pending); badge("tarefas", active);
   if (!$("tiles")) return;
-  $("tiles").innerHTML = [[active, "Em curso", "blue"], [pending, "Aprovações", pending ? "orange" : ""],
+  paint($("tiles"), [[active, "Em curso"], [pending, "Aprovações", pending ? "orange" : ""],
     [`$${week.toFixed(2)}`, "Gasto esta semana"]]
-    .map(([n, label, tone = ""]) => `<div class="tile ${tone}"><span>${label}</span><b>${n}</b></div>`).join("");
+    .map(([n, label, tone = ""]) => `<div class="tile ${tone}"><span>${label}</span><b>${n}</b></div>`).join(""));
 }
 
 /* HUD: always-visible strip, so everybody is in the loop on every tab */
@@ -141,7 +158,7 @@ function drawHud(team, active, pending, week) {
   if (team) hudData = { team, active, pending, week };
   if (!hudData || !$("hud")) return;
   const { team: t, active: a, pending: p, week: w } = hudData;
-  $("hud").innerHTML = `
+  paint($("hud"), `
     <div class="hud-agents">${t.map((m) => `<a class="hud-agent" href="#/home" title="${esc(m.display_name)}: ${esc(STATUS_PT[m.status] || m.status)}${m.task ? " · " + esc(m.task) : ""}">
       <span class="dot ${m.status === "ERROR" ? "err" : m.status !== "OFFLINE" ? "on" : "off"}"></span>${esc(m.display_name)}</a>`).join("")}</div>
     <div class="hud-stats">
@@ -149,7 +166,7 @@ function drawHud(team, active, pending, week) {
       <span class="${p ? "warn" : ""}"><b>${p}</b> aprovaç${p === 1 ? "ão" : "ões"}</span>
       <span><b>$${w.toFixed(2)}</b> esta semana</span>
       <span class="clock">${new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</span>
-    </div>`;
+    </div>`);
 }
 
 async function loadAgents() {
@@ -157,15 +174,15 @@ async function loadAgents() {
   const team = await api("/api/team");
   teamNames = Object.fromEntries(team.map((m) => [m.user, m.display_name]));
   if ($("presence")) {
-    $("presence").innerHTML = team.map((m) => {
+    paint($("presence"), team.map((m) => {
       const on = m.status !== "OFFLINE", label = STATUS_PT[m.status] || m.status;
       return `<a class="who ${on ? "on" : "off"}" href="#/equipa" title="${esc(m.display_name)}: ${esc(label)}${m.task ? " · " + esc(m.task) : ""}">
         <span class="who-ava">${initial(m.display_name)}<i class="dot ${m.status === "ERROR" ? "err" : on ? "on" : "off"}"></i></span>
         <b>${esc(m.display_name)}</b><small>${esc(label)}</small></a>`;
-    }).join("");
+    }).join(""));
   }
   if (!$("agents")) return;
-  $("agents").innerHTML = team.map((m) => {
+  paint($("agents"), team.map((m) => {
     const on = m.status !== "OFFLINE", pct = Number(m.progress) || 0;
     return `<div class="agent ${on ? "on" : "off"}">
       <div class="agent-top"><span class="dot ${m.status === "ERROR" ? "err" : on ? "on" : "off"}" title="${esc(STATUS_PT[m.status] || m.status)}"></span>
@@ -177,18 +194,18 @@ async function loadAgents() {
       ${m.next_action ? `<div class="small"><span class="muted">A seguir:</span> ${esc(m.next_action)}</div>` : ""}
       ${m.error ? `<div class="error small">${esc(m.error)}</div>` : ""}
     </div>`;
-  }).join("");
+  }).join(""));
 }
 
 async function loadToday() {
   if (!$("today")) return;
   const tasks = (await api("/api/tasks")).filter((t) => !["COMPLETED", "FAILED", "STOPPED"].includes(t.status));
-  $("today").innerHTML = tasks.length ? tasks.slice(0, 8).map((t) => `
+  paint($("today"), tasks.length ? tasks.slice(0, 8).map((t) => `
     <a class="plan-row" href="#task-${t.id}">
       <span class="avatar">${initial(nameOf(t.assignee))}</span>
       <div class="plan-main"><b>${esc(t.title)}</b><div class="muted small">${esc(nameOf(t.assignee))} · ${esc(TASK_PT[t.status] || t.status)}${t.next_action ? " · a seguir: " + esc(t.next_action) : ""}</div></div>
       <div class="plan-pct"><div class="bar"><i style="width:${Number(t.progress) || 0}%"></i></div><span class="muted small">${Number(t.progress) || 0}%</span></div>
-    </a>`).join("") : '<div class="empty">Sem tarefas por fazer. Cria uma em Tarefas.</div>';
+    </a>`).join("") : '<div class="empty">Sem tarefas por fazer. Cria uma em Tarefas.</div>');
 }
 
 /* ---------- notifications: toasts, bell, and a summary when you open the site ---------- */
@@ -232,18 +249,18 @@ function openInbox() {
 async function loadMeters() {
   if (!$("meters")) return;
   const team = await api("/api/team");
-  $("meters").innerHTML = team.map((m) => `
+  paint($("meters"), team.map((m) => `
     <div class="card">
       <div class="person"><span class="avatar">${initial(m.display_name)}</span><div><b>${esc(m.display_name)}</b><div class="muted">${esc(m.role)}</div></div></div>
       ${meter("Claude esta semana", m.week_pct, `$${m.week_cost_usd} de $${m.week_budget_usd}`)}
       ${meter("Higgsfield", m.higgsfield_pct, m.higgsfield_pct == null ? "por definir" : "")}
-    </div>`).join("");
+    </div>`).join(""));
 }
 
 async function loadTeam() {
   if (!$("team")) return;
   const team = await api("/api/team");
-  $("team").innerHTML = team.map((m) => `
+  paint($("team"), team.map((m) => `
     <div class="card">
       <b>${esc(m.display_name)}</b> <span class="tag">${esc(m.role)}</span>
       <div class="status s-${esc(m.status)}">● ${esc(m.status)}</div>
@@ -254,7 +271,7 @@ async function loadTeam() {
       ${m.last_action ? `<div class="muted">Antes: ${esc(m.last_action)}</div>` : ""}
       ${m.next_action ? `<div class="muted">A seguir: ${esc(m.next_action)}</div>` : ""}
       ${m.error ? `<div class="error">${esc(m.error)}</div>` : ""}
-    </div>`).join("");
+    </div>`).join(""));
 }
 
 function eventHtml(a, relative = false) {
@@ -267,22 +284,22 @@ async function loadRecent() {
   if (!$("recent")) return;
   const NOISE = ["login", "hub_online", "hub_offline", "agent_online", "agent_offline"]; // who is online lives in the icons above; this is what people DID
   const items = (await api("/api/history?limit=80")).filter((a) => !NOISE.includes(a.kind)).slice(0, 10);
-  $("recent").innerHTML = items.length ? items.map((a) => eventHtml(a, true)).join("") : '<p class="muted">Ainda sem atividade. Assim que alguém fizer alguma coisa, aparece aqui.</p>';
+  paint($("recent"), items.length ? items.map((a) => eventHtml(a, true)).join("") : '<p class="muted">Ainda sem atividade. Assim que alguém fizer alguma coisa, aparece aqui.</p>');
 }
 
 async function loadTimeline() {
   if (!$("timeline")) return;
   const all = await api("/api/history?limit=300");
   const names = [...new Map(all.map((a) => [a.user, a.name])).entries()];
-  $("who-chips").innerHTML = [["", "Todos"], ...names].map(([u, n]) => `<span class="chip ${u === historyFilter ? "active" : ""}" data-u="${esc(u)}">${esc(n)}</span>`).join("");
+  paint($("who-chips"), [["", "Todos"], ...names].map(([u, n]) => `<span class="chip ${u === historyFilter ? "active" : ""}" data-u="${esc(u)}">${esc(n)}</span>`).join(""));
   const items = historyFilter ? all.filter((a) => a.user === historyFilter) : all;
   let last = "";
-  $("timeline").innerHTML = items.length ? items.map((a) => {
+  paint($("timeline"), items.length ? items.map((a) => {
     const d = dayLabel(a.created_at);
     const head = d !== last ? `<div class="day">${esc(d)}</div>` : "";
     last = d;
     return head + eventHtml(a);
-  }).join("") : '<div class="empty">Nada por aqui ainda.</div>';
+  }).join("") : '<div class="empty">Nada por aqui ainda.</div>');
 }
 
 const AREA_LABELS = {
@@ -374,21 +391,21 @@ async function viewCode() {
 async function loadApprovals() {
   if (!$("approvals")) return;
   const pending = (await api("/api/approvals")).filter((a) => a.status === "PENDING");
-  $("approvals").innerHTML = pending.length ? pending.map((a) => `
+  paint($("approvals"), pending.length ? pending.map((a) => `
     <div class="card approval">
       <span>🟡 O agente de <b>${esc(nameOf(a.user))}</b> pede aprovação: <b>${esc(a.action)}</b>
         ${a.task_id ? `(TASK-${a.task_id})` : ""}<br><span class="muted">${esc(a.detail)}</span></span>
       <span>${me.lead
         ? `<button class="primary" data-ap="${a.id}" data-ok="1">Aprovar</button> <button class="danger" data-ap="${a.id}">Recusar</button>`
         : '<span class="muted">À espera do Owner</span>'}</span>
-    </div>`).join("") : '<p class="muted">Nada à espera de aprovação.</p>';
+    </div>`).join("") : '<p class="muted">Nada à espera de aprovação.</p>');
 }
 
 async function loadTasks() {
   if (!$("tasks")) return;
   const tasks = await api("/api/tasks");
   const live = ["IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP"];
-  $("tasks").innerHTML = "<tr><th>#</th><th>Título</th><th>Quem</th><th>Estado</th><th>Progresso</th><th>Última ação</th><th></th></tr>" +
+  paint($("tasks"), "<tr><th>#</th><th>Título</th><th>Quem</th><th>Estado</th><th>Progresso</th><th>Última ação</th><th></th></tr>" +
     tasks.map((t) => `
       <tr class="clickable" data-id="${t.id}">
         <td>${t.id}</td><td>${esc(t.title)}</td><td>${esc(nameOf(t.assignee))}</td><td>${esc(TASK_PT[t.status] || t.status)}</td>
@@ -396,7 +413,7 @@ async function loadTasks() {
         <td>${["IN_PROGRESS", "WAITING_APPROVAL"].includes(t.status) ? `<button class="ghost" data-act="pause" data-id="${t.id}">Pausar</button>` : ""}
             ${["PAUSED", "NEEDS_HELP"].includes(t.status) ? `<button class="ghost" data-act="resume" data-id="${t.id}">Retomar</button>` : ""}
             ${live.includes(t.status) ? `<button class="danger" data-act="stop" data-id="${t.id}">Parar</button>` : ""}</td>
-      </tr>`).join("");
+      </tr>`).join(""));
   if (openTask) showTask(openTask);
 }
 
@@ -442,33 +459,59 @@ async function loadWorktree() {
       </details></div>`).join("") : '<div class="empty">Nada por guardar: tudo o que foi feito já tem commit.</div>');
 }
 
-// The weekly ledger: one row per person, a mark for every day they showed up, then what they did and what they still owe.
-const KEY_LABEL = { task_done: "Feito", commit: "Commit", task_created: "Nova", library_edit: "Edição" };
-const DAY_SHOWN = 5;
-const keyText = (f) => f.what === "commit" ? f.text.replace(/^commit em ([^:]+): /, (_, repo) => `${repo} · `) : f.text;
+// The week: pick a day, see what each person did that day, newest first. Names are the team's, or Git's for anyone else.
+const KEY_LABEL = { ponto: "Ponto", task_done: "Feito", commit: "Commit", task_created: "Nova", library_edit: "Edição" };
+const keyText = (f) => f.what === "commit" ? (f.message || f.text.replace(/^commit em [^:]+: /, "")) : f.what === "ponto" ? "Bateu o ponto" : f.text;
 const keyRow = (f) => `<div class="wr-item"><span class="wr-tag ${f.what}">${KEY_LABEL[f.what]}</span><b>${esc(f.who)}</b><span>${esc(keyText(f))}</span><span class="t">${time(f.when)}</span></div>`;
+let weekData = null, weekDay = null; // weekDay: the day shown in Semana (null = today)
+
+function weekRow(f) {
+  const sha = f.sha ? (f.url ? `<a class="wk-sha" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.sha)}</a>` : `<span class="wk-sha">${esc(f.sha)}</span>`) : "";
+  return `<div class="wk-row"><span class="wk-time">${time(f.when)}</span><span class="wk-tag ${f.what}">${KEY_LABEL[f.what]}</span>
+    <span class="wk-text">${esc(keyText(f))}</span>${f.repo ? `<span class="wk-repo">${esc(f.repo)}</span>` : ""}${sha}</div>`;
+}
+
 function weekReportHtml(w) {
-  const days = w.days.map((d, i) => {
-    if (i > w.today) return "";
-    const items = w.by_day[i] || [];
-    const date = new Date(w.from + "T12:00:00"); date.setDate(date.getDate() + i);
-    return `<div class="wr-day ${i === w.today ? "today" : ""}">
-      <div class="wr-date"><b>${esc(d)}</b><span>${shortDate(date.toISOString().slice(0, 10))}</span></div>
-      <div class="wr-items">${items.length ? items.slice(0, DAY_SHOWN).map(keyRow).join("")
-        + (items.length > DAY_SHOWN ? `<details class="wr-more"><summary>Mais ${items.length - DAY_SHOWN}</summary>${items.slice(DAY_SHOWN).map(keyRow).join("")}</details>` : "")
-        : '<div class="wr-item muted">Nada de importante.</div>'}</div></div>`;
-  }).reverse().join("");
+  const day = Math.min(weekDay ?? w.today, w.today);
+  const dateOf = (i) => { const d = new Date(w.from + "T12:00:00"); d.setDate(d.getDate() + i); return d; };
+  const seg = w.days.map((d, i) => `<button class="${i === day ? "on" : ""} ${i === w.today ? "today" : ""}" data-day="${i}" ${i > w.today ? "disabled" : ""}>
+      <span>${esc(d)}</span><b>${dateOf(i).getDate()}</b><i>${(w.by_day[i] || []).length || ""}</i></button>`).join("");
+
+  // one block per person, the busiest first; inside, newest first
+  const people = new Map();
+  for (const f of w.by_day[day] || []) {
+    const key = f.user || "git:" + f.who;
+    if (!people.has(key)) people.set(key, { name: f.who, git: f.author && f.author !== f.who ? f.author : "", items: [] });
+    people.get(key).items.push(f);
+  }
+  const blocks = [...people.values()].sort((a, b) => b.items.length - a.items.length).map((p) => {
+    const n = (k) => p.items.filter((f) => f.what === k).length;
+    const clockIn = p.items.find((f) => f.what === "ponto");
+    const sums = [n("commit") && `${n("commit")} commit${n("commit") === 1 ? "" : "s"}`, n("task_done") && `${n("task_done")} feita${n("task_done") === 1 ? "" : "s"}`,
+      clockIn && `ponto às ${time(clockIn.when)}`].filter(Boolean).join(" · ");
+    return `<section class="wk-person"><header><span class="avatar">${initial(p.name)}</span>
+        <div><b>${esc(p.name)}</b>${p.git ? `<small>no Git: ${esc(p.git)}</small>` : ""}</div><span class="wk-sum">${esc(sums)}</span></header>
+      ${p.items.map(weekRow).join("")}</section>`;
+  }).join("");
+  const label = dateOf(day).toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   return `
-    <section class="ledger-box">
-      <div class="ledger-head"><span>Relatório da semana <i>Semana ${w.week} · ${shortDate(w.from)} – ${shortDate(w.to)}</i></span>${w.demo ? '<span class="demo-tag">Dados de exemplo</span>' : ""}</div>
-      <div class="wr">${days}</div>
-      ${pendingBlock(w.pending)}
-    </section>`;
+    <div class="wk-head"><span>Semana ${w.week} · ${shortDate(w.from)} – ${shortDate(w.to)}</span>${w.demo ? '<span class="demo-tag">Dados de exemplo</span>' : ""}</div>
+    <div class="wk-days">${seg}</div>
+    <div class="group-title">${esc(label)}</div>
+    ${blocks || '<div class="empty">Nada registado neste dia.</div>'}
+    ${pendingBlock(w.pending)}`;
 }
 
 async function loadWeek() {
   if (!$("week")) return;
-  $("week").innerHTML = weekReportHtml(await api("/api/week"));
+  weekData = await api("/api/week");
+  paint($("week"), weekReportHtml(weekData));
+  $("week").onclick = (e) => {
+    const b = e.target.closest("[data-day]");
+    if (!b || b.disabled) return;
+    weekDay = Number(b.dataset.day);
+    paint($("week"), weekReportHtml(weekData));
+  };
 }
 
 const pageHead = (title, sub = "") => `<header class="large-title">${sub ? `<small>${esc(sub)}</small>` : ""}<h1>${esc(title)}</h1></header>`;
@@ -481,11 +524,101 @@ async function loadTodayKey() {
   $("today-key").innerHTML = items.length ? items.slice(0, 6).map(keyRow).join("") : '<p class="muted pad">Ainda nada hoje.</p>';
 }
 
+/* ---------- the daily clock-in: a dotted clock as the Home logo, one dot per person at the time they clocked in ---------- */
+let pontoBoard = null; // last /api/ponto seen, to tell who is new
+const CLOCK_R = 132;   // dial radius in the 360×360 SVG
+const polar = (deg, r) => [180 + r * Math.sin((deg * Math.PI) / 180), 180 - r * Math.cos((deg * Math.PI) / 180)];
+const clockDeg = (d) => ((d.getHours() % 12) + d.getMinutes() / 60) * 30;
+
+function clockSvg() {
+  const dots = Array.from({ length: 60 }, (_, i) => {
+    const [x, y] = polar(i * 6, CLOCK_R), hour = i % 5 === 0;
+    return `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${hour ? 3.4 : 1.5}" class="${hour ? "dial-h" : "dial-m"}"/>`;
+  }).join("");
+  return `<svg class="clock" viewBox="0 0 360 360" role="img" aria-label="Relógio de ponto">
+    <circle cx="180" cy="180" r="${CLOCK_R + 26}" class="dial-rim"/>${dots}
+    <g id="clock-punches"></g>
+    <line id="h-hour" x1="180" y1="180" x2="180" y2="112" class="hand hour"/>
+    <line id="h-min" x1="180" y1="180" x2="180" y2="70" class="hand min"/>
+    <line id="h-sec" x1="180" y1="196" x2="180" y2="58" class="hand sec"/>
+    <circle cx="180" cy="180" r="6.5" class="hub"/></svg>`;
+}
+
+let clockLoop = false;
+function startClock() { if (!clockLoop) { clockLoop = true; tickClock(); } }
+function tickClock() {
+  if (!$("h-hour")) { clockLoop = false; return; }
+  const d = new Date(), s = d.getSeconds() + d.getMilliseconds() / 1000, m = d.getMinutes() + s / 60;
+  $("h-sec").setAttribute("transform", `rotate(${s * 6} 180 180)`);   // sweeps, like a good watch
+  $("h-min").setAttribute("transform", `rotate(${m * 6} 180 180)`);
+  $("h-hour").setAttribute("transform", `rotate(${((d.getHours() % 12) + m / 60) * 30} 180 180)`);
+  const hm = d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+  if ($("lock-time").textContent !== hm) {  // text only changes once a minute; the hands move every frame
+    $("lock-time").textContent = hm;
+    $("lock-date").textContent = d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
+  }
+  requestAnimationFrame(tickClock);
+}
+
+function drawPonto(board) {
+  const mine = board.people.find((p) => p.user === me.username);
+  const done = board.people.filter((p) => p.at);
+  if ($("clock-punches")) {
+    // each clock-in sits outside the dial at its time; two at the same time stack outwards
+    const used = {};
+    paint($("clock-punches"), done.map((p) => {
+      const deg = clockDeg(new Date(p.at)), slot = Math.round(deg / 6);
+      const r = CLOCK_R + 26 + 22 * (used[slot] = (used[slot] ?? -1) + 1);
+      const [x, y] = polar(deg, r);
+      return `<g class="punch ${p.user === me.username ? "me" : ""}"><title>${esc(p.name)} · ${time(p.at)}</title>
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12"/><text x="${x.toFixed(1)}" y="${(y + 4.5).toFixed(1)}">${initial(p.name)}</text></g>`;
+    }).join(""));
+  }
+  if (!$("ponto-people")) return;
+  $("ponto-btn").disabled = !!mine?.at;
+  $("ponto-btn").innerHTML = mine?.at ? `${icon("check")}Ponto batido às ${time(mine.at)}` : "Bater o ponto";
+  $("ponto-count").textContent = `${done.length} de ${board.people.length}`;
+  paint($("ponto-people"), board.people.map((p) => `
+    <div class="ponto-person ${p.at ? "done" : ""}"><span class="avatar">${initial(p.name)}</span>
+      <b>${esc(p.name)}</b><span>${p.at ? time(p.at) : "por bater"}</span></div>`).join(""));
+}
+
+async function loadPonto() {
+  const board = await api("/api/ponto");
+  // tell everyone, on every page, the moment somebody clocks in (not on the first look)
+  if (pontoBoard && pontoBoard.day === board.day) {
+    for (const p of board.people) {
+      const before = pontoBoard.people.find((o) => o.user === p.user);
+      if (p.at && !before?.at && p.user !== me.username) {
+        const text = `${p.name} bateu o ponto às ${time(p.at)}`;
+        notify(text, "#/home");
+        if (window.Notification?.permission === "granted") new Notification("Agente AMG", { body: text, icon: "logo.png" });
+      }
+    }
+  }
+  pontoBoard = board;
+  drawPonto(board);
+}
+
+async function punch() {
+  window.Notification?.permission === "default" && Notification.requestPermission().catch(() => {});
+  $("ponto-btn").disabled = true;
+  try { await api("/api/ponto", { method: "POST" }); await loadPonto(); flash("Ponto batido. A equipa já sabe."); }
+  catch (e) { $("ponto-btn").disabled = false; flash(e.message); }
+}
+
 async function viewHome() {
-  const today = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
-  // Clean entry: a glance (3 numbers) and the companies. The details live in the tabs.
+  // Entry: the clock as the logo, today's clock-in, three numbers and the companies. The details live in the tabs.
   $("view").innerHTML = `
-    ${pageHead("Início", today)}
+    <section class="lock">
+      <img class="lock-mark" src="assets/amg-wordmark.png" alt="Agente AMG">
+      <div class="lock-dial">${clockSvg()}</div>
+      <div class="lock-time" id="lock-time"></div>
+      <div class="lock-date" id="lock-date"></div>
+      <button class="ponto-btn" id="ponto-btn">Bater o ponto</button>
+    </section>
+    <div class="group-title">Ponto de hoje <span id="ponto-count"></span></div>
+    <div class="ponto-people" id="ponto-people"></div>
     <div class="tiles" id="tiles"></div>
     <div class="group-title">Empresas</div>
     <div class="grid" id="home-companies"></div>`;
@@ -494,13 +627,15 @@ async function viewHome() {
       <span class="co-logo">${esc(c.short)}</span>
       <div><h3>${esc(c.name)}</h3><p>${esc(c.tagline)}</p></div>
     </a>`).join("") : '<div class="empty">Ainda não há empresas.</div>';
-  await Promise.all([loadStats(), loadAgents()]);
+  $("ponto-btn").onclick = punch;
+  startClock();
+  if (pontoBoard) drawPonto(pontoBoard);
+  await Promise.all([loadStats(), loadPonto()]);
 }
 
 async function viewWeek() {
-  $("view").innerHTML = `${pageHead("Semana", "O que se fez, dia a dia")}<div id="week"></div>
-    <div class="group-title">Últimos commits</div><div class="group timeline" id="recent-commits"></div>`;
-  await Promise.all([loadWeek(), loadCommits()]);
+  $("view").innerHTML = `${pageHead("Semana", "Quem fez o quê, dia a dia")}<div id="week"></div>`;
+  await loadWeek();
 }
 
 async function viewApprovals() {
@@ -988,14 +1123,14 @@ async function viewHistory() {
 /* ---------- live updates ---------- */
 const loaders = {
   presence: [loadTeam, loadAgents, loadStats, loadMeters], task: [loadTasks, loadToday, loadAgents, loadStats, checkNews, loadWeek], approval: [loadApprovals, loadStats, checkNews],
-  activity: [loadRecent, loadTimeline, loadWeek], usage: [loadUsage, loadMeters],
+  activity: [loadRecent, loadTimeline, loadWeek], usage: [loadUsage, loadMeters], ponto: [loadPonto, loadWeek],
 };
 const pending = new Set();
 function refresh(type) {
   // Heartbeats arrive every few seconds; coalesce bursts into one fetch per kind.
   if (pending.has(type)) return;
   pending.add(type);
-  setTimeout(() => { pending.delete(type); (loaders[type] || []).forEach((fn) => fn().catch(() => {})); }, 300);
+  setTimeout(() => { pending.delete(type); readCache.clear(); (loaders[type] || []).forEach((fn) => fn().catch(() => {})); }, 300);
 }
 
 function connect() {
@@ -1016,13 +1151,16 @@ async function start() {
   $("maximize").innerHTML = icon("expand");
   companies = await api("/api/hub/companies").catch(() => []);
   $("bell").onclick = openInbox;
-  setInterval(() => drawHud(), 30000); // keeps the clock honest
+  const every = (ms, fn) => setInterval(() => { if (!document.hidden) fn(); }, ms);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) Object.keys(loaders).forEach(refresh); });
+  every(30000, () => drawHud()); // keeps the clock honest
   await loadStats().catch(() => {}); // names first, so every view shows Kovel/Marco/David
   render();
   checkNews().catch(() => {});
-  setInterval(() => { loadWorktree().catch(() => {}); loadWeek().catch(() => {}); loadTodayKey().catch(() => {}); }, 8000); // uncommitted work shows up within seconds
-  setInterval(() => loadCommits().catch(() => {}), 30000); // new commits from teammates show up by themselves
-  setInterval(() => { loadTeam().catch(() => {}); loadAgents().catch(() => {}); loadStats().catch(() => {}); checkNews().catch(() => {}); loadRecent().catch(() => {}); loadToday().catch(() => {}); loadApprovals().catch(() => {}); }, 15000); // catches OFFLINE and new activity even if the socket dropped
+  loadPonto().catch(() => {}); // so a clock-in is announced on whatever page is open
+  every(8000, () => { loadWorktree().catch(() => {}); loadWeek().catch(() => {}); loadTodayKey().catch(() => {}); }); // uncommitted work shows up within seconds
+  every(30000, () => loadCommits().catch(() => {})); // new commits from teammates show up by themselves
+  every(15000, () => { loadTeam().catch(() => {}); loadAgents().catch(() => {}); loadStats().catch(() => {}); checkNews().catch(() => {}); loadRecent().catch(() => {}); loadToday().catch(() => {}); loadApprovals().catch(() => {}); loadPonto().catch(() => {}); }); // catches OFFLINE and new activity even if the socket dropped
   connect();
 }
 

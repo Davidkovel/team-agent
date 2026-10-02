@@ -11,7 +11,7 @@ from .config import settings
 from .db import Base, SessionLocal, engine
 from .models import User
 from .realtime import rt
-from .routers import agent, auth, hub, local, tasks, team, week, ws
+from .routers import agent, auth, hub, local, ponto, tasks, team, week, ws
 from .security import hash_password
 from .services import ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, save_agent_state, widget_recent
 
@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
-for module in (auth, hub, tasks, team, agent, week, local, ws):
+for module in (auth, hub, tasks, team, agent, week, ponto, local, ws):
     app.include_router(module.router)
 
 if Path(settings.frontend_dir).is_dir():

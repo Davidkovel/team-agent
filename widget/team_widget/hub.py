@@ -66,6 +66,14 @@ def ping_presence(url: str, user: str):
         pass
 
 
+
+def punch(url: str, user: str) -> dict:
+    """Clocks `user` in for today ("bater o ponto") and returns {user, name, at}. Raises OSError when the Hub does not answer."""
+    req = urllib.request.Request(url + "/api/local/ponto", data=json.dumps({"user": user}).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "X-Team-Widget": "1", "X-Team-Key": team_key()})
+    with urllib.request.urlopen(req, timeout=5) as res:
+        return json.load(res)
+
 def is_local(url: str) -> bool:
     return urlparse(url).hostname in ("127.0.0.1", "localhost", "::1")
 

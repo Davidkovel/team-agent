@@ -10,6 +10,7 @@ import threading
 import time
 import urllib.error
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPointF, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
@@ -35,6 +36,11 @@ RADIUS = 20
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 LOGO, WORDMARK = ASSETS / "logo.png", ASSETS / "amg-wordmark.png"
 UI, MONO = ("Segoe UI Variable Text", "Segoe UI"), ("Cascadia Mono", "Consolas")
+
+
+def hhmm(iso_time: str) -> str:
+    """09:12, in this computer's time, from the Hub's ISO time."""
+    return datetime.fromisoformat(iso_time).astimezone().strftime("%H:%M")
 
 
 def elapsed(started_at) -> str:
@@ -403,10 +409,12 @@ class StatusChip(QWidget):
 
 
 class Avatar(QWidget):
-    def __init__(self, name: str, online: bool):
+    def __init__(self, name: str, online: bool, clocked_in: str | None = None):
         super().__init__()
         self.setFixedSize(46, 46)
-        self.initial, self.online = (name[:1] or "?").upper(), online
+        self.initial, self.online, self.clocked_in = (name[:1] or "?").upper(), online, clocked_in
+        if clocked_in:
+            self.setToolTip(f"{name} bateu o ponto às {hhmm(clocked_in)}")
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -425,6 +433,68 @@ class Avatar(QWidget):
         p.setPen(QPen(QColor(10, 10, 12), 3))
         p.setBrush(QColor(COLORS["ONLINE"] if self.online else COLORS["OFFLINE"]))
         p.drawEllipse(dot, 5.5, 5.5)
+        if self.clocked_in:  # a white tick: clocked in today
+            p.setPen(QPen(QColor(10, 10, 12), 2.5))
+            p.setBrush(QColor("#ffffff"))
+            p.drawEllipse(QPointF(37, 8), 7, 7)
+            tick = QPen(QColor("#000000"), 1.6)
+            tick.setCapStyle(Qt.RoundCap)
+            tick.setJoinStyle(Qt.RoundJoin)
+            p.setPen(tick)
+            p.setBrush(Qt.NoBrush)
+            path = QPainterPath(QPointF(33.8, 8.2))
+            path.lineTo(36.2, 10.4)
+            path.lineTo(40.2, 5.8)
+            p.drawPath(path)
+
+
+class PontoButton(Hover):
+    """Bater o ponto: white until you clock in, then a quiet pill with the time."""
+
+    def __init__(self):
+        super().__init__()
+        self.setFont(font(8.5, QFont.DemiBold))
+        self.setFixedHeight(30)
+        self._at = None
+
+    def set(self, at: str | None):
+        self._at = at
+        self.setEnabled(not at)
+        self.setCursor(Qt.ArrowCursor if at else Qt.PointingHandCursor)
+        self.setText(f"Ponto  {hhmm(at)}" if at else "Bater o ponto")
+        self.setFixedWidth(int(QFontMetricsF(self.font()).horizontalAdvance(self.text())) + (44 if at else 30))
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        s = 1 - 0.03 * self.press
+        p.translate(r.center())
+        p.scale(s, s)
+        p.translate(-r.center())
+        p.setFont(self.font())
+        if self._at:
+            p.setPen(QPen(QColor(255, 255, 255, 40), 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
+            tick = QPen(QColor(TEXT), 1.6)
+            tick.setCapStyle(Qt.RoundCap)
+            tick.setJoinStyle(Qt.RoundJoin)
+            p.setPen(tick)
+            y = r.center().y()
+            path = QPainterPath(QPointF(r.left() + 12, y))
+            path.lineTo(r.left() + 15, y + 3)
+            path.lineTo(r.left() + 20, y - 3)
+            p.drawPath(path)
+            p.setPen(QColor(TEXT))
+            p.drawText(r.adjusted(26, 0, -10, 0), Qt.AlignVCenter | Qt.AlignLeft, self.text())
+            return
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, int(230 + 25 * self.hover)))
+        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
+        p.setPen(QColor("#000000"))
+        p.drawText(r, Qt.AlignCenter, self.text())
 
 
 class TitleBar(QWidget):
@@ -448,12 +518,16 @@ class TitleBar(QWidget):
 
 class WidgetWindow(QWidget):
     hub_ready = Signal(object)  # (error, url) from the thread that wakes the Hub
+    punched = Signal(object)    # the clock-in the Hub confirmed, or the error text
 
     def __init__(self, store: StateStore, client: AgentClient):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint)
         self.store, self.client = store, client
         self.hub_ready.connect(self._hub_opened)
+        self.punched.connect(self._punched)
         self.on_status = lambda status: None  # tray hook
+        self.notify = lambda title, text: None  # tray hook: a Windows notification
+        self._ponto_seen = None  # user -> when they clocked in today, as last seen (None until the first look)
         self._version = -1
         self._opening_hub = False
         self._expander = None
@@ -509,12 +583,18 @@ class WidgetWindow(QWidget):
         self.car = CarView()
         col.addWidget(self.car)
 
-        # who is online: one avatar per person
+        # who is online: one avatar per person, and the daily clock-in
+        team_row = QHBoxLayout()
         self.people = QWidget()
         self.people_row = QHBoxLayout(self.people)
         self.people_row.setContentsMargins(2, 0, 0, 0)
         self.people_row.setSpacing(16)
-        col.addWidget(self.people)
+        team_row.addWidget(self.people, 1)
+        self.ponto_button = PontoButton()
+        self.ponto_button.set(None)
+        self.ponto_button.clicked.connect(self.punch_ponto)
+        team_row.addWidget(self.ponto_button, 0, Qt.AlignVCenter)
+        col.addLayout(team_row)
 
         # credits: Claude and Higgsfield, always there (a dash until the Hub has numbers)
         self.use_card = Card()
@@ -673,7 +753,7 @@ class WidgetWindow(QWidget):
             on = person["online"]
             cell = QVBoxLayout()
             cell.setSpacing(2)
-            cell.addWidget(Avatar(person["name"], on), 0, Qt.AlignHCenter)
+            cell.addWidget(Avatar(person["name"], on, person.get("ponto")), 0, Qt.AlignHCenter)
             cell.addSpacing(3)
             cell.addWidget(label(clip(person["name"], 10), 8.5, TEXT if on else FAINT, QFont.DemiBold), 0, Qt.AlignHCenter)
             cell.addWidget(label(states.get(person["status"], "online") if on else "offline", 7.5,
@@ -789,6 +869,47 @@ class WidgetWindow(QWidget):
         if state.get("dashboard_url") and state.get("task_id"):
             webbrowser.open(f"{state['dashboard_url']}/#task-{state['task_id']}")
 
+    # ------------------------------------------------------------ the daily clock-in
+
+    def _follow_ponto(self, team):
+        """Tells this person when a teammate clocks in, and keeps the button in step."""
+        if not team:  # no answer yet: the first real list is a look, not news
+            return
+        now = {p["user"]: p.get("ponto") for p in team}
+        names = {p["user"]: p["name"] for p in team}
+        me = self._identity(team)
+        if self._ponto_seen is not None:
+            for user, at in now.items():
+                if at and not self._ponto_seen.get(user) and user != me:
+                    self.notify("Ponto", f"{names[user]} bateu o ponto às {hhmm(at)}")
+        self._ponto_seen = now
+        self.ponto_button.set(now.get(me))
+
+    def punch_ponto(self):
+        who = self._identity(self._team or [])
+        if not who:
+            self.notify("Ponto", "O Hub não respondeu. Tenta outra vez daqui a pouco.")
+            return
+        self.ponto_button.setEnabled(False)
+
+        def work():
+            try:
+                self.punched.emit(hub.punch(hub.hub_url(), who))
+            except (OSError, ValueError) as e:
+                self.punched.emit(str(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _punched(self, result):
+        if isinstance(result, str):
+            self.ponto_button.setEnabled(True)
+            self.notify("Ponto", f"Não deu para bater o ponto: {result}")
+            return
+        self.ponto_button.set(result["at"])
+        if self._ponto_seen is not None:
+            self._ponto_seen[result["user"]] = result["at"]
+        self.notify("Ponto", f"Ponto batido às {hhmm(result['at'])}. A equipa já sabe.")
+
     # ------------------------------------------------------------ rendering
 
     def _tick(self):
@@ -797,6 +918,7 @@ class WidgetWindow(QWidget):
             if team != self._team_seen:
                 self._render_people(team)
                 self._render_usage()
+                self._follow_ponto(team)
             self._team_seen = team
         week = self._week
         if week is not None and week is not self._week_seen:

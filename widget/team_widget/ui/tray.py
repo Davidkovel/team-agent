@@ -54,6 +54,7 @@ def start_tray(window: WidgetWindow):
     item("Esconder widget", window.hide_panel)
     item("Abrir o Hub", window._open_dashboard)
     item("Abrir tarefa atual", window._open_task)
+    item("Bater o ponto", window.punch_ponto)
     menu.addSeparator()
     item("Pausar agente", lambda: send("pause"))
     item("Retomar agente", lambda: send("resume"))
@@ -73,6 +74,7 @@ def start_tray(window: WidgetWindow):
         icon.setToolTip(f"Agente AMG - {status}")
 
     window.on_status = on_status
+    window.notify = lambda title, text: icon.showMessage(title, text, QIcon(logo), 6000)
     window._tray_menu = menu  # keep it alive
     icon.show()
     return icon

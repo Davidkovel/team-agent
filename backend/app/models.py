@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -121,3 +121,13 @@ class AgentState(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     status: Mapped[str] = mapped_column(String(20), default="OFFLINE")
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Ponto(Base):
+    """The daily clock-in ("bater o ponto"): one per person per day, by the server's local date."""
+    __tablename__ = "ponto"
+    __table_args__ = (UniqueConstraint("user_id", "day"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

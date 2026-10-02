@@ -4,4 +4,6 @@ __pycache__/
 .env
 library/sources.json
 *.db
+*.db-shm
+*.db-wal
 *.log

@@ -86,6 +86,24 @@ cd widget && python -m team_widget
 
 Закрытие окна сворачивает widget в tray; агент продолжает работать.
 
+### Команда в одной сети (Windows + Radmin VPN)
+
+Все в одной сети Radmin VPN; один компьютер — host (на нём живёт Hub). После `git clone` или `git pull` на каждом ПК:
+
+```powershell
+# один раз. Host — в PowerShell от имени администратора (правило брандмауэра: порт 8000 только для 26.0.0.0/8):
+.\scripts\configurar_widget.ps1 -Key <ключ команды> -User Kovel
+# один раз. Остальные — с Radmin-IP хоста:
+.\scripts\configurar_widget.ps1 -Key <ключ команды> -User Marco -HostIp <Radmin-IP хоста>
+
+# каждый раз, в том числе после git pull: создаёт .venv, ставит зависимости, открывает widget
+.\scripts\iniciar.ps1
+```
+
+Widget на host сам поднимает Hub, открытый в сеть. Вход в Hub без пароля — по IP, в `backend/.env` на host:
+`IP_USERS=127.0.0.1=owner,::1=owner,<Radmin-IP Marco>=mark,<Radmin-IP David>=david`. После правки `.env` — снова `.\scripts\iniciar.ps1` на host
+(Hub перезапускается вместе с widget, только если его остановить: `configurar_widget.ps1` на host делает и это).
+
 ## Credentials
 
 | Что | Где хранится | Зачем |

@@ -2,7 +2,7 @@
 
 Press the start button and it grows into the cockpit; the cockpit's ⤢ grows into the Hub (expand.py); ▾ shrinks
 it back. The look is a luxury car's dashboard screen: black glass, white type, grey, nothing else. The AMG badge
-and the three-pointed star are the real pictures (assets/amg-logo.png, assets/star.jpg). The cockpit is laid out
+and the three-pointed star are the official vector marks (badge.py: assets/amg-logo.svg, assets/mercedes-star.svg). The cockpit is laid out
 like iOS widgets: the hero card (time, date, how things are, the star), the Claude and Higgsfield limits as lines, three round dials for this PC
 (processor, memory, battery), and the team as a list.
 Every animation runs off one frame clock at the monitor's refresh rate (motion.py).
@@ -43,9 +43,7 @@ SHADOW = 18
 RADIUS = 24
 GROW, SHRINK = 0.42, 0.32   # seconds
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
-LOGO, STAR = ASSETS / "logo.png", ASSETS / "star.jpg"
-STAR_PHOTO = (298.0, 301.0, 256.0)     # the emblem in star.jpg: centre x, centre y, outer radius (pixels)
-STAR_ARMS = (264.0, 28.0, 154.0)       # its three points, degrees with y down (the photo is turned a little)
+LOGO = ASSETS / "logo.png"
 UI, MONO = ("Segoe UI Variable Text", "Segoe UI"), ("Cascadia Mono", "Consolas")
 DISPLAY = ("Segoe UI Variable Display", "Segoe UI")
 WEEKDAYS = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
@@ -176,26 +174,9 @@ def glow_disc(p: QPainter, centre: QPointF, rx: float, ry: float, colour: str, a
     p.restore()
 
 
-_star: QImage | None = None
-
-
-def star_image() -> QImage:
-    global _star
-    if _star is None:
-        _star = QImage(str(STAR))
-    return _star
-
-
-def paint_star(p: QPainter, rect: QRectF, opacity=1.0):
-    """The star photo in a circle."""
-    clip_path = QPainterPath()
-    clip_path.addEllipse(rect)
-    p.save()
-    p.setRenderHint(QPainter.SmoothPixmapTransform)
-    p.setClipPath(clip_path, Qt.IntersectClip)
-    p.setOpacity(p.opacity() * opacity)
-    p.drawImage(rect, star_image())
-    p.restore()
+def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
+    """The Mercedes star (vector, chrome) in `rect`."""
+    badge.star(p, rect, opacity, shadow)
 
 
 def studio(p: QPainter, rect: QRectF):
@@ -622,7 +603,7 @@ class Member(Hover):
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(0, 0, 0))
         p.drawEllipse(av)
-        paint_star(p, av.adjusted(-3, -3, 3, 3), 1.0 if online else 0.35)
+        paint_star(p, av.adjusted(4, 4, -4, -4), 1.0 if online else 0.35)
         p.setPen(QPen(QColor(255, 255, 255, 120 if online else 26), 1.2))
         p.setBrush(Qt.NoBrush)
         p.drawEllipse(av.adjusted(0.6, 0.6, -0.6, -0.6))
@@ -772,32 +753,6 @@ class Orb(QWidget):
             QTimer.singleShot(120, self._sample)   # a new spot on the desktop: check the colour behind it
         self._press_at = None
 
-    @staticmethod
-    def _emblem(c: QPointF, r: float) -> QPainterPath:
-        """The emblem's outline: the ring and three slender points, laid over the photo's own (measured on star.jpg)."""
-        ring = QPainterPath()
-        ring.addEllipse(c, r, r)
-        hole = QPainterPath()
-        hole.addEllipse(c, r * 0.84, r * 0.84)
-        shape = ring.subtracted(hole)
-        arms = QPainterPath()
-        for angle in STAR_ARMS:
-            a = math.radians(angle)
-            d, n = QPointF(math.cos(a), math.sin(a)), QPointF(-math.sin(a), math.cos(a))
-            arms.addPolygon(QPolygonF([c + n * (r * 0.11), c + d * (r * 0.87), c - n * (r * 0.11), c - d * (r * 0.07), c + n * (r * 0.11)]))
-        return shape.united(arms)
-
-    @staticmethod
-    def _shadow_of(img: QImage) -> QImage:
-        dark = QImage(img.size(), QImage.Format_ARGB32_Premultiplied)
-        dark.fill(Qt.transparent)
-        q = QPainter(dark)
-        q.drawImage(0, 0, img)
-        q.setCompositionMode(QPainter.CompositionMode_SourceIn)
-        q.fillRect(dark.rect(), QColor(0, 0, 0, 150))
-        q.end()
-        return dark
-
     def _build_face(self, hhmm_now: str) -> QPixmap:
         dpr = self.devicePixelRatioF()
         pix = QPixmap(int(self.W * dpr), int(self.H * dpr))
@@ -811,35 +766,9 @@ class Orb(QWidget):
         p.setBrush(QColor(0, 0, 0, 2))       # invisible, but it keeps the whole thing clickable and draggable
         p.drawRoundedRect(face, 12, 12)
 
-        # the star: the photo cut to the emblem, a soft shadow under it, a thin light edge
+        # the star: the chrome emblem, with a soft shadow under it
         r = self.STAR / 2
-        c = QPointF(face.left() + r, face.center().y())
-        shape = self._emblem(c, r)
-        for i in range(6, 0, -1):
-            p.setPen(pen(QColor(0, 0, 0, int(24 * (1 - i / 7))), i * 1.5))
-            p.setBrush(Qt.NoBrush)
-            p.drawPath(shape.translated(0, 2))
-        k = r / STAR_PHOTO[2]
-        photo = QRectF(c.x() - STAR_PHOTO[0] * k, c.y() - STAR_PHOTO[1] * k, star_image().width() * k, star_image().height() * k)
-        p.save()
-        p.setClipPath(shape)
-        p.fillRect(photo, QColor(0, 0, 0))
-        p.drawImage(photo, star_image())
-        if not self._light:  # on a dark wallpaper black glass disappears: light the faces like polished chrome
-            p.setCompositionMode(QPainter.CompositionMode_Screen)
-            chrome = QLinearGradient(c.x() - r, c.y() - r, c.x() + r * 0.6, c.y() + r)
-            for at, a in ((0, 120), (0.35, 46), (0.55, 70), (0.8, 30), (1, 90)):
-                chrome.setColorAt(at, QColor(205, 210, 218, a))
-            p.fillRect(photo, chrome)
-        p.restore()
-        edge = QLinearGradient(c.x(), c.y() - r, c.x(), c.y() + r)
-        strong = 0 if self._light else 1
-        edge.setColorAt(0, QColor(255, 255, 255, 120 + 110 * strong))
-        edge.setColorAt(0.5, QColor(255, 255, 255, 40 + 90 * strong))
-        edge.setColorAt(1, QColor(255, 255, 255, 90 + 110 * strong))
-        p.setPen(QPen(edge, 0.9 + 0.5 * strong))
-        p.setBrush(Qt.NoBrush)
-        p.drawPath(shape)
+        paint_star(p, QRectF(face.left(), face.center().y() - r, self.STAR, self.STAR), shadow=True)
 
         # a hairline between the star and the words; white on a dark wallpaper, graphite on a light one
         ink = QColor(22, 23, 26) if self._light else QColor(TEXT)
@@ -864,11 +793,11 @@ class Orb(QWidget):
         p.drawPath(text)
 
         # the AMG badge under it, with its own shadow
-        bh = 11.0
-        logo = badge._logo()
-        bw = bh * logo.width() / max(1, logo.height())
-        p.drawImage(QRectF(tx + 1, face.top() + 43, bw, bh), self._shadow_of(logo))
-        p.drawImage(QRectF(tx, face.top() + 42, bw, bh), logo)
+        bh = 10.0
+        bw = badge.width(bh)
+        if not self._light:   # bright chrome with a shadow on dark wallpapers; graphite on light ones, where chrome vanishes
+            p.drawImage(QRectF(tx + 0.5, face.top() + 45, bw, bh), badge.image(bh, dpr, shadow=True))
+        badge.paint(p, tx, face.top() + 44, bh, dark=self._light)
         p.end()
         return pix
 

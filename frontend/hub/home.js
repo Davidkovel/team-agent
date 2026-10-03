@@ -130,7 +130,71 @@ const WIDGETS = {
     },
   },
 };
-const DEFAULT_LAYOUT = ["work", "attention", "today", "usage", "cost", "ponto", "agents", "team", "approvals", "activity", "completed", "companies"];
+// The four small gauges come first, right under the cockpit, like an instrument cluster.
+const DEFAULT_LAYOUT = ["today", "usage", "cost", "ponto", "work", "attention", "team", "agents", "approvals", "activity", "completed", "companies"];
+const INSTRUMENTS = ["today", "usage", "cost", "ponto"];
+
+/* ---------- the cockpit: the front of an AMG, lights on ----------
+   Drawn here (no image file): the Panamericana grille with the star, and the two headlights with the eyebrow
+   daytime light and three star LEDs each. The left light is drawn once and mirrored for the right. */
+const HEADLIGHT = `
+  <path d="M128 176C140 150 175 136 230 132L372 150C380 151 384 156 382 162L372 176C300 178 200 180 140 186C130 187 124 182 128 176Z"
+    fill="url(#amg-glass)" stroke="rgba(255,255,255,.16)" stroke-width="1"/>
+  <ellipse class="bloom" cx="262" cy="156" rx="150" ry="44" fill="url(#amg-bloom)"/>
+  <path class="drl" d="M156 180C146 176 145 170 150 165C165 150 195 142 232 140L366 156"/>
+  <g><use class="led" href="#amg-tri" x="203" y="152" width="17" height="17"/><use class="led" href="#amg-tri" x="248" y="154" width="17" height="17"/>
+    <use class="led" href="#amg-tri" x="293" y="157" width="17" height="17"/></g>
+  <path d="M134 242L318 232L338 268L150 276Z" fill="#07080a" stroke="rgba(255,255,255,.07)"/>
+  <path d="M140 254L330 245" stroke="url(#amg-blade)" stroke-width="3" stroke-linecap="round"/>
+  <ellipse class="floor" cx="250" cy="318" rx="190" ry="16" fill="url(#amg-bloom)" opacity=".9"/>`;
+const SLATS = Array.from({ length: 25 }, (_, i) => `<rect x="${393 + i * 9}" y="150" width="3" height="110" rx="1.5" fill="url(#amg-slat)"/>`).join("");
+const FASCIA = `<svg viewBox="0 0 1000 320" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+  <defs>
+    <filter id="amg-glow" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="3.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <radialGradient id="amg-bloom"><stop offset="0" stop-color="#dce9ff" stop-opacity=".34"/><stop offset=".45" stop-color="#b9d0ff" stop-opacity=".1"/><stop offset="1" stop-color="#b9d0ff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="amg-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1f25"/><stop offset=".35" stop-color="#0d0f12"/><stop offset="1" stop-color="#050607"/></linearGradient>
+    <linearGradient id="amg-hood" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="amg-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1f27"/><stop offset="1" stop-color="#07090c"/></linearGradient>
+    <linearGradient id="amg-slat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f8"/><stop offset=".45" stop-color="#8c949d"/><stop offset=".55" stop-color="#4a5159"/><stop offset="1" stop-color="#c4cad1"/></linearGradient>
+    <linearGradient id="amg-blade" x1="0" x2="1"><stop offset="0" stop-color="#9aa2ab" stop-opacity=".2"/><stop offset=".6" stop-color="#eef1f4"/><stop offset="1" stop-color="#9aa2ab" stop-opacity=".4"/></linearGradient>
+    <clipPath id="amg-grille"><path d="M420 150H580C592 150 598 158 600 170L612 236C614 248 606 258 594 258H406C394 258 386 248 388 236L400 170C402 158 408 150 420 150Z"/></clipPath>
+    <symbol id="amg-tri" viewBox="-10 -10 20 20"><path d="M0-9L1.7-1.2L8.2 5.2L0 2.1L-8.2 5.2L-1.7-1.2Z"/></symbol>
+  </defs>
+  <path d="M40 210C100 140 250 112 500 108C750 112 900 140 960 210L985 320H15Z" fill="url(#amg-body)"/>
+  <path d="M60 196C130 136 260 114 500 110C740 114 870 136 940 196" fill="none" stroke="url(#amg-hood)" stroke-width="1.2"/>
+  <path d="M330 112C400 128 450 134 500 134C550 134 600 128 670 112" fill="none" stroke="rgba(255,255,255,.08)"/>
+  <g>${HEADLIGHT}</g>
+  <g transform="translate(1000 0) scale(-1 1)">${HEADLIGHT}</g>
+  <path d="M420 150H580C592 150 598 158 600 170L612 236C614 248 606 258 594 258H406C394 258 386 248 388 236L400 170C402 158 408 150 420 150Z" fill="#040506"/>
+  <g clip-path="url(#amg-grille)">${SLATS}</g>
+  <path d="M420 150H580C592 150 598 158 600 170L612 236C614 248 606 258 594 258H406C394 258 386 248 388 236L400 170C402 158 408 150 420 150Z"
+    fill="none" stroke="url(#amg-slat)" stroke-width="3"/>
+  <circle cx="500" cy="203" r="33" fill="#050607"/>
+  <image href="assets/mercedes-star.svg" x="468" y="171" width="64" height="64"/>
+  <path d="M372 286H628L650 316H350Z" fill="#040506" stroke="rgba(255,255,255,.06)"/>
+</svg>`;
+
+let cockpitClock = null;
+function cockpitHtml(greeting, date) {
+  // the start-up plays once per session; after that the lights are simply on
+  let ignite = false;
+  try { ignite = !sessionStorage.getItem("hub.ignited"); sessionStorage.setItem("hub.ignited", "1"); } catch { /* private window: no start-up */ }
+  return `<section class="cockpit ${ignite ? "ignite" : ""}">
+    <div class="fascia">${FASCIA}</div>
+    <div class="cockpit-copy">
+      <div class="ph-eyebrow">${t("Centro de comando")}</div>
+      <h1>${esc(t(greeting))}, <em>${esc(me.display_name)}</em></h1>
+      <p class="cockpit-date">${esc(date)}<i></i><time id="cockpit-clock">${new Date().toLocaleTimeString("pt-PT")}</time></p>
+      <div class="cockpit-actions">
+        <button class="ignition" data-new-task title="${t("Nova tarefa")}"><span><i class="led"></i>${t("Nova")}<br>${t("tarefa")}</span></button>
+        <a class="btn amg" href="#/tarefas">${t("Tarefas")}</a>
+        <a class="btn amg" href="#/agentes">${t("Agentes")}</a>
+        <button class="btn quiet" id="customize">${icon("sliders")}${t("Personalizar")}</button>
+      </div>
+    </div>
+  </section>`;
+}
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
 const layoutKey = () => `hub.home.${me.username}`;
@@ -150,7 +214,7 @@ function setDensity(value) {
 
 function widgetHtml(item) {
   const w = WIDGETS[item.id];
-  return `<section class="wg" data-id="${item.id}" style="grid-column: span ${item.w}; grid-row: span ${item.h}; --w: ${item.w}">
+  return `<section class="wg ${INSTRUMENTS.includes(item.id) ? "instr" : ""}" data-id="${item.id}" style="grid-column: span ${item.w}; grid-row: span ${item.h}; --w: ${item.w}">
     <header class="wg-head" draggable="true">${icon(w.icon)}<b>${esc(t(w.title))}</b>
       <div class="wg-tools">${w.href ? `<a href="${w.href}" title="${t("Ver tudo")}">${icon("arrow")}</a>` : ""}
         <button data-hide title="${t("Esconder")}">${icon("x")}</button></div></header>
@@ -263,9 +327,14 @@ HUB_VIEWS.home = async function viewHome() {
   const greeting = hour < 6 ? "Boa noite" : hour < 13 ? "Bom dia" : hour < 20 ? "Boa tarde" : "Boa noite";
   const date = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   layout = loadLayout();
-  $("view").innerHTML = `<div class="page">${ui.head("Centro de comando", `${t(greeting)}, ${me.display_name}`, date[0].toUpperCase() + date.slice(1),
-    ui.btn("Nova tarefa", 'data-new-task', "", "plus") + ui.btn("Personalizar", "id=\"customize\"", "quiet", "sliders"))}
+  $("view").innerHTML = `<div class="page">${cockpitHtml(greeting, date[0].toUpperCase() + date.slice(1))}
     <div class="wgrid" id="wgrid"></div></div>`;
+  clearInterval(cockpitClock);
+  cockpitClock = setInterval(() => {
+    const clock = $("cockpit-clock");
+    if (clock) clock.textContent = new Date().toLocaleTimeString("pt-PT");
+    else clearInterval(cockpitClock);
+  }, 1000);
   $("customize").onclick = customizeHome;
   $("view").querySelector("[data-new-task]").onclick = () => newTask();
   wireGrid($("wgrid"));

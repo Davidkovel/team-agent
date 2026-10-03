@@ -1,0 +1,169 @@
+/* =====================================================================
+   AMG — the finish on top of the design system.
+   Black lacquer, brushed metal and chrome; a classic serif for the big words (the Mercedes catalogue look),
+   letter-spaced capitals for the small ones. Loaded after design.css: same tokens, a richer surface.
+   ===================================================================== */
+:root {
+  --serif: "Cormorant Garamond", "Georgia", "Times New Roman", serif;
+  --chrome: linear-gradient(180deg, #f7f8fa 0%, #d4d9df 38%, #9aa2ab 52%, #dfe3e7 70%, #f3f5f7 100%);
+  --chrome-line: linear-gradient(90deg, transparent, rgba(236, 241, 247, .55) 30%, rgba(255, 255, 255, .8) 50%, rgba(236, 241, 247, .55) 70%, transparent);
+  --metal: linear-gradient(180deg, #262a30 0%, #181b20 50%, #111317 51%, #15181c 100%);
+  --metal-hi: linear-gradient(180deg, #30353c 0%, #1f2329 50%, #16191d 51%, #1b1e23 100%);
+  --drl: #eef5ff;
+  --bg: #050607;
+}
+
+/* ---------------------------------------------------------------- the room: black, with the light of the car on it */
+html, body { background: var(--bg); }
+.hub > main {
+  background:
+    radial-gradient(900px 380px at 72% 0%, rgba(196, 216, 255, .07), transparent 70%),
+    radial-gradient(700px 300px at 15% 110%, rgba(255, 255, 255, .025), transparent 70%),
+    var(--bg);
+}
+
+/* ---------------------------------------------------------------- sidebar */
+.hside { background: linear-gradient(180deg, #0a0b0d, #060708); border-right: 0; box-shadow: inset -1px 0 0 rgba(255, 255, 255, .06); }
+.side-link { border-radius: 5px; letter-spacing: .01em; }
+.side-link.active { background: linear-gradient(90deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .02)); }
+.side-link.active::before { background: var(--chrome); width: 2px; box-shadow: 0 0 8px rgba(238, 245, 255, .6); }
+.side-group { letter-spacing: .2em; font-size: 9.5px; color: #4d535b; }
+.side-search { border-radius: 6px; background: #0d0f12; }
+
+/* ---------------------------------------------------------------- type */
+.ph h1, .cockpit h1, .modal-box h3 { font-family: var(--serif); font-weight: 500; letter-spacing: 0; }
+.ph h1 { font-size: 34px; line-height: 1.05; }
+.ph-eyebrow, .sec { letter-spacing: .24em; }
+.num { font-family: var(--serif); font-weight: 600; font-variant-numeric: lining-nums tabular-nums; letter-spacing: 0; font-size: 34px; }
+.num.sm { font-size: 28px; }
+.num.none { font-family: var(--ui); }
+
+/* ---------------------------------------------------------------- buttons: machined metal, chrome for the main one */
+.btn {
+  height: 32px; padding: 0 15px; border-radius: 4px; border: 1px solid #2b3037;
+  background: var(--metal); color: #dde2e8;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10), inset 0 -1px 0 rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .45);
+  font: 600 10.5px var(--ui); letter-spacing: .16em; text-transform: uppercase;
+  transition: background .18s, border-color .18s, box-shadow .18s, color .18s, transform .1s;
+}
+.btn:hover { background: var(--metal-hi); border-color: #4a525c; color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 -1px 0 rgba(0, 0, 0, .55), 0 4px 14px rgba(0, 0, 0, .55), 0 0 0 1px rgba(238, 245, 255, .05); }
+.btn:active { transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, .6); }
+.btn.sm { height: 26px; padding: 0 11px; font-size: 9.5px; letter-spacing: .14em; border-radius: 4px; }
+.btn.primary, .btn.primary:hover { background: var(--chrome); border-color: #eef1f4; color: #0b0c0e; text-shadow: 0 1px 0 rgba(255, 255, 255, .6);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(0, 0, 0, .25), 0 6px 18px rgba(0, 0, 0, .5); }
+.btn.primary:hover { filter: brightness(1.06); box-shadow: inset 0 1px 0 #fff, 0 8px 26px rgba(0, 0, 0, .55), 0 0 22px rgba(238, 245, 255, .18); }
+.btn.quiet { background: transparent; border-color: transparent; box-shadow: none; color: #9aa1aa; }
+.btn.quiet:hover { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .08); box-shadow: none; }
+.btn.ok { background: linear-gradient(180deg, rgba(95, 207, 140, .16), rgba(95, 207, 140, .06)); }
+.btn.danger { background: linear-gradient(180deg, rgba(239, 111, 94, .15), rgba(239, 111, 94, .05)); }
+/* the AMG stripes: four slanted bars in front of the label */
+.btn.amg::before { content: ""; flex: none; width: 17px; height: 9px; margin-right: 1px; opacity: .75;
+  background: repeating-linear-gradient(-62deg, currentColor 0 2px, transparent 2px 4.4px); }
+.btn.amg:hover::before { opacity: 1; }
+.segx { border-radius: 6px; }
+.segx button { border-radius: 4px; text-transform: uppercase; letter-spacing: .12em; font-size: 10.5px; font-weight: 600; }
+.segx button.on { background: var(--metal-hi); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); }
+.chp.on { background: var(--chrome); border-color: #eef1f4; }
+
+/* ---------------------------------------------------------------- the engine start button (Nova tarefa) */
+.ignition { position: relative; flex: none; width: 78px; height: 78px; padding: 4px; border: 0; border-radius: 50%; cursor: pointer;
+  background: conic-gradient(from 200deg, #f6f8fa, #7b838c 18%, #e9ecef 34%, #565e66 52%, #f3f5f7 68%, #858d96 84%, #f6f8fa);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .7), 0 0 0 1px rgba(0, 0, 0, .8); transition: transform .12s, box-shadow .25s; }
+.ignition > span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 100%; height: 100%;
+  border-radius: 50%; background: radial-gradient(circle at 50% 30%, #2b3036, #0c0d10 68%);
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, .14), inset 0 -3px 6px rgba(0, 0, 0, .8);
+  color: #eef1f4; font: 700 8.5px/1.15 var(--ui); letter-spacing: .2em; text-transform: uppercase; text-align: center; }
+.ignition .led { width: 14px; height: 3px; border-radius: 2px; background: #3a1d12; margin-bottom: 2px; transition: background .25s, box-shadow .25s; }
+.ignition:hover { box-shadow: 0 14px 34px rgba(0, 0, 0, .75), 0 0 0 1px rgba(0, 0, 0, .8), 0 0 28px rgba(238, 245, 255, .16); }
+.ignition:hover .led { background: #ff5a2b; box-shadow: 0 0 8px #ff5a2b, 0 0 2px #ffb59c; }
+.ignition:active { transform: scale(.95); }
+
+/* ---------------------------------------------------------------- the cockpit: Home's hero */
+.cockpit { position: relative; display: flex; align-items: center; min-height: 300px; margin: -4px 0 16px; padding: 30px 36px; overflow: hidden;
+  border-radius: 14px; isolation: isolate;
+  background:
+    radial-gradient(120% 90% at 70% 120%, rgba(238, 245, 255, .05), transparent 60%),
+    linear-gradient(180deg, #0b0d10 0%, #060708 70%, #0a0b0d 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06), 0 30px 60px -30px rgba(0, 0, 0, .9); }
+.cockpit::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--chrome-line); opacity: .5; }
+.fascia { position: absolute; z-index: -1; right: -2%; bottom: 0; width: 70%; height: 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%); mask-image: linear-gradient(90deg, transparent, #000 22%); }
+/* styles.css has an old ".hub { stroke: #fff }" for a clock dial, and the app itself is .hub: without this every shape gets a white outline */
+.fascia svg { width: 100%; height: 100%; display: block; stroke: none; }
+.cockpit-copy { position: relative; max-width: 520px; }
+.cockpit .ph-eyebrow { display: flex; align-items: center; gap: 10px; color: #8f969f; }
+.cockpit .ph-eyebrow::before { content: ""; width: 26px; height: 9px; background: repeating-linear-gradient(-62deg, #cfd5dc 0 2.2px, transparent 2.2px 4.8px); }
+.cockpit h1 { margin: 8px 0 0; font-size: clamp(40px, 4.2vw, 58px); line-height: 1; color: #f4f6f8; }
+.cockpit h1 em { font-style: italic; font-weight: 500;
+  background: linear-gradient(180deg, #ffffff 10%, #c7cdd4 55%, #8f98a2 75%, #e7eaee 95%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cockpit-date { margin: 10px 0 0; color: #9097a0; font-size: 13px; letter-spacing: .04em; display: flex; align-items: center; gap: 10px; }
+.cockpit-date time { font: 600 13px var(--mono); color: #dfe4ea; letter-spacing: .06em; }
+.cockpit-date i { width: 3px; height: 3px; border-radius: 50%; background: #59606a; }
+.cockpit-actions { display: flex; align-items: center; gap: 10px; margin-top: 26px; flex-wrap: wrap; }
+.cockpit-actions .ignition { margin-right: 10px; }
+
+/* the lights: lit by default (so "reduced motion" still shows them on); the first visit plays the start-up */
+.fascia .drl { fill: none; stroke: var(--drl); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; filter: url(#amg-glow); }
+.fascia .led { fill: var(--drl); filter: url(#amg-glow); }
+.fascia .bloom, .fascia .floor { opacity: 1; }
+.cockpit.ignite .drl { stroke-dasharray: 420; animation: drl-draw 1.25s cubic-bezier(.6, 0, .2, 1) .35s both; }
+.cockpit.ignite .led { animation: led-on .35s ease-out both; }
+.cockpit.ignite .led:nth-of-type(1) { animation-delay: 1.35s; }
+.cockpit.ignite .led:nth-of-type(2) { animation-delay: 1.5s; }
+.cockpit.ignite .led:nth-of-type(3) { animation-delay: 1.65s; }
+.cockpit.ignite .bloom { animation: bloom-on 1.4s ease-out 1.6s both; }
+.cockpit.ignite .floor { animation: bloom-on 1.8s ease-out 1.9s both; }
+.cockpit.ignite .cockpit-copy > * { animation: rise .8s var(--ease) both; }
+.cockpit.ignite .cockpit-copy > :nth-child(2) { animation-delay: .1s; }
+.cockpit.ignite .cockpit-copy > :nth-child(3) { animation-delay: .2s; }
+.cockpit.ignite .cockpit-copy > :nth-child(4) { animation-delay: .3s; }
+@keyframes drl-draw { from { stroke-dashoffset: 420; opacity: .3; } 70% { opacity: 1; } to { stroke-dashoffset: 0; } }
+@keyframes led-on { 0% { opacity: 0; } 40% { opacity: 1; filter: url(#amg-glow) brightness(2); } 100% { opacity: 1; } }
+@keyframes bloom-on { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+/* the lights breathe very slightly, like a car idling */
+.fascia .bloom { animation: idle 5s ease-in-out 3.4s infinite; }
+@keyframes idle { 50% { opacity: .78; } }
+
+/* ---------------------------------------------------------------- widgets: lacquered panels with a chrome edge */
+.wgrid { counter-reset: wg; gap: 14px; }
+.wg { border-radius: 10px; border: 1px solid rgba(255, 255, 255, .055);
+  background: linear-gradient(180deg, rgba(21, 24, 29, .96), rgba(10, 12, 14, .96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 20px 40px -26px rgba(0, 0, 0, .9); }
+.wg::before { content: ""; position: absolute; left: 18px; right: 18px; top: 0; height: 1px; background: var(--chrome-line); opacity: .35; transition: opacity .25s; }
+.wg:hover { border-color: rgba(222, 229, 238, .14); }
+.wg:hover::before { opacity: .8; }
+.wg-head { padding-top: 13px; }
+.wg-head svg.i { color: #6b727b; }
+.wg-head b { color: #a7aeb7; font-size: 9.5px; letter-spacing: .22em; }
+.wg-head b::before { counter-increment: wg; content: counter(wg, decimal-leading-zero); margin-right: 10px; color: #4f565e; font: 500 10px var(--mono); letter-spacing: .05em; }
+/* the four gauges under the cockpit read like an instrument cluster: a scale of ticks along the bottom */
+.wg.instr::after { content: ""; position: absolute; left: var(--pad); right: var(--pad); bottom: 0; height: 4px; opacity: .3; pointer-events: none;
+  background: repeating-linear-gradient(90deg, #8e959e 0 1px, transparent 1px 9px); -webkit-mask-image: linear-gradient(90deg, #000, transparent);
+  mask-image: linear-gradient(90deg, #000, transparent); }
+.wg.instr .wg-body.pad { padding-bottom: 12px; }
+.wg.instr .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.kpi span, .wg .stat small { letter-spacing: .02em; }
+.kpi span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi b.num.sm { font-size: 30px; line-height: 1; }
+.empty-state svg.i { width: 34px; height: 34px; padding: 8px; border-radius: 50%; color: #8b929b; border: 1px solid rgba(255, 255, 255, .1);
+  background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .06), transparent 70%); }
+.empty-state b { letter-spacing: .22em; font-size: 10px; color: #b5bcc4; }
+.st.busy, .st.ok { color: #cfeedd; }
+.av { background: radial-gradient(circle at 50% 30%, #3a4048, #14171b 75%); border-color: rgba(255, 255, 255, .16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); font-family: var(--serif); font-size: 14px; font-weight: 600; }
+.pg > i { background: var(--chrome); }
+.panel { border-radius: 10px; background: linear-gradient(180deg, rgba(21, 24, 29, .96), rgba(10, 12, 14, .96)); border-color: rgba(255, 255, 255, .055); }
+#ai-fab { background: radial-gradient(circle at 50% 30%, #2b3036, #0c0d10 68%); border: 2px solid #9aa2ab;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .2); }
+
+@media (max-width: 1100px) {
+  /* not enough width for text and car side by side: the car goes underneath */
+  .cockpit { flex-direction: column; align-items: stretch; padding-bottom: 0; }
+  .fascia { position: relative; right: auto; width: 100%; height: 190px; margin-top: 14px; -webkit-mask-image: none; mask-image: none; }
+}
+@media (max-width: 900px) {
+  .cockpit { min-height: 260px; padding: 24px 20px; }
+  .cockpit-actions .btn.amg { display: none; }
+}

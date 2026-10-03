@@ -130,9 +130,9 @@ const WIDGETS = {
     },
   },
 };
-// Home starts short: who clocked in, then the work, then what needs the person and the team. The rest
+// Home starts short: the work, then what needs the person and the team. The rest
 // (gauges, agents, approvals, activity...) is one click away in "Personalizar" and on its own page.
-const DEFAULT_LAYOUT = ["ponto", "work", "attention", "team"];
+const DEFAULT_LAYOUT = ["work", "attention", "team"];
 const INSTRUMENTS = ["today", "usage", "cost"];
 
 /* ---------- the cockpit: the front of an AMG, lights on ----------
@@ -207,7 +207,7 @@ function cockpitHtml(greeting, date) {
 }
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home2.${me.username}`; // "2": the short Home; older saved layouts start over
+const layoutKey = () => `hub.home3.${me.username}`; // "3": the short Home; older saved layouts start over
 function loadLayout() {
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }

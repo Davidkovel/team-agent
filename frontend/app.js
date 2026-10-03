@@ -9,7 +9,8 @@ const dayLabel = (iso) => {
   return d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
 };
 const size = (b) => (b > 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1e3)) + " KB");
-const initial = (name) => esc((name || "?").trim()[0]?.toUpperCase()) + githubPhoto(name); // the letter, with the GitHub picture over it
+const letter = (name) => esc((name || "?").trim()[0]?.toUpperCase());
+const initial = (name) => letter(name) + githubPhoto(name); // the letter, with the GitHub picture over it
 
 const ICONS = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
@@ -197,7 +198,7 @@ async function loadAgents() {
     paint($("presence"), team.map((m) => {
       const on = m.status !== "OFFLINE", label = STATUS_PT[m.status] || m.status;
       return `<a class="who ${on ? "on" : "off"}" href="#/equipa" title="${esc(m.display_name)}: ${esc(label)}${m.task ? " · " + esc(m.task) : ""}">
-        <span class="who-ava">${initial(m.display_name)}<i class="dot ${m.status === "ERROR" ? "err" : on ? "on" : "off"}"></i></span>
+        <span class="who-ava">${letter(m.display_name)}<i class="dot ${m.status === "ERROR" ? "err" : on ? "on" : "off"}"></i></span>
         <b>${esc(m.display_name)}</b><small>${esc(label)}</small></a>`;
     }).join(""));
   }
@@ -593,7 +594,7 @@ function drawPonto(board) {
       const r = CLOCK_R + 26 + 22 * (used[slot] = (used[slot] ?? -1) + 1);
       const [x, y] = polar(deg, r);
       return `<g class="punch ${p.user === me.username ? "me" : ""}"><title>${esc(p.name)} · ${time(p.at)}</title>
-        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12"/><text x="${x.toFixed(1)}" y="${(y + 4.5).toFixed(1)}">${initial(p.name)}</text></g>`;
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12"/><text x="${x.toFixed(1)}" y="${(y + 4.5).toFixed(1)}">${letter(p.name)}</text></g>`;
     }).join(""));
   }
   if (!$("ponto-people")) return;

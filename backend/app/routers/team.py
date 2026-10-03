@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,7 +9,7 @@ from ..db import get_db
 from ..models import Activity, Approval, UsageRecord, User
 from ..realtime import rt
 from ..security import current_user, require_owner, sees_all
-from ..services import approval_out, iso, log_activity, team_view
+from ..services import approval_out, iso, log_activity, notify, team_view
 
 router = APIRouter(prefix="/api")
 
@@ -29,10 +29,24 @@ async def activity(limit: int = 50, user: User = Depends(current_user), db: Asyn
     if not sees_all(user):
         query = query.where(Activity.user_id == user.id)
     return [
-        {"id": a.id, "user": a.user.username, "kind": a.kind, "message": a.message,
-         "task_id": a.task_id, "created_at": iso(a.created_at)}
+        {"id": a.id, "user": a.user.username, "name": a.user.display_name, "kind": a.kind, "message": a.message,
+         "task_id": a.task_id, "company": a.company, "created_at": iso(a.created_at)}
         for a in (await db.execute(query)).scalars()
     ]
+
+
+@router.get("/usage/summary")
+async def usage_summary(days: int = 7, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Tokens and cost of the last days. Tokens are what each run reported; the cost is the SDK's estimate, not a bill."""
+    since = datetime.now(timezone.utc) - timedelta(days=min(max(days, 1), 90))
+    query = select(func.sum(UsageRecord.input_tokens), func.sum(UsageRecord.output_tokens), func.sum(UsageRecord.cache_read_tokens),
+                   func.sum(UsageRecord.cost_usd), func.count(UsageRecord.id)).where(UsageRecord.created_at >= since)
+    if not sees_all(user):
+        query = query.where(UsageRecord.user_id == user.id)
+    inp, out, cache, cost, runs = (await db.execute(query)).one()
+    return {"days": days, "runs": runs, "source": "live" if runs else "no_data",
+            "input_tokens": inp or 0, "output_tokens": out or 0, "cache_read_tokens": cache or 0,
+            "cost_usd": round(cost or 0, 2) if runs else None, "cost_source": "estimated" if runs else "no_data"}
 
 
 @router.get("/usage")
@@ -73,6 +87,9 @@ async def decide(approval_id: int, body: Decision, owner: User = Depends(require
     verb = "aprovou" if approval.status == "APPROVED" else "recusou"
     await log_activity(db, owner, "approval_decided",
                        f"{owner.display_name} {verb} o pedido de {approval.user.display_name}: {approval.action}", approval.task_id)
+    if approval.user_id != owner.id:
+        await notify(db, [approval.user_id], "approval_decided", "low",
+                     f"{owner.display_name} {verb} o teu pedido", approval.action, "#/aprovacoes")
     await rt.publish("approval", approval.user_id)
     await rt.command(approval.user_id, {"type": "approval", "approval_id": approval.id, "status": approval.status})
     return approval_out(approval)

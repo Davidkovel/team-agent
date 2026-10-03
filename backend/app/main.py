@@ -8,10 +8,11 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from .config import settings
-from .db import Base, SessionLocal, engine
+from . import migrate
+from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
-from .routers import agent, auth, hub, local, ponto, tasks, team, week, ws
+from .routers import agent, agents, ai, analytics, auth, hub, local, ponto, tasks, team, week, work, ws
 from .security import hash_password
 from .services import ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, save_agent_state, widget_recent
 
@@ -26,13 +27,6 @@ SEED_USERS = [
 
 # Logins stay owner/mark/david; the names people see are the real ones. In team mode nobody outranks anybody.
 TEAM_NAMES = {"owner": "Kovel", "mark": "Marco", "david": "David"}
-
-
-def add_missing_columns(conn):
-    """create_all never alters existing tables; add the columns introduced after the first release."""
-    from sqlalchemy import inspect, text
-    if "company" not in {c["name"] for c in inspect(conn).get_columns("activity")}:
-        conn.execute(text("ALTER TABLE activity ADD COLUMN company VARCHAR(50)"))
 
 
 async def seed():
@@ -92,9 +86,7 @@ async def offline_watcher():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(add_missing_columns)
+    await migrate.upgrade(engine)  # creates what is missing, never drops; backs the database up before changing it
     await seed()
     await sync_team_names()
     await rt.start()
@@ -105,7 +97,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
-for module in (auth, hub, tasks, team, agent, week, ponto, local, ws):
+for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, ws):
     app.include_router(module.router)
 
 if Path(settings.frontend_dir).is_dir():

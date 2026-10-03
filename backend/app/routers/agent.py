@@ -10,10 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..db import get_db
-from ..models import UNFINISHED, Approval, Task, TaskEvent, UsageRecord, User
+from ..models import UNFINISHED, AgentSession, Approval, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
 from ..security import agent_user, make_jwt
-from ..services import ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, approval_out, event_out, log_activity, save_agent_state, task_out, team_view
+from ..services import (ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, approval_out, deciders, event_out, log_activity, notify,
+                        save_agent_state, task_out, team_view)
+from .work import memory_for_task
 
 router = APIRouter(prefix="/api/agent")
 
@@ -55,10 +57,16 @@ class ApprovalIn(BaseModel):
     task_id: int | None = None
     action: str
     detail: str = ""
+    risk: Literal["", "low", "medium", "high"] = ""
+    kind: str = Field("", max_length=30)
+    files: list[str] | None = None
+    diff: str = Field("", max_length=60000)
 
 
 class UsageIn(BaseModel):
     task_id: int | None = None
+    session_id: int | None = None
+    model: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0
@@ -124,6 +132,14 @@ async def recovery(user: User = Depends(agent_user), db: AsyncSession = Depends(
             "pending_approvals": [approval_out(a) for a in pending]}
 
 
+@router.get("/tasks/{task_id}/memory")
+async def task_memory(task_id: int, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+    """What the AI should know before it starts this task (global, team, company, project, agent and task notes)."""
+    task = await own_task(task_id, user, db)
+    return [{"scope": m.scope, "category": m.category, "title": m.title, "content": m.content}
+            for m in await memory_for_task(db, task)]
+
+
 @router.post("/tasks/{task_id}/update")
 async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     task = await own_task(task_id, user, db)
@@ -141,6 +157,15 @@ async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent
     await db.commit()
     if task.status != old_status:
         await log_activity(db, user, "task_status", f"{STATUS_TEXT.get(task.status, task.status)}: {task.title}", task.id)
+        href = f"#/tarefas/{task.id}"
+        if task.status == "COMPLETED":
+            await notify(db, {user.id, task.created_by}, "task_completed", "low", f"Tarefa concluída: {task.title}",
+                         (task.result or "")[:300], href)
+        elif task.status == "FAILED":
+            await notify(db, {user.id, task.created_by}, "agent_failed", "medium", f"O agente falhou em: {task.title}", "", href)
+        elif task.status == "NEEDS_HELP":
+            await notify(db, {user.id, task.created_by}, "agent_waiting", "medium",
+                         f"Claude / {user.display_name} precisa de ajuda", task.title, href)
     elif new_action:
         await log_activity(db, user, "task_action", f"{task.last_action} ({task.progress}%)", task.id)
     await rt.publish("task", user.id)
@@ -168,6 +193,8 @@ async def request_approval(body: ApprovalIn, user: User = Depends(agent_user), d
     await db.refresh(approval)
     await log_activity(db, user, "approval_requested",
                        f"{user.display_name} espera aprovação: {body.action}", body.task_id)
+    await notify(db, await deciders(db), "approval_required", "high",
+                 f"Claude / {user.display_name} precisa de aprovação", body.action, "#/aprovacoes")
     await rt.publish("approval", user.id)
     return approval_out(approval)
 
@@ -184,6 +211,10 @@ async def approval_status(approval_id: int, user: User = Depends(agent_user), db
 async def report_usage(body: UsageIn, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     if body.task_id is not None:
         await own_task(body.task_id, user, db)
+    if body.session_id is not None:
+        session = await db.get(AgentSession, body.session_id)
+        if not session or session.user_id != user.id:
+            raise HTTPException(404, "Session not found")
     db.add(UsageRecord(user_id=user.id, **body.model_dump()))
     await db.commit()
     await rt.publish("usage", user.id)

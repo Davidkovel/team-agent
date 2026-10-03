@@ -7,3 +7,5 @@ library/sources.json
 *.db-shm
 *.db-wal
 *.log
+# copies the schema upgrade leaves beside a SQLite database before changing it
+*.db.bak-*

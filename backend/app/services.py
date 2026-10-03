@@ -5,7 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
-from .models import Activity, AgentState, Approval, Meter, Task, TaskEvent, UsageRecord, User
+from .models import (TASK_STAGE, Activity, AgentSession, AgentState, Approval, Meter, Notification, Subagent, Task, TaskEvent,
+                     UsageRecord, User)
 from . import hub
 from .realtime import rt
 from .security import sees_all
@@ -24,6 +25,11 @@ def task_out(t: Task) -> dict:
         "next_action": t.next_action, "result": t.result, "session_id": t.session_id,
         "created_at": iso(t.created_at), "updated_at": iso(t.updated_at),
         "started_at": iso(t.started_at), "completed_at": iso(t.completed_at),
+        "stage": TASK_STAGE.get(t.status, "todo"), "priority": t.priority or "normal", "deadline": iso(t.deadline),
+        "company": t.company or (t.project if t.project in hub.companies() else None),
+        "project_id": t.project_id, "project_name": t.project_ref.name if t.project_ref else "",
+        "agent_role": t.agent_role or "", "agent_instructions": t.agent_instructions or "",
+        "git_branch": t.git_branch or "", "blocked_reason": t.blocked_reason or "",
     }
 
 
@@ -36,7 +42,45 @@ def approval_out(a: Approval) -> dict:
         "id": a.id, "task_id": a.task_id, "user": a.user.username, "action": a.action,
         "detail": a.detail, "status": a.status,
         "created_at": iso(a.created_at), "decided_at": iso(a.decided_at),
+        "user_name": a.user.display_name, "risk": a.risk or "", "kind": a.kind or "",
+        "files": a.files or [], "diff": a.diff or "",
     }
+
+
+def session_out(s: AgentSession) -> dict:
+    return {
+        "id": s.id, "user": s.user.username, "user_name": s.user.display_name, "task_id": s.task_id, "kind": s.kind,
+        "model": s.model, "status": s.status, "current_action": s.current_action,
+        "tokens": {"input": s.input_tokens, "output": s.output_tokens, "cache_read": s.cache_read_tokens,
+                   "cache_creation": s.cache_creation_tokens, "total": s.input_tokens + s.output_tokens},
+        "tool_uses": s.tool_uses, "cost_usd": None if s.cost_usd is None else round(s.cost_usd, 4),
+        "started_at": iso(s.started_at), "finished_at": iso(s.finished_at),
+    }
+
+
+def subagent_out(a: Subagent) -> dict:
+    return {
+        "id": a.id, "session_id": a.session_id, "parent_id": a.parent_id, "name": a.name, "role": a.role,
+        "status": a.status, "task": a.task, "model": a.model, "tools": a.tools or [],
+        "total_tokens": a.total_tokens, "tool_uses": a.tool_uses,
+        "started_at": iso(a.started_at), "finished_at": iso(a.finished_at),
+    }
+
+
+async def notify(db: AsyncSession, user_ids, kind: str, severity: str, title: str, body: str = "", href: str = ""):
+    """Write a notification for each of these people. Only for events worth interrupting someone."""
+    targets = set(user_ids)
+    for user_id in targets:
+        db.add(Notification(user_id=user_id, kind=kind, severity=severity, title=title[:200], body=body, href=href))
+    await db.commit()
+    for user_id in targets:
+        await rt.publish("notification", user_id)
+
+
+async def deciders(db: AsyncSession) -> list[int]:
+    """Who may approve or reject: everyone in team mode, otherwise the owners."""
+    users = (await db.execute(select(User))).scalars()
+    return [u.id for u in users if sees_all(u)]
 
 
 async def log_activity(db: AsyncSession, user: User, kind: str, message: str, task_id: int | None = None,

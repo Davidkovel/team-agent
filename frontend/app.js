@@ -9,7 +9,7 @@ const dayLabel = (iso) => {
   return d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
 };
 const size = (b) => (b > 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1e3)) + " KB");
-const initial = (name) => esc((name || "?").trim()[0]?.toUpperCase());
+const initial = (name) => esc((name || "?").trim()[0]?.toUpperCase()) + githubPhoto(name); // the letter, with the GitHub picture over it
 
 const ICONS = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',

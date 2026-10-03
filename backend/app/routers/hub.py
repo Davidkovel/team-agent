@@ -177,6 +177,12 @@ async def commits_feed(limit: int = 40, user: User = Depends(current_user)):
     return await asyncio.to_thread(commits.recent, min(max(limit, 1), 100))
 
 
+@router.get("/repos")
+async def repos_recent(user: User = Depends(current_user)):
+    """The team's repositories, the one with the latest commit first."""
+    return await asyncio.to_thread(commits.projects)
+
+
 @router.put("/meters/{service}")
 async def set_meter(service: str, body: MeterBody, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """Each person sets their own % for services we cannot read automatically."""

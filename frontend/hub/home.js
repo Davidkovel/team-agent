@@ -5,6 +5,17 @@
    Each one: a title, an icon, a default size (columns of 12 x rows), the live events that refresh it, where its
    "see all" goes, and load() -> html. Loading, empty and error states come from the system (mount, ui.empty, ui.error). */
 const WIDGETS = {
+  repos: {
+    title: "Os nossos projetos", icon: "code", w: 12, h: 1, href: "#/codigo", on: ["activity"], pad: true,
+    async load() {
+      const repos = await api("/api/repos");
+      if (!repos.length) return ui.empty("code", "Sem projetos", "Ainda não há repositórios em library/repos.json.");
+      return `<div class="ponto-strip">${repos.map((r) => `<a class="ponto-p repo" href="${esc(r.last?.url || r.url || "#/codigo")}" ${r.url ? 'target="_blank" rel="noopener"' : ""}>
+        <div class="rw-main"><b>${esc(r.name)}</b>
+          <span>${r.last ? esc(r.last.message) : t("Sem acesso aos commits deste repositório")}</span>
+          <span>${r.last ? `${esc(r.last.author)} · ${fmt.ago(r.last.date)} · ${t("{n} commits esta semana", { n: r.week_commits })}` : esc(r.github)}</span></div></a>`).join("")}</div>`;
+    },
+  },
   work: {
     title: "Tarefas em curso", icon: "tasks", w: 12, h: 2, href: "#/tarefas", on: ["task", "presence", "session"],
     async load() {
@@ -130,9 +141,9 @@ const WIDGETS = {
     },
   },
 };
-// Home starts short: the work, then what needs the person and the team. The rest
+// Home starts short: the projects by latest commit, the work, then what needs the person and the team. The rest
 // (gauges, agents, approvals, activity...) is one click away in "Personalizar" and on its own page.
-const DEFAULT_LAYOUT = ["work", "attention", "team"];
+const DEFAULT_LAYOUT = ["repos", "work", "attention", "team"];
 const INSTRUMENTS = ["today", "usage", "cost"];
 
 /* ---------- the cockpit: the front of an AMG, lights on ----------
@@ -207,7 +218,7 @@ function cockpitHtml(greeting, date) {
 }
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home3.${me.username}`; // "3": the short Home; older saved layouts start over
+const layoutKey = () => `hub.home4.${me.username}`; // "4": the short Home; older saved layouts start over
 function loadLayout() {
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }

@@ -151,3 +151,21 @@ def recent(limit: int = 40) -> list[dict]:
                     threading.Thread(target=_refresh, args=(repo,), daemon=True).start()
         items += [{**c, "repo": repo["name"]} for c in commits]
     return sorted(items, key=lambda c: c["date"], reverse=True)[:limit]
+
+
+def projects() -> list[dict]:
+    """Every repository of library/repos.json with its latest commit, the one worked on last first.
+    A repo we cannot read (no checkout, private without GITHUB_TOKEN) is still listed, with `last` empty."""
+    from datetime import datetime, timedelta, timezone
+
+    recent(1)  # fills or refreshes the cache
+    week = datetime.now(timezone.utc) - timedelta(days=7)
+    out = []
+    for repo in repos():
+        commits = sorted(_cache.get(repo["name"], (0, []))[1], key=lambda c: datetime.fromisoformat(c["date"]), reverse=True)
+        fresh = [c for c in commits if datetime.fromisoformat(c["date"]) >= week]
+        out.append({"name": repo["name"], "github": repo.get("github", ""),
+                    "url": f"https://github.com/{repo['github']}" if repo.get("github") else "",
+                    "last": {k: commits[0][k] for k in ("sha", "author", "date", "message", "url")} if commits else None,
+                    "week_commits": len(fresh), "week_authors": sorted({c["author"] for c in fresh})})
+    return sorted(out, key=lambda r: datetime.fromisoformat(r["last"]["date"]).timestamp() if r["last"] else 0, reverse=True)

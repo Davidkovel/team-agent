@@ -120,6 +120,15 @@ kbd { padding: 1px 5px; border: 1px solid var(--line-2); border-radius: 5px; col
   font: 500 12px var(--ui); cursor: pointer; }
 .chp:hover { color: var(--text); border-color: var(--line-2); }
 .chp.on { background: #eceef1; border-color: #eceef1; color: #0a0b0d; }
+/* "Para quem?" in the new-task form: radio buttons that look like the chips above */
+.who { display: flex; gap: 6px; flex-wrap: wrap; }
+.who-opt { position: relative; cursor: pointer; }
+.who-opt input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.who-opt span { display: inline-flex; align-items: center; height: 30px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted);
+  font: 500 12.5px var(--ui); transition: color .15s, border-color .15s, background .15s; }
+.who-opt:hover span { color: var(--text); border-color: rgba(255, 255, 255, .24); }
+.who-opt input:checked + span { background: #eceef1; border-color: #eceef1; color: #0a0b0d; }
+.who-opt input:focus-visible + span { box-shadow: 0 0 0 3px rgba(var(--ai-rgb), .25); }
 
 /* ---------------------------------------------------------------- card, status, avatar, progress */
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }

@@ -12,7 +12,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 DEFAULT_URL = "http://127.0.0.1:8000"
 REPO = Path(__file__).resolve().parents[2]
@@ -44,6 +44,11 @@ def get_json(url: str, timeout: int = 5):
     req = urllib.request.Request(url, headers={"X-Team-Key": team_key()})
     with urllib.request.urlopen(req, timeout=timeout) as res:
         return json.load(res)
+
+
+def get_notices(url: str, user: str, after: int | None) -> dict:
+    """{latest, items}: the tasks sent to anyone since notice `after` (None: only where things are now), for `user`'s widget."""
+    return get_json(f"{url}/api/local/notices?" + urlencode({"user": user, **({} if after is None else {"after": after})}))
 
 
 def is_up(url: str) -> bool:

@@ -101,11 +101,12 @@ def subagent_out(a: Subagent) -> dict:
     }
 
 
-async def notify(db: AsyncSession, user_ids, kind: str, severity: str, title: str, body: str = "", href: str = ""):
+async def notify(db: AsyncSession, user_ids, kind: str, severity: str, title: str, body: str = "", href: str = "",
+                 directed: bool = False):
     """Write a notification for each of these people. Only for events worth interrupting someone."""
     targets = set(user_ids)
     for user_id in targets:
-        db.add(Notification(user_id=user_id, kind=kind, severity=severity, title=title[:200], body=body, href=href))
+        db.add(Notification(user_id=user_id, kind=kind, severity=severity, title=title[:200], body=body, href=href, directed=directed))
     await db.commit()
     for user_id in targets:
         await rt.publish("notification", user_id)

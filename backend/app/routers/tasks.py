@@ -20,6 +20,7 @@ Priority = Literal["low", "normal", "high", "urgent"]
 Role = Literal["developer", "research", "marketing", "testing", "custom"]
 # While the agent holds a task (it is running, or waiting for an approval) only the agent moves it.
 HELD_BY_AGENT = ("IN_PROGRESS", "WAITING_APPROVAL")
+EVERYBODY = "all"  # as the assignee of a new task: one task for each person
 
 
 class TaskCreate(BaseModel):
@@ -81,26 +82,52 @@ async def _check_links(db: AsyncSession, company: str | None, project_id: int | 
         raise HTTPException(404, "Project not found")
 
 
-@router.post("")
-async def create_task(body: TaskCreate, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    assignee = (await db.execute(select(User).where(User.username == body.assignee))).scalar_one_or_none()
-    if not assignee:
-        raise HTTPException(404, "Assignee not found")
-    if not sees_all(user) and assignee.id != user.id:
-        raise HTTPException(403, "Members can only create tasks for themselves")
-    await _check_links(db, body.company, body.project_id)
-    task = Task(**body.model_dump(exclude={"assignee", "for_ai"}), assignee_id=assignee.id, created_by=user.id,
+async def _create(db: AsyncSession, body: TaskCreate, assignee: User, creator: User) -> Task:
+    task = Task(**body.model_dump(exclude={"assignee", "for_ai"}), assignee_id=assignee.id, created_by=creator.id,
                 status="ASSIGNED" if body.for_ai else "TODO")
     db.add(task)
     await db.commit()
     await db.refresh(task)
     await log_activity(db, assignee, "task_assigned", f"recebeu a tarefa: {task.title}", task.id)
     await rt.publish("task", assignee.id)
-    if assignee.id != user.id:  # a task from someone else is worth a notification: the bell, and the widget
-        await notify(db, [assignee.id], "task", "info", f"{user.display_name} deu-te uma tarefa: {task.title}", task.description, f"#/tarefas/{task.id}")
     if body.for_ai:
         await rt.publish("wake", assignee.id, "agent")
-    return task_out(task)
+    return task
+
+
+async def _announce(db: AsyncSession, sender: User, tasks: list[Task], everybody: bool):
+    """Everyone but the sender hears about a new task, so all the screens stay current. It is `directed` at whoever the task
+    is for (the widget rings for them) and only shown to the others. Sent to everybody, it is directed at all of them."""
+    for person in (await db.execute(select(User).where(User.id != sender.id))).scalars():
+        task = next((t for t in tasks if t.assignee_id == person.id), tasks[0])
+        if everybody:
+            title, directed = f"{sender.display_name} mandou uma tarefa a todos: {task.title}", True
+        elif task.assignee_id == person.id:
+            title, directed = f"{sender.display_name} deu-te uma tarefa: {task.title}", True
+        else:
+            title, directed = f"{sender.display_name} mandou uma tarefa a {task.assignee.display_name}: {task.title}", False
+        await notify(db, [person.id], "task_new", "info", title, task.description, f"#/tarefas/{task.id}", directed)
+
+
+@router.post("")
+async def create_task(body: TaskCreate, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """`assignee` is a login, or EVERYBODY: one task for each person, each finished on its own."""
+    everybody = body.assignee == EVERYBODY
+    if everybody:
+        if not sees_all(user):
+            raise HTTPException(403, "Only someone who directs work can send a task to everybody")
+        assignees = list((await db.execute(select(User).order_by(User.id))).scalars())
+    else:
+        assignee = (await db.execute(select(User).where(User.username == body.assignee))).scalar_one_or_none()
+        if not assignee:
+            raise HTTPException(404, "Assignee not found")
+        if not sees_all(user) and assignee.id != user.id:
+            raise HTTPException(403, "Members can only create tasks for themselves")
+        assignees = [assignee]
+    await _check_links(db, body.company, body.project_id)
+    tasks = [await _create(db, body, person, user) for person in assignees]
+    await _announce(db, user, tasks, everybody)
+    return task_out(next((t for t in tasks if t.assignee_id == user.id), tasks[0]))
 
 
 @router.get("")

@@ -99,11 +99,20 @@ async function openBin() {
   };
 }
 
-function taskFields(x = {}, users = [], projects = []) {
+// "Para quem?": one button for each person and one for everybody ("all": a task for each of them). Someone who cannot direct
+// work only sends to themselves, so there is nothing to choose.
+function whoPicker(users, selected) {
+  if (!me.lead) return `<input type="hidden" name="assignee" value="${esc(me.username)}">`;
+  return `<div class="field wide"><span>${t("Para quem?")}</span><div class="who">${[...users.map((u) => [u.username, u.display_name]), ["all", t("Todos")]]
+    .map(([value, label]) => `<label class="who-opt"><input type="radio" name="assignee" value="${esc(value)}" ${value === selected ? "checked" : ""}><span>${esc(label)}</span></label>`).join("")}</div></div>`;
+}
+
+function taskFields(x = {}, users = [], projects = [], sending = false) {
   const deadline = x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
-  return field("Título", `<input name="title" required value="${esc(x.title || "")}">`, true)
+  return (sending ? whoPicker(users, x.assignee || me.username) : "")
+    + field("Título", `<input name="title" required value="${esc(x.title || "")}">`, true)
     + field("Descrição", `<textarea name="description">${esc(x.description || "")}</textarea>`, true)
-    + field("Responsável", `<select name="assignee">${options(users.filter((u) => me.lead || u.username === me.username).map((u) => [u.username, u.display_name]), x.assignee || me.username)}</select>`)
+    + (sending ? "" : field("Responsável", `<select name="assignee">${options(users.filter((u) => me.lead || u.username === me.username).map((u) => [u.username, u.display_name]), x.assignee || me.username)}</select>`))
     + field("Prioridade", `<select name="priority">${options(Object.entries(PRIORITY).map(([k, v]) => [k, t(v)]), x.priority || "normal")}</select>`)
     + field("Projeto", `<select name="project_id">${options([["", t("Sem projeto")], ...projects.map((p) => [p.id, p.name])], x.project_id)}</select>`)
     + field("Empresa", `<select name="company">${options([["", t("Sem empresa")], ...companies.map((c) => [c.id, c.name])], x.company)}</select>`)
@@ -116,11 +125,11 @@ const taskBody = (v) => ({ title: v.title.trim(), description: v.description, as
 
 async function newTask(preset = {}) {
   const [users, projects] = await Promise.all([api("/api/users"), api("/api/projects")]);
-  formModal("Nova tarefa", taskFields(preset, users, projects)
+  formModal("Nova tarefa", taskFields(preset, users, projects, true)
     + field("Quem a faz", `<select name="for_ai">${options([["", t("Uma pessoa (fica em Por fazer)")], ...Object.entries(ROLES).filter(([k]) => k !== "custom").map(([k, v]) => [k, `${t("IA")}: ${t(v)}`])], preset.for_ai || "")}</select>`, true),
   async (v) => {
     const created = await api("/api/tasks", { method: "POST", body: { ...taskBody(v), for_ai: !!v.for_ai, agent_role: v.for_ai || "" } });
-    flash(t("Tarefa criada."));
+    flash(t(v.assignee === "all" ? "Tarefa enviada a todos." : "Tarefa criada."));
     loadBoard();
     return created;
   }, { submit: "Criar tarefa", wide: true });

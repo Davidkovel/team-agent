@@ -304,7 +304,7 @@ class ReadIn(BaseModel):
 
 def notification_out(n: Notification) -> dict:
     return {"id": n.id, "kind": n.kind, "severity": n.severity, "title": n.title, "body": n.body, "href": n.href,
-            "created_at": iso(n.created_at), "read": n.read_at is not None}
+            "created_at": iso(n.created_at), "read": n.read_at is not None, "directed": bool(n.directed)}
 
 
 @router.get("/notifications")

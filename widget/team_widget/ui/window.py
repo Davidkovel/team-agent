@@ -29,6 +29,7 @@ from ..api.agent_client import AgentClient
 from ..state.store import StateStore
 from . import badge, prefs
 from .motion import clock
+from .notice import Notices
 
 TEXT, MUTED, FAINT = "#f2f3f5", "#8d9198", "#4e5258"
 WHITE, RED = "#ffffff", "#e5534b"
@@ -854,12 +855,17 @@ class Panel(QWidget):
 class WidgetWindow(QWidget):
     hub_ready = Signal(object)  # (error, url) from the thread that wakes the Hub
     punched = Signal(object)    # the clock-in the Hub confirmed, or the error text
+    news = Signal(object)       # tasks that were sent, from the thread that polls the Hub
 
     def __init__(self, store: StateStore, client: AgentClient):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.on_top() else Qt.Widget))
         self.store, self.client = store, client
         self.hub_ready.connect(self._hub_opened)
         self.punched.connect(self._punched)
+        self.notices = Notices(self._open_notice)  # the black card that says a task was sent
+        self.news.connect(self.notices.push)
+        self._notice_after = None  # newest "task sent" notice already looked at (None until the first look)
+        self._hub_page = None      # where the Hub should open, when something asked for a page
         self.on_status = lambda status: None  # tray hook
         self.notify = lambda title, text: None  # tray hook: a Windows notification
         self._ponto_seen = None  # user -> when they clocked in today, as last seen (None until the first look)
@@ -1182,6 +1188,7 @@ class WidgetWindow(QWidget):
         tick = 0
         while True:
             url = hub.hub_url()
+            who = None
             try:
                 if not hub.is_up(url) and hub.is_local(url):
                     hub.start_local_server(url)
@@ -1193,6 +1200,8 @@ class WidgetWindow(QWidget):
                 self._team = team
             except (OSError, ValueError, urllib.error.URLError):
                 self._team = None  # the Hub is not answering
+            if who and self._team is not None:
+                self._poll_notices(url, who)
             if tick % 2 == 0 and self._team is not None:
                 try:
                     self._week = hub.get_json(url + "/api/local/week")  # only the server computer may read this; others keep the last value
@@ -1200,6 +1209,23 @@ class WidgetWindow(QWidget):
                     pass
             tick += 1
             time.sleep(4)
+
+    def _poll_notices(self, url, who):
+        """Tasks sent to anyone since the last look, for the black card. The first look only notes where things are, so a
+        widget that has just started does not replay old news."""
+        try:
+            found = hub.get_notices(url, who, self._notice_after)
+            self._notice_after = max([found["latest"]] + [n["id"] for n in found["items"]])
+        except (OSError, ValueError, KeyError, urllib.error.URLError):
+            return  # a Hub from before this existed has no such door: no cards, and nothing else changes
+        if found["items"]:
+            self.news.emit(found["items"])
+
+    def _open_notice(self, href):
+        """A card was clicked: the Hub opens on that task ("#/tarefas/3")."""
+        if not self._opening_hub:
+            self._hub_page = href.lstrip("#")
+            self._open_hub()
 
     def _identity(self, team):
         """Who sits at this computer: TEAM_WIDGET_USER, else the agent's user, else the Windows account name (marco -> Marco)."""
@@ -1320,11 +1346,17 @@ class WidgetWindow(QWidget):
         if self._opening_hub:
             return
         self._opening_hub = True
+        page, self._hub_page = self._hub_page, None
 
         def work():  # starting the server can take a few seconds
             error = hub.ready()
             session = None if error else self.client.hub_session()
-            self.hub_ready.emit((error, hub.hub_url() + (f"/#login={session}" if session else "")))
+            url = hub.hub_url()
+            if session:
+                url += f"/#login={session}" + (f"&to={page}" if page else "")
+            elif page:
+                url += f"/#{page}"
+            self.hub_ready.emit((error, url))
 
         threading.Thread(target=work, daemon=True).start()
 

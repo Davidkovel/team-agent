@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -221,11 +221,13 @@ class Notification(Base):
     __tablename__ = "notifications"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    kind: Mapped[str] = mapped_column(String(30))  # approval_required | approval_decided | task_completed | agent_failed | agent_waiting
+    kind: Mapped[str] = mapped_column(String(30))  # task_new | approval_required | approval_decided | task | agent_failed | agent_waiting
     severity: Mapped[str] = mapped_column(String(10), default="low")  # high | medium | low
     title: Mapped[str] = mapped_column(String(200))
     body: Mapped[str] = mapped_column(Text, default="")
     href: Mapped[str] = mapped_column(String(200), default="")
+    # task_new only: True for the person the task was sent to (the widget rings for them), False for the others (it only shows)
+    directed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

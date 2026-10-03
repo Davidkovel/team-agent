@@ -76,6 +76,25 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
     return out
 
 
+@router.get("/notices")
+async def local_notices(request: Request, user: str, after: int | None = None, db: AsyncSession = Depends(get_db)):
+    """The tasks that were sent (to anyone) since notice `after`, for the widget of `user` to show.
+
+    Without `after` nothing is returned, only `latest`: a widget that has just started remembers where it is and does not
+    replay old news. Each item says whether it is `directed` at this person (the widget rings for those)."""
+    local_or_team_key(request)
+    wanted = user.strip().lower()
+    person = next((u for u in (await db.execute(select(User))).scalars() if wanted in (u.username.lower(), u.display_name.lower())), None)
+    if not person:
+        raise HTTPException(404, "Unknown user")
+    mine = (Notification.user_id == person.id, Notification.kind == "task_new")
+    latest = (await db.execute(select(func.max(Notification.id)).where(*mine))).scalar() or 0
+    rows = [] if after is None else (await db.execute(select(Notification).where(*mine, Notification.id > after)
+                                                      .order_by(Notification.id))).scalars()
+    return {"latest": latest, "items": [{"id": n.id, "title": n.title, "body": n.body, "href": n.href, "directed": bool(n.directed),
+                                         "created_at": iso(n.created_at)} for n in rows]}
+
+
 async def widget_user(body: WidgetPing, request: Request, db: AsyncSession, x_team_widget: str | None) -> User:
     """The person a widget speaks for. The custom header keeps web pages from calling these endpoints."""
     local_or_team_key(request)

@@ -212,3 +212,19 @@ html, body { background: var(--bg); }
 .tacho #tacho-needle { transform-origin: 50px 50px; transition: transform 1.4s cubic-bezier(.2, .9, .25, 1.15); filter: drop-shadow(0 0 3px rgba(255, 90, 60, .8)); }
 .tacho b { position: absolute; bottom: 20px; font: 600 15px/1 var(--mono); color: #f4f6f8; }
 .tacho span { position: absolute; bottom: 9px; font: 600 6.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: #8f969f; white-space: nowrap; }
+
+/* each person's day on Home: to do, done today, commits today, and the tasks themselves */
+.people { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; height: 100%; }
+.person-day { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, .07); border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .01) 60%); }
+.person-day > .rowx b { font: 500 17px var(--serif); }
+.pd-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pd-nums b { display: block; font: 600 22px/1 var(--mono); }
+.pd-nums span { color: var(--faint); font: 600 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.pd-list { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; font-size: 12.5px; }
+.pd-list a { display: flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; }
+.pd-list a:hover { color: var(--text); }
+.pd-list a i { flex: none; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--faint); }
+.pd-list a.ok { color: #bfe9cf; } .pd-list a.ok i { border: 0; background: var(--ok); }
+.pd-list .ell { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pd-list .more { color: var(--faint); padding-left: 15px; }

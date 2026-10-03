@@ -22,6 +22,26 @@ const WIDGETS = {
       }).join("")}</div>`;
     },
   },
+  people: {
+    title: "Cada um hoje", icon: "users", w: 12, h: 2, href: "#/tarefas", on: ["task", "presence", "activity"], pad: true,
+    async load() {
+      const [team, tasks, rank] = await Promise.all([api("/api/team"), api("/api/tasks"), api("/api/analytics/ranking")]);
+      const today = new Date().toDateString();
+      return `<div class="people">${team.map((m) => {
+        const mine = tasks.filter((x) => x.assignee === m.user);
+        const open = mine.filter((x) => x.stage !== "done");
+        const done = mine.filter((x) => x.status === "COMPLETED" && x.completed_at && new Date(x.completed_at).toDateString() === today);
+        const git = rank.today.find((p) => p.user === m.user) || { commits: 0, added: 0, deleted: 0 };
+        return `<div class="person-day"><div class="rowx">${ui.avatar(m.display_name)}<b class="grow">${esc(m.display_name)}</b>${ui.status(m.status)}</div>
+          <div class="pd-nums"><div><b>${open.length}</b><span>${t("por fazer")}</span></div><div><b>${done.length}</b><span>${t("feitas hoje")}</span></div>
+            <div><b>${rank.source === "live" ? git.commits : "–"}</b><span>${t("commits hoje")}</span></div></div>
+          <div class="pd-list">${[...done.map((x) => [x, true]), ...open.map((x) => [x, false])].slice(0, 5).map(([x, ok]) =>
+            `<a href="#/tarefas/${x.id}" class="${ok ? "ok" : ""}"><i></i><span class="ell">${esc(x.title)}</span></a>`).join("")
+            || `<span class="faint">${t("Sem tarefas.")}</span>`}
+            ${open.length + done.length > 5 ? `<a href="#/tarefas" class="more">+${open.length + done.length - 5}</a>` : ""}</div></div>`;
+      }).join("")}</div>`;
+    },
+  },
   work: {
     title: "Tarefas em curso", icon: "tasks", w: 12, h: 2, href: "#/tarefas", on: ["task", "presence", "session"],
     async load() {
@@ -147,9 +167,9 @@ const WIDGETS = {
     },
   },
 };
-// Home starts short: the projects by latest commit, the work, then what needs the person and the team. The rest
+// Home starts short: the projects by latest commit, what each person has to do and did today, the work, then what needs the person and the team. The rest
 // (gauges, agents, approvals, activity...) is one click away in "Personalizar" and on its own page.
-const DEFAULT_LAYOUT = ["repos", "work", "attention", "team"];
+const DEFAULT_LAYOUT = ["repos", "people", "work", "attention"];
 const INSTRUMENTS = ["today", "usage", "cost"];
 
 /* ---------- the cockpit: the front of an AMG, lights on ----------
@@ -242,7 +262,7 @@ function cockpitHtml(greeting, date) {
 }
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home4.${me.username}`; // "4": the short Home; older saved layouts start over
+const layoutKey = () => `hub.home5.${me.username}`; // "5": the short Home; older saved layouts start over
 function loadLayout() {
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }

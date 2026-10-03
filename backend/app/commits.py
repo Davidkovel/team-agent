@@ -104,7 +104,7 @@ def _local(repo: dict, limit: int) -> list[dict]:
         subprocess.run(["git", "-C", str(path), "fetch", "--quiet", "--all"], capture_output=True, timeout=20, env=GIT_ENV)
     except (OSError, subprocess.SubprocessError):
         pass
-    fmt = f"{REC}%H{FIELD}%an{FIELD}%aI{FIELD}%s{FIELD}%b{BODY_END}"
+    fmt = f"{REC}%H{FIELD}%aN{FIELD}%aI{FIELD}%s{FIELD}%b{BODY_END}"
     out = subprocess.run(["git", "-C", str(path), "log", "--all", f"-n{limit}", "--no-renames", "--numstat", f"--format={fmt}"],
                          capture_output=True, timeout=20, env=GIT_ENV)
     return _parse(out.stdout.decode("utf-8", errors="replace"), repo)

@@ -826,12 +826,19 @@ class Orb(QWidget):
         p.setClipPath(shape)
         p.fillRect(photo, QColor(0, 0, 0))
         p.drawImage(photo, star_image())
+        if not self._light:  # on a dark wallpaper black glass disappears: light the faces like polished chrome
+            p.setCompositionMode(QPainter.CompositionMode_Screen)
+            chrome = QLinearGradient(c.x() - r, c.y() - r, c.x() + r * 0.6, c.y() + r)
+            for at, a in ((0, 120), (0.35, 46), (0.55, 70), (0.8, 30), (1, 90)):
+                chrome.setColorAt(at, QColor(205, 210, 218, a))
+            p.fillRect(photo, chrome)
         p.restore()
         edge = QLinearGradient(c.x(), c.y() - r, c.x(), c.y() + r)
-        edge.setColorAt(0, QColor(255, 255, 255, 120))
-        edge.setColorAt(0.5, QColor(255, 255, 255, 40))
-        edge.setColorAt(1, QColor(255, 255, 255, 90))
-        p.setPen(QPen(edge, 0.9))
+        strong = 0 if self._light else 1
+        edge.setColorAt(0, QColor(255, 255, 255, 120 + 110 * strong))
+        edge.setColorAt(0.5, QColor(255, 255, 255, 40 + 90 * strong))
+        edge.setColorAt(1, QColor(255, 255, 255, 90 + 110 * strong))
+        p.setPen(QPen(edge, 0.9 + 0.5 * strong))
         p.setBrush(Qt.NoBrush)
         p.drawPath(shape)
 

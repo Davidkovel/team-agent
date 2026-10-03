@@ -168,7 +168,7 @@ async def history(limit: int = 100, user: User = Depends(current_user), db: Asyn
     """What everyone did, whether or not they wrote it down. Visible to the whole team."""
     rows = (await db.execute(select(Activity).order_by(Activity.id.desc()).limit(min(limit, 300)))).scalars()
     return [{"id": a.id, "user": a.user.username, "name": a.user.display_name, "kind": a.kind,
-             "message": a.message, "task_id": a.task_id, "created_at": iso(a.created_at)} for a in rows]
+             "message": a.message, "task_id": a.task_id, "company": a.company, "created_at": iso(a.created_at)} for a in rows]
 
 
 @router.get("/commits")

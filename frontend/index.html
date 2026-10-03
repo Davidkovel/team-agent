@@ -9,7 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
   <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=hub3">
+  <link rel="stylesheet" href="hub/design.css?v=hub3">
 </head>
 <body>
   <section id="login" hidden>
@@ -30,22 +31,33 @@
     </div>
   </section>
 
-  <div id="app" class="mac" hidden>
-    <aside class="sidebar">
-      <a class="brand" href="#/home"><img class="logo" src="logo.png" alt=""><span class="brand-text"><img class="wordmark" src="assets/amg-wordmark.png" alt="Agente AMG"></span></a>
-      <nav class="tabs" id="tabs"></nav>
-      <div class="side-foot">
-        <span id="whoami" class="who"></span>
-        <span id="live" class="pill">a ligar</span>
-        <button id="bell" class="icon-btn bell" title="Notificações" aria-label="Notificações"><svg class="i" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 1112 0v6l2 2H4z"/><path d="M10 21a2 2 0 004 0"/></svg><span id="bell-n" class="bell-n" hidden>0</span></button>
-        <button id="maximize" class="icon-btn" title="Ecrã inteiro"></button>
+  <div id="app" class="hub" hidden>
+    <aside class="hside">
+      <a class="side-brand" href="#/home"><img class="side-logo" src="logo.png" alt=""><img class="side-word" src="assets/amg-wordmark.png" alt="Agente AMG"></a>
+      <button class="side-search" id="open-palette" title="Procurar ou executar (Ctrl+K)"></button>
+      <nav class="side-nav" id="tabs"></nav>
+      <div class="hside-foot">
+        <a class="side-me" href="#/definicoes"><span class="av" id="me-av"></span><div><b id="whoami"></b><span id="live" class="side-live">a ligar</span></div></a>
+        <div class="side-tools">
+          <button id="bell" class="tool" title="Notificações" aria-label="Notificações"><i id="bell-n" class="count" hidden></i></button>
+          <button id="maximize" class="tool" title="Ecrã inteiro" aria-label="Ecrã inteiro"></button>
+          <button id="collapse" class="tool" title="Recolher a barra" aria-label="Recolher a barra"></button>
+        </div>
       </div>
     </aside>
     <main id="view"></main>
   </div>
 
+  <div id="notif-panel" class="pop" hidden></div>
+  <button id="ai-fab" title="Team AI" aria-label="Team AI" hidden></button>
+  <div id="ai-panel" class="pop" hidden></div>
+  <div id="palette" class="pal" hidden></div>
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <div id="modal" class="modal" hidden><div class="modal-box" id="modal-box"></div></div>
-  <script src="app.js"></script>
+  <script src="hub/ui.js?v=hub3"></script>
+  <script src="hub/home.js?v=hub3"></script>
+  <script src="hub/pages.js?v=hub3"></script>
+  <script src="hub/shell.js?v=hub3"></script>
+  <script src="app.js?v=hub3"></script>
 </body>
 </html>

@@ -113,6 +113,28 @@ async def edit_project(project_id: int, body: ProjectEdit, user: User = Depends(
     return project_out(project)
 
 
+@router.get("/companies/{company_id}/overview")
+async def company_overview(company_id: str, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """What the Hub itself knows about a company. Revenue, orders and traffic have no source here, so they are not in it."""
+    if company_id not in hub.companies():
+        raise HTTPException(404, "Company not found")
+    belongs = or_(Task.company == company_id, Task.project == company_id)
+    tasks = (await db.execute(visible_tasks(select(Task).where(belongs), user))).scalars().all()
+    cost, runs = (await db.execute(select(func.sum(UsageRecord.cost_usd), func.count(UsageRecord.id))
+                                   .join(Task, Task.id == UsageRecord.task_id).where(belongs))).one()
+    ads = (await db.execute(select(Expense.currency, func.sum(Expense.amount))
+                            .where(Expense.company == company_id, Expense.category == "ads").group_by(Expense.currency))).all()
+    return {
+        "open_tasks": sum(1 for t in tasks if TASK_STAGE.get(t.status) in OPEN_STAGES),
+        "done_tasks": sum(1 for t in tasks if TASK_STAGE.get(t.status) == "done"),
+        "projects": (await db.execute(select(func.count(Project.id)).where(Project.company == company_id))).scalar() or 0,
+        "memory": (await db.execute(select(func.count(Memory.id))
+                                    .where(Memory.scope == "company", Memory.scope_id == company_id))).scalar() or 0,
+        "ai_cost_usd": round(cost, 2) if runs else None,  # the SDK's estimate; None when no run was for this company
+        "ad_spend": [{"currency": currency, "amount": round(amount, 2)} for currency, amount in ads],  # written down by people
+    }
+
+
 # ---------------------------------------------------------------- memory
 
 SCOPES = ("global", "team", "company", "project", "agent", "task")
@@ -388,7 +410,7 @@ async def search(q: str, user: User = Depends(current_user), db: AsyncSession = 
     for a in (await db.execute(activity)).scalars():
         out.append({"type": "activity", "title": a.message, "detail": a.user.display_name, "href": "#/historico"})
     try:
-        recent = await asyncio.wait_for(asyncio.to_thread(commits.recent, 100), 4)
+        recent = await asyncio.wait_for(asyncio.to_thread(commits.recent, 100), 1.5)
     except Exception:
         recent = []  # git is slow or missing: the rest of the search still answers
     for c in [c for c in recent if needle in c["message"].lower()][:5]:

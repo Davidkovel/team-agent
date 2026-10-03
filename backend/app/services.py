@@ -13,7 +13,10 @@ from .security import sees_all
 
 
 def iso(dt: datetime | None) -> str | None:
-    return dt.isoformat() if dt else None
+    """Always with the timezone: SQLite hands back UTC times without one, and a browser would read those as local time."""
+    if dt is None:
+        return None
+    return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).isoformat()
 
 
 def task_out(t: Task) -> dict:

@@ -111,9 +111,11 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal
 /* ---------- routing ---------- */
 // sidebar: [group, [id, label, icon]...]
 const NAV = [
-  ["", [["home", "Início", "home"], ["semana", "Semana", "calendar"], ["tarefas", "Tarefas", "tasks"], ["aprovacoes", "Aprovações", "check"]]],
-  ["Trabalho", [["empresas", "Empresas", "building"], ["codigo", "Código", "code"], ["historico", "Histórico", "history"]]],
-  ["Equipa", [["equipa", "Agentes", "users"], ["gastos", "Gastos", "wallet"]]],
+  ["Centro de comando", [["home", "Início", "home"], ["semana", "Semana", "calendar"], ["tarefas", "Tarefas", "tasks"], ["aprovacoes", "Aprovações", "check"]]],
+  ["Trabalho", [["empresas", "Empresas", "building"], ["projetos", "Projetos", "folder"], ["codigo", "Código", "code"], ["historico", "Histórico", "history"]]],
+  ["Equipa", [["equipa", "Equipa", "users"], ["agentes", "Agentes", "bot"], ["aovivo", "Ao vivo", "pulse"]]],
+  ["Análise", [["analise", "Análise", "chart"], ["uso", "Uso de IA", "token"], ["despesas", "Despesas", "wallet"]]],
+  ["Sistema", [["memoria", "Memória", "layers"], ["definicoes", "Definições", "gear"]]],
 ];
 const TABS = NAV.flatMap(([, items]) => items);
 
@@ -127,11 +129,14 @@ function route() {
 
 function render() {
   const r = route();
-  $("tabs").innerHTML = NAV.map(([group, items]) => `${group ? `<div class="nav-group">${group}</div>` : ""}${items.map(([id, label, ic]) =>
-    `<a class="tab ${id === r.tab ? "active" : ""}" href="#/${id}">${icon(ic)}<span>${label}</span><i class="badge" data-badge="${id}" hidden></i></a>`).join("")}`).join("");
+  $("tabs").innerHTML = NAV.map(([group, items]) => `<div class="side-group">${t(group)}</div>${items.map(([id, label, ic]) =>
+    `<a class="side-link ${id === r.tab ? "active" : ""}" href="#/${id}" title="${t(label)}">${icon(ic)}<span>${t(label)}</span><i class="badge" data-badge="${id}" hidden></i></a>`).join("")}`).join("");
   $("view").scrollTop = 0;
+  $("view").onclick = null; // a page's own click handling ends with the page
+  // the pages of the Team AI Hub (frontend/hub/*.js) take the place of the older ones with the same name
   const views = { home: viewHome, semana: viewWeek, tarefas: viewTasks, aprovacoes: viewApprovals, empresas: viewCompanies, codigo: viewCode,
-    historico: viewHistory, equipa: viewTeam, gastos: viewSpend };
+    historico: viewHistory, equipa: viewTeam, ...HUB_VIEWS };
+  loadStats().catch(() => {}); // the sidebar was redrawn: put the counters back
   views[r.tab](r).catch((e) => { if (e.message !== "unauthorized") $("view").innerHTML = `<p class="error">${esc(e.message)}</p>`; });
 }
 window.addEventListener("hashchange", render);
@@ -224,10 +229,12 @@ function notify(text, href) {
 }
 let unread = 0;
 function updateBell(add = false) {
+  if (window.hubBell) return; // the Hub counts unread notifications on the server
   if (add) unread++;
   $("bell-n").textContent = unread; $("bell-n").hidden = !unread;
 }
 async function checkNews() {
+  if (window.hubNews) return hubNews(); // notifications come from the server: they survive a reload and are per person
   const [tasks, approvals] = await Promise.all([api("/api/tasks"), api("/api/approvals")]);
   const pend = approvals.filter((a) => a.status === "PENDING");
   if (seenTasks === null) {
@@ -1130,7 +1137,7 @@ function refresh(type) {
   // Heartbeats arrive every few seconds; coalesce bursts into one fetch per kind.
   if (pending.has(type)) return;
   pending.add(type);
-  setTimeout(() => { pending.delete(type); readCache.clear(); (loaders[type] || []).forEach((fn) => fn().catch(() => {})); }, 300);
+  setTimeout(() => { pending.delete(type); readCache.clear(); [...(loaders[type] || []), ...(HUB_LOADERS[type] || [])].forEach((fn) => fn().catch(() => {})); }, 300);
 }
 
 function connect() {
@@ -1151,6 +1158,7 @@ async function start() {
   $("maximize").innerHTML = icon("expand");
   companies = await api("/api/hub/companies").catch(() => []);
   $("bell").onclick = openInbox;
+  hubStart(); // sidebar tools, notifications, the command palette and the Team AI
   const every = (ms, fn) => setInterval(() => { if (!document.hidden) fn(); }, ms);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) Object.keys(loaders).forEach(refresh); });
   every(30000, () => drawHud()); // keeps the clock honest
@@ -1160,7 +1168,7 @@ async function start() {
   loadPonto().catch(() => {}); // so a clock-in is announced on whatever page is open
   every(8000, () => { loadWorktree().catch(() => {}); loadWeek().catch(() => {}); loadTodayKey().catch(() => {}); }); // uncommitted work shows up within seconds
   every(30000, () => loadCommits().catch(() => {})); // new commits from teammates show up by themselves
-  every(15000, () => { loadTeam().catch(() => {}); loadAgents().catch(() => {}); loadStats().catch(() => {}); checkNews().catch(() => {}); loadRecent().catch(() => {}); loadToday().catch(() => {}); loadApprovals().catch(() => {}); loadPonto().catch(() => {}); }); // catches OFFLINE and new activity even if the socket dropped
+  every(15000, () => { refresh("tick"); loadTeam().catch(() => {}); loadAgents().catch(() => {}); loadStats().catch(() => {}); checkNews().catch(() => {}); loadRecent().catch(() => {}); loadToday().catch(() => {}); loadApprovals().catch(() => {}); loadPonto().catch(() => {}); }); // catches OFFLINE and new activity even if the socket dropped
   connect();
 }
 

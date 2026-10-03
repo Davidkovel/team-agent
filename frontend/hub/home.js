@@ -10,10 +10,16 @@ const WIDGETS = {
     async load() {
       const repos = await api("/api/repos");
       if (!repos.length) return ui.empty("code", "Sem projetos", "Ainda não há repositórios em library/repos.json.");
-      return `<div class="ponto-strip">${repos.map((r) => `<a class="ponto-p repo" href="${esc(r.last?.url || r.url || "#/codigo")}" ${r.url ? 'target="_blank" rel="noopener"' : ""}>
-        <div class="rw-main"><b>${esc(r.name)}</b>
-          <span>${r.last ? esc(r.last.message) : t("Sem acesso aos commits deste repositório")}</span>
-          <span>${r.last ? `${esc(r.last.author)} · ${fmt.ago(r.last.date)} · ${t("{n} commits esta semana", { n: r.week_commits })}` : esc(r.github)}</span></div></a>`).join("")}</div>`;
+      return `<div class="repos">${repos.map((r, i) => {
+        const top = Math.max(1, ...(r.days || []));
+        return `<a class="repo ${i === 0 && r.last ? "lead" : ""} ${r.last ? "" : "idle"}" href="${esc(r.last?.url || r.url || "#/codigo")}" ${r.url ? 'target="_blank" rel="noopener"' : ""}>
+          <span class="repo-mark">${esc(r.name.trim()[0].toUpperCase())}</span>
+          <div class="rw-main"><div class="repo-name"><b>${esc(r.name)}</b>${i === 0 && r.last ? `<em>${t("último commit")}</em>` : ""}</div>
+            <span>${r.last ? esc(r.last.message) : t("Sem acesso aos commits deste repositório")}</span>
+            <span class="repo-meta">${r.last ? `${(r.week_authors.length ? r.week_authors : [r.last.author]).slice(0, 4).map((n) => ui.avatar(n, "sm")).join("")}${esc(r.last.author)} · ${fmt.ago(r.last.date)}` : esc(r.github)}</span></div>
+          ${r.last ? `<div class="repo-week" title="${t("Commits por dia, últimos 7 dias")}"><div class="spark">${(r.days || []).map((n) => `<i style="height:${n ? Math.max(12, Math.round(n / top * 100)) : 4}%" class="${n ? "" : "zero"}"></i>`).join("")}</div>
+            <b>${r.week_commits}</b><small>${t("commits · 7 dias")}</small></div>` : ""}</a>`;
+      }).join("")}</div>`;
     },
   },
   work: {
@@ -196,6 +202,24 @@ const FASCIA = `<svg viewBox="0 0 1000 320" preserveAspectRatio="xMidYMax meet" 
   <path d="M268 319H732" stroke="url(#amg-blade)" stroke-width="2.5"/>
 </svg>`;
 
+// The rev counter of the cockpit: the team's commits of today. Ten is the top of the scale, the last fifth is red.
+const TACHO_MAX = 10;
+const TACHO = `<a class="tacho" href="#/analise" title="${t("Commits da equipa hoje")}"><svg viewBox="0 0 100 100" aria-hidden="true">
+  <path d="M20.3 79.7A42 42 0 1 1 79.7 79.7" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M91.5 43.4A42 42 0 0 1 79.7 79.7" fill="none" stroke="#d8402c" stroke-width="2.4" stroke-linecap="round"/>
+  ${Array.from({ length: 11 }, (_, i) => { const a = (135 + 27 * i) * Math.PI / 180, r = i % 5 ? 37 : 34;
+    return `<line x1="${(50 + r * Math.cos(a)).toFixed(1)}" y1="${(50 + r * Math.sin(a)).toFixed(1)}" x2="${(50 + 40 * Math.cos(a)).toFixed(1)}" y2="${(50 + 40 * Math.sin(a)).toFixed(1)}" stroke="${i > 8 ? "#d8402c" : "#aeb5bd"}" stroke-width="${i % 5 ? 1 : 1.8}"/>`; }).join("")}
+  <g id="tacho-needle" style="transform: rotate(-135deg)"><path d="M49 52L50 15L51 52Z" fill="#ff5a3c"/></g>
+  <circle cx="50" cy="50" r="5" fill="#15181c" stroke="#aeb5bd" stroke-width="1"/></svg>
+  <b id="tacho-n">–</b><span>${t("commits hoje")}</span></a>`;
+async function loadTacho() {
+  if (!$("tacho-n")) return;
+  const r = await api("/api/analytics/ranking");
+  const n = r.today.reduce((sum, p) => sum + p.commits, 0);
+  $("tacho-n").textContent = r.source === "live" ? n : "–";
+  $("tacho-needle").style.transform = `rotate(${-135 + 270 * Math.min(n / TACHO_MAX, 1)}deg)`;
+}
+
 let cockpitClock = null;
 function cockpitHtml(greeting, date) {
   // the start-up plays once per session; after that the lights are simply on
@@ -208,7 +232,7 @@ function cockpitHtml(greeting, date) {
       <h1>${esc(t(greeting))}, <em>${esc(me.display_name)}</em></h1>
       <p class="cockpit-date">${esc(date)}<i></i><time id="cockpit-clock">${new Date().toLocaleTimeString("pt-PT")}</time></p>
       <div class="cockpit-actions">
-        <button class="ignition" data-new-task title="${t("Nova tarefa")}"><span><i class="led"></i>${t("Nova")}<br>${t("tarefa")}</span></button>
+        ${TACHO}
         <a class="btn amg" href="#/tarefas">${t("Tarefas")}</a>
         <a class="btn amg" href="#/agentes">${t("Agentes")}</a>
         <button class="btn quiet" id="customize">${icon("sliders")}${t("Personalizar")}</button>
@@ -358,7 +382,7 @@ HUB_VIEWS.home = async function viewHome() {
     else clearInterval(cockpitClock);
   }, 1000);
   $("customize").onclick = customizeHome;
-  $("view").querySelector("[data-new-task]").onclick = () => newTask();
+  setTimeout(() => loadTacho().catch(() => {}), 60); // after the first paint, so the needle sweeps up
   wireGrid($("wgrid"));
   drawGrid();
 };
@@ -366,6 +390,7 @@ HUB_VIEWS.home = async function viewHome() {
 // A live event reloads only the widgets that show that kind of thing ("tick" is the slow safety net: all of them).
 const reloadWidgets = async (type) => {
   if (!$("wgrid")) return;
+  if (type === "activity" || type === "tick") loadTacho().catch(() => {});
   layout.filter((item) => !item.hidden && (type === "tick" || WIDGETS[item.id].on.includes(type))).forEach((item) => loadWidget(item.id));
 };
 ["presence", "task", "approval", "activity", "usage", "ponto", "session", "tick"].forEach((type) => onLive([type], () => reloadWidgets(type)));

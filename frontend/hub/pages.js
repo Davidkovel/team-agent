@@ -478,6 +478,25 @@ let analyticsDays = 7;
 const barRows = (rows, total) => (rows.length ? `<div class="bars">${rows.map((r) => `<div class="bar-row"><span class="ell">${esc(r.name || r.title)}</span>
   ${ui.progress(total ? (r.cost_usd / total) * 100 : 0)}<span>${fmt.usd(r.cost_usd)}</span></div>`).join("")}</div>` : `<p class="faint" style="margin:0">${t("Sem dados")}</p>`);
 const statCard = (label, value, source) => `<div class="panel statc"><span>${t(label)}</span>${ui.num(value)}${source ? ui.src(source) : ""}</div>`;
+// Who did most, today and this week: commits and lines from git, tasks completed and AI sessions from the Hub.
+async function loadRanking() {
+  await mount($("ranking"), async () => {
+    const r = await api("/api/analytics/ranking");
+    const board = (title, people) => {
+      const top = Math.max(1, ...people.map((p) => p.commits));
+      const any = people.some((p) => p.commits || p.tasks_done || p.sessions);
+      return `<div class="panel rank"><div class="rank-head">${t(title)}</div>${people.map((p, i) => `<div class="rank-row ${i === 0 && any ? "first" : ""}">
+        <span class="rank-pos">${any ? i + 1 : "–"}</span>${ui.avatar(p.name)}
+        <div class="rw-main"><b>${esc(p.name)}</b>
+          <div class="rank-bar"><i style="width:${Math.round(p.commits / top * 100)}%"></i></div>
+          <span>${t("{n} tarefas concluídas", { n: p.tasks_done })} · ${t("{n} sessões de IA", { n: p.sessions })} · +${p.added} −${p.deleted}</span></div>
+        <div class="rank-n"><b>${p.commits}</b><small>commits</small></div></div>`).join("")}</div>`;
+    };
+    return `${ui.sec("Quem fez mais", ui.src(r.source))}<div class="rank-grid">${board("Hoje", r.today)}${board("Esta semana", r.week)}</div>`;
+  }, 4);
+}
+onLive(["activity", "task"], async () => { if ($("ranking")) await loadRanking(); });
+
 async function loadAnalytics() {
   await mount($("analytics"), async () => {
     const a = await api(`/api/analytics?days=${analyticsDays}`);
@@ -513,7 +532,8 @@ async function loadAnalytics() {
 HUB_VIEWS.analise = async function () {
   page(`${ui.head("Análise", t("Análise"), t("Equipa, IA, custo e código. Cada número diz de onde vem."),
     `<div class="segx" id="days">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${d === analyticsDays ? "on" : ""}">${d} ${t("dias")}</button>`).join("")}</div>`)}
-    <div id="analytics"></div>`);
+    <div id="ranking"></div><div id="analytics"></div>`);
+  loadRanking();
   $("days").onclick = (e) => {
     if (!e.target.dataset.d) return;
     analyticsDays = Number(e.target.dataset.d);

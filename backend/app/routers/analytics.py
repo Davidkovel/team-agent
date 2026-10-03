@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import commits
+from .. import commits, week
 from ..db import get_db
 from ..models import AgentSession, Approval, Project, Subagent, Task, UsageRecord, User
 from ..security import current_user, sees_all
@@ -103,6 +103,44 @@ async def analytics(days: int = 7, user: User = Depends(current_user), db: Async
                                 "usd": round(cost_total / len(period_commits), 2) if has_usage and period_commits else None},
             "time_saved": {"source": "not_connected"}},
     }
+
+
+@router.get("/analytics/ranking")
+async def ranking(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Who did how much, today and this week (Monday on): commits and lines from git, tasks completed and AI
+    sessions from the Hub's own records. Each list is ordered by commits, then tasks completed, then lines."""
+    now = datetime.now(timezone.utc).astimezone()
+    starts = {"today": now.replace(hour=0, minute=0, second=0, microsecond=0), "week": week.week_start(now)}
+    users = list((await db.execute(select(User).order_by(User.id))).scalars())
+    team = {m["user"] for m in await team_view(db, user)}
+    users = [u for u in users if u.username in team]
+    rows = {key: {u.id: {"commits": 0, "added": 0, "deleted": 0, "tasks_done": 0, "sessions": 0} for u in users} for key in starts}
+
+    def add(uid, when, field, n=1):
+        for key, start in starts.items():
+            if uid in rows[key] and when and when.astimezone() >= start:
+                rows[key][uid][field] += n
+
+    alias_map = week.aliases()
+    recent = await asyncio.to_thread(commits.recent, 100)
+    for c in recent:
+        u = week.person_for(c["author"], users, alias_map)
+        when = _when(c.get("date") or "")
+        if u and when:
+            stats = c.get("stats") or {}
+            add(u.id, when, "commits")
+            add(u.id, when, "added", stats.get("added", 0))
+            add(u.id, when, "deleted", stats.get("deleted", 0))
+    for t in (await db.execute(select(Task).where(Task.status == "COMPLETED", Task.completed_at.is_not(None)))).scalars():
+        add(t.assignee_id, aware(t.completed_at), "tasks_done")
+    for s in (await db.execute(select(AgentSession).where(AgentSession.started_at >= starts["week"]))).scalars():
+        add(s.user_id, aware(s.started_at), "sessions")
+
+    def listed(key):
+        out = [{"user": u.username, "name": u.display_name, **rows[key][u.id]} for u in users]
+        return sorted(out, key=lambda r: (r["commits"], r["tasks_done"], r["added"] + r["deleted"]), reverse=True)
+
+    return {"source": "live" if recent else "not_connected", "today": listed("today"), "week": listed("week")}
 
 
 def _when(text: str) -> datetime | None:

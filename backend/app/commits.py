@@ -164,8 +164,14 @@ def projects() -> list[dict]:
     for repo in repos():
         commits = sorted(_cache.get(repo["name"], (0, []))[1], key=lambda c: datetime.fromisoformat(c["date"]), reverse=True)
         fresh = [c for c in commits if datetime.fromisoformat(c["date"]) >= week]
+        today = datetime.now().astimezone().date()
+        days = [0] * 7  # commits per day, oldest first, today last
+        for c in fresh:
+            back = (today - datetime.fromisoformat(c["date"]).astimezone().date()).days
+            if 0 <= back < 7:
+                days[6 - back] += 1
         out.append({"name": repo["name"], "github": repo.get("github", ""),
                     "url": f"https://github.com/{repo['github']}" if repo.get("github") else "",
                     "last": {k: commits[0][k] for k in ("sha", "author", "date", "message", "url")} if commits else None,
-                    "week_commits": len(fresh), "week_authors": sorted({c["author"] for c in fresh})})
+                    "week_commits": len(fresh), "days": days, "week_authors": sorted({c["author"] for c in fresh})})
     return sorted(out, key=lambda r: datetime.fromisoformat(r["last"]["date"]).timestamp() if r["last"] else 0, reverse=True)

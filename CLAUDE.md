@@ -42,6 +42,34 @@ git pull
 3. Host firewall: rule "Agente AMG Hub" must exist (TCP 8000, remote `26.0.0.0/8`). The broad `python.exe` allow rules that Windows creates stay disabled: the host has a public IP on its network adapter and those rules open the Hub to the internet.
 4. After editing `backend/.env`, the Hub must be restarted: stop the `uvicorn app.main:app` process, then `iniciar.ps1`. If it was started from an administrator window, only an administrator can stop it.
 
+## The Team AI Hub (what is where)
+
+Four different things, never mixed: a **User** (person), their **Local Team Agent** (`agent/`, a background process, one per
+person), an **AgentSession** (one run of Claude by that agent: a task, a question from the Hub, a weekly report) and a
+**Subagent** (research / coding / testing / review, spawned inside a session). The Qt widget (`widget/`) is only the
+control surface of the agent; it is not the agent.
+
+- **Database changes**: only through `backend/app/migrate.py`. Add the column or table to `models.py`, bump `SCHEMA_VERSION`;
+  on start the Hub creates what is missing, never drops anything, and copies a SQLite database to `hub.db.bak-<date>` before
+  changing it. New columns must be nullable or have a plain default.
+- **API** (`backend/app/routers/`): `agents.py` (agents, sessions, subagents, and the agent's reports), `work.py` (projects,
+  memory, expenses, notifications, attention, search, company overview), `analytics.py`, `ai.py` (questions and the weekly
+  report), `tasks.py` (board, edit, assign to AI).
+- **No AI in the Hub**: the Hub holds no API key. A question (`/api/ai/ask`) is queued for the asker's own agent, which runs
+  Claude on the data the Hub gathered and posts the answer back. No agent connected = no answer, and the UI says so.
+- **Where numbers come from**: every figure is `live`, `calculated`, `estimated` (cost is always the SDK's estimate) or
+  `not_connected`. A missing source is shown as missing, never as zero. Do not add demo data.
+- **Frontend** (`frontend/`, no build step): `hub/design.css` is the design system (tokens + components), `hub/ui.js` the
+  components and `t()` (Portuguese text is its own key; another language is one more dictionary in `I18N`), `hub/home.js` the
+  widget grid, `hub/pages.js` the pages, `hub/shell.js` notifications, Ctrl+K and the Team AI. `app.js` and `styles.css` are
+  the older pages (company library, media player, code feed, week). After changing any of them, bump `?v=` in `index.html`.
+- **Agent** (`agent/team_agent/`): `providers/claude_sdk.py` runs the SDK with only our tools, `strict_mcp_config` (the
+  account's connectors are not loaded) and background tasks off; `core/session.py` reports the run to the Hub.
+  `TEAM_AGENT_SUBAGENTS=0` switches subagents off.
+
+To try changes without touching the real Hub: a second server on another port with its own database, from `backend/`:
+`DATABASE_URL=sqlite+aiosqlite:///C:/tmp/dev.db REDIS_URL= ..\.venv\Scripts\python -m uvicorn app.main:app --port 8010`.
+
 ## Working on the code
 
 - Tests: `cd backend; ..\.venv\Scripts\python -m pytest -q` and the same in `agent`.

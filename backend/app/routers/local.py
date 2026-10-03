@@ -9,14 +9,15 @@ import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import ponto
 from ..config import settings
 from ..db import get_db
-from ..models import User
+from ..models import Approval, Notification, User
 from ..realtime import rt
+from ..security import sees_all
 from ..services import WIDGET_SEEN, hub_seen, iso, usage_fields, usage_numbers
 
 router = APIRouter(prefix="/api/local")
@@ -57,6 +58,11 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
     out = []
     week_cost, meters, budget = await usage_numbers(db)
     clocked = await ponto.punches(db)
+    # what is waiting for each person: counts only, the widget opens the Hub for the rest
+    waiting = dict((await db.execute(select(Approval.user_id, func.count(Approval.id)).where(Approval.status == "PENDING")
+                                     .group_by(Approval.user_id))).all())
+    unread = dict((await db.execute(select(Notification.user_id, func.count(Notification.id)).where(Notification.read_at.is_(None))
+                                    .group_by(Notification.user_id))).all())
     for u in (await db.execute(select(User).order_by(User.id))).scalars():
         presence = await rt.store.get_presence(u.id)
         out.append({"user": u.username, "name": u.display_name, "online": presence is not None,
@@ -64,6 +70,8 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
                     "task": presence.get("task", "") if presence else "",
                     "via": (presence.get("via") or "agent") if presence else None,
                     "ponto": iso(clocked.get(u.id)),  # when they clocked in today, or None
+                    "approvals": sum(waiting.values()) if sees_all(u) else waiting.get(u.id, 0),  # the ones this person may decide
+                    "unread": unread.get(u.id, 0),
                     **usage_fields(u.id, week_cost, meters, budget)})
     return out
 

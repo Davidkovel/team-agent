@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (QAbstractButton, QGraphicsOpacityEffect, QHBoxLay
 from .. import hub, system
 from ..api.agent_client import AgentClient
 from ..state.store import StateStore
-from . import badge
+from . import badge, prefs
 from .motion import clock
 
 TEXT, MUTED, FAINT = "#f2f3f5", "#8d9198", "#4e5258"
@@ -370,6 +370,28 @@ class IconButton(Hover):
             path.moveTo(9.5, 18.5)
             path.lineTo(13, 15)
             p.drawPath(path)
+
+
+class TextButton(Hover):
+    """A small pill with a word on it: the task's controls."""
+
+    def __init__(self, text, tip="", colour=TEXT):
+        super().__init__()
+        self._text, self._colour, self._font = text, colour, font(8.5, QFont.DemiBold, UI)
+        self.setToolTip(tip)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedSize(round(QFontMetricsF(self._font).horizontalAdvance(text)) + 22, 24)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(.5, .5, -.5, -.5)
+        p.setPen(pen(rgba(self._colour, .28), 1))
+        p.setBrush(rgba(self._colour, .16 if self.underMouse() else .07))
+        p.drawRoundedRect(r, 12, 12)
+        p.setPen(QColor(self._colour))
+        p.setFont(self._font)
+        p.drawText(r, Qt.AlignCenter, self._text)
 
 
 class Badge(QWidget):
@@ -834,7 +856,7 @@ class WidgetWindow(QWidget):
     punched = Signal(object)    # the clock-in the Hub confirmed, or the error text
 
     def __init__(self, store: StateStore, client: AgentClient):
-        super().__init__(None, Qt.Window | Qt.FramelessWindowHint)
+        super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.load().get("on_top") else Qt.Widget))
         self.store, self.client = store, client
         self.hub_ready.connect(self._hub_opened)
         self.punched.connect(self._punched)
@@ -847,6 +869,7 @@ class WidgetWindow(QWidget):
         self._week, self._week_seen = None, None  # what is being touched right now, from the Hub on this computer
         self._team, self._team_seen = [], False   # who is online, from the Hub on this computer (None = Hub not answering)
         self._last_team = []
+        self._waiting = None  # approvals waiting for this person at the last look (None: not looked yet)
         self._backdrop = None
         self._usage_at = 0.0
         self._system_at = 0.0
@@ -959,7 +982,30 @@ class WidgetWindow(QWidget):
         self.task_card.box.addWidget(self.bar)
         self.details = label("", 8.5, MUTED, wrap=True)
         self.task_card.box.addWidget(self.details)
+        controls = QHBoxLayout()
+        controls.setSpacing(6)
+        controls.setContentsMargins(0, 4, 0, 0)
+        self.btn_pause = TextButton("Pausar", "Pausar o agente")
+        self.btn_resume = TextButton("Retomar", "Retomar a tarefa")
+        self.btn_stop = TextButton("Parar", "Parar a tarefa atual", COLORS["ERROR"])
+        self.btn_task = TextButton("Abrir", "Abrir a tarefa no Hub", MUTED)
+        for button, action in ((self.btn_pause, lambda: self.client.send("pause")), (self.btn_resume, lambda: self.client.send("resume")),
+                               (self.btn_stop, lambda: self.client.send("stop")), (self.btn_task, self._open_task)):
+            button.clicked.connect(action)
+            controls.addWidget(button)
+        controls.addStretch(1)
+        self.task_card.box.addLayout(controls)
         self.task_card.hide()
+
+        # what is waiting for this person in the Hub: approvals to decide, notifications not read yet
+        self.inbox = Card(COLORS["WAITING"])
+        self.inbox_text = label("", 9, COLORS["WAITING"], QFont.DemiBold, wrap=True)
+        self.inbox.box.addWidget(self.inbox_text)
+        self.inbox.setCursor(Qt.PointingHandCursor)
+        self.inbox.setToolTip("Abrir o Hub")
+        self.inbox.mousePressEvent = lambda e: self._open_hub()
+        self.inbox.hide()
+        col.insertWidget(col.indexOf(self.task_card), self.inbox)
         col.addWidget(self.task_card)
 
         self.ledger = Card()
@@ -1177,6 +1223,30 @@ class WidgetWindow(QWidget):
         self.hub_note.setVisible(team is None)
         self._render_state()
 
+    def _render_inbox(self, team):
+        """Approvals this person can decide and notifications they have not read. A new approval also raises a Windows notification."""
+        mine = next((p for p in team or [] if p["user"] == self._identity(team or [])), None)
+        approvals, unread = (mine or {}).get("approvals") or 0, (mine or {}).get("unread") or 0
+        if self._waiting is not None and approvals > self._waiting:
+            self.notify("Agente AMG", "Um agente está à espera da tua aprovação.")
+        if mine is not None:
+            self._waiting = approvals
+        parts = []
+        if approvals:
+            parts.append(f"{approvals} aprovação à espera" if approvals == 1 else f"{approvals} aprovações à espera")
+        if unread:
+            parts.append(f"{unread} notificação por ler" if unread == 1 else f"{unread} notificações por ler")
+        self.inbox_text.setText(" · ".join(parts))
+        self.inbox.setVisible(bool(parts))
+
+    def set_on_top(self, on: bool):
+        """Keep the widget above the other windows, or let it go behind them like any window."""
+        shown = self.isVisible()
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, on)
+        if shown:
+            self.show()  # changing a window flag hides the window
+        prefs.save(on_top=on)
+
     def _render_week(self, w: dict):
         self._clear(self.pending)
         for p in w.get("pending", [])[:3]:
@@ -1334,6 +1404,7 @@ class WidgetWindow(QWidget):
         if team is not self._team_seen:
             if team != self._team_seen:
                 self._render_people(team)
+                self._render_inbox(team)
                 self._render_usage()
                 self._follow_ponto(team)
             self._team_seen = team
@@ -1416,6 +1487,9 @@ class WidgetWindow(QWidget):
             self.bar.set(progress, COLORS["WORKING"] if progress >= 100 else WHITE)
             self.details.setText(self._details(state))
             self.details.setVisible(bool(self.details.text()))
+            status = state.get("status")
+            self.btn_pause.setVisible(status in ("WORKING", "WAITING"))
+            self.btn_resume.setVisible(status == "PAUSED")
             self.task_card.show()
         else:
             self.task_card.hide()

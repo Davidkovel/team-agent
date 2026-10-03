@@ -12,6 +12,7 @@ from pathlib import Path
 
 from sqlalchemy import inspect, text
 
+from . import models  # noqa: F401  (the tables are known to Base only once the models are loaded)
 from .db import Base
 
 log = logging.getLogger("team.backend")

@@ -2,6 +2,7 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from . import prefs
 from .window import COLORS, LOGO, WidgetWindow
 
 MENU_STYLE = """
@@ -56,6 +57,10 @@ def start_tray(window: WidgetWindow):
     item("Abrir o Hub", window._open_dashboard)
     item("Abrir tarefa atual", window._open_task)
     item("Bater o ponto", window.punch_ponto)
+    on_top = item("Sempre por cima", lambda: None)
+    on_top.setCheckable(True)
+    on_top.setChecked(bool(prefs.load().get("on_top")))
+    on_top.toggled.connect(window.set_on_top)
     menu.addSeparator()
     item("Pausar agente", lambda: send("pause"))
     item("Retomar agente", lambda: send("resume"))

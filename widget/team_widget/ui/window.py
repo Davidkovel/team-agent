@@ -3,7 +3,7 @@
 Press the start button and it grows into the cockpit; the cockpit's ⤢ grows into the Hub (expand.py); ▾ shrinks
 it back. The look is a luxury car's dashboard screen: black glass, white type, grey, nothing else. The AMG badge
 and the three-pointed star are the real pictures (assets/amg-logo.png, assets/star.jpg). The cockpit is laid out
-like iOS widgets: the hero card (time, date, how things are, the star), three number tiles, three round dials for this PC
+like iOS widgets: the hero card (time, date, how things are, the star), the Claude and Higgsfield limits as lines, three round dials for this PC
 (processor, memory, battery), and the team as a list.
 Every animation runs off one frame clock at the monitor's refresh rate (motion.py).
 """
@@ -508,16 +508,16 @@ class Hero(QWidget):
             p.drawText(QRectF(21, 136, 220, 16), Qt.AlignLeft | Qt.AlignVCenter, self._note)
 
 
-class Tile(QWidget):
-    """A number tile, like an iOS widget: what it is, the number, a note, and a bar along the bottom."""
-    H = 96
+class Line(QWidget):
+    """One limit as a line: what it is on the left, the note and the number on the right, the bar underneath."""
+    H = 34
 
     def __init__(self, title):
         super().__init__()
         self.setFixedHeight(self.H)
         self._title, self._pct, self._value, self._note = title, None, "—", ""
         self._glide = Glide(self, 900)
-        self._f_title, self._f_value, self._f_note = font(8, QFont.DemiBold, UI), font(20, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI)
+        self._f_title, self._f_value, self._f_note = font(8.5, QFont.DemiBold, UI), font(10.5, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI)
 
     def set(self, pct, value: str, note=""):
         self._pct, self._value, self._note = pct, value, note
@@ -527,24 +527,23 @@ class Tile(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect())
-        platter(p, r, 16)
+        w = self.width()
         p.setPen(QColor(MUTED))
         p.setFont(self._f_title)
-        p.drawText(QRectF(12, 10, r.width() - 20, 16), Qt.AlignLeft | Qt.AlignVCenter, self._title)
+        p.drawText(QRectF(0, 2, w, 18), Qt.AlignLeft | Qt.AlignVCenter, self._title)
         p.setPen(QColor(TEXT) if self._pct is not None else QColor(FAINT))
         p.setFont(self._f_value)
-        p.drawText(QRectF(12, 28, r.width() - 20, 32), Qt.AlignLeft | Qt.AlignVCenter, self._value)
+        p.drawText(QRectF(0, 2, w, 18), Qt.AlignRight | Qt.AlignVCenter, self._value)
         p.setPen(QColor(FAINT))
         p.setFont(self._f_note)
-        p.drawText(QRectF(12, 60, r.width() - 20, 14), Qt.AlignLeft | Qt.AlignVCenter, self._note)
-        bar = QRectF(12, r.height() - 15, r.width() - 24, 3)
+        p.drawText(QRectF(0, 2, w - 44, 18), Qt.AlignRight | Qt.AlignVCenter, self._note)
+        bar = QRectF(0, 25, w, 3)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 255, 255, 18))
         p.drawRoundedRect(bar, 1.5, 1.5)
         if self._glide.value > 0.002:
             p.setBrush(QColor(meter_color(self._pct or 0)))
-            p.drawRoundedRect(QRectF(bar.left(), bar.top(), max(3, bar.width() * self._glide.value), 3), 1.5, 1.5)
+            p.drawRoundedRect(QRectF(0, bar.top(), max(3, w * self._glide.value), 3), 1.5, 1.5)
 
 
 class Dial(QWidget):
@@ -983,14 +982,12 @@ class WidgetWindow(QWidget):
         self.hero = Hero()
         col.addWidget(self.hero)
 
-        tiles = QWidget()
-        trow = QHBoxLayout(tiles)
-        trow.setContentsMargins(0, 0, 0, 0)
-        trow.setSpacing(8)
-        self.tile_week, self.tile_session, self.tile_higgs = Tile("Claude"), Tile("Sessão 5 h"), Tile("Higgsfield")
-        for t in (self.tile_week, self.tile_session, self.tile_higgs):
-            trow.addWidget(t, 1)
-        col.addWidget(tiles)
+        self.tile_session, self.tile_week, self.tile_higgs = Line("Sessão 5 h"), Line("Semana"), Line("Créditos")
+        for title, lines in (("Claude", (self.tile_session, self.tile_week)), ("Higgsfield", (self.tile_higgs,))):
+            limits = Platter(title)
+            for line in lines:
+                limits.box.addWidget(line)
+            col.addWidget(limits)
 
         dials = QWidget()
         drow = QHBoxLayout(dials)

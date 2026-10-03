@@ -11,7 +11,7 @@ from ..db import get_db
 from ..models import AgentSession, Approval, Project, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
 from ..security import current_user, sees_all
-from ..services import approval_out, event_out, log_activity, session_out, task_out
+from ..services import approval_out, event_out, log_activity, notify, session_out, task_out
 
 router = APIRouter(prefix="/api/tasks")
 
@@ -91,6 +91,8 @@ async def create_task(body: TaskCreate, user: User = Depends(current_user), db: 
     await db.refresh(task)
     await log_activity(db, assignee, "task_assigned", f"recebeu a tarefa: {task.title}", task.id)
     await rt.publish("task", assignee.id)
+    if assignee.id != user.id:  # a task from someone else is worth a notification: the bell, and the widget
+        await notify(db, [assignee.id], "task", "info", f"{user.display_name} deu-te uma tarefa: {task.title}", task.description, f"#/tarefas/{task.id}")
     if body.for_ai:
         await rt.publish("wake", assignee.id, "agent")
     return task_out(task)
@@ -146,6 +148,8 @@ async def edit_task(task_id: int, body: TaskEdit, user: User = Depends(current_u
         verb = {"TODO": "voltou a pôr por fazer", "BLOCKED": "marcou como bloqueada", "REVIEW": "pôs em revisão",
                 "COMPLETED": "concluiu"}[task.status]
         await log_activity(db, user, "task_status", f"{verb}: {task.title}", task.id)
+        if task.status == "COMPLETED" and task.created_by != user.id:  # whoever asked for it hears that it is done
+            await notify(db, [task.created_by], "task", "info", f"{user.display_name} concluiu: {task.title}", "", f"#/tarefas/{task.id}")
     await rt.publish("task", task.assignee_id)
     return task_out(task)
 

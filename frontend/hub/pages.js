@@ -122,6 +122,7 @@ async function openTaskModal(id) {
         ${canGiveToAI(x) ? ui.btn("Entregar à IA", "data-act=ai", "primary", "bot") : ""}
         ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
         ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
+        ${!held && x.stage !== "done" ? ui.btn("Concluir", "data-act=done", "ok", "check") : ""}
         ${ui.btn("Editar", "data-act=edit", "quiet")}</div>
       ${held ? "" : `<label class="field">${t("Mudar estado")}<select id="task-status">${options([["", "—"], ["TODO", t("Por fazer")], ["BLOCKED", t("Bloqueada")], ["REVIEW", t("Em revisão")], ["COMPLETED", t("Concluída")]], "")}</select></label>`}
       ${x.sessions.length ? `<div class="panel">${x.sessions.slice(0, 4).map((s) => `<div class="rw">${ui.status(s.status)}<div class="rw-main"><b class="mono">${fmt.tokens(s.tokens.total)} tokens</b>
@@ -134,6 +135,11 @@ async function openTaskModal(id) {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
     if (act === "ai") return assignToAI(x);
+    if (act === "done") {
+      try { await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); loadBoard(); openTaskModal(x.id); }
+      catch (err) { flash(err.message); }
+      return;
+    }
     if (act === "edit") {
       const [users, projects] = await Promise.all([api("/api/users"), api("/api/projects")]);
       return formModal("Editar tarefa", taskFields(x, users, projects), async (v) => {

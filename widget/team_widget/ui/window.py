@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import (QColor, QConicalGradient, QFont, QFontMetricsF, QIcon, QImage, QLinearGradient, QPainter, QPainterPath,
-                           QPen, QPixmap, QRadialGradient)
+                           QPen, QPixmap, QPolygonF, QRadialGradient)
 from PySide6.QtWidgets import (QAbstractButton, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
                                QVBoxLayout, QWidget)
 
@@ -45,6 +45,8 @@ ORB_MARGIN = 14
 GROW, SHRINK = 0.42, 0.32   # seconds
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 LOGO, STAR = ASSETS / "logo.png", ASSETS / "star.jpg"
+STAR_PHOTO = (298.0, 301.0, 256.0)     # the emblem in star.jpg: centre x, centre y, outer radius (pixels)
+STAR_ARMS = (264.0, 28.0, 154.0)       # its three points, degrees with y down (the photo is turned a little)
 UI, MONO = ("Segoe UI Variable Text", "Segoe UI"), ("Cascadia Mono", "Consolas")
 DISPLAY = ("Segoe UI Variable Display", "Segoe UI")
 WEEKDAYS = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
@@ -636,8 +638,7 @@ class TitleBar(QWidget):
 
 
 class Orb(QWidget):
-    """The widget at its smallest: the star in black glass inside a thin chrome ring, the time over it, a status
-    light, and the Claude load as a fine white arc. Click to open; drag to move."""
+    """The widget at its smallest: only the Mercedes star, see-through between its arms. Click to open; drag to move."""
     SIZE = ORB + 2 * ORB_MARGIN
 
     def __init__(self, on_click):
@@ -704,31 +705,53 @@ class Orb(QWidget):
             self._on_click()
         self._press_at = None
 
+    def _emblem(self, c: QPointF, r: float) -> QPainterPath:
+        """The emblem's outline: the ring and three slender points, laid over the photo's own (measured on star.jpg)."""
+        ring = QPainterPath()
+        ring.addEllipse(c, r, r)
+        hole = QPainterPath()
+        hole.addEllipse(c, r * 0.84, r * 0.84)
+        shape = ring.subtracted(hole)
+        arms = QPainterPath()
+        for angle in STAR_ARMS:
+            a = math.radians(angle)
+            d, n = QPointF(math.cos(a), math.sin(a)), QPointF(-math.sin(a), math.cos(a))
+            arms.addPolygon(QPolygonF([c + n * (r * 0.11), c + d * (r * 0.87), c - n * (r * 0.11), c - d * (r * 0.07), c + n * (r * 0.11)]))
+        return shape.united(arms)
+
     def _build_face(self) -> QPixmap:
+        """Only the star: the photo cut to the emblem's shape, a thin light edge so it reads on any wallpaper,
+        a soft shadow under it, and nothing else, so the desktop shows through."""
         dpr = self.devicePixelRatioF()
         pix = QPixmap(int(self.SIZE * dpr), int(self.SIZE * dpr))
         pix.setDevicePixelRatio(dpr)
         pix.fill(Qt.transparent)
         p = QPainter(pix)
         p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
         c, r = QPointF(self.SIZE / 2, self.SIZE / 2), ORB / 2
-        glow_disc(p, QPointF(c.x(), c.y() + 4), r + ORB_MARGIN, r + ORB_MARGIN, "#000000", 0.6, soft=0.76)
-        ring = QConicalGradient(c, 120)                 # a thin chrome ring
-        for at, colour in ((0, "#f2f4f6"), (0.15, "#5d6268"), (0.35, "#c9cdd2"), (0.55, "#3e4247"), (0.75, "#dfe2e6"), (1, "#f2f4f6")):
-            ring.setColorAt(at, QColor(colour))
         p.setPen(Qt.NoPen)
-        p.setBrush(ring)
+        p.setBrush(QColor(0, 0, 0, 2))      # invisible, but it keeps the whole circle clickable and draggable
         p.drawEllipse(c, r, r)
-        p.setBrush(QColor(0, 0, 0))
-        p.drawEllipse(c, r - 2.5, r - 2.5)
-        paint_star(p, QRectF(c.x() - r + 1, c.y() - r + 1, 2 * r - 2, 2 * r - 2))
-        shade = QLinearGradient(c.x(), c.y() - 4, c.x(), c.y() + r)   # darker where the time sits
-        shade.setColorAt(0, QColor(0, 0, 0, 0))
-        shade.setColorAt(1, QColor(0, 0, 0, 170))
-        clip_path = QPainterPath()
-        clip_path.addEllipse(c, r - 2.5, r - 2.5)
-        p.setClipPath(clip_path)
-        p.fillRect(QRectF(0, 0, self.SIZE, self.SIZE), shade)
+        shape = self._emblem(c, r)
+        for i in range(6, 0, -1):            # a soft shadow, so the star sits on the desktop
+            p.setPen(pen(QColor(0, 0, 0, int(26 * (1 - i / 7))), i * 1.6))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(shape.translated(0, 2.5))
+        k = r / STAR_PHOTO[2]
+        photo = QRectF(c.x() - STAR_PHOTO[0] * k, c.y() - STAR_PHOTO[1] * k, star_image().width() * k, star_image().height() * k)
+        p.save()
+        p.setClipPath(shape)
+        p.fillRect(photo, QColor(0, 0, 0))
+        p.drawImage(photo, star_image())
+        p.restore()
+        edge = QLinearGradient(c.x(), c.y() - r, c.x(), c.y() + r)
+        edge.setColorAt(0, QColor(255, 255, 255, 120))
+        edge.setColorAt(0.5, QColor(255, 255, 255, 40))
+        edge.setColorAt(1, QColor(255, 255, 255, 90))
+        p.setPen(QPen(edge, 0.9))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(shape)
         p.end()
         return pix
 
@@ -737,31 +760,14 @@ class Orb(QWidget):
             self._face, self._face_key = self._build_face(), self.devicePixelRatioF()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.setOpacity(self.fade)
-        c, r = QPointF(self.SIZE / 2, self.SIZE / 2), ORB / 2
-        s = 1 + 0.03 * self._hover - 0.04 * self._down     # it gives a little under the finger, like a real button
+        c = QPointF(self.SIZE / 2, self.SIZE / 2)
+        s = 1 + 0.05 * self._hover - 0.05 * self._down     # it gives a little under the finger, like a real button
         p.translate(c)
         p.scale(s, s)
         p.translate(-c)
         p.drawPixmap(0, 0, self._face)
-        k = self._load.value
-        if k > 0.002:
-            box = QRectF(c.x() - r + 6, c.y() - r + 6, 2 * r - 12, 2 * r - 12)
-            p.setPen(pen(QColor(255, 255, 255, 210), 1.6))
-            p.setBrush(Qt.NoBrush)
-            p.drawArc(box, 90 * 16, -int(360 * 16 * k))
-        now = datetime.now()
-        p.setPen(QColor(0, 0, 0, 160))
-        p.setFont(self._f_time)
-        p.drawText(QRectF(0, c.y() + 6, self.SIZE, 24), Qt.AlignCenter, now.strftime("%H:%M"))
-        p.setPen(QColor(TEXT))
-        p.drawText(QRectF(0, c.y() + 5, self.SIZE, 24), Qt.AlignCenter, now.strftime("%H:%M"))
-        breath = 0.55 + 0.45 * math.sin(time.time() * 2 * math.pi / (2.2 if self._pulse else 5.0))
-        p.setPen(Qt.NoPen)
-        p.setBrush(rgba(self._status_colour.name(), 0.25 * breath))
-        p.drawEllipse(QPointF(c.x(), c.y() + 33), 5, 5)
-        p.setBrush(self._status_colour)
-        p.drawEllipse(QPointF(c.x(), c.y() + 33), 2.4, 2.4)
 
 
 class Panel(QWidget):

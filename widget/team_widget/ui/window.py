@@ -3,7 +3,8 @@
 Press the start button and it grows into the cockpit; the cockpit's ⤢ grows into the Hub (expand.py); ▾ shrinks
 it back. The look is a luxury car's dashboard screen: black glass, white type, grey, nothing else. The AMG badge
 and the three-pointed star are the real pictures (assets/amg-logo.png, assets/star.jpg). The cockpit is laid out
-like iOS widgets: the hero card (time, date, how things are, the star), three number tiles, and the team as a list.
+like iOS widgets: the hero card (time, date, how things are, the star), three number tiles, three round dials for this PC
+(processor, memory, battery), and the team as a list.
 Every animation runs off one frame clock at the monitor's refresh rate (motion.py).
 """
 import getpass
@@ -23,7 +24,7 @@ from PySide6.QtGui import (QColor, QConicalGradient, QFont, QFontMetricsF, QIcon
 from PySide6.QtWidgets import (QAbstractButton, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
                                QVBoxLayout, QWidget)
 
-from .. import hub
+from .. import hub, system
 from ..api.agent_client import AgentClient
 from ..state.store import StateStore
 from . import badge
@@ -546,6 +547,46 @@ class Tile(QWidget):
             p.drawRoundedRect(QRectF(bar.left(), bar.top(), max(3, bar.width() * self._glide.value), 3), 1.5, 1.5)
 
 
+class Dial(QWidget):
+    """A round instrument: the ring fills clockwise from the top, the number sits inside, the name and a note below."""
+    H = 116
+    RING = 58
+
+    def __init__(self, title):
+        super().__init__()
+        self.setFixedHeight(self.H)
+        self._title, self._pct, self._value, self._note, self._colour = title, None, "—", "", WHITE
+        self._glide = Glide(self, 900)
+        self._f_title, self._f_value, self._f_note = font(8, QFont.DemiBold, UI), font(12.5, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI)
+
+    def set(self, pct, value: str, note="", colour=WHITE):
+        self._pct, self._value, self._note, self._colour = pct, value, note, colour
+        self._glide.to(max(0, min(100, pct or 0)) / 100)
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect())
+        platter(p, r, 16)
+        ring = QRectF((r.width() - self.RING) / 2, 13, self.RING, self.RING)
+        p.setBrush(Qt.NoBrush)
+        p.setPen(pen(QColor(255, 255, 255, 18), 5))
+        p.drawEllipse(ring)
+        if self._glide.value > 0.002:
+            p.setPen(pen(QColor(self._colour), 5))
+            p.drawArc(ring, 90 * 16, -round(360 * 16 * self._glide.value))
+        p.setPen(QColor(TEXT) if self._pct is not None else QColor(FAINT))
+        p.setFont(self._f_value)
+        p.drawText(ring, Qt.AlignCenter, self._value)
+        p.setPen(QColor(MUTED))
+        p.setFont(self._f_title)
+        p.drawText(QRectF(4, ring.bottom() + 8, r.width() - 8, 14), Qt.AlignCenter, self._title)
+        p.setPen(QColor(FAINT))
+        p.setFont(self._f_note)
+        p.drawText(QRectF(4, ring.bottom() + 23, r.width() - 8, 14), Qt.AlignCenter, self._note)
+
+
 class Member(Hover):
     """One teammate in the list: the star as their picture (lit when online), name and state, and when they
     clocked in. Your own row has the clock-in button."""
@@ -873,6 +914,7 @@ class WidgetWindow(QWidget):
         self._last_team = []
         self._backdrop = None
         self._usage_at = 0.0
+        self._system_at = 0.0
         self._load = None
         self.mode = "orb"            # orb | panel | morph
         self._morph_dir, self._morph_t0, self._k = 0, 0.0, 0.0
@@ -942,6 +984,15 @@ class WidgetWindow(QWidget):
         for t in (self.tile_week, self.tile_session, self.tile_higgs):
             trow.addWidget(t, 1)
         col.addWidget(tiles)
+
+        dials = QWidget()
+        drow = QHBoxLayout(dials)
+        drow.setContentsMargins(0, 0, 0, 0)
+        drow.setSpacing(8)
+        self.dial_cpu, self.dial_ram, self.dial_battery = Dial("CPU"), Dial("RAM"), Dial("Bateria")
+        for d in (self.dial_cpu, self.dial_ram, self.dial_battery):
+            drow.addWidget(d, 1)
+        col.addWidget(dials)
 
         team = Platter("Equipa")
         self.grid_note = team.note
@@ -1361,6 +1412,9 @@ class WidgetWindow(QWidget):
         if time.time() - self._usage_at > 10:
             self._usage_at = time.time()
             self._render_usage()
+        if time.time() - self._system_at > 2:
+            self._system_at = time.time()
+            self._render_system()
         state = self.store.get()
         if self.store.version != self._version:
             self._version = self.store.version
@@ -1434,6 +1488,23 @@ class WidgetWindow(QWidget):
             self.task_card.hide()
 
         self._render_usage(state)
+
+    def _render_system(self):
+        """This PC: processor, memory, battery."""
+        load = system.cpu()
+        if load is not None:
+            self.dial_cpu.set(load, f"{round(load)}%", "processador", meter_color(load))
+        mem = system.memory()
+        if mem:
+            self.dial_ram.set(mem["pct"], f"{round(mem['pct'])}%", f"{mem['used_gb']:.1f} de {mem['total_gb']:.0f} GB", meter_color(mem["pct"]))
+        power = system.battery()
+        if not power:
+            self.dial_battery.set(None, "—", "na corrente")
+            return
+        pct, left = power["pct"], power["seconds"]
+        colour = COLORS["WORKING"] if power["plugged"] else COLORS["ERROR"] if pct <= 20 else COLORS["WAITING"] if pct <= 40 else WHITE
+        note = "a carregar" if power["plugged"] and pct < 100 else "na corrente" if power["plugged"]             else f"{left // 3600} h {left % 3600 // 60:02d} restam" if left else "a bateria"
+        self.dial_battery.set(pct, f"{round(pct)}%", note, colour)
 
     def _render_usage(self, state: dict | None = None):
         """Claude and Higgsfield of whoever sits here: the plan limits Claude Code reported, else the Hub's numbers."""

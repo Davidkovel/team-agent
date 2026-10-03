@@ -114,6 +114,8 @@ html, body { background: var(--bg); }
 .cockpit.ignite .led:nth-of-type(3) { animation-delay: 1.65s; }
 .cockpit.ignite .bloom { animation: bloom-on 1.4s ease-out 1.6s both; }
 .cockpit.ignite .floor { animation: bloom-on 1.8s ease-out 1.9s both; }
+/* the star is lit last, the way the illuminated star comes on after the lights */
+.cockpit.ignite .halo, .cockpit.ignite .halo-ring { animation: bloom-on 1.2s ease-out 2.2s both; }
 .cockpit.ignite .cockpit-copy > * { animation: rise .8s var(--ease) both; }
 .cockpit.ignite .cockpit-copy > :nth-child(2) { animation-delay: .1s; }
 .cockpit.ignite .cockpit-copy > :nth-child(3) { animation-delay: .2s; }

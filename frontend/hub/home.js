@@ -136,18 +136,23 @@ const INSTRUMENTS = ["today", "usage", "cost", "ponto"];
 
 /* ---------- the cockpit: the front of an AMG, lights on ----------
    Drawn here (no image file): the Panamericana grille with the star, and the two headlights with the eyebrow
-   daytime light and three star LEDs each. The left light is drawn once and mirrored for the right. */
+   daytime light and three star LEDs each. The left light is drawn once and mirrored for the right.
+   The look is the angry one: slim lights slanting down into the grille, a tall grille, a big lit star, deep intakes. */
 const HEADLIGHT = `
-  <path d="M128 176C140 150 175 136 230 132L372 150C380 151 384 156 382 162L372 176C300 178 200 180 140 186C130 187 124 182 128 176Z"
-    fill="url(#amg-glass)" stroke="rgba(255,255,255,.16)" stroke-width="1"/>
-  <ellipse class="bloom" cx="262" cy="156" rx="150" ry="44" fill="url(#amg-bloom)"/>
-  <path class="drl" d="M156 180C146 176 145 170 150 165C165 150 195 142 232 140L366 156"/>
-  <g><use class="led" href="#amg-tri" x="203" y="152" width="17" height="17"/><use class="led" href="#amg-tri" x="248" y="154" width="17" height="17"/>
-    <use class="led" href="#amg-tri" x="293" y="157" width="17" height="17"/></g>
-  <path d="M134 242L318 232L338 268L150 276Z" fill="#07080a" stroke="rgba(255,255,255,.07)"/>
-  <path d="M140 254L330 245" stroke="url(#amg-blade)" stroke-width="3" stroke-linecap="round"/>
-  <ellipse class="floor" cx="250" cy="318" rx="190" ry="16" fill="url(#amg-bloom)" opacity=".9"/>`;
-const SLATS = Array.from({ length: 25 }, (_, i) => `<rect x="${393 + i * 9}" y="150" width="3" height="110" rx="1.5" fill="url(#amg-slat)"/>`).join("");
+  <path d="M118 170C150 150 200 140 252 137L404 170C412 172 414 181 407 187L394 192C330 188 230 186 150 194C126 196 110 184 118 170Z"
+    fill="url(#amg-glass)" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+  <path d="M128 188C200 182 300 182 392 188" fill="none" stroke="rgba(255,255,255,.06)"/>
+  <ellipse class="bloom" cx="262" cy="166" rx="160" ry="46" fill="url(#amg-bloom)"/>
+  <path class="drl" d="M150 188C134 184 132 174 142 166C170 151 212 145 254 144L398 177"/>
+  <g><use class="led" href="#amg-tri" x="212" y="156" width="16" height="16"/><use class="led" href="#amg-tri" x="260" y="160" width="16" height="16"/>
+    <use class="led" href="#amg-tri" x="308" y="166" width="16" height="16"/></g>
+  <path d="M96 232L352 218L384 296L140 310Z" fill="#030405" stroke="rgba(255,255,255,.1)"/>
+  <path d="M168 238L190 302M214 234L234 300M260 230L278 298M306 227L322 296" stroke="rgba(255,255,255,.07)" stroke-width="2"/>
+  <path d="M104 246L362 232" stroke="url(#amg-blade)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M60 206C80 196 100 192 118 192" fill="none" stroke="rgba(255,255,255,.12)"/>
+  <ellipse class="floor" cx="250" cy="318" rx="200" ry="16" fill="url(#amg-bloom)" opacity=".9"/>`;
+const GRILLE = "M425 140H575C588 140 594 148 596 158L618 262C620 274 612 284 600 284H400C388 284 380 274 382 262L404 158C406 148 412 140 425 140Z";
+const SLATS = Array.from({ length: 26 }, (_, i) => `<rect x="${386 + i * 9}" y="140" width="3.2" height="146" rx="1.6" fill="url(#amg-slat)"/>`).join("");
 const FASCIA = `<svg viewBox="0 0 1000 320" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
   <defs>
     <filter id="amg-glow" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="3.2" result="b"/>
@@ -158,21 +163,25 @@ const FASCIA = `<svg viewBox="0 0 1000 320" preserveAspectRatio="xMidYMax meet" 
     <linearGradient id="amg-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1f27"/><stop offset="1" stop-color="#07090c"/></linearGradient>
     <linearGradient id="amg-slat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f8"/><stop offset=".45" stop-color="#8c949d"/><stop offset=".55" stop-color="#4a5159"/><stop offset="1" stop-color="#c4cad1"/></linearGradient>
     <linearGradient id="amg-blade" x1="0" x2="1"><stop offset="0" stop-color="#9aa2ab" stop-opacity=".2"/><stop offset=".6" stop-color="#eef1f4"/><stop offset="1" stop-color="#9aa2ab" stop-opacity=".4"/></linearGradient>
-    <clipPath id="amg-grille"><path d="M420 150H580C592 150 598 158 600 170L612 236C614 248 606 258 594 258H406C394 258 386 248 388 236L400 170C402 158 408 150 420 150Z"/></clipPath>
+    <radialGradient id="amg-halo"><stop offset=".55" stop-color="#e8f0ff" stop-opacity=".0"/><stop offset=".72" stop-color="#e8f0ff" stop-opacity=".38"/><stop offset="1" stop-color="#e8f0ff" stop-opacity="0"/></radialGradient>
+    <clipPath id="amg-grille"><path d="${GRILLE}"/></clipPath>
     <symbol id="amg-tri" viewBox="-10 -10 20 20"><path d="M0-9L1.7-1.2L8.2 5.2L0 2.1L-8.2 5.2L-1.7-1.2Z"/></symbol>
   </defs>
-  <path d="M40 210C100 140 250 112 500 108C750 112 900 140 960 210L985 320H15Z" fill="url(#amg-body)"/>
-  <path d="M60 196C130 136 260 114 500 110C740 114 870 136 940 196" fill="none" stroke="url(#amg-hood)" stroke-width="1.2"/>
-  <path d="M330 112C400 128 450 134 500 134C550 134 600 128 670 112" fill="none" stroke="rgba(255,255,255,.08)"/>
+  <path d="M20 232C70 150 230 118 500 112C770 118 930 150 980 232L996 320H4Z" fill="url(#amg-body)"/>
+  <path d="M44 214C120 142 270 118 500 114C730 118 880 142 956 214" fill="none" stroke="url(#amg-hood)" stroke-width="1.4"/>
+  <path d="M300 118C360 128 392 140 420 140M700 118C640 128 608 140 580 140" fill="none" stroke="rgba(255,255,255,.14)"/>
+  <path d="M440 114L452 140M560 114L548 140" fill="none" stroke="rgba(255,255,255,.08)"/>
   <g>${HEADLIGHT}</g>
   <g transform="translate(1000 0) scale(-1 1)">${HEADLIGHT}</g>
-  <path d="M420 150H580C592 150 598 158 600 170L612 236C614 248 606 258 594 258H406C394 258 386 248 388 236L400 170C402 158 408 150 420 150Z" fill="#040506"/>
+  <path d="${GRILLE}" fill="#030405"/>
   <g clip-path="url(#amg-grille)">${SLATS}</g>
-  <path d="M420 150H580C592 150 598 158 600 170L612 236C614 248 606 258 594 258H406C394 258 386 248 388 236L400 170C402 158 408 150 420 150Z"
-    fill="none" stroke="url(#amg-slat)" stroke-width="3"/>
-  <circle cx="500" cy="203" r="33" fill="#050607"/>
-  <image href="assets/mercedes-star.svg" x="468" y="171" width="64" height="64"/>
-  <path d="M372 286H628L650 316H350Z" fill="#040506" stroke="rgba(255,255,255,.06)"/>
+  <path d="${GRILLE}" fill="none" stroke="url(#amg-slat)" stroke-width="3.5"/>
+  <circle class="halo" cx="500" cy="212" r="66" fill="url(#amg-halo)"/>
+  <circle cx="500" cy="212" r="47" fill="#040506"/>
+  <circle class="halo-ring" cx="500" cy="212" r="47.5" fill="none" stroke="#eef5ff" stroke-width="1.6" filter="url(#amg-glow)"/>
+  <image href="assets/mercedes-star.svg" x="456" y="168" width="88" height="88"/>
+  <path d="M300 298H700L734 320H266Z" fill="#030405" stroke="rgba(255,255,255,.08)"/>
+  <path d="M268 319H732" stroke="url(#amg-blade)" stroke-width="2.5"/>
 </svg>`;
 
 let cockpitClock = null;

@@ -253,7 +253,7 @@ function cockpitHtml(greeting, date) {
       <div class="cockpit-actions">
         ${TACHO}
         <a class="btn amg" href="#/tarefas">${t("Tarefas")}</a>
-        <a class="btn amg" href="#/agentes">${t("Agentes")}</a>
+        <a class="btn amg" href="#/analise">${t("Análise")}</a>
         <button class="btn quiet" id="customize">${icon("sliders")}${t("Personalizar")}</button>
       </div>
     </div>

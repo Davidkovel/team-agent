@@ -244,3 +244,31 @@ html, body { background: var(--bg); }
 .page.home .repo-week small { display: none; } .page.home .repo-week b { margin: 0; }
 .page.home .spark { height: 24px; }
 .page.home .wg-body.pad { padding-bottom: 10px; }
+
+/* the commit feed (the older code page) in the Hub's own look: lacquered rows, chrome edge, serif day headers */
+.hub .commit, .hub #who-summary .card { background: var(--surface); border: 1px solid rgba(255, 255, 255, .055); border-radius: 10px; }
+.hub .commit { gap: 12px; padding: 12px 16px; margin-bottom: 8px; }
+.hub .commit:hover { border-color: rgba(222, 229, 238, .14); }
+.hub .commit .avatar, .hub #who-summary .avatar { width: 30px; height: 30px; font: 600 12px var(--ui); border: 1px solid rgba(255, 255, 255, .12); }
+.hub .commit-head { gap: 8px; font-size: 12.5px; }
+.hub .commit-head b { font: 600 13px var(--ui); }
+.hub .commit-head .tag { padding: 2px 8px; border-radius: 4px; background: rgba(255, 255, 255, .06); color: var(--muted); font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.hub .commit-head a code { color: #cfd5dc; font: 500 11.5px var(--mono); }
+.hub .commit-msg { margin-top: 3px; font: 500 14.5px/1.35 var(--ui); color: #f4f6f8; }
+.hub .commit-body { font-size: 12.5px; }
+.hub .commit-where { margin-top: 8px; gap: 6px; font-size: 12px; }
+.hub .area { padding: 2px 8px; border-radius: 4px; background: rgba(255, 255, 255, .05); font: 600 9.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.hub .area i { background: transparent; color: #cfd5dc; padding: 0; }
+.hub .day { margin: 20px 0 8px; color: var(--faint); font: 600 10.5px var(--ui); letter-spacing: .24em; }
+.hub .chip { padding: 5px 12px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); font: 600 10.5px var(--ui); letter-spacing: .12em; }
+.hub .chip.active { background: var(--metal-hi); color: var(--text); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); }
+.hub .chip-label { font: 600 10px var(--ui); letter-spacing: .2em; color: var(--faint); }
+.hub #who-summary .card { padding: 14px 16px; }
+.hub .summary-nums b { font: 600 20px var(--mono); }
+.hub .summary-nums span { font: 600 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+/* the feed is a column: the media player's ".timeline" (a row) used to win here and laid the commits out sideways */
+.hub #commit-list { display: block; padding: 0; background: none; }
+.hub .page-head { margin-bottom: 16px; }
+.hub .page-head > div > h2 { margin: 0; font: 500 34px/1.05 var(--serif); letter-spacing: 0; }
+.hub .page-head p { font-size: 13px; }
+.hub .section-title { margin: 22px 0 10px; border: 0; padding: 0; color: var(--faint); font: 600 10.5px var(--ui); letter-spacing: .24em; }

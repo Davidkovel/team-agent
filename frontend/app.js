@@ -110,14 +110,15 @@ $("modal").onclick = (e) => { if (e.target === $("modal") || e.target.closest("[
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- routing ---------- */
-// sidebar: [label, icon, [id, label]...]. One link per section; a section with several pages shows them as tabs
-// on top of the page, so the sidebar stays short.
+// sidebar: [label, icon, [id, label, hidden]...]. One link per section; a section with several pages shows them as
+// tabs on top of the page, so the sidebar stays short. A hidden page still opens by its address (links, Ctrl+K) but
+// has no tab: pages the team does not use day to day (agents, history, AI usage, expenses).
 const NAV = [
   ["Início", "home", [["home", "Início"]]],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]]],
-  ["Equipa", "users", [["equipa", "Equipa"], ["agentes", "Agentes"], ["aovivo", "Ao vivo"], ["historico", "Histórico"]]],
+  ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes", true], ["historico", "Histórico", true]]],
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"]]],
-  ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA"], ["despesas", "Despesas"]]],
+  ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA", true], ["despesas", "Despesas", true]]],
   ["Sistema", "gear", [["memoria", "Memória"], ["definicoes", "Definições"]]],
 ];
 const TABS = NAV.flatMap(([, , pages]) => pages);
@@ -150,7 +151,7 @@ window.addEventListener("hashchange", render);
 // back each time its content changes.
 function drawSubtabs() {
   const view = $("view"), tab = route().tab;
-  const pages = (NAV.find(([, , list]) => list.some(([id]) => id === tab)) || [])[2] || [];
+  const pages = ((NAV.find(([, , list]) => list.some(([id]) => id === tab)) || [])[2] || []).filter(([id, , hidden]) => !hidden || id === tab);
   if (pages.length < 2 || !view.firstElementChild || view.querySelector(":scope > .subtabs")) return;
   view.insertAdjacentHTML("afterbegin", `<nav class="subtabs">${pages.map(([id, label]) =>
     `<a class="${id === tab ? "on" : ""}" href="#/${id}">${t(label)}${badgeHtml(id)}</a>`).join("")}</nav>`);

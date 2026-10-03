@@ -584,32 +584,30 @@ async function loadAnalytics() {
         ${statCard("Pessoas online", `${a.team.active_users}/${a.team.people}`)}${statCard("Sessões de IA ativas", a.team.active_sessions)}
         ${statCard("Tarefas criadas", a.team.tasks_created)}${statCard("Tarefas concluídas", a.team.tasks_completed)}
         ${statCard("Tarefas abertas", a.team.tasks_open)}${statCard("Pedidos de aprovação", a.team.approvals)}</div>
-      ${ui.sec("Uso de IA", ui.src(a.ai.source))}<div class="stats">
+      ${a.ai.sessions || a.ai.runs ? `${ui.sec("Uso de IA", ui.src(a.ai.source))}<div class="stats">
         ${statCard("Sessões", a.ai.sessions || null)}${statCard("Tokens de entrada", a.ai.runs ? fmt.tokens(a.ai.tokens.input) : null)}
         ${statCard("Tokens de saída", a.ai.runs ? fmt.tokens(a.ai.tokens.output) : null)}${statCard("Agentes", a.ai.agents || null)}
         ${statCard("Subagentes", a.ai.sessions ? a.ai.subagents : null)}${statCard("Chamadas a ferramentas", a.ai.sessions ? a.ai.tool_uses : null)}
         ${statCard("Tempo de trabalho da IA", hours)}</div>
       ${a.ai.models.length ? `<div class="panel" style="margin-top:10px"><table class="tbl"><tr><th>${t("Modelo")}</th><th class="r">${t("Sessões")}</th><th class="r">Tokens</th></tr>
-        ${a.ai.models.map((m) => `<tr><td>${esc(m.model)}</td><td class="r">${m.sessions}</td><td class="r mono">${fmt.tokens(m.tokens)}</td></tr>`).join("")}</table></div>` : ""}
-      ${ui.sec("Custo", ui.src(a.cost.source))}
+        ${a.ai.models.map((m) => `<tr><td>${esc(m.model)}</td><td class="r">${m.sessions}</td><td class="r mono">${fmt.tokens(m.tokens)}</td></tr>`).join("")}</table></div>` : ""}` : ""}
+      ${a.cost.total_usd != null ? `${ui.sec("Custo", ui.src(a.cost.source))}
       <div class="detail"><div class="stack"><div class="panel pad"><div class="ph-eyebrow">${t("Por pessoa")}</div>${barRows(a.cost.per_user, a.cost.total_usd)}</div>
         <div class="panel pad"><div class="ph-eyebrow">${t("Por tarefa")}</div>${barRows(a.cost.per_task, a.cost.total_usd)}</div></div>
         <div class="stack">${statCard("Custo total de IA", a.cost.total_usd == null ? null : fmt.usd(a.cost.total_usd))}
-        <div class="panel pad"><div class="ph-eyebrow">${t("Por projeto")}</div>${barRows(a.cost.per_project, a.cost.total_usd)}</div></div></div>
+        <div class="panel pad"><div class="ph-eyebrow">${t("Por projeto")}</div>${barRows(a.cost.per_project, a.cost.total_usd)}</div></div></div>` : ""}
       ${ui.sec("Código", ui.src(a.code.source))}<div class="stats">
         ${statCard("Commits", a.code.source === "live" ? a.code.commits : null)}${statCard("Linhas adicionadas", a.code.source === "live" ? fmt.int(a.code.added) : null)}
         ${statCard("Linhas removidas", a.code.source === "live" ? fmt.int(a.code.deleted) : null)}
-        <div class="panel statc"><span>Pull requests</span><span class="num none">${t("Não ligado")}</span>${ui.src("not_connected")}</div>
-        <div class="panel statc"><span>${t("Revisões de código")}</span><span class="num none">${t("Não ligado")}</span>${ui.src("not_connected")}</div></div>
-      ${ui.sec("Valor")}<div class="stats">
+</div>
+      ${a.value.cost_per_task.usd != null || a.value.cost_per_commit.usd != null ? `${ui.sec("Valor")}<div class="stats">
         ${statCard("Custo por tarefa concluída", a.value.cost_per_task.usd == null ? null : fmt.usd(a.value.cost_per_task.usd), a.value.cost_per_task.source)}
-        ${statCard("Custo por commit", a.value.cost_per_commit.usd == null ? null : fmt.usd(a.value.cost_per_commit.usd), a.value.cost_per_commit.source)}
-        <div class="panel statc"><span>${t("Tempo poupado")}</span><span class="num none">${t("Não ligado")}</span>${ui.src("not_connected")}</div></div>
-      <p class="faint" style="margin-top:14px">${t("O custo é a estimativa que o SDK do Claude dá em cada sessão; não é uma fatura. O que não tem fonte fica sem número.")}</p>`;
+        ${statCard("Custo por commit", a.value.cost_per_commit.usd == null ? null : fmt.usd(a.value.cost_per_commit.usd), a.value.cost_per_commit.source)}</div>
+      <p class="faint" style="margin-top:14px">${t("O custo é a estimativa que o SDK do Claude dá em cada sessão; não é uma fatura.")}</p>` : ""}`;
   }, 8);
 }
 HUB_VIEWS.analise = async function () {
-  page(`${ui.head("Análise", t("Análise"), t("Equipa, IA, custo e código. Cada número diz de onde vem."),
+  page(`${ui.head("Análise", t("Análise"), t("Quem fez o quê, a equipa e o código."),
     `<div class="segx" id="days">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${d === analyticsDays ? "on" : ""}">${d} ${t("dias")}</button>`).join("")}</div>`)}
     <div id="ranking"></div><div id="analytics"></div>`);
   loadRanking();
@@ -780,8 +778,7 @@ HUB_VIEWS.codigo = async function () {
     return `<div class="stats">
       <div class="panel statc"><span>${t("Repositórios")}</span>${ui.num(commits ? Object.keys(repos).length : null)}${ui.src(commits ? "live" : "not_connected")}</div>
       <div class="panel statc"><span>${t("Commits recentes")}</span>${ui.num(commits ? commits.length : null)}${ui.src(commits ? "live" : "not_connected")}</div>
-      <div class="panel statc"><span>Pull requests</span><span class="num none">${t("Não ligado")}</span>${ui.src("not_connected")}</div>
-      <div class="panel statc"><span>${t("Revisões de código")}</span><span class="num none">${t("Não ligado")}</span>${ui.src("not_connected")}</div></div>
+</div>
       ${branches.length ? `${ui.sec("Branches com trabalho")}<div class="panel rows">${branches.map((x) => `<a class="rw" href="#/tarefas/${x.id}"><span class="mono" style="min-width:150px">${esc(x.git_branch)}</span>
         <div class="rw-main"><b>${esc(x.title)}</b><span>${x.agent_role ? "Claude / " : ""}${esc(nameOf(x.assignee))}</span></div>${ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}</a>`).join("")}</div>` : ""}`;
   }, 2);

@@ -86,12 +86,21 @@ const ROLES = { developer: "Claude Developer", research: "Agente de pesquisa", m
 const SOURCES = { live: ["●", "Ao vivo"], calculated: ["≈", "Calculado"], estimated: ["≈", "Estimado"], not_connected: ["○", "Não ligado"], no_data: ["○", "Sem dados"] };
 
 /* ---------- components ---------- */
+// The team's GitHub accounts, by the names a person shows up with (Hub name and git author names). The avatar is
+// the GitHub profile picture; with no account, or when the picture does not load, the initial stays.
+const GITHUB = { kovel: "Davidkovel", "david kovel": "Davidkovel", davidkovel: "Davidkovel", marco: "SLayer-marco", "marco goucha": "SLayer-marco",
+  david: "Daviddsstt", daviddsstt: "Daviddsstt" };
+const githubPhoto = (name) => {
+  const login = GITHUB[(name || "").trim().toLowerCase()];
+  return login ? `<img src="https://github.com/${login}.png?size=96" alt="" loading="lazy" onerror="this.remove()">` : "";
+};
+
 const ui = {
   status(status, label) {
     const [tone, text] = AGENT_ST[status] || ["off", status];
     return `<span class="st ${tone}"><i></i>${esc(label || t(text))}</span>`;
   },
-  avatar: (name, cls = "") => `<span class="av ${cls}">${esc((name || "?").trim()[0]?.toUpperCase() || "?")}</span>`,
+  avatar: (name, cls = "") => `<span class="av ${cls}">${esc((name || "?").trim()[0]?.toUpperCase() || "?")}${cls.includes("ai") ? "" : githubPhoto(name)}</span>`,
   progress: (pct, cls = "") => `<div class="pg ${cls}"><i style="width:${Math.max(0, Math.min(100, Number(pct) || 0))}%"></i></div>`,
   tag: (text, cls = "") => `<span class="tagx ${cls}">${esc(text)}</span>`,
   // where a number comes from; shown beside every figure that is not plainly a record of the Hub

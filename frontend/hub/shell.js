@@ -134,7 +134,7 @@ function toggleAI(open = $("ai-panel").hidden) {
 function hubStart() {
   Object.assign(ICONS, HUB_ICONS);
   document.documentElement.dataset.density = localStorage.getItem("hub.density") || "normal";
-  $("me-av").textContent = (me.display_name || "?")[0].toUpperCase();
+  $("me-av").innerHTML = esc((me.display_name || "?")[0].toUpperCase()) + githubPhoto(me.display_name);
   $("bell").insertAdjacentHTML("afterbegin", icon("bell"));
   $("collapse").innerHTML = icon("sidebar");
   $("open-palette").innerHTML = `${icon("search")}<span>${t("Procurar ou executar…")}</span><kbd>Ctrl K</kbd>`;

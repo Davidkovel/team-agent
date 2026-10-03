@@ -228,3 +228,19 @@ html, body { background: var(--bg); }
 .pd-list a.ok { color: #bfe9cf; } .pd-list a.ok i { border: 0; background: var(--ok); }
 .pd-list .ell { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pd-list .more { color: var(--faint); padding-left: 15px; }
+
+/* Home fits one screen: a lower cockpit and no empty band under the grid */
+.hub > main:has(> .page.home) { padding-bottom: 20px; }
+.page.home .cockpit { min-height: 0; height: clamp(150px, 22vh, 210px); padding: 14px 32px; margin-bottom: 14px; }
+.page.home .cockpit h1 { font-size: clamp(28px, 4.4vh, 44px); margin-top: 4px; }
+.page.home .cockpit-date { margin-top: 6px; }
+.page.home .cockpit-actions { margin-top: clamp(8px, 1.6vh, 16px); }
+.page.home .tacho { width: clamp(60px, 9vh, 84px); height: clamp(60px, 9vh, 84px); }
+.page.home .tacho b { bottom: 22%; font-size: 13px; } .page.home .tacho span { display: none; }
+.page.home .wg-head { padding-top: 8px; padding-bottom: 4px; }.page.home .repo { padding: 4px 14px; gap: 12px; }
+.page.home .repo-mark { width: 34px; height: 34px; font-size: 17px; }
+.page.home .repo-name b { font-size: 17px; }
+.page.home .repo-week { flex-direction: row; align-items: flex-end; gap: 10px; }
+.page.home .repo-week small { display: none; } .page.home .repo-week b { margin: 0; }
+.page.home .spark { height: 24px; }
+.page.home .wg-body.pad { padding-bottom: 10px; }

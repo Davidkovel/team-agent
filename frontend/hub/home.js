@@ -15,8 +15,7 @@ const WIDGETS = {
         return `<a class="repo ${i === 0 && r.last ? "lead" : ""} ${r.last ? "" : "idle"}" href="${esc(r.last?.url || r.url || "#/codigo")}" ${r.url ? 'target="_blank" rel="noopener"' : ""}>
           <span class="repo-mark">${esc(r.name.trim()[0].toUpperCase())}</span>
           <div class="rw-main"><div class="repo-name"><b>${esc(r.name)}</b>${i === 0 && r.last ? `<em>${t("último commit")}</em>` : ""}</div>
-            <span>${r.last ? esc(r.last.message) : t("Sem acesso aos commits deste repositório")}</span>
-            <span class="repo-meta">${r.last ? `${(r.week_authors.length ? r.week_authors : [r.last.author]).slice(0, 4).map((n) => ui.avatar(n, "sm")).join("")}${esc(r.last.author)} · ${fmt.ago(r.last.date)}` : esc(r.github)}</span></div>
+            <span>${r.last ? `${esc(r.last.author)} · ${fmt.ago(r.last.date)} — ${esc(r.last.message)}` : `${t("Sem acesso aos commits deste repositório")} · ${esc(r.github)}`}</span></div>
           ${r.last ? `<div class="repo-week" title="${t("Commits por dia, últimos 7 dias")}"><div class="spark">${(r.days || []).map((n) => `<i style="height:${n ? Math.max(12, Math.round(n / top * 100)) : 4}%" class="${n ? "" : "zero"}"></i>`).join("")}</div>
             <b>${r.week_commits}</b><small>${t("commits · 7 dias")}</small></div>` : ""}</a>`;
       }).join("")}</div>`;
@@ -43,7 +42,7 @@ const WIDGETS = {
     },
   },
   work: {
-    title: "Tarefas em curso", icon: "tasks", w: 12, h: 2, href: "#/tarefas", on: ["task", "presence", "session"],
+    title: "Tarefas em curso", icon: "tasks", w: 6, h: 2, href: "#/tarefas", on: ["task", "presence", "session"],
     async load() {
       const tasks = (await api("/api/tasks")).filter((x) => ["in_progress", "approval", "review", "blocked"].includes(x.stage));
       if (!tasks.length) return ui.empty("tasks", "Nada em curso", "Nenhuma tarefa está a ser trabalhada neste momento.",
@@ -262,7 +261,7 @@ function cockpitHtml(greeting, date) {
 }
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home5.${me.username}`; // "5": the short Home; older saved layouts start over
+const layoutKey = () => `hub.home6.${me.username}`; // "6": the Home that fits the screen; older saved layouts start over
 function loadLayout() {
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }
@@ -294,7 +293,23 @@ function drawGrid() {
   grid.innerHTML = shown.length ? shown.map(widgetHtml).join("")
     : `<div class="panel" style="grid-column:1/-1;grid-row:span 2">${ui.empty("sliders", "Sem widgets", "Escondeste todos os widgets.", `<button class="btn sm" data-customize>${t("Personalizar")}</button>`)}</div>`;
   shown.forEach((item) => loadWidget(item.id));
+  fitGrid();
 }
+// Home fits the screen: the rows share the height left under the cockpit, so nothing scrolls. With many widgets
+// a row never gets shorter than MIN_ROW, and only then the page scrolls.
+const MIN_ROW = 92;
+function fitGrid() {
+  const grid = $("wgrid"), view = $("view");
+  if (!grid) return;
+  grid.style.removeProperty("--row");
+  const style = getComputedStyle(grid);
+  if (style.gridTemplateColumns.split(" ").length < 6) return; // one column (phone): rows are as tall as their content
+  const rows = style.gridTemplateRows.split(" ").length, gap = parseFloat(style.rowGap) || 12;
+  const top = grid.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
+  const free = view.clientHeight - top - parseFloat(getComputedStyle(view).paddingBottom) - 1;
+  grid.style.setProperty("--row", `${Math.max(MIN_ROW, Math.floor((free - gap * (rows - 1)) / rows))}px`);
+}
+window.addEventListener("resize", fitGrid);
 
 /* ---------- drag to reorder, corner to resize ---------- */
 function wireGrid(grid) {
@@ -334,7 +349,7 @@ function wireGrid(grid) {
     const el = e.target.parentElement, item = layout.find((x) => x.id === el.dataset.id);
     const gap = 12, columns = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
     const col = (grid.clientWidth - gap * (columns - 1)) / columns + gap;
-    const row = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--row")) + gap;
+    const row = parseFloat(getComputedStyle(grid).getPropertyValue("--row")) + gap;
     const box = el.getBoundingClientRect(), start = { x: e.clientX, y: e.clientY };
     el.classList.add("resizing");
     e.target.setPointerCapture(e.pointerId);
@@ -343,7 +358,7 @@ function wireGrid(grid) {
       item.h = Math.max(1, Math.min(4, Math.round((box.height + ev.clientY - start.y + gap) / row)));
       el.style.gridColumn = `span ${item.w}`; el.style.gridRow = `span ${item.h}`; el.style.setProperty("--w", item.w);
     };
-    const up = () => { el.classList.remove("resizing"); e.target.removeEventListener("pointermove", move); saveLayout(); };
+    const up = () => { el.classList.remove("resizing"); e.target.removeEventListener("pointermove", move); saveLayout(); fitGrid(); };
     e.target.addEventListener("pointermove", move);
     e.target.addEventListener("pointerup", up, { once: true });
     e.target.addEventListener("pointercancel", up, { once: true });
@@ -393,8 +408,9 @@ HUB_VIEWS.home = async function viewHome() {
   const greeting = hour < 6 ? "Boa noite" : hour < 13 ? "Bom dia" : hour < 20 ? "Boa tarde" : "Boa noite";
   const date = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   layout = loadLayout();
-  $("view").innerHTML = `<div class="page">${cockpitHtml(greeting, date[0].toUpperCase() + date.slice(1))}
+  $("view").innerHTML = `<div class="page home">${cockpitHtml(greeting, date[0].toUpperCase() + date.slice(1))}
     <div class="wgrid" id="wgrid"></div></div>`;
+  setTimeout(fitGrid, 300); // once more when the page has slid into place
   clearInterval(cockpitClock);
   cockpitClock = setInterval(() => {
     const clock = $("cockpit-clock");

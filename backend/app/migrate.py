@@ -19,7 +19,8 @@ log = logging.getLogger("team.backend")
 
 # 1: the first release (it had no version table).
 # 2: projects, agent sessions, subagents, notifications, memory, expenses, AI requests; more fields on tasks and approvals.
-SCHEMA_VERSION = 2
+# 3: the task bin (trashed_at, trash_reason and what to restore on tasks).
+SCHEMA_VERSION = 3
 
 
 def current_version(conn) -> int:

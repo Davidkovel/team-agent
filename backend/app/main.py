@@ -14,7 +14,8 @@ from .models import User
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, ponto, tasks, team, week, work, ws
 from .security import hash_password
-from .services import ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, save_agent_state, widget_recent
+from .services import (ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
+                       widget_recent)
 
 log = logging.getLogger("team.backend")
 
@@ -89,6 +90,8 @@ async def lifespan(app: FastAPI):
     await migrate.upgrade(engine)  # creates what is missing, never drops; backs the database up before changing it
     await seed()
     await sync_team_names()
+    async with SessionLocal() as db:
+        await purge_trash(db)  # what sat in the task bin past its hours while the Hub was off
     await rt.start()
     watcher = asyncio.create_task(offline_watcher())
     yield

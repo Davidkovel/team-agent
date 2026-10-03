@@ -39,7 +39,7 @@ async function loadBoard() {
   const board = $("board");
   if (!board) return;
   await mount(board, async () => {
-    const all = await api("/api/tasks");
+    const all = (await api("/api/tasks")).filter((x) => !x.trashed_at); // what went into the bin as finished stays in the numbers, not on the board
     const people = [...new Set(all.map((x) => x.assignee))];
     paint($("task-filter"), [["", t("Todas")], ...people.map((u) => [u, nameOf(u)])]
       .map(([u, label]) => `<button class="chp ${u === taskFilter ? "on" : ""}" data-u="${esc(u)}">${esc(label)}</button>`).join(""));
@@ -53,6 +53,50 @@ async function loadBoard() {
         ${shown.map(taskCard).join("") || `<p class="faint" style="margin:6px 2px;font-size:12px">${t("Vazio")}</p>`}</section>`;
     }).join("");
   }, 5);
+  loadBin();
+}
+
+/* The bin: a small widget on the board. While a card is being dragged it opens into two drops (finished / mistake);
+   otherwise it shows how many tasks are inside and opens the list, where they can be recovered until the Hub deletes them. */
+async function loadBin() {
+  const bin = $("bin");
+  if (!bin) return;
+  try {
+    const n = (await api("/api/tasks/trash")).length;
+    paint(bin, `<button class="bin-main" data-bin-open title="${t("Abrir o lixo")}">${icon("trash")}<b>${t("Lixo")}</b><i>${n}</i></button>
+      <div class="bin-drops"><div class="bin-drop ok" data-reason="done">${icon("check")}<span>${t("Concluída")}</span></div>
+        <div class="bin-drop bad" data-reason="mistake">${icon("x")}<span>${t("Engano")}</span></div></div>`);
+  } catch (e) { /* the board already says when the Hub does not answer */ }
+}
+
+async function trashTask(id, reason) {
+  const r = await api(`/api/tasks/${id}/trash`, { method: "POST", body: { reason } });
+  flash(t("Foi para o Lixo. Tens {n} h para a recuperar.", { n: Math.round((new Date(r.purge_at) - new Date(r.trashed_at)) / 36e5) }));
+  loadBoard();
+}
+
+const binRow = (x) => `<div class="rw"><div class="rw-main"><b>${esc(x.title)}</b>
+    <span>${esc(nameOf(x.assignee))} · ${t("apaga daqui a {tempo}", { tempo: fmt.span(new Date().toISOString(), x.purge_at) })}</span></div>
+  ${x.trash_reason === "done" ? ui.tag(t("Concluída"), "ok") : ui.tag(t("Engano"), "bad")}
+  <button class="btn sm" data-bin-act="restore" data-id="${x.id}">${t("Recuperar")}</button>
+  <button class="btn sm danger" data-bin-act="delete" data-id="${x.id}">${t("Apagar já")}</button></div>`;
+
+async function openBin() {
+  let items;
+  try { items = await request_("/api/tasks/trash"); } catch (e) { flash(e.message); return; }
+  openModal(`<div class="rowx" style="margin-bottom:12px"><h3 style="margin:0" class="grow">${t("Lixo")}</h3><button class="btn quiet sm" data-close>${icon("x")}</button></div>
+    ${items.length ? `<div class="panel">${items.map(binRow).join("")}</div>`
+      : ui.empty("trash", "O lixo está vazio", "Tudo o que largares aqui fica recuperável durante umas horas e depois desaparece.")}`);
+  $("modal-box").onclick = async (e) => {
+    const button = e.target.closest("[data-bin-act]");
+    if (!button) return;
+    try {
+      if (button.dataset.binAct === "restore") await api(`/api/tasks/${button.dataset.id}/restore`, { method: "POST" });
+      else await api(`/api/tasks/${button.dataset.id}/trash`, { method: "DELETE" });
+    } catch (err) { flash(err.message); return; }
+    loadBoard();
+    openBin();
+  };
 }
 
 function taskFields(x = {}, users = [], projects = []) {
@@ -164,10 +208,11 @@ async function openTaskModal(id) {
 HUB_VIEWS.tarefas = async function (r) {
   page(`${ui.head("Centro de comando", t("Tarefas"), t("O trabalho das pessoas e dos agentes, por estado. Arrasta um cartão para lhe mudar o estado."),
     ui.btn("Nova tarefa", "data-new-task", "primary", "plus"))}
-    <div class="chipbar" id="task-filter"></div><div class="board" id="board"></div>`);
+    <div class="chipbar" id="task-filter"></div><div class="board" id="board"></div><div class="bin" id="bin"></div>`);
   const view = $("view");
   view.onclick = (e) => {
     if (e.target.closest("[data-new-task]")) return newTask();
+    if (e.target.closest("[data-bin-open]")) return openBin();
     const chip = e.target.closest("#task-filter [data-u]");
     if (chip) { taskFilter = chip.dataset.u; $("board")._html = null; return loadBoard(); }
     const card = e.target.closest(".tk");
@@ -175,8 +220,27 @@ HUB_VIEWS.tarefas = async function (r) {
   };
   let dragged = null;
   const board = $("board"); // the listeners live on the board, so they go away with the page
-  board.addEventListener("dragstart", (e) => { dragged = e.target.closest(".tk"); dragged?.classList.add("dragging"); });
-  board.addEventListener("dragend", () => { dragged?.classList.remove("dragging"); view.querySelectorAll(".col.over").forEach((c) => c.classList.remove("over")); });
+  const bin = $("bin");
+  board.addEventListener("dragstart", (e) => { dragged = e.target.closest(".tk"); dragged?.classList.add("dragging"); if (dragged) bin.classList.add("armed"); });
+  board.addEventListener("dragend", () => {
+    dragged?.classList.remove("dragging");
+    bin.classList.remove("armed");
+    view.querySelectorAll(".col.over, .bin-drop.over").forEach((c) => c.classList.remove("over"));
+  });
+  bin.addEventListener("dragover", (e) => {
+    const drop = e.target.closest(".bin-drop");
+    if (!dragged || !drop) return;
+    e.preventDefault();
+    bin.querySelectorAll(".bin-drop.over").forEach((d) => d !== drop && d.classList.remove("over"));
+    drop.classList.add("over");
+  });
+  bin.addEventListener("dragleave", (e) => e.target.closest(".bin-drop")?.classList.remove("over"));
+  bin.addEventListener("drop", async (e) => {
+    const drop = e.target.closest(".bin-drop");
+    if (!dragged || !drop) return;
+    e.preventDefault();
+    try { await trashTask(dragged.dataset.id, drop.dataset.reason); } catch (err) { flash(err.message); }
+  });
   board.addEventListener("dragover", (e) => {
     const col = e.target.closest(".col");
     if (!dragged || !col) return;

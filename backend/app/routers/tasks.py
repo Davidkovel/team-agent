@@ -11,7 +11,8 @@ from ..db import get_db
 from ..models import AgentSession, Approval, Project, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
 from ..security import current_user, sees_all
-from ..services import approval_out, event_out, log_activity, notify, session_out, task_out
+from ..services import (approval_out, delete_tasks, event_out, log_activity, not_mistake, notify, purge_at, purge_trash,
+                        session_out, task_out)
 
 router = APIRouter(prefix="/api/tasks")
 
@@ -60,6 +61,10 @@ class Control(BaseModel):
     action: Literal["pause", "resume", "stop"]
 
 
+class Trash(BaseModel):
+    reason: Literal["done", "mistake"]
+
+
 async def get_task(task_id: int, user: User, db: AsyncSession) -> Task:
     task = await db.get(Task, task_id)
     if not task:
@@ -100,10 +105,21 @@ async def create_task(body: TaskCreate, user: User = Depends(current_user), db: 
 
 @router.get("")
 async def list_tasks(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    query = select(Task).order_by(Task.id.desc())
+    """The board. What went into the bin as finished is still here (trashed_at says so, the board hides it); mistakes are not."""
+    await purge_trash(db)
+    query = select(Task).where(not_mistake()).order_by(Task.id.desc())
     if not sees_all(user):
         query = query.where(Task.assignee_id == user.id)
     return [task_out(t) for t in (await db.execute(query)).scalars()]
+
+
+@router.get("/trash")  # declared before /{task_id}, or "trash" would be read as a task number
+async def trash_list(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    await purge_trash(db)
+    query = select(Task).where(Task.trashed_at.is_not(None)).order_by(Task.trashed_at.desc())
+    if not sees_all(user):
+        query = query.where(Task.assignee_id == user.id)
+    return [{**task_out(t), "purge_at": purge_at(t)} for t in (await db.execute(query)).scalars()]
 
 
 @router.get("/{task_id}")
@@ -123,6 +139,8 @@ async def task_detail(task_id: int, user: User = Depends(current_user), db: Asyn
 @router.patch("/{task_id}")
 async def edit_task(task_id: int, body: TaskEdit, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     task = await get_task(task_id, user, db)
+    if task.trashed_at is not None:
+        raise HTTPException(409, "This task is in the bin: recover it first")
     changes = body.model_dump(exclude_unset=True)
     await _check_links(db, changes.get("company"), changes.get("project_id"))
     old_status = task.status
@@ -154,10 +172,63 @@ async def edit_task(task_id: int, body: TaskEdit, user: User = Depends(current_u
     return task_out(task)
 
 
+@router.post("/{task_id}/trash")
+async def trash_task(task_id: int, body: Trash, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Into the bin, as finished or as a mistake. It stays there recoverable for TRASH_HOURS, then it is deleted for good."""
+    task = await get_task(task_id, user, db)
+    if task.trashed_at is not None:
+        raise HTTPException(409, "This task is already in the bin")
+    if task.status in HELD_BY_AGENT:
+        raise HTTPException(409, "The agent is working on this task: pause or stop it first")
+    now = datetime.now(timezone.utc)
+    task.trashed_at, task.trash_reason = now, body.reason
+    task.trash_prev_status, task.trash_prev_progress = task.status, task.progress
+    finished = body.reason == "done" and task.status != "COMPLETED"
+    if finished:
+        task.status, task.progress, task.completed_at = "COMPLETED", 100, now
+    await db.commit()
+    await db.refresh(task)
+    if finished:
+        await log_activity(db, user, "task_status", f"concluiu: {task.title}", task.id)
+        if task.created_by != user.id:  # whoever asked for it hears that it is done
+            await notify(db, [task.created_by], "task", "info", f"{user.display_name} concluiu: {task.title}", "", f"#/tarefas/{task.id}")
+    await rt.publish("task", task.assignee_id)
+    return {**task_out(task), "purge_at": purge_at(task)}
+
+
+@router.post("/{task_id}/restore")
+async def restore_task(task_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Out of the bin, back where it was. A task that was marked finished only by going in is not finished any more."""
+    task = await get_task(task_id, user, db)
+    if task.trashed_at is None:
+        raise HTTPException(409, "This task is not in the bin")
+    if task.trash_reason == "done" and task.trash_prev_status not in (None, "COMPLETED"):
+        task.status, task.progress, task.completed_at = task.trash_prev_status, task.trash_prev_progress or 0, None
+    task.trashed_at = task.trash_reason = task.trash_prev_status = task.trash_prev_progress = None
+    await db.commit()
+    await db.refresh(task)
+    await rt.publish("task", task.assignee_id)
+    return task_out(task)
+
+
+@router.delete("/{task_id}/trash")
+async def delete_trashed(task_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """'Delete now': for good, without waiting for the hours. Only what is already in the bin."""
+    task = await get_task(task_id, user, db)
+    if task.trashed_at is None:
+        raise HTTPException(409, "Only a task in the bin can be deleted from here")
+    assignee_id = task.assignee_id
+    await delete_tasks(db, [task.id])
+    await rt.publish("task", assignee_id)
+    return {"deleted": task_id}
+
+
 @router.post("/{task_id}/assign-ai")
 async def assign_ai(task_id: int, body: AssignAI, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """Hand the task to the assignee's Local Team Agent, as the kind of agent chosen."""
     task = await get_task(task_id, user, db)
+    if task.trashed_at is not None:
+        raise HTTPException(409, "This task is in the bin: recover it first")
     if task.status in HELD_BY_AGENT or task.status in ("ASSIGNED", "PAUSED", "NEEDS_HELP"):
         raise HTTPException(409, "This task is already with the agent")
     if body.role == "custom" and not body.instructions.strip():

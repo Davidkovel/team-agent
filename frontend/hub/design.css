@@ -281,6 +281,23 @@ a.rw:hover, .rw.click:hover { background: rgba(255, 255, 255, .03); cursor: poin
 .tk b { font: 500 13px/1.35 var(--ui); }
 .tk-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); font-size: 11.5px; }
 .tk.dragging { opacity: .4; }
+/* the task bin: a pill beside the AI button; while a card is dragged it opens into two drops (finished / mistake) */
+.bin { position: fixed; right: 76px; bottom: 20px; z-index: 35; }
+.bin-main { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px 0 14px; border-radius: 999px; border: 1px solid var(--line-2); background: #12151a;
+  color: var(--muted); font: 500 13px var(--ui); cursor: pointer; transition: color .15s, border-color .15s, transform .15s var(--ease); }
+.bin-main:hover { color: var(--text); border-color: rgba(255, 255, 255, .24); transform: translateY(-2px); }
+.bin-main svg.i { width: 17px; height: 17px; stroke-width: 1.7; }
+.bin-main i { font-style: normal; min-width: 22px; padding: 2px 7px; border-radius: 999px; background: var(--surface-3); color: var(--faint); font: 600 11px var(--mono); text-align: center; }
+.bin-drops { display: none; gap: 8px; }
+.bin.armed .bin-main { display: none; }
+.bin.armed .bin-drops { display: flex; }
+.bin-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 128px; height: 84px; border-radius: var(--r-lg);
+  border: 1.5px dashed var(--line-2); background: rgba(14, 16, 19, .94); color: var(--muted); font: 600 12px var(--ui); animation: pop .18s var(--ease);
+  transition: border-color .12s, color .12s, background .12s, transform .12s var(--ease); }
+.bin-drop svg.i { width: 20px; height: 20px; stroke-width: 1.7; }
+.bin-drop.over { transform: scale(1.05); }
+.bin-drop.ok.over { border-color: var(--ok); color: var(--ok); background: rgba(95, 207, 140, .1); }
+.bin-drop.bad.over { border-color: var(--bad); color: var(--bad); background: rgba(239, 111, 94, .1); }
 .diff { margin: 0; padding: 12px; border-radius: var(--r-md); background: #08090b; border: 1px solid var(--line); font: 12px/1.5 var(--mono); overflow: auto; max-height: 60vh; white-space: pre; }
 .diff .add { color: #8fdcab; background: rgba(95, 207, 140, .08); display: block; } .diff .del { color: #f3a599; background: rgba(239, 111, 94, .08); display: block; }
 .diff .hunk { color: var(--ai); display: block; }

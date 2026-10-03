@@ -114,14 +114,14 @@ async def heartbeat(body: Heartbeat, user: User = Depends(agent_user), db: Async
 
 @router.get("/tasks/next")
 async def next_tasks(user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
-    query = select(Task).where(Task.assignee_id == user.id, Task.status == "ASSIGNED").order_by(Task.id)
+    query = select(Task).where(Task.assignee_id == user.id, Task.status == "ASSIGNED", Task.trashed_at.is_(None)).order_by(Task.id)
     return [task_out(t) for t in (await db.execute(query)).scalars()]
 
 
 @router.get("/recovery")
 async def recovery(user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     """'What was my last task?' -> the unfinished task with its saved context."""
-    query = (select(Task).where(Task.assignee_id == user.id, Task.status.in_(UNFINISHED))
+    query = (select(Task).where(Task.assignee_id == user.id, Task.status.in_(UNFINISHED), Task.trashed_at.is_(None))
              .order_by(Task.updated_at.desc()).limit(1))
     task = (await db.execute(query)).scalar_one_or_none()
     if not task:

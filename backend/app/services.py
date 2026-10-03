@@ -1,7 +1,7 @@
 import time
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
@@ -33,7 +33,38 @@ def task_out(t: Task) -> dict:
         "project_id": t.project_id, "project_name": t.project_ref.name if t.project_ref else "",
         "agent_role": t.agent_role or "", "agent_instructions": t.agent_instructions or "",
         "git_branch": t.git_branch or "", "blocked_reason": t.blocked_reason or "",
+        "trashed_at": iso(t.trashed_at), "trash_reason": t.trash_reason,
     }
+
+
+TRASH_HOURS = 7  # how long a task stays in the bin, recoverable, before it is deleted for good
+
+
+def not_mistake():
+    """A task put in the bin as a mistake never happened: every list and count leaves it out (a finished one stays)."""
+    return Task.trash_reason.is_distinct_from("mistake")
+
+
+def purge_at(t: Task) -> str | None:
+    """When the bin deletes the task for good (None for a task that is not in the bin)."""
+    return None if t.trashed_at is None else iso(t.trashed_at + timedelta(hours=TRASH_HOURS))
+
+
+async def delete_tasks(db: AsyncSession, ids: list[int]):
+    """Deletes tasks for good. What other records say about them stays (their cost, the activity feed), without the link."""
+    if not ids:
+        return
+    await db.execute(delete(TaskEvent).where(TaskEvent.task_id.in_(ids)))
+    for model in (Approval, Activity, UsageRecord, AgentSession):
+        await db.execute(update(model).where(model.task_id.in_(ids)).values(task_id=None))
+    await db.execute(delete(Task).where(Task.id.in_(ids)))
+    await db.commit()
+
+
+async def purge_trash(db: AsyncSession):
+    """Deletes what has been in the bin for TRASH_HOURS. Runs when the Hub starts and whenever the board or the bin is read."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=TRASH_HOURS)
+    await delete_tasks(db, list((await db.execute(select(Task.id).where(Task.trashed_at < cutoff))).scalars()))
 
 
 def event_out(e: TaskEvent) -> dict:

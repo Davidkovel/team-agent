@@ -16,7 +16,7 @@ from .. import commits, week
 from ..db import get_db
 from ..models import AgentSession, Approval, Project, Subagent, Task, UsageRecord, User
 from ..security import current_user, sees_all
-from ..services import team_view
+from ..services import not_mistake, team_view
 from .work import aware, visible_tasks
 
 router = APIRouter(prefix="/api")
@@ -131,7 +131,7 @@ async def ranking(user: User = Depends(current_user), db: AsyncSession = Depends
             add(u.id, when, "commits")
             add(u.id, when, "added", stats.get("added", 0))
             add(u.id, when, "deleted", stats.get("deleted", 0))
-    for t in (await db.execute(select(Task).where(Task.status == "COMPLETED", Task.completed_at.is_not(None)))).scalars():
+    for t in (await db.execute(select(Task).where(Task.status == "COMPLETED", Task.completed_at.is_not(None), not_mistake()))).scalars():
         add(t.assignee_id, aware(t.completed_at), "tasks_done")
     for s in (await db.execute(select(AgentSession).where(AgentSession.started_at >= starts["week"]))).scalars():
         add(s.user_id, aware(s.started_at), "sessions")

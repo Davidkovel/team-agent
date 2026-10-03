@@ -13,7 +13,7 @@ from ..db import get_db
 from ..models import TASK_STAGE, Activity, AgentSession, Approval, Expense, Memory, Notification, Project, Task, UsageRecord, User
 from ..realtime import rt
 from ..security import current_user, require_owner, sees_all
-from ..services import approval_out, iso, task_out, team_view
+from ..services import approval_out, iso, not_mistake, task_out, team_view
 
 router = APIRouter(prefix="/api")
 
@@ -27,6 +27,7 @@ def aware(dt: datetime | None) -> datetime | None:
 
 
 def visible_tasks(query, user: User):
+    query = query.where(not_mistake())
     return query if sees_all(user) else query.where(Task.assignee_id == user.id)
 
 

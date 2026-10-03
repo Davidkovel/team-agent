@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import commits, hub, worktree
 from .models import Activity, Task, User
+from .services import not_mistake
 
 DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 OPEN = ("ASSIGNED", "IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP")
@@ -90,7 +91,7 @@ async def summary(db: AsyncSession, now: datetime | None = None, with_commits: b
         if a.kind in FEED_KINDS:
             feed.append({"when": when.isoformat(), "user": r["user"], "who": r["name"], "what": a.kind, "text": _sentence(a, r["name"])})
 
-    for t in (await db.execute(select(Task))).scalars():
+    for t in (await db.execute(select(Task).where(not_mistake()))).scalars():
         r = rows.get(t.assignee_id)
         if not r:
             continue

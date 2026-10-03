@@ -65,6 +65,12 @@ class Task(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The bin: trashed_at is None for a task on the board. "done" keeps it COMPLETED, "mistake" hides it everywhere.
+    # What it was before is kept so that restoring puts it back where it was.
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trash_reason: Mapped[str | None] = mapped_column(String(10))  # done | mistake
+    trash_prev_status: Mapped[str | None] = mapped_column(String(30))
+    trash_prev_progress: Mapped[int | None] = mapped_column(Integer)
 
     assignee: Mapped[User] = relationship(foreign_keys=[assignee_id], lazy="joined")
     project_ref: Mapped["Project | None"] = relationship(lazy="joined")

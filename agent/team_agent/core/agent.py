@@ -1,5 +1,6 @@
 """Agent core: owns the state, the task lifecycle and the bridge that tools use."""
 import asyncio
+import json
 import re
 import time
 from pathlib import Path
@@ -12,6 +13,7 @@ from ..tasks import TaskProvider
 from ..tools import ToolContext, build_registry
 from .config import Config
 from .logs import log
+from .session import SessionReport
 from .state import AgentState
 
 SYSTEM_PROMPT = """You are {name}'s Team Agent: an autonomous AI worker running on {name}'s computer as part of a small team. You receive one assigned task and carry it out end to end.
@@ -26,9 +28,35 @@ How you work:
 - When every requirement is met, call complete_task once with a summary of the result and where the deliverables are, then stop."""
 
 
+# How to work when a task was handed over as a particular kind of agent (the Hub's "Assign to AI").
+ROLE_PROMPTS = {
+    "developer": "You were given this task as a developer: write and change code, run the tests, keep changes small.",
+    "research": "You were given this task as a researcher: gather the facts and write up what you found. Do not change code unless the task asks for it.",
+    "marketing": "You were given this task as a marketer: write the copy and prepare campaigns as drafts. Anything published or paid needs approval first.",
+    "testing": "You were given this task as a tester: run the checks, report the exact failures, and fix only what the task asks you to fix.",
+}
+
+ASK_SYSTEM = """You are the Team AI of a small team's Hub. You answer questions about the team's work.
+
+Rules:
+- Use ONLY the JSON data in the message: it is the live state of the Hub. You have no tools and no other source.
+- If the data does not hold the answer, say the Hub has no data on it. Never guess, never invent a number, a name or an event.
+- Costs in the data are estimates made by the Claude SDK, not bills: call them "estimado".
+- Answer in European Portuguese, short and direct, in plain text with short lines. No tables, no headings unless asked."""
+
+REPORT_ASK = """Write this week's report for the team, from the data only. Four short parts, in this order:
+Concluído (what was finished), Bloqueado (what is stuck and why, if the data says), A seguir (open work, most urgent first),
+Uso de IA (tokens and estimated cost). Leave a part out, saying there is no data, rather than filling it with guesses."""
+
+
 class TeamAgent:
-    def __init__(self, cfg: Config, backend, tasks: TaskProvider, ai: AIProvider, store: LocalStore):
+    def __init__(self, cfg: Config, backend, tasks: TaskProvider, ai: AIProvider, store: LocalStore,
+                 ask_ai: Callable[[], AIProvider] | None = None):
         self.cfg, self.backend, self.tasks, self.ai, self.store = cfg, backend, tasks, ai, store
+        self.ask_ai = ask_ai                # makes a provider for a question from the Hub, apart from the task's own
+        self._session: SessionReport | None = None  # the Hub's record of the run in progress
+        self._memory: list[dict] = []       # what the Hub says the AI should know for the current task
+        self._asks: set[asyncio.Task] = set()
         self.state = AgentState(dashboard_url=cfg.server_url, history=store.history()[-8:])
         self.on_change: Callable[[], None] = lambda: None
         self._wake = asyncio.Event()
@@ -37,6 +65,7 @@ class TeamAgent:
         self._run: asyncio.Task | None = None
         self._intent: str | None = None     # 'pause' | 'stop' requested while running
         self._result: str | None = None     # set by complete_task
+        self._run_cost: float | None = None  # what the last run cost (the SDK's estimate), None if it did not say
 
     # ---------------------------------------------------------------- lifecycle
 
@@ -149,6 +178,15 @@ class TeamAgent:
             lines += ["", "Goal:", task["goal"]]
         if task.get("requirements"):
             lines += ["", "Requirements:", *[f"- {r}" for r in task["requirements"]]]
+        role = task.get("agent_role") or ""
+        if role == "custom" and task.get("agent_instructions"):
+            lines += ["", "How to work on this task:", task["agent_instructions"]]
+        elif role in ROLE_PROMPTS:
+            lines += ["", ROLE_PROMPTS[role]]
+        if self._memory:
+            lines += ["", "What the team already knows (the Hub's memory). Take it as given:",
+                      *[f"- [{m['scope']}{'/' + m['category'] if m.get('category') else ''}] {m['title']}: {m['content']}"
+                        for m in self._memory]]
         if resume:
             lines += ["", "This task was interrupted and is being RESUMED. Do not start over.",
                       f"Saved state: {task.get('progress', 0)}% done; last action: {task.get('last_action') or 'none'}; "
@@ -168,6 +206,11 @@ class TeamAgent:
         workspace = self._workspace(task)
         registry = build_registry(ToolContext(workspace, PermissionPolicy(workspace, self.cfg.policy_file), self))
         system = SYSTEM_PROMPT.format(name=self.state.display_name or self.state.user)
+        self._memory = await self._report("task_memory", task["id"]) or []
+        self._session = SessionReport(self._report, "task", self.cfg.model, task["id"])
+        await self._session.open()
+        self.ai.on_event = self._session.on_event
+        result, self._run_cost = None, None
         try:
             if reason := self.ai.unavailable_reason():
                 raise RuntimeError(f"AI provider is not ready: {reason}")
@@ -185,11 +228,14 @@ class TeamAgent:
             await self._report_usage(task["id"], result)
         except Exception as exc:
             result = RunResult(ok=False, error=f"{type(exc).__name__}: {exc}")
+        await self._session.close("INTERRUPTED" if self._intent else "DONE" if result.ok else "ERROR", result, self._run_cost)
         await self._finish(task, result)
         self._run = None
         self.wake()
 
     async def _on_session(self, session_id: str):
+        if self._session:
+            await self._session.set_claude_session(session_id)
         if self._task and self._task.get("session_id") != session_id:
             self._task["session_id"] = session_id
             await self._safe(self.backend.update_task(self._task["id"], session_id=session_id), "save session")
@@ -240,7 +286,13 @@ class TeamAgent:
                 "cost_usd": round(saved["cost_usd"], 4), "budget_usd": budget,
                 "budget_pct": min(100, round(saved["cost_usd"] / budget * 100)) if budget else None}
 
+    async def _report(self, method: str, *args, **kwargs):
+        """The newer reports to the Hub (sessions, subagents, memory, questions). A backend without them is not told."""
+        call = getattr(self.backend, method, None)
+        return await self._safe(call(*args, **kwargs), method) if call else None
+
     async def _report_usage(self, task_id: int, result: RunResult):
+        self._run_cost = None
         if not result.usage and result.session_cost_usd is None:
             return
         saved = self.store.usage(task_id)
@@ -258,7 +310,10 @@ class TeamAgent:
         saved["session_cost"], saved["session_id"] = cost or 0.0, result.session_id
         self.store.save_usage(task_id, saved)
         self.state.usage = self._usage_view(saved)
-        await self._safe(self.backend.report_usage(task_id=task_id, cost_usd=delta, **result.usage), "usage")
+        self._run_cost = delta if cost is not None else None
+        # which run and which model, when the Hub keeps sessions
+        run = {"session_id": self._session.id, "model": self._session.model} if self._session and self._session.id else {}
+        await self._safe(self.backend.report_usage(task_id=task_id, cost_usd=delta, **result.usage, **run), "usage")
 
     def _remember(self, text: str):
         """Local, persistent record of what this agent did (survives restarts)."""
@@ -286,6 +341,11 @@ class TeamAgent:
         if command.get("task_id") not in (None, self.state.task_id):
             return
         running = self._run is not None
+        if kind == "ask" and command.get("request_id") is not None:
+            job = asyncio.create_task(self._answer(command["request_id"]))
+            self._asks.add(job)
+            job.add_done_callback(self._asks.discard)
+            return
         if kind in ("pause", "stop", "resume", "help"):
             log.info("Command: %s", kind)
         if kind == "pause" and running:
@@ -302,6 +362,34 @@ class TeamAgent:
         elif kind == "help":
             await self.ask_help(command.get("message") or "The user asked for help from the widget")
         self.wake()
+
+    async def _answer(self, request_id: int):
+        """A question asked in the Hub (or the weekly report): run Claude on the Hub's own data and send the answer back."""
+        request = await self._report("ai_take", request_id)
+        if not request:
+            return
+        log.info("Hub question #%s (%s)", request_id, request["kind"])
+        session = SessionReport(self._report, request["kind"], self.cfg.model)
+        provider = self.ask_ai() if self.ask_ai else self.ai
+        try:
+            if provider is self.ai and self._run is not None:
+                raise RuntimeError("the agent is busy with a task")
+            if reason := provider.unavailable_reason():
+                raise RuntimeError(f"AI provider is not ready: {reason}")
+            await session.open()
+            provider.on_event = session.on_event
+            ask = REPORT_ASK if request["kind"] == "weekly_report" else f"Question: {request['question']}"
+            prompt = f"{ask}\n\nHub data (JSON):\n{json.dumps(request['context'], ensure_ascii=False, default=str)}"
+            result = await provider.ask(prompt, ASK_SYSTEM)
+        except Exception as exc:
+            result = RunResult(ok=False, error=f"{type(exc).__name__}: {exc}")
+        await session.close("DONE" if result.ok else "ERROR", result, result.session_cost_usd)
+        if result.usage or result.session_cost_usd:
+            run = {"session_id": session.id, "model": session.model} if session.id else {}
+            await self._safe(self.backend.report_usage(task_id=None, cost_usd=result.session_cost_usd or 0.0,
+                                                       **result.usage, **run), "usage")
+        await self._report("ai_result", request_id, answer=result.text if result.ok else "",
+                           error="" if result.ok else (result.error or "no answer")[:500])
 
     # ---------------------------------------------------------------- AgentBridge (used by tools)
 
@@ -321,8 +409,10 @@ class TeamAgent:
         if self.state.task_id is not None:
             await self._safe(self.backend.add_event(self.state.task_id, kind, message), "event")
 
-    async def request_approval(self, action: str, detail: str) -> bool:
-        approval = await self._safe(self.backend.create_approval(self.state.task_id, action, detail), "approval")
+    async def request_approval(self, action: str, detail: str, meta: dict | None = None) -> bool:
+        # meta: how risky it is, what kind of action, which files, the diff - for a Hub that shows them
+        extra = meta if meta and getattr(self.backend, "approval_meta", False) else {}
+        approval = await self._safe(self.backend.create_approval(self.state.task_id, action, detail, **extra), "approval")
         if not approval:
             return False  # cannot reach the owner -> not approved
         log.info("Waiting for approval: %s", action)

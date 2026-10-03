@@ -19,8 +19,10 @@ async def main(cfg: Config):
     agent = TeamAgent(
         cfg, backend,
         tasks=RemoteTaskProvider(backend),
-        ai=ClaudeAgentProvider(cfg.model, cfg.max_turns, cfg.max_budget_usd),
+        ai=ClaudeAgentProvider(cfg.model, cfg.max_turns, cfg.max_budget_usd, cfg.subagents),
         store=LocalStore(cfg.data_dir),
+        # a question from the Hub gets its own Claude session, so it can be answered while a task is running
+        ask_ai=lambda: ClaudeAgentProvider(cfg.model, 1, cfg.max_budget_usd),
     )
     local_api = LocalAPI(cfg.local_port, local_token(cfg.data_dir), agent.state.to_dict, agent.handle_command, agent.hub_session)
     agent.on_change = local_api.broadcast

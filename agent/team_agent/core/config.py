@@ -32,6 +32,8 @@ class Config:
     # ask: restore context but stay PAUSED until the user presses Resume.
     recovery_mode: str = "resume"
     policy_file: Path | None = None
+    # Let the main session hand parts of a task to research / coding / testing / review subagents.
+    subagents: bool = True
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -49,4 +51,5 @@ class Config:
             max_turns=int(os.environ.get("TEAM_AGENT_MAX_TURNS", "80")),
             recovery_mode=os.environ.get("TEAM_AGENT_RECOVERY_MODE", "resume"),
             policy_file=Path(policy) if policy else None,
+            subagents=os.environ.get("TEAM_AGENT_SUBAGENTS", "1").lower() not in ("0", "false", "no", "off"),
         )

@@ -39,8 +39,28 @@ class BackendClient:
     async def add_event(self, task_id: int, kind: str, message: str) -> dict:
         return await self._call("POST", f"/tasks/{task_id}/events", {"kind": kind, "message": message})
 
-    async def create_approval(self, task_id: int | None, action: str, detail: str) -> dict:
-        return await self._call("POST", "/approvals", {"task_id": task_id, "action": action, "detail": detail})
+    approval_meta = True  # this Hub shows the risk, the files and the diff of an approval request
+
+    async def create_approval(self, task_id: int | None, action: str, detail: str, **meta) -> dict:
+        return await self._call("POST", "/approvals", {"task_id": task_id, "action": action, "detail": detail, **meta})
+
+    async def task_memory(self, task_id: int) -> list[dict]:
+        return await self._call("GET", f"/tasks/{task_id}/memory")
+
+    async def start_session(self, **fields) -> dict:
+        return await self._call("POST", "/sessions", fields)
+
+    async def update_session(self, session_id: int, **fields) -> dict:
+        return await self._call("POST", f"/sessions/{session_id}", fields)
+
+    async def report_subagent(self, session_id: int, **fields) -> dict:
+        return await self._call("POST", f"/sessions/{session_id}/subagents", fields)
+
+    async def ai_take(self, request_id: int) -> dict:
+        return await self._call("GET", f"/ai/{request_id}")
+
+    async def ai_result(self, request_id: int, answer: str = "", error: str = "") -> dict:
+        return await self._call("POST", f"/ai/{request_id}/result", {"answer": answer, "error": error})
 
     async def get_approval(self, approval_id: int) -> dict:
         return await self._call("GET", f"/approvals/{approval_id}")

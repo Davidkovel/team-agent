@@ -6,7 +6,7 @@
    "see all" goes, and load() -> html. Loading, empty and error states come from the system (mount, ui.empty, ui.error). */
 const WIDGETS = {
   work: {
-    title: "Trabalho em curso", icon: "tasks", w: 8, h: 2, href: "#/tarefas", on: ["task", "presence", "session"],
+    title: "Tarefas em curso", icon: "tasks", w: 12, h: 2, href: "#/tarefas", on: ["task", "presence", "session"],
     async load() {
       const tasks = (await api("/api/tasks")).filter((x) => ["in_progress", "approval", "review", "blocked"].includes(x.stage));
       if (!tasks.length) return ui.empty("tasks", "Nada em curso", "Nenhuma tarefa está a ser trabalhada neste momento.",
@@ -19,7 +19,7 @@ const WIDGETS = {
     },
   },
   attention: {
-    title: "Precisa de ti", icon: "alert", w: 4, h: 2, on: ["task", "approval", "presence"],
+    title: "Precisa de ti", icon: "alert", w: 6, h: 2, on: ["task", "approval", "presence"],
     async load() {
       const items = await api("/api/attention");
       if (!items.length) return ui.empty("check", "Tudo em ordem", "Nada precisa da tua atenção agora.");
@@ -58,14 +58,14 @@ const WIDGETS = {
     },
   },
   ponto: {
-    title: "Ponto de hoje", icon: "clock", w: 3, h: 1, on: ["ponto"], pad: true,
+    title: "Ponto de hoje", icon: "clock", w: 12, h: 1, on: ["ponto"], pad: true,
     async load() {
       const board = await api("/api/ponto");
       const mine = board.people.find((p) => p.user === me.username);
-      return `<div class="stat"><div class="rowx" style="flex-wrap:wrap;gap:6px">${board.people.map((p) =>
-        `<span class="st ${p.at ? "ok" : "off"}" title="${p.at ? fmt.hhmm(p.at) : t("por bater")}"><i></i>${esc(p.name)}</span>`).join("")}</div>
-        ${mine?.at ? `<small>${t("Bateste o ponto às {h}", { h: fmt.hhmm(mine.at) })}</small>`
-          : `<button class="btn sm primary" data-punch style="align-self:flex-start">${t("Bater o ponto")}</button>`}</div>`;
+      return `<div class="ponto-strip">${board.people.map((p) => `<div class="ponto-p ${p.at ? "in" : ""}">
+          <span class="tick">${p.at ? icon("check") : ""}</span>
+          <div class="rw-main"><b>${esc(p.name)}</b><span>${p.at ? fmt.hhmm(p.at) : t("por bater")}</span></div></div>`).join("")}
+        ${mine && !mine.at ? `<button class="btn primary" data-punch>${t("Bater o ponto")}</button>` : ""}</div>`;
     },
   },
   agents: {
@@ -83,7 +83,7 @@ const WIDGETS = {
     },
   },
   team: {
-    title: "Equipa", icon: "users", w: 4, h: 2, href: "#/equipa", on: ["presence", "task"],
+    title: "Equipa", icon: "users", w: 6, h: 2, href: "#/equipa", on: ["presence", "task"],
     async load() {
       const team = await api("/api/team");
       return `<div class="rows">${team.map((m) => `<a class="rw" href="#/agentes/${esc(m.user)}">${ui.avatar(m.display_name)}
@@ -130,9 +130,10 @@ const WIDGETS = {
     },
   },
 };
-// The four small gauges come first, right under the cockpit, like an instrument cluster.
-const DEFAULT_LAYOUT = ["today", "usage", "cost", "ponto", "work", "attention", "team", "agents", "approvals", "activity", "completed", "companies"];
-const INSTRUMENTS = ["today", "usage", "cost", "ponto"];
+// Home starts short: who clocked in, then the work, then what needs the person and the team. The rest
+// (gauges, agents, approvals, activity...) is one click away in "Personalizar" and on its own page.
+const DEFAULT_LAYOUT = ["ponto", "work", "attention", "team"];
+const INSTRUMENTS = ["today", "usage", "cost"];
 
 /* ---------- the cockpit: the front of an AMG, lights on ----------
    Drawn here (no image file): the Panamericana grille with the star, and the two headlights with the eyebrow
@@ -206,13 +207,14 @@ function cockpitHtml(greeting, date) {
 }
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home.${me.username}`;
+const layoutKey = () => `hub.home2.${me.username}`; // "2": the short Home; older saved layouts start over
 function loadLayout() {
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }
   const known = saved.filter((item) => WIDGETS[item.id]);
-  const missing = DEFAULT_LAYOUT.filter((id) => !known.some((item) => item.id === id)); // widgets added since it was saved
-  return [...known, ...missing.map((id) => ({ id, w: WIDGETS[id].w, h: WIDGETS[id].h, hidden: false }))];
+  const missing = Object.keys(WIDGETS).filter((id) => !known.some((item) => item.id === id)) // never saved, or added since
+    .sort((x, y) => (DEFAULT_LAYOUT.indexOf(x) + 1 || 99) - (DEFAULT_LAYOUT.indexOf(y) + 1 || 99));
+  return [...known, ...missing.map((id) => ({ id, w: WIDGETS[id].w, h: WIDGETS[id].h, hidden: !DEFAULT_LAYOUT.includes(id) }))];
 }
 let layout = [];
 const saveLayout = () => localStorage.setItem(layoutKey(), JSON.stringify(layout));

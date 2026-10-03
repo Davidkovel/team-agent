@@ -109,15 +109,19 @@ $("modal").onclick = (e) => { if (e.target === $("modal") || e.target.closest("[
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- routing ---------- */
-// sidebar: [group, [id, label, icon]...]
+// sidebar: [label, icon, [id, label]...]. One link per section; a section with several pages shows them as tabs
+// on top of the page, so the sidebar stays short.
 const NAV = [
-  ["Centro de comando", [["home", "Início", "home"], ["semana", "Semana", "calendar"], ["tarefas", "Tarefas", "tasks"], ["aprovacoes", "Aprovações", "check"]]],
-  ["Trabalho", [["empresas", "Empresas", "building"], ["projetos", "Projetos", "folder"], ["codigo", "Código", "code"], ["historico", "Histórico", "history"]]],
-  ["Equipa", [["equipa", "Equipa", "users"], ["agentes", "Agentes", "bot"], ["aovivo", "Ao vivo", "pulse"]]],
-  ["Análise", [["analise", "Análise", "chart"], ["uso", "Uso de IA", "token"], ["despesas", "Despesas", "wallet"]]],
-  ["Sistema", [["memoria", "Memória", "layers"], ["definicoes", "Definições", "gear"]]],
+  ["Início", "home", [["home", "Início"]]],
+  ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]]],
+  ["Equipa", "users", [["equipa", "Equipa"], ["agentes", "Agentes"], ["aovivo", "Ao vivo"], ["historico", "Histórico"]]],
+  ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"]]],
+  ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA"], ["despesas", "Despesas"]]],
+  ["Sistema", "gear", [["memoria", "Memória"], ["definicoes", "Definições"]]],
 ];
-const TABS = NAV.flatMap(([, items]) => items);
+const TABS = NAV.flatMap(([, , pages]) => pages);
+const badgeCount = {}; // page id -> number, kept so tabs drawn later show it too
+const badgeHtml = (id) => `<i class="badge" data-badge="${id}" ${badgeCount[id] ? "" : "hidden"}>${badgeCount[id] || ""}</i>`;
 
 function route() {
   const hash = location.hash;
@@ -129,8 +133,8 @@ function route() {
 
 function render() {
   const r = route();
-  $("tabs").innerHTML = NAV.map(([group, items]) => `<div class="side-group">${t(group)}</div>${items.map(([id, label, ic]) =>
-    `<a class="side-link ${id === r.tab ? "active" : ""}" href="#/${id}" title="${t(label)}">${icon(ic)}<span>${t(label)}</span><i class="badge" data-badge="${id}" hidden></i></a>`).join("")}`).join("");
+  $("tabs").innerHTML = NAV.map(([label, ic, pages]) =>
+    `<a class="side-link ${pages.some(([id]) => id === r.tab) ? "active" : ""}" href="#/${pages[0][0]}" title="${t(label)}">${icon(ic)}<span>${t(label)}</span>${badgeHtml(pages[0][0])}</a>`).join("");
   $("view").scrollTop = 0;
   $("view").onclick = null; // a page's own click handling ends with the page
   // the pages of the Team AI Hub (frontend/hub/*.js) take the place of the older ones with the same name
@@ -141,6 +145,17 @@ function render() {
 }
 window.addEventListener("hashchange", render);
 
+// The tabs of the current section sit on top of the page. A page redraws #view whenever it likes, so they are put
+// back each time its content changes.
+function drawSubtabs() {
+  const view = $("view"), tab = route().tab;
+  const pages = (NAV.find(([, , list]) => list.some(([id]) => id === tab)) || [])[2] || [];
+  if (pages.length < 2 || !view.firstElementChild || view.querySelector(":scope > .subtabs")) return;
+  view.insertAdjacentHTML("afterbegin", `<nav class="subtabs">${pages.map(([id, label]) =>
+    `<a class="${id === tab ? "on" : ""}" href="#/${id}">${t(label)}${badgeHtml(id)}</a>`).join("")}</nav>`);
+}
+new MutationObserver(drawSubtabs).observe($("view"), { childList: true });
+
 /* ---------- shared loaders (each only runs if its element is on screen) ---------- */
 async function loadStats() {
   const [team, tasks, approvals] = await Promise.all([api("/api/team"), api("/api/tasks"), api("/api/approvals")]);
@@ -149,7 +164,7 @@ async function loadStats() {
   const pending = approvals.filter((a) => a.status === "PENDING").length;
   const week = team.reduce((sum, m) => sum + (Number(m.week_cost_usd) || 0), 0);
   drawHud(team, active, pending, week);
-  const badge = (id, n) => { const b = document.querySelector(`[data-badge="${id}"]`); if (b) { b.textContent = n; b.hidden = !n; } };
+  const badge = (id, n) => { badgeCount[id] = n; document.querySelectorAll(`[data-badge="${id}"]`).forEach((b) => { b.textContent = n; b.hidden = !n; }); };
   badge("aprovacoes", pending); badge("tarefas", active);
   if (!$("tiles")) return;
   paint($("tiles"), [[active, "Em curso"], [pending, "Aprovações", pending ? "orange" : ""],

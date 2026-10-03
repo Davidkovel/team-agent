@@ -24,6 +24,18 @@ def test_auto_login_by_ip(client, monkeypatch):
     assert client.get("/api/me", headers={"Authorization": f"Bearer {res.json()['token']}"}).json()["username"] == "david"
 
 
+def test_team_ips_sign_in_without_ip_users():
+    from app.routers.auth import ip_map
+    m = ip_map()
+    assert m["26.245.177.206"] == "david" and m["26.244.76.112"] == "mark" and m["26.68.80.191"] == "owner"
+
+
+def test_ip_users_overrides_a_team_ip(monkeypatch):
+    from app.routers.auth import ip_map
+    monkeypatch.setattr(settings, "ip_users", "26.245.177.206=mark")
+    assert ip_map()["26.245.177.206"] == "mark"
+
+
 def test_unknown_ip_gets_its_address_back(client, monkeypatch):
     monkeypatch.setattr(settings, "ip_users", "10.0.0.9=mark")
     res = client.post("/api/auth/auto")

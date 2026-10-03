@@ -31,7 +31,11 @@ git pull
 
 - `configurar_widget.ps1` writes `~/.team-agent/widget.json` (`key`, `user`, and `hub_url` when `-HostIp` is given). `TEAM_HUB_URL`, `TEAM_KEY`, `TEAM_WIDGET_USER` override it.
 - On the host the widget starts the Hub itself when nothing answers on port 8000 (`widget/team_widget/hub.py`, `start_local_server`). It binds `0.0.0.0` only when a team key is set, otherwise `127.0.0.1`. Its database is `~/.team-agent/hub.db`, not `backend/dev.db`.
-- That Hub runs with `backend/` as working directory, so it still reads `backend/.env` (not in git). On the host it holds `IP_USERS=127.0.0.1=owner,::1=owner,26.244.76.112=mark` (password-less Hub sign-in by computer; add `,<Radmin IP>=david` for David) and `WIDGET_NETWORKS=26.0.0.0/8`.
+- That Hub runs with `backend/` as working directory, so it still reads `backend/.env` (not in git). On the host it holds `IP_USERS=127.0.0.1=owner,::1=owner,26.244.76.112=mark` and `WIDGET_NETWORKS=26.0.0.0/8`.
+- **Hub sign-in needs no password for the team.** The three Radmin IPs are built in (`team_ip_users` in `config.py`:
+  owner, mark, david) and `IP_USERS` from `.env` goes on top (adds a computer or moves one to another person). Until 3 Oct
+  David's IP was only meant to be added by hand to the host's `.env`, it never was, and his browser kept getting the
+  password page. A new teammate = one more `ip=login` in `team_ip_users`, then the host pulls and restarts the Hub.
 - Online status comes from the widget pinging `/api/local/presence` with the `X-Team-Key` header. The agent (`agent/`, token in `agent/.env`) is optional for being online.
 - An agent token is tied to one database: a token issued against `backend/dev.db` is rejected by the widget-started Hub (`hub.db`) with `HTTPStatusError`.
 

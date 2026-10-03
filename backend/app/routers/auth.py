@@ -32,8 +32,14 @@ async def login(body: Login, db: AsyncSession = Depends(get_db)):
 
 
 def ip_map() -> dict[str, str]:
-    pairs = (p.split("=", 1) for p in settings.ip_users.split(",") if "=" in p)
-    return {ip.strip(): login.strip().lower() for ip, login in pairs}
+    """The team's Radmin IPs first, then IP_USERS on top (it can add a computer or move one to another person)."""
+    out: dict[str, str] = {}
+    for raw in (settings.team_ip_users, settings.ip_users):
+        for p in raw.split(","):
+            if "=" in p:
+                ip, login = p.split("=", 1)
+                out[ip.strip()] = login.strip().lower()
+    return out
 
 
 @router.post("/auth/auto")

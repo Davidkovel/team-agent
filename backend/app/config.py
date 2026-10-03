@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     team_key: str = ""
     # Sign-in by computer, no password: "ip=login,ip=login". The server computer itself is 127.0.0.1.
     ip_users: str = "127.0.0.1=mark,::1=mark"
+    # The team's Radmin VPN IPs (see CLAUDE.md), always signed in by computer. IP_USERS adds to these or overrides one.
+    # Until 3 Oct David's IP lived only in the host's backend/.env and was missing there, so his browser got the password page.
+    team_ip_users: str = "26.68.80.191=owner,26.244.76.112=mark,26.245.177.206=david"
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"
     david_password: str = "david-change-me"

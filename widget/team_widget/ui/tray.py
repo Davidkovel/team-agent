@@ -59,7 +59,7 @@ def start_tray(window: WidgetWindow):
     item("Bater o ponto", window.punch_ponto)
     on_top = item("Sempre por cima", lambda: None)
     on_top.setCheckable(True)
-    on_top.setChecked(bool(prefs.load().get("on_top")))
+    on_top.setChecked(prefs.on_top())
     on_top.toggled.connect(window.set_on_top)
     menu.addSeparator()
     item("Pausar agente", lambda: send("pause"))

@@ -856,7 +856,7 @@ class WidgetWindow(QWidget):
     punched = Signal(object)    # the clock-in the Hub confirmed, or the error text
 
     def __init__(self, store: StateStore, client: AgentClient):
-        super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.load().get("on_top") else Qt.Widget))
+        super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.on_top() else Qt.Widget))
         self.store, self.client = store, client
         self.hub_ready.connect(self._hub_opened)
         self.punched.connect(self._punched)

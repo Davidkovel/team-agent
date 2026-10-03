@@ -18,3 +18,8 @@ def save(**changes):
         PATH.write_text(json.dumps({**load(), **changes}), encoding="utf-8")
     except OSError:
         pass  # a preference that cannot be saved is not worth stopping the widget for
+
+
+def on_top() -> bool:
+    """The widget stays above the other windows unless this person switched it off in the tray menu."""
+    return bool(load().get("on_top", True))

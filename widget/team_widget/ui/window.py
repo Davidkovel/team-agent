@@ -40,8 +40,6 @@ WIDTH = 340            # the cockpit; the window adds SHADOW on every side
 INNER = WIDTH - 28     # what the modules get
 SHADOW = 18
 RADIUS = 24
-ORB = 92               # the start button's face; its window adds ORB_MARGIN for the shadow
-ORB_MARGIN = 14
 GROW, SHRINK = 0.42, 0.32   # seconds
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 LOGO, STAR = ASSETS / "logo.png", ASSETS / "star.jpg"
@@ -638,12 +636,17 @@ class TitleBar(QWidget):
 
 
 class Orb(QWidget):
-    """The widget at its smallest: only the Mercedes star, see-through between its arms. Click to open; drag to move."""
-    SIZE = ORB + 2 * ORB_MARGIN
+    """The widget at its smallest, set like a watchmaker's logo: the Mercedes star, a hairline, then the time with
+    the AMG badge under it. No background: the desktop shows through, a soft shadow keeps it legible on any
+    wallpaper. Click to open; drag to move."""
+    STAR, M, GAP, TEXT_W = 64, 12, 14, 106
+    W = M + STAR + 2 * GAP + 1 + TEXT_W + M
+    H = M + STAR + M
+    FACE = QRect(M, M, STAR + 2 * GAP + 1 + TEXT_W, STAR)    # what you see, inside the widget
 
     def __init__(self, on_click):
         super().__init__()
-        self.setFixedSize(self.SIZE, self.SIZE)
+        self.setFixedSize(self.W, self.H)
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip("Abrir a central de comando")
         self._on_click = on_click
@@ -652,11 +655,38 @@ class Orb(QWidget):
         self._hover_anim = animate(self, 200, lambda v: self._set("_hover", v))
         self._down_anim = animate(self, 110, lambda v: self._set("_down", v))
         self._press_at, self._grab, self._dragged = None, None, False
-        self._status_colour, self._pulse = QColor(COLORS["ONLINE"]), False
-        self._load = Glide(self, 1200)
         self._face, self._face_key = None, None
-        self._f_time = font(14.5, QFont.DemiBold, DISPLAY)
-        clock().frame.connect(self._frame)
+        self._f_time = font(22, QFont.DemiBold, DISPLAY)
+        self._light = False                  # is the wallpaper behind it light? then the words go dark
+        self._ticks = 0
+        self._minute = QTimer(self)          # the face only changes when the minute does
+        self._minute.timeout.connect(self._second)
+        self._minute.start(1000)
+
+    def _second(self):
+        self._ticks += 1
+        if self._ticks % 20 == 0:
+            self._sample()
+        self.update()
+
+    def _sample(self):
+        """Looks at the desktop behind it and picks white or dark words to match."""
+        if not self.isVisible() or self.window().windowOpacity() < 0.99:
+            return
+        screen = self.screen()
+        if screen is None:
+            return
+        g = self.mapToGlobal(QPoint(0, 0)) - screen.geometry().topLeft()
+        shot = screen.grabWindow(0, g.x(), g.y(), self.width(), self.height()).toImage().scaled(12, 6)
+        lum = [QColor(shot.pixel(x, y)).lightnessF() for x in range(shot.width()) for y in range(shot.height())]
+        light = sum(lum) / len(lum) > 0.6
+        if light != self._light:
+            self._light = light
+            self.update()
+
+    def showEvent(self, e):
+        QTimer.singleShot(400, self._sample)
+        super().showEvent(e)
 
     def _set(self, name, v):
         setattr(self, name, v)
@@ -669,12 +699,7 @@ class Orb(QWidget):
         anim.start()
 
     def set(self, load, colour, pulse):
-        self._load.to(max(0, min(100, load or 0)) / 100)
-        self._status_colour, self._pulse = QColor(colour), pulse
-
-    def _frame(self, _):
-        if self.isVisible():
-            self.update()
+        """The window reports load and state; the small widget keeps to the star, the time and AMG."""
 
     def enterEvent(self, e):
         self._to(self._hover_anim, self._hover, 1)
@@ -703,9 +728,12 @@ class Orb(QWidget):
         self._to(self._down_anim, self._down, 0)
         if self._press_at is not None and not self._dragged and e.button() == Qt.LeftButton:
             self._on_click()
+        elif self._dragged:
+            QTimer.singleShot(120, self._sample)   # a new spot on the desktop: check the colour behind it
         self._press_at = None
 
-    def _emblem(self, c: QPointF, r: float) -> QPainterPath:
+    @staticmethod
+    def _emblem(c: QPointF, r: float) -> QPainterPath:
         """The emblem's outline: the ring and three slender points, laid over the photo's own (measured on star.jpg)."""
         ring = QPainterPath()
         ring.addEllipse(c, r, r)
@@ -719,25 +747,38 @@ class Orb(QWidget):
             arms.addPolygon(QPolygonF([c + n * (r * 0.11), c + d * (r * 0.87), c - n * (r * 0.11), c - d * (r * 0.07), c + n * (r * 0.11)]))
         return shape.united(arms)
 
-    def _build_face(self) -> QPixmap:
-        """Only the star: the photo cut to the emblem's shape, a thin light edge so it reads on any wallpaper,
-        a soft shadow under it, and nothing else, so the desktop shows through."""
+    @staticmethod
+    def _shadow_of(img: QImage) -> QImage:
+        dark = QImage(img.size(), QImage.Format_ARGB32_Premultiplied)
+        dark.fill(Qt.transparent)
+        q = QPainter(dark)
+        q.drawImage(0, 0, img)
+        q.setCompositionMode(QPainter.CompositionMode_SourceIn)
+        q.fillRect(dark.rect(), QColor(0, 0, 0, 150))
+        q.end()
+        return dark
+
+    def _build_face(self, hhmm_now: str) -> QPixmap:
         dpr = self.devicePixelRatioF()
-        pix = QPixmap(int(self.SIZE * dpr), int(self.SIZE * dpr))
+        pix = QPixmap(int(self.W * dpr), int(self.H * dpr))
         pix.setDevicePixelRatio(dpr)
         pix.fill(Qt.transparent)
         p = QPainter(pix)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        c, r = QPointF(self.SIZE / 2, self.SIZE / 2), ORB / 2
+        face = QRectF(self.FACE)
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(0, 0, 0, 2))      # invisible, but it keeps the whole circle clickable and draggable
-        p.drawEllipse(c, r, r)
+        p.setBrush(QColor(0, 0, 0, 2))       # invisible, but it keeps the whole thing clickable and draggable
+        p.drawRoundedRect(face, 12, 12)
+
+        # the star: the photo cut to the emblem, a soft shadow under it, a thin light edge
+        r = self.STAR / 2
+        c = QPointF(face.left() + r, face.center().y())
         shape = self._emblem(c, r)
-        for i in range(6, 0, -1):            # a soft shadow, so the star sits on the desktop
-            p.setPen(pen(QColor(0, 0, 0, int(26 * (1 - i / 7))), i * 1.6))
+        for i in range(6, 0, -1):
+            p.setPen(pen(QColor(0, 0, 0, int(24 * (1 - i / 7))), i * 1.5))
             p.setBrush(Qt.NoBrush)
-            p.drawPath(shape.translated(0, 2.5))
+            p.drawPath(shape.translated(0, 2))
         k = r / STAR_PHOTO[2]
         photo = QRectF(c.x() - STAR_PHOTO[0] * k, c.y() - STAR_PHOTO[1] * k, star_image().width() * k, star_image().height() * k)
         p.save()
@@ -752,18 +793,48 @@ class Orb(QWidget):
         p.setPen(QPen(edge, 0.9))
         p.setBrush(Qt.NoBrush)
         p.drawPath(shape)
+
+        # a hairline between the star and the words; white on a dark wallpaper, graphite on a light one
+        ink = QColor(22, 23, 26) if self._light else QColor(TEXT)
+        halo = QColor(255, 255, 255, 120) if self._light else QColor(0, 0, 0, 80)
+        x = face.left() + self.STAR + self.GAP
+        line = QLinearGradient(0, face.top(), 0, face.bottom())
+        line.setColorAt(0, rgba(ink.name(), 0))
+        line.setColorAt(0.5, rgba(ink.name(), 0.45))
+        line.setColorAt(1, rgba(ink.name(), 0))
+        p.setPen(QPen(line, 1))
+        p.drawLine(QPointF(x + 0.5, face.top() + 8), QPointF(x + 0.5, face.bottom() - 8))
+
+        # the time, with a faint halo of the opposite colour so it holds on busy wallpapers
+        tx = x + 1 + self.GAP
+        text = QPainterPath()
+        text.addText(QPointF(tx, face.top() + 33), self._f_time, hhmm_now)
+        p.setPen(pen(halo, 3.2))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(text)
+        p.setPen(Qt.NoPen)
+        p.setBrush(ink)
+        p.drawPath(text)
+
+        # the AMG badge under it, with its own shadow
+        bh = 11.0
+        logo = badge._logo()
+        bw = bh * logo.width() / max(1, logo.height())
+        p.drawImage(QRectF(tx + 1, face.top() + 43, bw, bh), self._shadow_of(logo))
+        p.drawImage(QRectF(tx, face.top() + 42, bw, bh), logo)
         p.end()
         return pix
 
     def paintEvent(self, _):
-        if self._face_key != self.devicePixelRatioF():
-            self._face, self._face_key = self._build_face(), self.devicePixelRatioF()
+        now = datetime.now().strftime("%H:%M")
+        key = (self.devicePixelRatioF(), now, self._light)
+        if self._face_key != key:
+            self._face, self._face_key = self._build_face(now), key
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.setOpacity(self.fade)
-        c = QPointF(self.SIZE / 2, self.SIZE / 2)
-        s = 1 + 0.05 * self._hover - 0.05 * self._down     # it gives a little under the finger, like a real button
+        c = QPointF(self.FACE.center())
+        s = 1 + 0.03 * self._hover - 0.03 * self._down     # it gives a little under the finger, like a real button
         p.translate(c)
         p.scale(s, s)
         p.translate(-c)
@@ -920,9 +991,9 @@ class WidgetWindow(QWidget):
     def _place(self):
         """Starts as the button, near the top-right corner of the screen."""
         screen = self.screen().availableGeometry()
-        self.setFixedSize(Orb.SIZE, Orb.SIZE)
+        self.setFixedSize(Orb.W, Orb.H)
         self.orb.move(0, 0)
-        self.move(screen.right() - Orb.SIZE - 40, screen.top() + 60)
+        self.move(screen.right() - Orb.W - 30, screen.top() + 50)
 
     def _panel_size(self) -> QSize:
         self.panel.adjustSize()
@@ -949,7 +1020,7 @@ class WidgetWindow(QWidget):
         if self.mode != "orb":
             return
         size = self._panel_size()
-        face = QRect(self.pos() + QPoint(ORB_MARGIN, ORB_MARGIN), QSize(ORB, ORB))
+        face = QRect(self.pos() + Orb.FACE.topLeft(), Orb.FACE.size())
         x, y = face.right() + 1 - WIDTH - SHADOW, face.top() - SHADOW
         screen = self.screen().availableGeometry()
         x = max(screen.left() - SHADOW, min(x, screen.right() + 1 + SHADOW - size.width()))
@@ -957,15 +1028,15 @@ class WidgetWindow(QWidget):
         self._orb_face = face.topLeft() - QPoint(x, y)
         self.setFixedSize(size)
         self.move(x, y)
-        self.orb.move(self._orb_face - QPoint(ORB_MARGIN, ORB_MARGIN))
+        self.orb.move(self._orb_face - Orb.FACE.topLeft())
         self._start_morph(+1)
 
     def collapse(self):
         """The cockpit shrinks back into the button at its top-right corner."""
         if self.mode != "panel":
             return
-        self._orb_face = QPoint(SHADOW + WIDTH - ORB, SHADOW)
-        self.orb.move(self._orb_face - QPoint(ORB_MARGIN, ORB_MARGIN))
+        self._orb_face = QPoint(SHADOW + WIDTH - Orb.FACE.width(), SHADOW)
+        self.orb.move(self._orb_face - Orb.FACE.topLeft())
         self.panel.hide()
         self.orb.fade = 0.0
         self.orb.show()
@@ -1002,10 +1073,10 @@ class WidgetWindow(QWidget):
             reveal.start(QVariantAnimation.DeleteWhenStopped)
         else:
             self.mode = "orb"
-            at = self.pos() + self._orb_face - QPoint(ORB_MARGIN, ORB_MARGIN)
+            at = self.pos() + self._orb_face - Orb.FACE.topLeft()
             self.orb.fade = 1.0
             self.orb.move(0, 0)
-            self.setFixedSize(Orb.SIZE, Orb.SIZE)
+            self.setFixedSize(Orb.W, Orb.H)
             self.move(at)
         self.update()
 
@@ -1065,11 +1136,12 @@ class WidgetWindow(QWidget):
             p.fillRect(self.rect(), Qt.transparent)
             p.setCompositionMode(QPainter.CompositionMode_SourceOver)
             k = self._k
-            orb = QRectF(self._orb_face.x(), self._orb_face.y(), ORB, ORB)
+            orb = QRectF(self._orb_face.x(), self._orb_face.y(), Orb.FACE.width(), Orb.FACE.height())
             full = self._panel_rect()
             rect = QRectF(orb.left() + (full.left() - orb.left()) * k, orb.top() + (full.top() - orb.top()) * k,
                           orb.width() + (full.width() - orb.width()) * k, orb.height() + (full.height() - orb.height()) * k)
-            self._paint_panel(p, rect, ORB / 2 + (RADIUS - ORB / 2) * k, False, scene=False)  # plain while it moves: cheap frames
+            small = Orb.FACE.height() / 2
+            self._paint_panel(p, rect, small + (RADIUS - small) * k, False, scene=False)  # plain while it moves: cheap frames
         # button mode: the button paints itself
 
     # ------------------------------------------------------------ the Hub: who is online, what is happening
@@ -1216,7 +1288,7 @@ class WidgetWindow(QWidget):
         if self.mode == "panel":
             start = self.geometry().adjusted(SHADOW, SHADOW, -SHADOW, -SHADOW)
         else:
-            start = QRect(self.pos() + QPoint(ORB_MARGIN, ORB_MARGIN), QSize(ORB, ORB))
+            start = QRect(self.pos() + Orb.FACE.topLeft(), Orb.FACE.size())
         self._expander.expand(start, url)
         self.hide()  # the expander starts exactly on top of the widget
 

@@ -25,7 +25,8 @@ from sqlalchemy import BigInteger, DateTime, String, UniqueConstraint, and_, cas
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .config import settings
-from .db import Base, engine
+from .db import Base, SessionLocal, engine
+from .realtime import rt
 
 log = logging.getLogger("team.sync")
 
@@ -245,6 +246,7 @@ class Exchange(BaseModel):
     your_epoch: str | None  # the copy of the other side this one has been keeping count for
     since: int
     changes: list[dict]
+    present: list[dict] = []  # who is online at the caller's computer (see _present)
 
 
 def _answer(conn, body: Exchange) -> dict:
@@ -292,12 +294,37 @@ def _incoming(conn, ip: str, upto: int, more: bool, reply: dict) -> bool:
     return more or reply["more"]
 
 
+PRESENCE_TTL = 20  # a few exchanges: a computer that goes off stops being heard and its person goes offline here
+
+
+async def _present() -> list[dict]:
+    """Who is online through this computer (its widget, Hub page or agent). What was heard from another computer is
+    not passed on: each computer speaks only for its own people, so nobody stays online by echo."""
+    async with SessionLocal() as db:
+        ids = (await db.execute(select(Base.metadata.tables["users"].c.id))).scalars().all()
+    found = [(i, await rt.store.get_presence(i)) for i in ids]
+    return [{"user": i, "data": d} for i, d in found if d is not None and not d.get("remote")]
+
+
+async def _hear(present: list[dict]):
+    """Another computer says who is online there: they show online here too, for as long as it keeps saying so."""
+    for p in present:
+        current = await rt.store.get_presence(p["user"])
+        if current is not None and not current.get("remote"):
+            continue  # that person is at this computer: what is known here is better
+        await rt.store.set_presence(p["user"], {**p["data"], "remote": True}, PRESENCE_TTL)
+        if current is None or current.get("status") != p["data"].get("status"):
+            await rt.publish("presence", p["user"], "team")
+
+
 async def _round(client: httpx.AsyncClient, ip: str) -> bool:
     async with engine.begin() as conn:
         body, upto, more = await conn.run_sync(_outgoing, ip)
+    body["present"] = await _present()
     res = await client.post(f"http://{ip if ':' in ip else f'{ip}:{settings.sync_port}'}/api/sync/exchange", json=body, headers={"X-Team-Key": settings.team_key})
     res.raise_for_status()
     reply = res.json()
+    await _hear(reply.get("present", []))
     async with engine.begin() as conn:
         return await conn.run_sync(_incoming, ip, upto, more, reply)
 
@@ -330,7 +357,10 @@ async def exchange(body: Exchange, request: Request):
     if host not in [ip for ip, _ in team_ips()] and not (settings.team_key and hmac.compare_digest(key.encode(), settings.team_key.encode())):
         raise HTTPException(403, "Only the team's computers")
     async with engine.begin() as conn:
-        return await conn.run_sync(_answer, body)
+        reply = await conn.run_sync(_answer, body)
+    if body.epoch != reply["epoch"]:
+        await _hear(body.present)
+    return {**reply, "present": await _present()}
 
 
 async def notices(db, model, mine: tuple, after: int | None) -> tuple[int, list]:

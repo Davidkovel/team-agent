@@ -54,6 +54,11 @@ def test_two_hubs_trade_changes_and_neither_is_the_host():
             wait(lambda: "feita no A" in titles(B))
             after = httpx.get(B + "/api/local/notices", params={"user": "mark"}).json()["latest"]
 
+            # Marco's widget is open on his computer: the owner's Hub shows him online, with nobody connecting to anybody
+            ping = lambda: httpx.post(B + "/api/local/presence", json={"user": "mark"}, headers={"X-Team-Widget": "1"})
+            online = lambda url, who: {p["user"]: p["online"] for p in httpx.get(url + "/api/local/team").json()}[who]
+            wait(lambda: ping() and online(A, "mark"))
+
             a.terminate(); a.wait()  # the owner's computer goes off: Marco keeps working on his own Hub
             mark = login(B, "mark")
             second = httpx.post(B + "/api/tasks", headers=mark, json={"title": "feita no B", "assignee": "owner", "for_ai": False}).json()

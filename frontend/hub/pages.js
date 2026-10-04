@@ -811,9 +811,9 @@ HUB_VIEWS.definicoes = async function () {
   page(`${ui.head("Sistema", t("Definições"), t("As tuas preferências neste computador e o teu agente."))}
     <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
       <div class="panel pad stack"><div class="ph-eyebrow">${t("Aparência")}</div>
-        <label class="field">${t("Densidade dos widgets")}<div class="segx" id="set-density" style="align-self:flex-start">${[["compact", "Compacta"], ["normal", "Normal"], ["expanded", "Ampla"]].map(([v, l]) => `<button data-d="${v}" class="${v === density ? "on" : ""}">${t(l)}</button>`).join("")}</div></label>
+        <label class="field">${t("Densidade")}<div class="segx" id="set-density" style="align-self:flex-start">${[["compact", "Compacta"], ["normal", "Normal"], ["expanded", "Ampla"]].map(([v, l]) => `<button data-d="${v}" class="${v === density ? "on" : ""}">${t(l)}</button>`).join("")}</div></label>
         <label class="field">${t("Língua")}<select id="set-lang">${options(Object.keys(I18N).map((l) => [l, { pt: "Português (Portugal)" }[l] || l]), LANG)}</select></label>
-        <div class="rowx">${ui.btn("Personalizar o Início", "id=set-widgets")}${ui.btn("Avisos do browser", "id=set-notify", "quiet")}</div></div>
+        <div class="rowx">${ui.btn("Avisos do browser", "id=set-notify", "quiet")}</div></div>
       <div class="panel pad stack"><div class="ph-eyebrow">${t("O meu agente")}</div>
         <p class="dim" style="margin:0">${t("O agente local corre no teu computador e precisa de um token para falar com o Hub. O token aparece uma vez e substitui o anterior.")}</p>
         <div class="rowx">${ui.btn("Gerar token do agente", "id=set-token", "", "key")}</div><div class="now" id="token-box" hidden></div></div>
@@ -824,11 +824,11 @@ HUB_VIEWS.definicoes = async function () {
     </div>`);
   $("set-density").onclick = (e) => {
     if (!e.target.dataset.d) return;
-    setDensity(e.target.dataset.d);
+    localStorage.setItem("hub.density", e.target.dataset.d); // shell.js puts it back on <html> at start
+    document.documentElement.dataset.density = e.target.dataset.d;
     $("set-density").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.target));
   };
   $("set-lang").onchange = (e) => { LANG = e.target.value; localStorage.setItem("hub.lang", LANG); render(); };
-  $("set-widgets").onclick = () => { layout = loadLayout(); customizeHome(); };
   $("set-notify").onclick = async () => flash((await Notification.requestPermission()) === "granted" ? t("Avisos do browser ligados.") : t("O browser não deixou ligar os avisos."));
   $("set-token").onclick = async () => {
     const { agent_token } = await api(`/api/users/${me.username}/agent-token`, { method: "POST" });

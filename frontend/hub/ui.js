@@ -43,6 +43,15 @@ const HUB_ICONS = {
   trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   doc: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>',
   trash: '<path d="M4 7h16M9.5 4h5M6 7l1 13h10l1-13M10 11v5.5M14 11v5.5"/>',
+  // Início
+  moon: '<path d="M20 14.6A8.2 8.2 0 019.4 4a8.2 8.2 0 1010.6 10.6z"/>',
+  sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/>',
+  crown: '<path d="M3.5 8.5l4.4 3.6L12 5.5l4.1 6.6 4.4-3.6-1.9 9.5H5.4z"/><path d="M5.4 20.5h13.2"/>',
+  target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.4"/><path d="M12 12l6.5-6.5M16 4.8h3.2V8"/>',
+  bolt: '<path d="M13.5 2.5L4.5 14h7l-1 7.5 9-11.5h-7z"/>',
+  note: '<rect x="5" y="3" width="14" height="18" rx="2.6"/><path d="M8.6 8h6.8M8.6 12h6.8M8.6 16h4.4"/>',
+  tick: '<path d="M6 12.6l4 4 8-9"/>',
+  chevron: '<path d="M9.5 6l6 6-6 6"/>',
 };
 
 /* ---------- formatting ---------- */

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 220" width="800" height="220" preserveAspectRatio="xMidYMid slice">
+  <!-- The quote card's picture on Início: sunset over the sea, a headland with its coast road on the right. Still, drawn once. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#132750"/><stop offset=".42" stop-color="#3a3767"/><stop offset=".7" stop-color="#b0503e"/>
+      <stop offset=".88" stop-color="#ee8848"/><stop offset="1" stop-color="#ffc47c"/></linearGradient>
+    <linearGradient id="sea" x1="0" y1="150" x2="0" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6d4a52"/><stop offset=".25" stop-color="#2f3150"/><stop offset="1" stop-color="#0c1324"/></linearGradient>
+    <radialGradient id="glow" cx="588" cy="150" r="230" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd18c" stop-opacity=".8"/><stop offset=".35" stop-color="#ff9d55" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#ff9d55" stop-opacity="0"/></radialGradient>
+    <radialGradient id="sun" cx="588" cy="146" r="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffaf0"/><stop offset=".6" stop-color="#ffe2a6"/><stop offset="1" stop-color="#ffb760"/></radialGradient>
+    <linearGradient id="trail" x1="0" y1="151" x2="0" y2="215" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd496" stop-opacity=".85"/><stop offset="1" stop-color="#ffd496" stop-opacity="0"/></linearGradient>
+    <clipPath id="above"><rect width="800" height="150"/></clipPath>
+  </defs>
+  <rect width="800" height="150" fill="url(#sky)"/>
+  <rect width="800" height="220" fill="url(#glow)"/>
+  <g fill="#3b2645" fill-opacity=".55">
+    <ellipse cx="520" cy="92" rx="170" ry="5.5"/><ellipse cx="672" cy="70" rx="120" ry="3.6"/><ellipse cx="402" cy="116" rx="130" ry="4.5"/>
+    <ellipse cx="250" cy="60" rx="150" ry="3.2"/><ellipse cx="700" cy="122" rx="80" ry="3"/>
+  </g>
+  <g fill="#ffab73" fill-opacity=".38">
+    <ellipse cx="530" cy="95" rx="140" ry="1.8"/><ellipse cx="660" cy="72.5" rx="90" ry="1.4"/><ellipse cx="410" cy="119" rx="100" ry="1.6"/>
+  </g>
+  <circle cx="588" cy="146" r="30" fill="url(#sun)" clip-path="url(#above)"/>
+  <path d="M0 150V138C40 136 80 140 120 137C170 133 210 139 260 141C300 142 330 146 360 150Z" fill="#241f3c"/>
+  <rect y="150" width="800" height="70" fill="url(#sea)"/>
+  <g fill="url(#trail)">
+    <rect x="566" y="153" width="44" height="2" rx="1"/><rect x="560" y="158" width="56" height="1.6" rx=".8"/><rect x="570" y="163" width="36" height="1.6" rx=".8"/>
+    <rect x="556" y="169" width="64" height="1.4" rx=".7"/><rect x="574" y="175" width="28" height="1.4" rx=".7"/><rect x="560" y="182" width="52" height="1.2" rx=".6"/>
+    <rect x="578" y="190" width="22" height="1.2" rx=".6"/><rect x="566" y="199" width="40" height="1" rx=".5"/>
+  </g>
+  <g stroke="#c7a2a0" stroke-opacity=".12" stroke-width="1">
+    <path d="M40 166H190M260 174H420M120 186H300M430 160H520M660 168H740M380 196H560"/>
+  </g>
+  <path d="M628 150C668 146 700 128 730 112C756 99 780 95 800 92V220H628Z" fill="#0a0e1b"/>
+  <path d="M646 148C684 142 716 128 746 114C766 105 784 101 800 99" fill="none" stroke="#ffb067" stroke-opacity=".45" stroke-width="1.3"/>
+  <path d="M628 150C668 146 700 128 730 112C756 99 780 95 800 92" fill="none" stroke="#ff9c5a" stroke-opacity=".3" stroke-width="1"/>
+</svg>

@@ -31,7 +31,7 @@ html, body { background: var(--bg); }
 .side-search { border-radius: 6px; background: #0d0f12; }
 
 /* ---------------------------------------------------------------- type */
-.ph h1, .cockpit h1, .modal-box h3 { font-family: var(--serif); font-weight: 500; letter-spacing: 0; }
+.ph h1, .modal-box h3 { font-family: var(--serif); font-weight: 500; letter-spacing: 0; }
 .ph h1 { font-size: 34px; line-height: 1.05; }
 .ph-eyebrow, .sec { letter-spacing: .24em; }
 .num { font-family: var(--serif); font-weight: 600; font-variant-numeric: lining-nums tabular-nums; letter-spacing: 0; font-size: 34px; }
@@ -66,88 +66,8 @@ html, body { background: var(--bg); }
 .segx button.on { background: var(--metal-hi); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); }
 .chp.on { background: var(--chrome); border-color: #eef1f4; }
 
-/* ---------------------------------------------------------------- the engine start button (Nova tarefa) */
-.ignition { position: relative; flex: none; width: 78px; height: 78px; padding: 4px; border: 0; border-radius: 50%; cursor: pointer;
-  background: conic-gradient(from 200deg, #f6f8fa, #7b838c 18%, #e9ecef 34%, #565e66 52%, #f3f5f7 68%, #858d96 84%, #f6f8fa);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, .7), 0 0 0 1px rgba(0, 0, 0, .8); transition: transform .12s, box-shadow .25s; }
-.ignition > span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 100%; height: 100%;
-  border-radius: 50%; background: radial-gradient(circle at 50% 30%, #2b3036, #0c0d10 68%);
-  box-shadow: inset 0 2px 3px rgba(255, 255, 255, .14), inset 0 -3px 6px rgba(0, 0, 0, .8);
-  color: #eef1f4; font: 700 8.5px/1.15 var(--ui); letter-spacing: .2em; text-transform: uppercase; text-align: center; }
-.ignition .led { width: 14px; height: 3px; border-radius: 2px; background: #3a1d12; margin-bottom: 2px; transition: background .25s, box-shadow .25s; }
-.ignition:hover { box-shadow: 0 14px 34px rgba(0, 0, 0, .75), 0 0 0 1px rgba(0, 0, 0, .8), 0 0 28px rgba(238, 245, 255, .16); }
-.ignition:hover .led { background: #ff5a2b; box-shadow: 0 0 8px #ff5a2b, 0 0 2px #ffb59c; }
-.ignition:active { transform: scale(.95); }
-
-/* ---------------------------------------------------------------- the cockpit: Home's hero */
-.cockpit { position: relative; display: flex; align-items: center; min-height: 300px; margin: -4px 0 16px; padding: 30px 36px; overflow: hidden;
-  border-radius: 14px; isolation: isolate;
-  background:
-    radial-gradient(120% 90% at 70% 120%, rgba(238, 245, 255, .05), transparent 60%),
-    linear-gradient(180deg, #0b0d10 0%, #060708 70%, #0a0b0d 100%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06), 0 30px 60px -30px rgba(0, 0, 0, .9); }
-.cockpit::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--chrome-line); opacity: .5; }
-.fascia { position: absolute; z-index: -1; right: -2%; bottom: 0; width: 70%; height: 100%;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%); mask-image: linear-gradient(90deg, transparent, #000 22%); }
-/* styles.css has an old ".hub { stroke: #fff }" for a clock dial, and the app itself is .hub: without this every shape gets a white outline */
-.fascia svg { width: 100%; height: 100%; display: block; stroke: none; }
-.cockpit-copy { position: relative; max-width: 520px; }
-.cockpit .ph-eyebrow { display: flex; align-items: center; gap: 10px; color: #8f969f; }
-.cockpit .ph-eyebrow::before { content: ""; width: 26px; height: 9px; background: repeating-linear-gradient(-62deg, #cfd5dc 0 2.2px, transparent 2.2px 4.8px); }
-.cockpit h1 { margin: 8px 0 0; font-size: clamp(40px, 4.2vw, 58px); line-height: 1; color: #f4f6f8; }
-.cockpit h1 em { font-style: italic; font-weight: 500;
-  background: linear-gradient(180deg, #ffffff 10%, #c7cdd4 55%, #8f98a2 75%, #e7eaee 95%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.cockpit-date { margin: 10px 0 0; color: #9097a0; font-size: 13px; letter-spacing: .04em; display: flex; align-items: center; gap: 10px; }
-.cockpit-date time { font: 600 13px var(--mono); color: #dfe4ea; letter-spacing: .06em; }
-.cockpit-date i { width: 3px; height: 3px; border-radius: 50%; background: #59606a; }
-.cockpit-actions { display: flex; align-items: center; gap: 10px; margin-top: 26px; flex-wrap: wrap; }
-.cockpit-actions .ignition { margin-right: 10px; }
-
-/* the lights: lit by default (so "reduced motion" still shows them on); the first visit plays the start-up */
-.fascia .drl { fill: none; stroke: var(--drl); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; filter: url(#amg-glow); }
-.fascia .led { fill: var(--drl); filter: url(#amg-glow); }
-.fascia .bloom, .fascia .floor { opacity: 1; }
-.cockpit.ignite .drl { stroke-dasharray: 420; animation: drl-draw 1.25s cubic-bezier(.6, 0, .2, 1) .35s both; }
-.cockpit.ignite .led { animation: led-on .35s ease-out both; }
-.cockpit.ignite .led:nth-of-type(1) { animation-delay: 1.35s; }
-.cockpit.ignite .led:nth-of-type(2) { animation-delay: 1.5s; }
-.cockpit.ignite .led:nth-of-type(3) { animation-delay: 1.65s; }
-.cockpit.ignite .bloom { animation: bloom-on 1.4s ease-out 1.6s both; }
-.cockpit.ignite .floor { animation: bloom-on 1.8s ease-out 1.9s both; }
-/* the star is lit last, the way the illuminated star comes on after the lights */
-.cockpit.ignite .halo, .cockpit.ignite .halo-ring { animation: bloom-on 1.2s ease-out 2.2s both; }
-.cockpit.ignite .cockpit-copy > * { animation: rise .8s var(--ease) both; }
-.cockpit.ignite .cockpit-copy > :nth-child(2) { animation-delay: .1s; }
-.cockpit.ignite .cockpit-copy > :nth-child(3) { animation-delay: .2s; }
-.cockpit.ignite .cockpit-copy > :nth-child(4) { animation-delay: .3s; }
-@keyframes drl-draw { from { stroke-dashoffset: 420; opacity: .3; } 70% { opacity: 1; } to { stroke-dashoffset: 0; } }
-@keyframes led-on { 0% { opacity: 0; } 40% { opacity: 1; filter: url(#amg-glow) brightness(2); } 100% { opacity: 1; } }
-@keyframes bloom-on { from { opacity: 0; } }
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
-/* the lights breathe very slightly, like a car idling */
-.fascia .bloom { animation: idle 5s ease-in-out 3.4s infinite; }
-@keyframes idle { 50% { opacity: .78; } }
-
-/* ---------------------------------------------------------------- widgets: lacquered panels with a chrome edge */
-.wgrid { counter-reset: wg; gap: 14px; }
-.wg { border-radius: 10px; border: 1px solid rgba(255, 255, 255, .055);
-  background: linear-gradient(180deg, rgba(21, 24, 29, .96), rgba(10, 12, 14, .96));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 20px 40px -26px rgba(0, 0, 0, .9); }
-.wg::before { content: ""; position: absolute; left: 18px; right: 18px; top: 0; height: 1px; background: var(--chrome-line); opacity: .35; transition: opacity .25s; }
-.wg:hover { border-color: rgba(222, 229, 238, .14); }
-.wg:hover::before { opacity: .8; }
-.wg-head { padding-top: 13px; }
-.wg-head svg.i { color: #6b727b; }
-.wg-head b { color: #a7aeb7; font-size: 9.5px; letter-spacing: .22em; }
-.wg-head b::before { counter-increment: wg; content: counter(wg, decimal-leading-zero); margin-right: 10px; color: #4f565e; font: 500 10px var(--mono); letter-spacing: .05em; }
-/* the four gauges under the cockpit read like an instrument cluster: a scale of ticks along the bottom */
-.wg.instr::after { content: ""; position: absolute; left: var(--pad); right: var(--pad); bottom: 0; height: 4px; opacity: .3; pointer-events: none;
-  background: repeating-linear-gradient(90deg, #8e959e 0 1px, transparent 1px 9px); -webkit-mask-image: linear-gradient(90deg, #000, transparent);
-  mask-image: linear-gradient(90deg, #000, transparent); }
-.wg.instr .wg-body.pad { padding-bottom: 12px; }
-.wg.instr .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.kpi span, .wg .stat small { letter-spacing: .02em; }
-.kpi span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ---------------------------------------------------------------- shared pieces: figures, empty states, avatars, panels */
+.kpi span { font-size: 11px; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi b.num.sm { font-size: 30px; line-height: 1; }
 .empty-state svg.i { width: 34px; height: 34px; padding: 8px; border-radius: 50%; color: #8b929b; border: 1px solid rgba(255, 255, 255, .1);
   background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .06), transparent 70%); }
@@ -160,38 +80,7 @@ html, body { background: var(--bg); }
 #ai-fab { background: radial-gradient(circle at 50% 30%, #2b3036, #0c0d10 68%); border: 2px solid #9aa2ab;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .2); }
 
-@media (max-width: 1100px) {
-  /* not enough width for text and car side by side: the car goes underneath */
-  .cockpit { flex-direction: column; align-items: stretch; padding-bottom: 0; }
-  .fascia { position: relative; right: auto; width: 100%; height: 190px; margin-top: 14px; -webkit-mask-image: none; mask-image: none; }
-}
-@media (max-width: 900px) {
-  .cockpit { min-height: 260px; padding: 24px 20px; }
-  .cockpit-actions .btn.amg { display: none; }
-}
-
-/* ---------------------------------------------------------------- the projects on Home, the ranking, the rev counter */
-.repos { display: flex; gap: 12px; height: 100%; flex-wrap: wrap; }
-.repo { position: relative; display: flex; align-items: center; gap: 14px; flex: 1; min-width: 280px; padding: 10px 16px; overflow: hidden; color: inherit; text-decoration: none;
-  border: 1px solid rgba(255, 255, 255, .07); border-radius: 8px; background: linear-gradient(135deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .01) 60%); transition: border-color .2s, transform .2s; }
-.repo:hover { border-color: rgba(222, 229, 238, .28); transform: translateY(-1px); }
-.repo.lead { border-color: rgba(222, 229, 238, .2); }
-.repo.lead::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, #fff, #8f98a2); }
-.repo.idle { opacity: .6; }
-.repo-mark { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 50%; font: 500 22px var(--serif); color: #0c0e10;
-  background: linear-gradient(145deg, #f4f6f8, #9aa2ac 55%, #dfe4ea); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 4px 14px rgba(0, 0, 0, .5); }
-.repo.idle .repo-mark { background: #2a2e33; color: #8f969f; box-shadow: none; }
-.repo-name { display: flex; align-items: baseline; gap: 10px; }
-.repo-name b { font: 500 19px/1.2 var(--serif); }
-.repo-name em { flex: none; font: 600 9px var(--ui); font-style: normal; letter-spacing: .2em; text-transform: uppercase; color: #cfd5dc; }
-.repo-meta { display: flex !important; align-items: center; gap: 6px; margin-top: 4px; }
-.repo-week { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
-.repo-week b { font: 600 20px/1 var(--mono); margin-top: 6px; }
-.repo-week small { color: var(--faint); font: 600 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; margin-top: 2px; }
-.spark { display: flex; align-items: flex-end; gap: 3px; width: 66px; height: 30px; }
-.spark i { flex: 1; border-radius: 1.5px; background: linear-gradient(180deg, #f4f6f8, #8f98a2); }
-.spark i.zero { background: rgba(255, 255, 255, .12); }
-
+/* ---------------------------------------------------------------- the ranking (Análise) */
 .rank-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
 .rank { padding: 6px 0; }
 .rank-head { padding: 10px 16px 6px; color: var(--muted); font: 600 10.5px var(--ui); letter-spacing: .2em; text-transform: uppercase; }
@@ -205,45 +94,6 @@ html, body { background: var(--bg); }
 .rank-n b { font: 600 24px/1 var(--mono); }
 .rank-n small { color: var(--faint); font: 600 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; margin-top: 3px; }
 @media (max-width: 900px) { .rank-grid { grid-template-columns: 1fr; } }
-
-.tacho { position: relative; display: grid; place-items: center; flex: none; width: 92px; height: 92px; margin-right: 10px; border-radius: 50%; color: inherit; text-decoration: none;
-  background: radial-gradient(circle at 50% 35%, #1d2126, #07080a 70%); box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 0 0 4px #0b0d0f, 0 0 0 5px rgba(222, 229, 238, .22), 0 14px 30px rgba(0, 0, 0, .7); }
-.tacho svg { position: absolute; inset: 0; width: 100%; height: 100%; stroke: none; }
-.tacho #tacho-needle { transform-origin: 50px 50px; transition: transform 1.4s cubic-bezier(.2, .9, .25, 1.15); filter: drop-shadow(0 0 3px rgba(255, 90, 60, .8)); }
-.tacho b { position: absolute; bottom: 20px; font: 600 15px/1 var(--mono); color: #f4f6f8; }
-.tacho span { position: absolute; bottom: 9px; font: 600 6.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: #8f969f; white-space: nowrap; }
-
-/* each person's day on Home: to do, done today, commits today, and the tasks themselves */
-.people { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; height: 100%; }
-.person-day { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, .07); border-radius: 8px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .01) 60%); }
-.person-day > .rowx b { font: 500 17px var(--serif); }
-.pd-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.pd-nums b { display: block; font: 600 22px/1 var(--mono); }
-.pd-nums span { color: var(--faint); font: 600 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
-.pd-list { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; font-size: 12.5px; }
-.pd-list a { display: flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; }
-.pd-list a:hover { color: var(--text); }
-.pd-list a i { flex: none; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--faint); }
-.pd-list a.ok { color: #bfe9cf; } .pd-list a.ok i { border: 0; background: var(--ok); }
-.pd-list .ell { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.pd-list .more { color: var(--faint); padding-left: 15px; }
-
-/* Home fits one screen: a lower cockpit and no empty band under the grid */
-.hub > main:has(> .page.home) { padding-bottom: 20px; }
-.page.home .cockpit { min-height: 0; height: clamp(150px, 22vh, 210px); padding: 14px 32px; margin-bottom: 14px; }
-.page.home .cockpit h1 { font-size: clamp(28px, 4.4vh, 44px); margin-top: 4px; }
-.page.home .cockpit-date { margin-top: 6px; }
-.page.home .cockpit-actions { margin-top: clamp(8px, 1.6vh, 16px); }
-.page.home .tacho { width: clamp(60px, 9vh, 84px); height: clamp(60px, 9vh, 84px); }
-.page.home .tacho b { bottom: 22%; font-size: 13px; } .page.home .tacho span { display: none; }
-.page.home .wg-head { padding-top: 8px; padding-bottom: 4px; }.page.home .repo { padding: 4px 14px; gap: 12px; }
-.page.home .repo-mark { width: 34px; height: 34px; font-size: 17px; }
-.page.home .repo-name b { font-size: 17px; }
-.page.home .repo-week { flex-direction: row; align-items: flex-end; gap: 10px; }
-.page.home .repo-week small { display: none; } .page.home .repo-week b { margin: 0; }
-.page.home .spark { height: 24px; }
-.page.home .wg-body.pad { padding-bottom: 10px; }
 
 /* the commit feed (the older code page) in the Hub's own look: lacquered rows, chrome edge, serif day headers */
 .hub .commit, .hub #who-summary .card { background: var(--surface); border: 1px solid rgba(255, 255, 255, .055); border-radius: 10px; }

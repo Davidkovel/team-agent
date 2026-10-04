@@ -1,433 +1,291 @@
-// Home: the command center. A grid of widgets the person arranges: drag to reorder, pull the corner to resize,
-// hide and bring back. The layout is kept per person in this browser.
+// Início: the command center at a glance, as in the team's mockup: the greeting beside the front of the car, the team, four
+// shortcuts, today's progress, the tasks by day, the coming deadlines, what just happened, and a thought for the day.
+// Every figure is the Hub's own record; where there is nothing, an honest empty state, never a made-up number.
+//
+// Light on the processor, because the Hub also runs inside the widget: the car is two still pictures drawn once (the car,
+// and its light on top; scripts/make_mercedes.py), the only motion is that light coming on once per session (opacity, done
+// by the graphics card), the clock changes once a minute, and nothing is blurred behind the cards (on a still background a
+// translucent card looks the same and costs nothing). The look is in hub/home.css.
 
-/* ---------- the widgets ----------
-   Each one: a title, an icon, a default size (columns of 12 x rows), the live events that refresh it, where its
-   "see all" goes, and load() -> html. Loading, empty and error states come from the system (mount, ui.empty, ui.error). */
-const WIDGETS = {
-  repos: {
-    title: "Os nossos projetos", icon: "code", w: 12, h: 1, href: "#/codigo", on: ["activity"], pad: true,
-    async load() {
-      const repos = await api("/api/repos");
-      if (!repos.length) return ui.empty("code", "Sem projetos", "Ainda não há repositórios em library/repos.json.");
-      return `<div class="repos">${repos.map((r, i) => {
-        const top = Math.max(1, ...(r.days || []));
-        return `<a class="repo ${i === 0 && r.last ? "lead" : ""} ${r.last ? "" : "idle"}" href="${esc(r.last?.url || r.url || "#/codigo")}" ${r.url ? 'target="_blank" rel="noopener"' : ""}>
-          <span class="repo-mark">${esc(r.name.trim()[0].toUpperCase())}</span>
-          <div class="rw-main"><div class="repo-name"><b>${esc(r.name)}</b>${i === 0 && r.last ? `<em>${t("último commit")}</em>` : ""}</div>
-            <span>${r.last ? `${esc(r.last.author)} · ${fmt.ago(r.last.date)} — ${esc(r.last.message)}` : `${t("Sem acesso aos commits deste repositório")} · ${esc(r.github)}`}</span></div>
-          ${r.last ? `<div class="repo-week" title="${t("Commits por dia, últimos 7 dias")}"><div class="spark">${(r.days || []).map((n) => `<i style="height:${n ? Math.max(12, Math.round(n / top * 100)) : 4}%" class="${n ? "" : "zero"}"></i>`).join("")}</div>
-            <b>${r.week_commits}</b><small>${t("commits · 7 dias")}</small></div>` : ""}</a>`;
-      }).join("")}</div>`;
-    },
-  },
-  people: {
-    title: "Cada um hoje", icon: "users", w: 12, h: 2, href: "#/tarefas", on: ["task", "presence", "activity"], pad: true,
-    async load() {
-      const [team, tasks, rank] = await Promise.all([api("/api/team"), api("/api/tasks"), api("/api/analytics/ranking")]);
-      const today = new Date().toDateString();
-      return `<div class="people">${team.map((m) => {
-        const mine = tasks.filter((x) => x.assignee === m.user);
-        const open = mine.filter((x) => x.stage !== "done");
-        const done = mine.filter((x) => x.status === "COMPLETED" && x.completed_at && new Date(x.completed_at).toDateString() === today);
-        const git = rank.today.find((p) => p.user === m.user) || { commits: 0, added: 0, deleted: 0 };
-        return `<div class="person-day"><div class="rowx">${ui.avatar(m.display_name)}<b class="grow">${esc(m.display_name)}</b>${ui.status(m.status)}</div>
-          <div class="pd-nums"><div><b>${open.length}</b><span>${t("por fazer")}</span></div><div><b>${done.length}</b><span>${t("feitas hoje")}</span></div>
-            <div><b>${rank.source === "live" ? git.commits : "–"}</b><span>${t("commits hoje")}</span></div></div>
-          <div class="pd-list">${[...done.map((x) => [x, true]), ...open.map((x) => [x, false])].slice(0, 5).map(([x, ok]) =>
-            `<a href="#/tarefas/${x.id}" class="${ok ? "ok" : ""}"><i></i><span class="ell">${esc(x.title)}</span></a>`).join("")
-            || `<span class="faint">${t("Sem tarefas.")}</span>`}
-            ${open.length + done.length > 5 ? `<a href="#/tarefas" class="more">+${open.length + done.length - 5}</a>` : ""}</div></div>`;
-      }).join("")}</div>`;
-    },
-  },
-  work: {
-    title: "Tarefas em curso", icon: "tasks", w: 6, h: 2, href: "#/tarefas", on: ["task", "presence", "session"],
-    async load() {
-      const tasks = (await api("/api/tasks")).filter((x) => ["in_progress", "approval", "review", "blocked"].includes(x.stage));
-      if (!tasks.length) return ui.empty("tasks", "Nada em curso", "Nenhuma tarefa está a ser trabalhada neste momento.",
-        `<a class="btn sm" href="#/tarefas">${t("Abrir tarefas")}</a>`);
-      return tasks.slice(0, 8).map((x) => `<a class="work" href="#/tarefas/${x.id}">
-        <div class="work-top">${ui.avatar(nameOf(x.assignee), "sm")}<b>${esc(x.title)}</b>${ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}</div>
-        ${ui.progress(x.progress, x.stage === "blocked" ? "bad" : x.stage === "in_progress" ? "ai" : "warn")}
-        <div class="work-meta"><span class="ell grow">${esc(nameOf(x.assignee))}${x.project_name || x.project ? " · " + esc(x.project_name || x.project) : ""}${x.current_action ? " · " + esc(x.current_action) : ""}</span>
-          <span class="pct">${x.progress}%</span></div></a>`).join("");
-    },
-  },
-  attention: {
-    title: "Precisa de ti", icon: "alert", w: 6, h: 2, on: ["task", "approval", "presence"],
-    async load() {
-      const items = await api("/api/attention");
-      if (!items.length) return ui.empty("check", "Tudo em ordem", "Nada precisa da tua atenção agora.");
-      return items.slice(0, 8).map((i) => `<a class="att ${i.severity}" href="${esc(i.href)}"><i></i>
-        <div class="rw-main"><b>${esc(i.title)}</b><span>${esc(i.detail)}</span></div></a>`).join("");
-    },
-  },
-  today: {
-    title: "Hoje", icon: "calendar", w: 3, h: 1, href: "#/tarefas", on: ["task", "approval"], pad: true,
-    async load() {
-      const [tasks, pending] = await Promise.all([api("/api/tasks"), api("/api/approvals/pending-count")]);
-      const today = new Date().toDateString();
-      const done = tasks.filter((x) => x.status === "COMPLETED" && x.completed_at && new Date(x.completed_at).toDateString() === today).length;
-      const active = tasks.filter((x) => x.stage === "in_progress").length;
-      const open = tasks.filter((x) => x.stage !== "done").length;
-      return `<div class="kpis">${[[open, "Abertas"], [done, "Concluídas"], [active, "Em curso"], [pending.pending, "Aprovações"]]
-        .map(([n, label]) => `<div class="kpi"><b class="num sm">${n}</b><span>${t(label)}</span></div>`).join("")}</div>`;
-    },
-  },
-  usage: {
-    title: "Uso de IA · 7 dias", icon: "token", w: 3, h: 1, href: "#/uso", on: ["usage"], pad: true,
-    async load() {
-      const u = await api("/api/usage/summary");
-      if (!u.runs) return `<div class="stat">${ui.num(null)}<small>${t("Ainda nenhuma sessão de IA registada.")}</small></div>`;
-      return `<div class="stat"><div class="rowx">${ui.num(fmt.tokens(u.input_tokens + u.output_tokens))}${ui.src("live")}</div>
-        <small>${t("tokens em {n} sessões", { n: u.runs })} · ${fmt.tokens(u.cache_read_tokens)} ${t("de cache")}</small></div>`;
-    },
-  },
-  cost: {
-    title: "Custo de IA · 7 dias", icon: "wallet", w: 3, h: 1, href: "#/analise", on: ["usage"], pad: true,
-    async load() {
-      const u = await api("/api/usage/summary");
-      if (u.cost_usd == null) return `<div class="stat">${ui.num(null)}<small>${t("Sem sessões de IA neste período.")}</small></div>`;
-      return `<div class="stat"><div class="rowx">${ui.num(fmt.usd(u.cost_usd))}${ui.src("estimated")}</div>
-        <small>${t("estimativa do SDK do Claude, não é faturação")}</small></div>`;
-    },
-  },
-  ponto: {
-    title: "Ponto de hoje", icon: "clock", w: 12, h: 1, on: ["ponto"], pad: true,
-    async load() {
-      const board = await api("/api/ponto");
-      const mine = board.people.find((p) => p.user === me.username);
-      return `<div class="ponto-strip">${board.people.map((p) => `<div class="ponto-p ${p.at ? "in" : ""}">
-          <span class="tick">${p.at ? icon("check") : ""}</span>
-          <div class="rw-main"><b>${esc(p.name)}</b><span>${p.at ? fmt.hhmm(p.at) : t("por bater")}</span></div></div>`).join("")}
-        ${mine && !mine.at ? `<button class="btn primary" data-punch>${t("Bater o ponto")}</button>` : ""}</div>`;
-    },
-  },
-  agents: {
-    title: "IA ativa", icon: "bot", w: 4, h: 2, href: "#/agentes", on: ["presence", "session", "task"],
-    async load() {
-      const agents = (await api("/api/agents")).filter((a) => ["WORKING", "WAITING", "PAUSED", "ERROR"].includes(a.status));
-      if (!agents.length) return ui.empty("bot", "Nenhum agente ativo", "Nenhum agente de IA está a trabalhar agora.",
-        `<a class="btn sm" href="#/tarefas">${t("Entregar uma tarefa")}</a>`);
-      return agents.map((a) => `<a class="work" href="#/agentes/${esc(a.id)}">
-        <div class="work-top">${ui.avatar(a.display_name, "sm ai")}<b>${esc(a.name)}</b>${ui.status(a.status)}</div>
-        <div class="work-meta"><span class="ell grow">${a.project ? esc(a.project) + " · " : ""}${esc(a.task || t("sem tarefa"))}</span></div>
-        ${ui.progress(a.progress, "ai")}
-        <div class="work-meta"><span class="mono">${a.session ? fmt.tokens(a.session.tokens.total) + " tokens" : "—"}</span>
-          <span class="grow"></span><span>${a.started_at ? fmt.span(a.started_at) : ""}</span><span class="pct">${a.progress}%</span></div></a>`).join("");
-    },
-  },
-  team: {
-    title: "Equipa", icon: "users", w: 6, h: 2, href: "#/equipa", on: ["presence", "task"],
-    async load() {
-      const team = await api("/api/team");
-      return `<div class="rows">${team.map((m) => `<a class="rw" href="#/agentes/${esc(m.user)}">${ui.avatar(m.display_name)}
-        <div class="rw-main"><b>${esc(m.display_name)}</b><span>${esc(m.task || (m.status === "OFFLINE" ? t("visto {quando}", { quando: fmt.ago(m.last_seen) }) : t("sem tarefa")))}</span></div>
-        ${ui.status(m.status)}</a>`).join("")}</div>`;
-    },
-  },
-  approvals: {
-    title: "Aprovações", icon: "check", w: 4, h: 2, href: "#/aprovacoes", on: ["approval"],
-    async load() {
-      const pending = (await api("/api/approvals")).filter((a) => a.status === "PENDING");
-      if (!pending.length) return ui.empty("check", "Sem pedidos", "Nenhum agente está à espera de aprovação.");
-      return pending.slice(0, 4).map((a) => `<div class="work">
-        <div class="work-top"><b>${esc(a.action)}</b>${a.risk ? ui.tag(t("Risco") + " " + t({ low: "baixo", medium: "médio", high: "alto" }[a.risk]), a.risk) : ""}</div>
-        <div class="work-meta"><span class="ell grow">Claude / ${esc(a.user_name)}${a.detail ? " · " + esc(a.detail) : ""}</span></div>
-        ${me.lead ? `<div class="rowx"><button class="btn sm ok" data-decide="${a.id}" data-approve="1">${t("Aprovar")}</button>
-          <button class="btn sm danger" data-decide="${a.id}" data-approve="0">${t("Recusar")}</button></div>` : ""}</div>`).join("");
-    },
-  },
-  activity: {
-    title: "Atividade ao vivo", icon: "pulse", w: 8, h: 2, href: "#/aovivo", on: ["activity", "task", "approval"],
-    async load() {
-      const items = await api("/api/history?limit=14");
-      if (!items.length) return ui.empty("pulse", "Sem atividade", "Ainda não aconteceu nada hoje.");
-      return `<div class="tl" style="padding:4px 0">${ui.feed(items.map((a) => activityItem(a)))}</div>`;
-    },
-  },
-  completed: {
-    title: "Concluídas", icon: "check", w: 4, h: 2, href: "#/tarefas", on: ["task"],
-    async load() {
-      const done = (await api("/api/tasks")).filter((x) => x.status === "COMPLETED" && x.completed_at)
-        .sort((a, b) => b.completed_at.localeCompare(a.completed_at)).slice(0, 7);
-      if (!done.length) return ui.empty("check", "Nada concluído", "As tarefas concluídas aparecem aqui.");
-      return `<div class="rows">${done.map((x) => `<a class="rw" href="#/tarefas/${x.id}"><span class="st ok"><i></i></span>
-        <div class="rw-main"><b>${esc(x.title)}</b><span>${esc(nameOf(x.assignee))} · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}</span></div></a>`).join("")}</div>`;
-    },
-  },
-  companies: {
-    title: "Empresas", icon: "building", w: 4, h: 1, href: "#/empresas", on: [],
-    async load() {
-      if (!companies.length) return ui.empty("building", "Sem empresas", "Ainda não há empresas na biblioteca.");
-      return `<div class="rows">${companies.map((c) => `<a class="rw" href="#/empresas/${esc(c.id)}"><span class="av">${esc(c.short || c.name[0])}</span>
-        <div class="rw-main"><b>${esc(c.name)}</b><span>${esc(c.tagline || "")}</span></div></a>`).join("")}</div>`;
-    },
-  },
-};
+const QUOTES = ["Disciplina hoje, liberdade amanhã.", "Grandes resultados exigem tempo, foco e consistência.",
+  "Feito é melhor do que perfeito.", "Um passo de cada vez, todos os dias.", "Foca-te no que depende de ti.",
+  "A consistência vence o talento.", "Pequenas vitórias, todos os dias.", "Quem planeia o dia, manda no dia."];
+const dayOfYear = (d = new Date()) => Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5);
+const quoteOfDay = (offset = 0) => QUOTES[(dayOfYear() + offset) % QUOTES.length];
 
-// Home starts short: the projects by latest commit, what each person has to do and did today, the work, then what needs the person and the team. The rest
-// (gauges, agents, approvals, activity...) is one click away in "Personalizar" and on its own page.
-const DEFAULT_LAYOUT = ["repos", "people", "work", "attention"];
-const INSTRUMENTS = ["today", "usage", "cost"];
+/* ---------- the day: which tasks are today's, tomorrow's, this week's ---------- */
+const startOfDay = (d, add = 0) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + add); return x; };
+const MONTHS_SHORT = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+const WEEKDAYS_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-/* ---------- the cockpit: the front of an AMG, lights on ----------
-   Drawn here (no image file): the Panamericana grille with the star, and the two headlights with the eyebrow
-   daytime light and three star LEDs each. The left light is drawn once and mirrored for the right.
-   The look is the angry one: slim lights slanting down into the grille, a tall grille, a big lit star, deep intakes. */
-const HEADLIGHT = `
-  <path d="M118 170C150 150 200 140 252 137L404 170C412 172 414 181 407 187L394 192C330 188 230 186 150 194C126 196 110 184 118 170Z"
-    fill="url(#amg-glass)" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
-  <path d="M128 188C200 182 300 182 392 188" fill="none" stroke="rgba(255,255,255,.06)"/>
-  <ellipse class="bloom" cx="262" cy="166" rx="160" ry="46" fill="url(#amg-bloom)"/>
-  <path class="drl" d="M150 188C134 184 132 174 142 166C170 151 212 145 254 144L398 177"/>
-  <g><use class="led" href="#amg-tri" x="212" y="156" width="16" height="16"/><use class="led" href="#amg-tri" x="260" y="160" width="16" height="16"/>
-    <use class="led" href="#amg-tri" x="308" y="166" width="16" height="16"/></g>
-  <path d="M96 232L352 218L384 296L140 310Z" fill="#030405" stroke="rgba(255,255,255,.1)"/>
-  <path d="M168 238L190 302M214 234L234 300M260 230L278 298M306 227L322 296" stroke="rgba(255,255,255,.07)" stroke-width="2"/>
-  <path d="M104 246L362 232" stroke="url(#amg-blade)" stroke-width="4" stroke-linecap="round"/>
-  <path d="M60 206C80 196 100 192 118 192" fill="none" stroke="rgba(255,255,255,.12)"/>
-  <ellipse class="floor" cx="250" cy="318" rx="200" ry="16" fill="url(#amg-bloom)" opacity=".9"/>`;
-const GRILLE = "M425 140H575C588 140 594 148 596 158L618 262C620 274 612 284 600 284H400C388 284 380 274 382 262L404 158C406 148 412 140 425 140Z";
-const SLATS = Array.from({ length: 26 }, (_, i) => `<rect x="${386 + i * 9}" y="140" width="3.2" height="146" rx="1.6" fill="url(#amg-slat)"/>`).join("");
-const FASCIA = `<svg viewBox="0 0 1000 320" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
-  <defs>
-    <filter id="amg-glow" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="3.2" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <radialGradient id="amg-bloom"><stop offset="0" stop-color="#dce9ff" stop-opacity=".34"/><stop offset=".45" stop-color="#b9d0ff" stop-opacity=".1"/><stop offset="1" stop-color="#b9d0ff" stop-opacity="0"/></radialGradient>
-    <linearGradient id="amg-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1f25"/><stop offset=".35" stop-color="#0d0f12"/><stop offset="1" stop-color="#050607"/></linearGradient>
-    <linearGradient id="amg-hood" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-    <linearGradient id="amg-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1f27"/><stop offset="1" stop-color="#07090c"/></linearGradient>
-    <linearGradient id="amg-slat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f8"/><stop offset=".45" stop-color="#8c949d"/><stop offset=".55" stop-color="#4a5159"/><stop offset="1" stop-color="#c4cad1"/></linearGradient>
-    <linearGradient id="amg-blade" x1="0" x2="1"><stop offset="0" stop-color="#9aa2ab" stop-opacity=".2"/><stop offset=".6" stop-color="#eef1f4"/><stop offset="1" stop-color="#9aa2ab" stop-opacity=".4"/></linearGradient>
-    <radialGradient id="amg-halo"><stop offset=".55" stop-color="#e8f0ff" stop-opacity=".0"/><stop offset=".72" stop-color="#e8f0ff" stop-opacity=".38"/><stop offset="1" stop-color="#e8f0ff" stop-opacity="0"/></radialGradient>
-    <clipPath id="amg-grille"><path d="${GRILLE}"/></clipPath>
-    <symbol id="amg-tri" viewBox="-10 -10 20 20"><path d="M0-9L1.7-1.2L8.2 5.2L0 2.1L-8.2 5.2L-1.7-1.2Z"/></symbol>
-  </defs>
-  <path d="M20 232C70 150 230 118 500 112C770 118 930 150 980 232L996 320H4Z" fill="url(#amg-body)"/>
-  <path d="M44 214C120 142 270 118 500 114C730 118 880 142 956 214" fill="none" stroke="url(#amg-hood)" stroke-width="1.4"/>
-  <path d="M300 118C360 128 392 140 420 140M700 118C640 128 608 140 580 140" fill="none" stroke="rgba(255,255,255,.14)"/>
-  <path d="M440 114L452 140M560 114L548 140" fill="none" stroke="rgba(255,255,255,.08)"/>
-  <g>${HEADLIGHT}</g>
-  <g transform="translate(1000 0) scale(-1 1)">${HEADLIGHT}</g>
-  <path d="${GRILLE}" fill="#030405"/>
-  <g clip-path="url(#amg-grille)">${SLATS}</g>
-  <path d="${GRILLE}" fill="none" stroke="url(#amg-slat)" stroke-width="3.5"/>
-  <circle class="halo" cx="500" cy="212" r="66" fill="url(#amg-halo)"/>
-  <circle cx="500" cy="212" r="47" fill="#040506"/>
-  <circle class="halo-ring" cx="500" cy="212" r="47.5" fill="none" stroke="#eef5ff" stroke-width="1.6" filter="url(#amg-glow)"/>
-  <image href="assets/mercedes-star.svg" x="456" y="168" width="88" height="88"/>
-  <path d="M300 298H700L734 320H266Z" fill="#030405" stroke="rgba(255,255,255,.08)"/>
-  <path d="M268 319H732" stroke="url(#amg-blade)" stroke-width="2.5"/>
-</svg>`;
-
-// The rev counter of the cockpit: the team's commits of today. Ten is the top of the scale, the last fifth is red.
-const TACHO_MAX = 10;
-const TACHO = `<a class="tacho" href="#/analise" title="${t("Commits da equipa hoje")}"><svg viewBox="0 0 100 100" aria-hidden="true">
-  <path d="M20.3 79.7A42 42 0 1 1 79.7 79.7" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="2.4" stroke-linecap="round"/>
-  <path d="M91.5 43.4A42 42 0 0 1 79.7 79.7" fill="none" stroke="#d8402c" stroke-width="2.4" stroke-linecap="round"/>
-  ${Array.from({ length: 11 }, (_, i) => { const a = (135 + 27 * i) * Math.PI / 180, r = i % 5 ? 37 : 34;
-    return `<line x1="${(50 + r * Math.cos(a)).toFixed(1)}" y1="${(50 + r * Math.sin(a)).toFixed(1)}" x2="${(50 + 40 * Math.cos(a)).toFixed(1)}" y2="${(50 + 40 * Math.sin(a)).toFixed(1)}" stroke="${i > 8 ? "#d8402c" : "#aeb5bd"}" stroke-width="${i % 5 ? 1 : 1.8}"/>`; }).join("")}
-  <g id="tacho-needle" style="transform: rotate(-135deg)"><path d="M49 52L50 15L51 52Z" fill="#ff5a3c"/></g>
-  <circle cx="50" cy="50" r="5" fill="#15181c" stroke="#aeb5bd" stroke-width="1"/></svg>
-  <b id="tacho-n">–</b><span>${t("commits hoje")}</span></a>`;
-async function loadTacho() {
-  if (!$("tacho-n")) return;
-  const r = await api("/api/analytics/ranking");
-  const n = r.today.reduce((sum, p) => sum + p.commits, 0);
-  $("tacho-n").textContent = r.source === "live" ? n : "–";
-  $("tacho-needle").style.transform = `rotate(${-135 + 270 * Math.min(n / TACHO_MAX, 1)}deg)`;
+// An open task with no deadline counts as today's: most of the team's tasks have none, and "Hoje" is where they get done.
+// "Esta semana" on the tasks is the next seven days (on a Sunday the calendar week has nothing left); the progress counts the
+// week from Monday.
+function planOf(tasks, now = new Date()) {
+  const today = startOfDay(now), tomorrow = startOfDay(now, 1), after = startOfDay(now, 2), inAWeek = startOfDay(now, 7);
+  const monday = startOfDay(now, -((now.getDay() + 6) % 7));
+  const due = (x) => (x.deadline ? new Date(x.deadline) : null);
+  const done = (x) => (x.status === "COMPLETED" && x.completed_at ? new Date(x.completed_at) : null);
+  const byDue = (a, b) => (due(a) ?? Infinity) - (due(b) ?? Infinity) || a.id - b.id;
+  const open = tasks.filter((x) => x.stage !== "done" && !x.trashed_at);
+  return {
+    open,
+    late: open.filter((x) => due(x) && due(x) < now),
+    doneToday: tasks.filter((x) => done(x) && done(x) >= today).sort((a, b) => done(b) - done(a)),
+    doneWeek: tasks.filter((x) => done(x) && done(x) >= monday),
+    today: open.filter((x) => !due(x) || due(x) < tomorrow).sort(byDue),
+    tomorrow: open.filter((x) => due(x) && due(x) >= tomorrow && due(x) < after).sort(byDue),
+    week: open.filter((x) => due(x) && due(x) >= today && due(x) < inAWeek).sort(byDue),
+    upcoming: open.filter((x) => due(x) && due(x) >= today).sort(byDue),
+    inProgress: open.filter((x) => x.stage === "in_progress").length,
+  };
 }
 
-let cockpitClock = null;
-function cockpitHtml(greeting, date) {
-  // the start-up plays once per session; after that the lights are simply on
-  let ignite = false;
-  try { ignite = !sessionStorage.getItem("hub.ignited"); sessionStorage.setItem("hub.ignited", "1"); } catch { /* private window: no start-up */ }
-  return `<section class="cockpit ${ignite ? "ignite" : ""}">
-    <div class="fascia">${FASCIA}</div>
-    <div class="cockpit-copy">
-      <div class="ph-eyebrow">${t("Centro de comando")}</div>
-      <h1>${esc(t(greeting))}, <em>${esc(me.display_name)}</em></h1>
-      <p class="cockpit-date">${esc(date)}<i></i><time id="cockpit-clock">${new Date().toLocaleTimeString("pt-PT")}</time></p>
-      <div class="cockpit-actions">
-        ${TACHO}
-        <a class="btn amg" href="#/tarefas">${t("Tarefas")}</a>
-        <a class="btn amg" href="#/analise">${t("Análise")}</a>
-        <button class="btn quiet" id="customize">${icon("sliders")}${t("Personalizar")}</button>
-      </div>
+function inDayLabel(d, now = new Date()) {
+  const diff = Math.round((startOfDay(d) - startOfDay(now)) / 864e5);
+  return diff === 0 ? t("Hoje") : diff === 1 ? t("Amanhã") : t(WEEKDAYS_SHORT[d.getDay()]);
+}
+const dayNum = (d) => `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+
+// [what to show for the deadline, "late" when it has passed]
+function whenOf(x, tab, now = new Date()) {
+  if (!x.deadline) return ["", ""];
+  const d = new Date(x.deadline), hhmm = fmt.hhmm(x.deadline);
+  if (d < startOfDay(now)) return [dayNum(d).toLowerCase(), "late"];
+  if (d < startOfDay(now, 1)) return [hhmm, d < now ? "late" : ""];
+  return [tab === "tomorrow" ? hhmm : `${inDayLabel(d, now)} ${hhmm}`, ""];
+}
+
+// The tag beside a task: its project or company, else whose it is. The colour follows the name, so it is always the same.
+const TAG_TONES = ["blue", "green", "amber", "violet", "teal"];
+function tagOf(x) {
+  const label = x.project_name || companies.find((c) => c.id === x.company)?.name || nameOf(x.assignee);
+  let h = 0;
+  for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return [label, TAG_TONES[h % TAG_TONES.length]];
+}
+
+/* ---------- the blocks ---------- */
+const greetingOf = (hour) => (hour < 6 ? "Boa noite" : hour < 13 ? "Bom dia" : hour < 20 ? "Boa tarde" : "Boa noite");
+
+function heroHtml(now, ignite) {
+  const night = now.getHours() >= 20 || now.getHours() < 7;
+  const date = now.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
+  return `<header class="in-hero ${ignite ? "ignite" : ""}">
+    <div class="hero-copy">
+      <span class="hero-sky ${night ? "moon" : "sun"}">${icon(night ? "moon" : "sun")}</span>
+      <h1>${esc(t(greetingOf(now.getHours())))}, ${esc(me.display_name)}</h1>
+      <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i>·</i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
     </div>
-  </section>`;
+    <div class="hero-car" aria-hidden="true"><img src="assets/mercedes-front.svg" alt="" decoding="async"><img class="lights" src="assets/mercedes-lights.svg" alt="" decoding="async"></div>
+    <blockquote class="hero-quote">“${esc(t(quoteOfDay()))}”</blockquote>
+  </header>`;
 }
 
-/* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home10.${me.username}`; // "10": the markets and the shop left Home (the shop is the BareDesk tab of Trabalho); older saved layouts start over
-function loadLayout() {
-  let saved = [];
-  try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }
-  const known = saved.filter((item) => WIDGETS[item.id]);
-  const missing = Object.keys(WIDGETS).filter((id) => !known.some((item) => item.id === id)) // never saved, or added since
-    .sort((x, y) => (DEFAULT_LAYOUT.indexOf(x) + 1 || 99) - (DEFAULT_LAYOUT.indexOf(y) + 1 || 99));
-  return [...known, ...missing.map((id) => ({ id, w: WIDGETS[id].w, h: WIDGETS[id].h, hidden: !DEFAULT_LAYOUT.includes(id) }))];
-}
-let layout = [];
-const saveLayout = () => localStorage.setItem(layoutKey(), JSON.stringify(layout));
-function setDensity(value) {
-  localStorage.setItem("hub.density", value);
-  document.documentElement.dataset.density = value;
+const cardHead = (ic, tone, title, sub, link = "") => `<header class="ch"><span class="ch-ic ${tone}">${icon(ic)}</span>
+  <div class="ch-t"><b>${esc(t(title))}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>${link}</header>`;
+const seeAll = (label, href) => `<a class="ch-link" href="${href}">${esc(t(label))}${icon("chevron")}</a>`;
+
+const RING = { WORKING: "busy", ONLINE: "on", IDLE: "on", WAITING: "wait", PAUSED: "wait", ERROR: "bad", OFFLINE: "off" };
+async function teamCard() {
+  const team = await api("/api/team");
+  const online = team.filter((m) => m.status !== "OFFLINE").length;
+  return `${cardHead("users", "blue", "A tua equipa", `${team.length} ${t("membros")} · ${online} ${t("online")}`,
+    `<a class="ch-link pill" href="#/equipa">${t("Ver equipa")}${icon("chevron")}</a>`)}
+    <div class="crew" style="--n:${team.length || 1}">${team.map((m) => {
+      const tone = RING[m.status] || "off";
+      return `<a class="mate" href="#/equipa"><span class="mate-ring ${tone}">${ui.avatar(m.display_name, "xl")}<i></i></span>
+        <b>${esc(m.display_name)}</b><span class="mate-st ${tone}"><i></i>${esc(t((AGENT_ST[m.status] || [, m.status])[1]))}</span></a>`;
+    }).join("")}</div>`;
 }
 
-function widgetHtml(item) {
-  const w = WIDGETS[item.id];
-  return `<section class="wg ${INSTRUMENTS.includes(item.id) ? "instr" : ""}" data-id="${item.id}" style="grid-column: span ${item.w}; grid-row: span ${item.h}; --w: ${item.w}">
-    <header class="wg-head" draggable="true">${icon(w.icon)}<b>${esc(t(w.title))}</b>${w.head ? w.head() : ""}
-      <div class="wg-tools">${w.href ? `<a href="${w.href}" title="${t("Ver tudo")}">${icon("arrow")}</a>` : ""}
-        <button data-hide title="${t("Esconder")}">${icon("x")}</button></div></header>
-    <div class="wg-body ${w.pad ? "pad" : ""}" id="wg-${item.id}"></div><span class="wg-grip" title="${t("Redimensionar")}"></span></section>`;
-}
-const loadWidget = (id) => mount($(`wg-${id}`), WIDGETS[id].load, WIDGETS[id].h > 1 ? 4 : 2);
-function drawGrid() {
-  const grid = $("wgrid");
-  if (!grid) return;
-  const shown = layout.filter((item) => !item.hidden);
-  grid.innerHTML = shown.length ? shown.map(widgetHtml).join("")
-    : `<div class="panel" style="grid-column:1/-1;grid-row:span 2">${ui.empty("sliders", "Sem widgets", "Escondeste todos os widgets.", `<button class="btn sm" data-customize>${t("Personalizar")}</button>`)}</div>`;
-  shown.forEach((item) => loadWidget(item.id));
-  fitGrid();
-}
-// Home fits the screen: the rows share the height left under the cockpit, so nothing scrolls. With many widgets
-// a row never gets shorter than MIN_ROW, and only then the page scrolls.
-const MIN_ROW = 92;
-function fitGrid() {
-  const grid = $("wgrid"), view = $("view");
-  if (!grid) return;
-  grid.style.removeProperty("--row");
-  const style = getComputedStyle(grid);
-  if (style.gridTemplateColumns.split(" ").length < 6) return; // one column (phone): rows are as tall as their content
-  const rows = style.gridTemplateRows.split(" ").length, gap = parseFloat(style.rowGap) || 12;
-  const top = grid.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
-  const free = view.clientHeight - top - parseFloat(getComputedStyle(view).paddingBottom) - 1;
-  grid.style.setProperty("--row", `${Math.max(MIN_ROW, Math.floor((free - gap * (rows - 1)) / rows))}px`);
-}
-window.addEventListener("resize", fitGrid);
+const TILES = [["task", "plus", "blue", "Tarefa", "Criar nova tarefa"], ["agenda", "calendar", "green", "Calendário", "Ver prazos"],
+  ["note", "note", "violet", "Notas", "Guardar ideias"], ["team", "users", "amber", "Equipa", "Ver membros"]];
+const tilesHtml = () => `<nav class="in-tiles">${TILES.map(([act, ic, tone, title, sub]) => `<button class="in-tile ${tone}" data-act="${act}">
+  <span class="tile-ic">${icon(ic)}</span><span class="tile-t"><b>${esc(t(title))}</b><span>${esc(t(sub))}</span></span>${icon("chevron")}</button>`).join("")}</nav>`;
 
-/* ---------- drag to reorder, corner to resize ---------- */
-function wireGrid(grid) {
-  let dragged = null;
-  grid.addEventListener("dragstart", (e) => {
-    const head = e.target.closest(".wg-head");
-    if (!head) return;
-    dragged = head.parentElement;
-    dragged.classList.add("dragging");
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", dragged.dataset.id);
-  });
-  grid.addEventListener("dragover", (e) => {
-    const over = e.target.closest(".wg");
-    if (!dragged || !over || over === dragged) return;
-    e.preventDefault();
-    grid.querySelectorAll(".wg.over").forEach((el) => el !== over && el.classList.remove("over"));
-    over.classList.add("over");
-  });
-  grid.addEventListener("dragleave", (e) => e.target.closest?.(".wg")?.classList.remove("over"));
-  grid.addEventListener("drop", (e) => {
-    const over = e.target.closest(".wg");
-    if (!dragged || !over || over === dragged) return;
-    e.preventDefault();
-    const nodes = [...grid.children];
-    over.classList.remove("over");
-    grid.insertBefore(dragged, nodes.indexOf(dragged) < nodes.indexOf(over) ? over.nextSibling : over);
-    const order = [...grid.children].map((el) => el.dataset.id);
-    layout = [...order.map((id) => layout.find((item) => item.id === id)), ...layout.filter((item) => item.hidden)];
-    saveLayout();
-  });
-  grid.addEventListener("dragend", () => { dragged?.classList.remove("dragging"); grid.querySelectorAll(".wg.over").forEach((el) => el.classList.remove("over")); dragged = null; });
-
-  grid.addEventListener("pointerdown", (e) => {
-    if (!e.target.classList.contains("wg-grip")) return;
-    e.preventDefault();
-    const el = e.target.parentElement, item = layout.find((x) => x.id === el.dataset.id);
-    const gap = 12, columns = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
-    const col = (grid.clientWidth - gap * (columns - 1)) / columns + gap;
-    const row = parseFloat(getComputedStyle(grid).getPropertyValue("--row")) + gap;
-    const box = el.getBoundingClientRect(), start = { x: e.clientX, y: e.clientY };
-    el.classList.add("resizing");
-    e.target.setPointerCapture(e.pointerId);
-    const move = (ev) => {
-      item.w = Math.max(2, Math.min(columns, Math.round((box.width + ev.clientX - start.x + gap) / col)));
-      item.h = Math.max(1, Math.min(4, Math.round((box.height + ev.clientY - start.y + gap) / row)));
-      el.style.gridColumn = `span ${item.w}`; el.style.gridRow = `span ${item.h}`; el.style.setProperty("--w", item.w);
-    };
-    const up = () => { el.classList.remove("resizing"); e.target.removeEventListener("pointermove", move); saveLayout(); fitGrid(); };
-    e.target.addEventListener("pointermove", move);
-    e.target.addEventListener("pointerup", up, { once: true });
-    e.target.addEventListener("pointercancel", up, { once: true });
-  });
-
-  grid.addEventListener("click", async (e) => {
-    const hide = e.target.closest("[data-hide]"), decide = e.target.closest("[data-decide]");
-    if (hide) {
-      layout.find((x) => x.id === hide.closest(".wg").dataset.id).hidden = true;
-      saveLayout(); drawGrid();
-    } else if (decide) {
-      decide.disabled = true;
-      try { await api(`/api/approvals/${decide.dataset.decide}/decide`, { method: "POST", body: { approve: decide.dataset.approve === "1" } }); }
-      catch (err) { flash(err.message); }
-      loadWidget("approvals");
-    } else if (e.target.closest("[data-punch]")) {
-      try { await api("/api/ponto", { method: "POST" }); flash(t("Ponto batido. A equipa já sabe.")); } catch (err) { flash(err.message); }
-      loadWidget("ponto");
-    } else if (e.target.closest("[data-customize]")) customizeHome();
-  });
+async function progressBody() {
+  const p = planOf(await api("/api/tasks"));
+  const doneN = p.doneToday.length, total = doneN + p.today.length;
+  const weekDone = p.doneWeek.length, weekTotal = weekDone + p.open.length;
+  const pct = weekTotal ? Math.round((weekDone / weekTotal) * 100) : 0;
+  const c = 2 * Math.PI * 52, off = total ? c * (1 - doneN / total) : c;
+  return `<div class="prog">
+      <div class="ring" style="--c:${c.toFixed(1)};--off:${off.toFixed(1)}"><svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="ring-track" cx="60" cy="60" r="52"/><circle class="ring-val" cx="60" cy="60" r="52"/></svg>
+        <div><b>${doneN}<small>/${total}</small></b><span>${t("Tarefas hoje")}</span></div></div>
+      <ul class="legend"><li><i class="ok"></i>${t("Concluídas")}<b>${doneN}</b></li>
+        <li><i class="warn"></i>${t("Pendentes")}<b>${p.today.length - p.late.length}</b></li>
+        <li><i class="bad"></i>${t("Atrasadas")}<b>${p.late.length}</b></li></ul></div>
+    <div class="week"><span class="week-ic">${icon("trend")}</span><div><b>${t("Progresso do grupo")}</b><span>${t("Esta semana")}</span></div></div>
+    <div class="week-bar"><div class="in-bar"><i style="width:${pct}%"></i></div><b>${weekTotal ? `${pct}%` : "—"}</b></div>
+    <div class="week-nums">${[[weekTotal, "Tarefas totais"], [weekDone, "Concluídas"], [p.inProgress, "Em curso"], [p.late.length, "Atrasadas"]]
+      .map(([n, label]) => `<div><b>${n}</b><span>${t(label)}</span></div>`).join("")}</div>`;
 }
 
-function customizeHome() {
-  const density = localStorage.getItem("hub.density") || "normal";
-  openModal(`<h3>${t("Personalizar o Início")}</h3>
-    ${ui.sec("Widgets visíveis")}
-    <div class="custom">${layout.map((item) => `<label><input type="checkbox" data-w="${item.id}" ${item.hidden ? "" : "checked"}>${esc(t(WIDGETS[item.id].title))}</label>`).join("")}</div>
-    ${ui.sec("Densidade")}
-    <div class="segx" id="density">${[["compact", "Compacta"], ["normal", "Normal"], ["expanded", "Ampla"]].map(([v, l]) => `<button data-d="${v}" class="${v === density ? "on" : ""}">${t(l)}</button>`).join("")}</div>
-    <p class="dim" style="margin:14px 0 0">${t("Arrasta um widget pelo título para o mudar de sítio. Puxa o canto inferior direito para lhe mudar o tamanho.")}</p>
-    <div class="form-foot"><button class="btn quiet" id="reset-layout" style="margin-right:auto">${t("Repor a disposição original")}</button><button class="btn primary" data-close>${t("Feito")}</button></div>`);
-  $("modal-box").onchange = (e) => {
-    if (!e.target.dataset.w) return;
-    layout.find((x) => x.id === e.target.dataset.w).hidden = !e.target.checked;
-    saveLayout(); drawGrid();
+let tasksTab = "today";
+const DAY_TABS = [["today", "Hoje"], ["tomorrow", "Amanhã"], ["week", "Esta semana"]];
+const DAY_EMPTY = { today: "Nada para hoje. Cria uma tarefa, ou dá um prazo a uma.", tomorrow: "Nada com prazo para amanhã.",
+  week: "Nada com prazo para esta semana." };
+const MAX_ROWS = 6;
+
+function taskRow(x, done) {
+  const [when, late] = done ? [fmt.hhmm(x.completed_at), ""] : whenOf(x, tasksTab);
+  const [tag, tone] = tagOf(x), held = !done && heldByAgent(x);
+  const check = done ? `<span class="tcheck">${icon("tick")}</span>`
+    : held ? `<span class="tcheck held" title="${t("O agente está a tratar dela")}"></span>`
+    : `<button class="tcheck" data-done="${x.id}" title="${t("Concluir")}" aria-label="${t("Concluir")}"></button>`;
+  return `<div class="trow ${done ? "done" : ""}">${check}<button class="ttitle" data-task="${x.id}">${esc(x.title)}</button>
+    <span class="twhen ${late}">${esc(when)}</span><span class="ttag ${tone}">${esc(tag)}</span></div>`;
+}
+
+async function tasksBody() {
+  const p = planOf(await api("/api/tasks"));
+  const rows = [...p[tasksTab].map((x) => [x, false]), ...(tasksTab === "today" ? p.doneToday.map((x) => [x, true]) : [])];
+  const more = rows.length - MAX_ROWS;
+  return `<div class="day-tabs" role="tablist">${DAY_TABS.map(([id, label]) =>
+      `<button role="tab" data-tab="${id}" class="${id === tasksTab ? "on" : ""}" aria-selected="${id === tasksTab}">${t(label)}</button>`).join("")}</div>
+    ${rows.length ? `<div class="trows">${rows.slice(0, MAX_ROWS).map(([x, done]) => taskRow(x, done)).join("")}</div>`
+      : `<p class="in-empty">${t(DAY_EMPTY[tasksTab])}</p>`}
+    ${more > 0 ? `<a class="in-more" href="#/tarefas">${t("Mais {n} no quadro", { n: more })}</a>` : ""}`;
+}
+
+function calRow(x) {
+  const d = new Date(x.deadline);
+  return `<button class="crow" data-task="${x.id}"><span class="cdate"><b>${esc(inDayLabel(d))}</b><span>${dayNum(d)}</span></span>
+    <span class="ctitle">${esc(x.title)}</span><span class="ctime">${fmt.hhmm(x.deadline)}</span>${icon("chevron")}</button>`;
+}
+const noDeadlines = () => `<div class="in-none">${icon("calendar")}<div><b>${t("Sem prazos marcados")}</b>
+  <span>${t("Dá um prazo a uma tarefa e ela aparece aqui.")}</span></div><button class="in-btn" data-act="task">${t("Nova tarefa")}</button></div>`;
+
+async function calendarBody() {
+  const p = planOf(await api("/api/tasks"));
+  return p.upcoming.length ? `<div class="crows">${p.upcoming.slice(0, 3).map(calRow).join("")}</div>` : noDeadlines();
+}
+
+// "Marco entrou no Hub" and "ficou online" every few minutes would bury the rest: presence is shown on the team card instead
+const NOISE = ["login", "hub_online", "hub_offline", "agent_online", "agent_offline"];
+function splitActivity(a) {
+  const who = a.message.startsWith(a.name || "\u0000") ? "" : `${a.name} `;
+  const cut = a.message.indexOf(": ");
+  const head = cut > 0 ? a.message.slice(0, cut) : a.message;
+  return [who + (head === "concluiu" ? t("concluiu a tarefa") : head), cut > 0 ? a.message.slice(cut + 2) : ""];
+}
+
+async function activityBody() {
+  const [items, team] = await Promise.all([api("/api/history?limit=40"), api("/api/team")]);
+  const online = new Set(team.filter((m) => m.status !== "OFFLINE").map((m) => m.user));
+  const shown = items.filter((a) => !NOISE.includes(a.kind)).slice(0, 3);
+  if (!shown.length) return `<p class="in-empty">${t("Ainda não aconteceu nada.")}</p>`;
+  return `<div class="arows">${shown.map((a) => {
+    const [what, detail] = splitActivity(a);
+    return `<div class="arow"><span class="arow-av">${ui.avatar(a.name, "lg")}${online.has(a.user) ? "<i></i>" : ""}</span>
+      <div class="arow-t"><b>${esc(what)}</b>${detail ? `<span>${esc(detail)}</span>` : ""}</div><time>${fmt.ago(a.created_at)}</time></div>`;
+  }).join("")}</div>`;
+}
+
+const quoteCard = () => `<figure class="in-quote"><blockquote>“${esc(t(quoteOfDay(3)))}”</blockquote>
+  <figcaption>${icon("crown")}${t("Centro de comando")}</figcaption></figure>`;
+
+/* ---------- the shortcuts ---------- */
+// "Calendário": every deadline from today on (and the ones already missed), by day.
+async function openAgenda() {
+  let p;
+  try { p = planOf(await request("/api/tasks")); } catch (e) { flash(e.message); return; }
+  const days = new Map();
+  for (const x of [...p.late.filter((x) => new Date(x.deadline) < startOfDay(new Date())), ...p.upcoming]) {
+    const d = new Date(x.deadline), key = d < startOfDay(new Date()) ? t("Em atraso") : `${inDayLabel(d)} · ${dayNum(d)}`;
+    days.set(key, [...(days.get(key) || []), x]);
+  }
+  openModal(`<div class="rowx" style="margin-bottom:12px"><h3 class="grow" style="margin:0">${t("Próximos prazos")}</h3>
+      <button class="btn quiet sm" data-close>${icon("x")}</button></div>
+    ${days.size ? [...days].map(([day, list]) => `${ui.sec(day)}<div class="panel">${list.map((x) =>
+      `<a class="rw" href="#" data-task="${x.id}"><div class="rw-main"><b>${esc(x.title)}</b><span>${esc(nameOf(x.assignee))}</span></div>
+        <span class="mono">${fmt.hhmm(x.deadline)}</span></a>`).join("")}</div>`).join("")
+      : ui.empty("calendar", "Sem prazos marcados", "Dá um prazo a uma tarefa (Editar → Prazo) e ela aparece aqui.")}`);
+  $("modal-box").onclick = (e) => {
+    const row = e.target.closest("[data-task]");
+    if (row) { e.preventDefault(); openTaskModal(Number(row.dataset.task)); }
   };
-  $("density").onclick = (e) => {
-    if (!e.target.dataset.d) return;
-    setDensity(e.target.dataset.d);
-    $("density").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.target));
+}
+
+// "Notas": an idea for the whole team, kept in the team's memory, where the Team AI reads it too.
+function newNote() {
+  formModal("Nova nota", field("Título", `<input name="title" required maxlength="200" placeholder="${t("A ideia, numa linha")}">`, true)
+    + field("Nota", `<textarea name="content" placeholder="${t("Os pormenores (opcional)")}"></textarea>`, true)
+    + `<p class="dim wide" style="margin:0">${t("Fica na Memória da equipa: todos a veem e a Team AI também a lê.")}</p>`,
+  async (v) => {
+    await api("/api/memory", { method: "POST", body: { scope: "team", category: "nota", title: v.title.trim(), content: v.content || "" } });
+    flash(t("Nota guardada na Memória da equipa."));
+  }, { submit: "Guardar nota" });
+}
+
+async function homeClick(e) {
+  const act = e.target.closest("[data-act]")?.dataset.act;
+  if (act === "task") return newTask();
+  if (act === "agenda") return openAgenda();
+  if (act === "note") return newNote();
+  if (act === "team") { location.hash = "#/equipa"; return; }
+  const tab = e.target.closest("[data-tab]");
+  if (tab) { tasksTab = tab.dataset.tab; return mount($("in-tasks"), tasksBody, 4); }
+  const done = e.target.closest("[data-done]");
+  if (done) {
+    done.disabled = true;
+    try { await api(`/api/tasks/${done.dataset.done}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); }
+    catch (err) { flash(err.message); done.disabled = false; }
+    return loadHome(["plan", "act"]);
+  }
+  const task = e.target.closest("[data-task]");
+  if (task) openTaskModal(Number(task.dataset.task));
+}
+
+/* ---------- the page ---------- */
+// The clock moves on the minute, and stops by itself once the page is gone.
+let homeClock = null;
+function startHomeClock() {
+  clearTimeout(homeClock);
+  const next = () => {
+    const clock = $("in-clock");
+    if (!clock) return;
+    clock.textContent = fmt.hhmm(new Date().toISOString());
+    homeClock = setTimeout(next, 60000 - (Date.now() % 60000) + 20);
   };
-  $("reset-layout").onclick = () => { localStorage.removeItem(layoutKey()); layout = loadLayout(); drawGrid(); closeModal(); };
+  homeClock = setTimeout(next, 60000 - (Date.now() % 60000) + 20);
+}
+
+// A promise, as the live events expect of the loaders they call.
+async function loadHome(parts = ["team", "plan", "act"]) {
+  if (!$("in-team")) return;
+  const jobs = [];
+  if (parts.includes("team")) jobs.push(mount($("in-team"), teamCard, 3));
+  if (parts.includes("plan")) jobs.push(mount($("in-prog"), progressBody, 5), mount($("in-tasks"), tasksBody, 5), mount($("in-cal"), calendarBody, 3));
+  if (parts.includes("act")) jobs.push(mount($("in-act"), activityBody, 3));
+  await Promise.all(jobs);
 }
 
 HUB_VIEWS.home = async function viewHome() {
-  const hour = new Date().getHours();
-  const greeting = hour < 6 ? "Boa noite" : hour < 13 ? "Bom dia" : hour < 20 ? "Boa tarde" : "Boa noite";
-  const date = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
-  layout = loadLayout();
-  $("view").innerHTML = `<div class="page home">${cockpitHtml(greeting, date[0].toUpperCase() + date.slice(1))}
-    <div class="wgrid" id="wgrid"></div></div>`;
-  setTimeout(fitGrid, 300); // once more when the page has slid into place
-  clearInterval(cockpitClock);
-  cockpitClock = setInterval(() => {
-    const clock = $("cockpit-clock");
-    if (clock) clock.textContent = new Date().toLocaleTimeString("pt-PT");
-    else clearInterval(cockpitClock);
-  }, 1000);
-  $("customize").onclick = customizeHome;
-  setTimeout(() => loadTacho().catch(() => {}), 60); // after the first paint, so the needle sweeps up
-  wireGrid($("wgrid"));
-  drawGrid();
+  let ignite = false; // the lights come on once per session; after that they are simply on
+  try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: lights on */ }
+  $("view").innerHTML = `<div class="page inicio">${heroHtml(new Date(), ignite)}
+    <section class="in-card crew-card" id="in-team"></section>
+    ${tilesHtml()}
+    <div class="in-grid">
+      <section class="in-card in-prog">${cardHead("target", "blue", "Progresso da equipa", "", seeAll("Visão geral", "#/analise"))}<div id="in-prog"></div></section>
+      <section class="in-card in-tasks">${cardHead("tasks", "blue", "Tarefas", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
+      <section class="in-card in-cal">${cardHead("calendar", "green", "Calendário", t("Próximos prazos"),
+        `<button class="ch-link" data-act="agenda">${t("Ver calendário")}${icon("chevron")}</button>`)}<div id="in-cal"></div></section>
+      <div class="in-side">
+        <section class="in-card">${cardHead("bolt", "blue", "Atividade recente", "", seeAll("Ver todas", "#/aovivo"))}<div id="in-act"></div></section>
+        ${quoteCard()}
+      </div>
+    </div></div>`;
+  $("view").onclick = homeClick;
+  startHomeClock();
+  loadHome();
 };
 
-// A live event reloads only the widgets that show that kind of thing ("tick" is the slow safety net: all of them).
-const reloadWidgets = async (type) => {
-  if (!$("wgrid")) return;
-  if (type === "activity" || type === "tick") loadTacho().catch(() => {});
-  layout.filter((item) => !item.hidden && (type === "tick" || WIDGETS[item.id].on.includes(type))).forEach((item) => loadWidget(item.id));
-};
-["presence", "task", "approval", "activity", "usage", "ponto", "session", "tick"].forEach((type) => onLive([type], () => reloadWidgets(type)));
+// A live event reloads only what shows that kind of thing ("tick" is the slow safety net: all of it).
+onLive(["presence"], () => loadHome(["team", "act"]));
+onLive(["task"], () => loadHome(["plan", "act"]));
+onLive(["activity", "ponto"], () => loadHome(["act"]));
+onLive(["tick"], () => loadHome());

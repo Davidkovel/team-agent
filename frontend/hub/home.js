@@ -173,21 +173,35 @@ const WIDGETS = {
     },
   },
   markets: {
-    title: "Mercados", icon: "trend", w: 4, h: 2, on: [],
+    title: "Mercados", icon: "trend", w: 6, h: 2, on: [],
     async load() {
       const ids = marketIds();
-      if (!ids.length) return ui.empty("trend", "Nada a seguir", "Escolhe as moedas e ações que queres ver aqui.",
-        `<button class="btn sm primary" data-mk-add>${icon("plus")}${t("Adicionar")}</button>`);
-      const quotes = await api(`/api/markets/quotes?ids=${encodeURIComponent(ids.join(","))}`);
-      return `<div class="mk-list">${quotes.map(marketRow).join("")}</div>
-        <button class="mk-add" data-mk-add>${icon("plus")}${t("Adicionar moeda ou ação")}</button>`;
+      setTimeout(mountTradingView, 0); // the charts are TradingView's own, put in after the tiles are on the page
+      return `<div class="tv-grid">${ids.map((id) => `<div class="tv-tile" data-tv="${esc(id)}"><div class="tv-slot"></div>
+          <button class="mk-del" data-mk-del="${esc(id)}" title="${t("Tirar")}">${icon("x")}</button></div>`).join("")}
+        <button class="tv-tile mk-add" data-mk-add>${icon("plus")}${t("Adicionar")}</button></div>`;
     },
   },
 };
 
-/* ---------- markets: the coins and shares each person follows (kept per person in this browser) ---------- */
-const MARKETS_DEFAULT = ["crypto:BTCUSDT", "crypto:ETHUSDT", "crypto:SOLUSDT", "stock:AAPL", "stock:NVDA", "stock:TSLA"];
-const marketKey = () => `hub.markets.${me.username}`;
+/* ---------- markets: TradingView charts of what each person follows (kept per person in this browser) ----------
+   Each tile is TradingView's mini chart: live price, today's move, the line; a click opens the symbol on TradingView. */
+const MARKETS_DEFAULT = ["BINANCE:BTCUSDT", "OANDA:XAUUSD", "FX:EURUSD", "TVC:DXY", "SP:SPX", "NASDAQ:NVDA"];
+const marketKey = () => `hub.tv.${me.username}`;
+function mountTradingView() {
+  document.querySelectorAll(".tv-tile[data-tv] .tv-slot:empty").forEach((slot) => {
+    const s = document.createElement("script");
+    s.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+    s.async = true;
+    s.textContent = JSON.stringify({ symbol: slot.parentElement.dataset.tv, width: "100%", height: "100%", locale: "pt", dateRange: "1D",
+      colorTheme: "dark", isTransparent: true, autosize: true, largeChartUrl: "", chartOnly: false, noTimeScale: true });
+    const box = document.createElement("div");
+    box.className = "tradingview-widget-container";
+    box.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
+    box.appendChild(s);
+    slot.appendChild(box);
+  });
+}
 function marketIds() {
   try { const saved = JSON.parse(localStorage.getItem(marketKey())); if (Array.isArray(saved)) return saved; } catch { /* none saved */ }
   return MARKETS_DEFAULT;
@@ -227,11 +241,11 @@ function pickMarkets() {
   const show = async (q) => {
     const mine = ++asked;
     try {
-      const list = await api(`/api/markets/catalog?q=${encodeURIComponent(q)}`);
+      const list = (await api(`/api/markets/tv?q=${encodeURIComponent(q)}`)).map((x) => ({ ...x, kind: x.type === "crypto" ? "crypto" : "" }));
       if (mine !== asked) return;
       $("mk-pick").innerHTML = list.length ? `${q ? "" : `<div class="pal-group">${t("Mais procuradas")}</div>`}${list.map((x) => `<button class="mk-opt ${chosen.has(x.id) ? "on" : ""}" data-mk-pick="${esc(x.id)}">
           <span class="mk-badge ${x.kind}">${esc(x.symbol.replace(/[\^=].*$/, "").slice(0, 4))}</span>
-          <div class="rw-main"><b>${esc(x.name)}</b><span>${esc(x.symbol)} · ${x.kind === "crypto" ? t("Cripto") : esc(x.exchange || t("Ação"))}</span></div>
+          <div class="rw-main"><b>${esc(x.name)}</b><span>${esc(x.symbol)} · ${esc(x.exchange)}${x.type ? " · " + esc(x.type) : ""}</span></div>
           <i class="mk-tick">${icon(chosen.has(x.id) ? "check" : "plus")}</i></button>`).join("")}`
         : ui.empty("search", "Nada encontrado", "Experimenta o símbolo (BTC, AAPL) ou o nome.");
     } catch (e) { $("mk-pick").innerHTML = ui.error(e.message); }
@@ -297,7 +311,7 @@ function storeHtml(s) {
 }
 // The shop and the prices keep moving while Home is open: the shop every minute, the prices every 30 s.
 setInterval(() => { if ($("wg-store")) loadWidget("store"); }, 60000);
-setInterval(() => { if ($("wg-markets") && !document.hidden) loadWidget("markets"); }, 30000);
+// (the TradingView tiles update themselves, live)
 // Home starts short: the projects by latest commit, what each person has to do and did today, the work, then what needs the person and the team. The rest
 // (gauges, agents, approvals, activity...) is one click away in "Personalizar" and on its own page.
 const DEFAULT_LAYOUT = ["repos", "store", "markets", "people", "work", "attention"];

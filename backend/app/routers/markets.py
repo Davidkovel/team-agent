@@ -62,6 +62,35 @@ async def _pairs(client: httpx.AsyncClient) -> list[str]:
     return await cached("pairs", 6 * 3600, make)
 
 
+TV_POPULAR = [("BINANCE:BTCUSDT", "Bitcoin"), ("BINANCE:ETHUSDT", "Ethereum"), ("BINANCE:SOLUSDT", "Solana"), ("OANDA:XAUUSD", "Ouro / USD"),
+              ("OANDA:XAGUSD", "Prata / USD"), ("FX:EURUSD", "EUR / USD"), ("FX:GBPUSD", "GBP / USD"), ("TVC:DXY", "Índice do dólar"),
+              ("TVC:USOIL", "Petróleo WTI"), ("SP:SPX", "S&P 500"), ("NASDAQ:NDX", "Nasdaq 100"), ("NASDAQ:AAPL", "Apple"),
+              ("NASDAQ:NVDA", "NVIDIA"), ("NASDAQ:TSLA", "Tesla"), ("NASDAQ:MSFT", "Microsoft"), ("NASDAQ:AMZN", "Amazon"), ("NASDAQ:META", "Meta")]
+
+
+@router.get("/markets/tv")
+async def tv_search(q: str = "", user: User = Depends(current_user)):
+    """Anything TradingView has (shares, forex, gold, indices, crypto), by its own search. Ids are "EXCHANGE:SYMBOL"."""
+    q = q.strip()
+    if not q:
+        return [{"id": i, "symbol": i.split(":")[1], "name": n, "exchange": i.split(":")[0], "type": ""} for i, n in TV_POPULAR]
+
+    async def make():
+        async with httpx.AsyncClient(headers={**UA, "Origin": "https://www.tradingview.com", "Referer": "https://www.tradingview.com/"}) as client:
+            r = await client.get("https://symbol-search.tradingview.com/symbol_search/v3/", timeout=8,
+                                 params={"text": q, "hl": 0, "lang": "pt", "domain": "production"})
+            r.raise_for_status()
+            out = []
+            for s in r.json().get("symbols", [])[:30]:
+                exch = s.get("prefix") or s.get("exchange", "")
+                out.append({"id": f"{exch}:{s['symbol']}", "symbol": s["symbol"], "name": s.get("description", ""), "exchange": exch, "type": s.get("type", "")})
+            return out
+    try:
+        return await cached("tv:" + q.lower(), 600, make)
+    except (httpx.HTTPError, ValueError):
+        return []
+
+
 @router.get("/markets/catalog")
 async def catalog(q: str = "", user: User = Depends(current_user)):
     """What can be added: everything Binance trades against USDT, and any share Yahoo knows."""

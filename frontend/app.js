@@ -115,6 +115,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal
 // has no tab: pages the team does not use day to day (agents, history, AI usage, expenses).
 const NAV = [
   ["Início", "home", [["home", "Início"]]],
+  ["BareDesk", "bag", [["baredesk", "Resumo"], ["vendas", "Vendas"], ["anuncios", "Anúncios"]]],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]]],
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes", true], ["historico", "Histórico", true]]],
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"]]],

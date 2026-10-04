@@ -165,157 +165,11 @@ const WIDGETS = {
         <div class="rw-main"><b>${esc(c.name)}</b><span>${esc(c.tagline || "")}</span></div></a>`).join("")}</div>`;
     },
   },
-  store: {
-    title: "BareDesk · loja", icon: "bag", w: 4, h: 3, on: [], pad: true,
-    async load() {
-      const s = await api("/api/store/summary");
-      return storeHtml(s);
-    },
-  },
-  markets: {
-    title: "Mercados", icon: "trend", w: 8, h: 3, on: [],
-    head: () => `<button class="wg-act" data-mk-add>${icon("plus")}${t("Adicionar")}</button>`,
-    async load() {
-      const ids = marketIds();
-      setTimeout(mountTradingView, 0); // the charts are TradingView's own, put in after the tiles are on the page
-      return `<div class="tv-grid">${ids.map((id) => `<div class="tv-tile" data-tv="${esc(id)}"><div class="tv-slot"></div>
-          <button class="mk-del" data-mk-del="${esc(id)}" title="${t("Tirar")}">${icon("x")}</button></div>`).join("")}</div>`;
-    },
-  },
 };
 
-/* ---------- markets: TradingView charts of what each person follows (kept per person in this browser) ----------
-   Each tile is TradingView's mini chart: live price, today's move, the line; a click opens the symbol on TradingView. */
-const MARKETS_DEFAULT = ["BINANCE:BTCUSDT", "OANDA:XAUUSD", "FX:EURUSD", "TVC:DXY", "SP:SPX", "NASDAQ:NVDA"];
-const marketKey = () => `hub.tv.${me.username}`;
-function mountTradingView() {
-  document.querySelectorAll(".tv-tile[data-tv] .tv-slot:empty").forEach((slot) => {
-    const s = document.createElement("script");
-    s.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
-    s.async = true;
-    s.textContent = JSON.stringify({ symbol: slot.parentElement.dataset.tv, width: "100%", height: "100%", locale: "pt", dateRange: "1D",
-      colorTheme: "dark", isTransparent: true, autosize: true, largeChartUrl: "", chartOnly: false, noTimeScale: true,
-      trendLineColor: "rgba(226, 232, 240, 1)", underLineColor: "rgba(226, 232, 240, 0.14)", underLineBottomColor: "rgba(226, 232, 240, 0)" });
-    const box = document.createElement("div");
-    box.className = "tradingview-widget-container";
-    box.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
-    box.appendChild(s);
-    slot.appendChild(box);
-  });
-}
-function marketIds() {
-  try { const saved = JSON.parse(localStorage.getItem(marketKey())); if (Array.isArray(saved)) return saved; } catch { /* none saved */ }
-  return MARKETS_DEFAULT;
-}
-const saveMarkets = (ids) => { localStorage.setItem(marketKey(), JSON.stringify(ids)); loadWidget("markets"); };
-function price(n, currency) {
-  if (n == null) return "—";
-  const digits = n >= 1000 ? 0 : n >= 1 ? 2 : n >= 0.01 ? 4 : 8;
-  const text = n.toLocaleString("pt-PT", { minimumFractionDigits: Math.min(digits, 2), maximumFractionDigits: digits });
-  return ({ USD: "$", EUR: "€", GBP: "£" }[currency] || "") + text + (currency && !["USD", "EUR", "GBP"].includes(currency) ? " " + currency : "");
-}
-function spark(points, up) {
-  if (!points || points.length < 2) return "";
-  const lo = Math.min(...points), hi = Math.max(...points), span = hi - lo || 1;
-  const d = points.map((p, i) => `${(i / (points.length - 1) * 100).toFixed(1)},${(28 - (p - lo) / span * 26).toFixed(1)}`).join(" ");
-  return `<svg class="mk-spark ${up ? "up" : "down"}" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="${d}"/></svg>`;
-}
-function marketRow(q) {
-  if (q.missing) return `<div class="mk-row"><span class="mk-badge">?</span><div class="rw-main"><b>${esc(q.symbol)}</b><span>${t("Sem cotação agora")}</span></div>
-    <button class="mk-del" data-mk-del="${esc(q.id)}" title="${t("Tirar")}">${icon("x")}</button></div>`;
-  const up = (q.change_pct ?? 0) >= 0;
-  return `<div class="mk-row"><span class="mk-badge ${q.kind}">${esc(q.symbol.replace(/[\^=].*$/, "").slice(0, 4))}</span>
-    <div class="rw-main"><b>${esc(q.name)}</b><span>${esc(q.symbol)}${q.kind === "crypto" ? " · 24 h" : ""}</span></div>
-    ${spark(q.spark, up)}
-    <div class="mk-px"><b>${price(q.price, q.currency)}</b><span class="mk-chg ${up ? "up" : "down"}">${q.change_pct == null ? "—" : (up ? "+" : "") + q.change_pct.toFixed(2).replace(".", ",") + "%"}</span></div>
-    <button class="mk-del" data-mk-del="${esc(q.id)}" title="${t("Tirar")}">${icon("x")}</button></div>`;
-}
-// "+": everything that can be followed, searchable; a tick on what is already on Home
-function pickMarkets() {
-  const chosen = new Set(marketIds());
-  openModal(`<h3>${t("Moedas e ações")}</h3>
-    <div class="pal-in mk-search">${icon("search")}<input id="mk-q" placeholder="${t("Procurar: bitcoin, SOL, Apple, TSLA, ouro...")}" autocomplete="off"></div>
-    <div class="mk-pick" id="mk-pick">${ui.skeleton(4)}</div>
-    <div class="form-foot"><button class="btn primary" data-close>${t("Feito")}</button></div>`);
-  $("modal-box").classList.add("wide");
-  let timer = null, asked = 0;
-  const show = async (q) => {
-    const mine = ++asked;
-    try {
-      const list = (await api(`/api/markets/tv?q=${encodeURIComponent(q)}`)).map((x) => ({ ...x, kind: x.type === "crypto" ? "crypto" : "" }));
-      if (mine !== asked) return;
-      $("mk-pick").innerHTML = list.length ? `${q ? "" : `<div class="pal-group">${t("Mais procuradas")}</div>`}${list.map((x) => `<button class="mk-opt ${chosen.has(x.id) ? "on" : ""}" data-mk-pick="${esc(x.id)}">
-          <span class="mk-badge ${x.kind}">${esc(x.symbol.replace(/[\^=].*$/, "").slice(0, 4))}</span>
-          <div class="rw-main"><b>${esc(x.name)}</b><span>${esc(x.symbol)} · ${esc(x.exchange)}${x.type ? " · " + esc(x.type) : ""}</span></div>
-          <i class="mk-tick">${icon(chosen.has(x.id) ? "check" : "plus")}</i></button>`).join("")}`
-        : ui.empty("search", "Nada encontrado", "Experimenta o símbolo (BTC, AAPL) ou o nome.");
-    } catch (e) { $("mk-pick").innerHTML = ui.error(e.message); }
-  };
-  $("mk-q").oninput = (e) => { clearTimeout(timer); timer = setTimeout(() => show(e.target.value), 250); };
-  $("mk-q").focus();
-  $("mk-pick").onclick = (e) => {
-    const b = e.target.closest("[data-mk-pick]");
-    if (!b) return;
-    const id = b.dataset.mkPick;
-    chosen.has(id) ? chosen.delete(id) : chosen.add(id);
-    b.classList.toggle("on", chosen.has(id));
-    b.querySelector(".mk-tick").innerHTML = icon(chosen.has(id) ? "check" : "plus");
-    saveMarkets([...chosen]);
-  };
-  show("");
-}
-
-/* ---------- the BareDesk shop: Shopify sales and Meta ads, refreshed on their own ---------- */
-let storePeriod = "today";
-let storeSeen = null; // the newest order already seen, so a new one rings once
-const money = (n, currency) => (n == null ? "—" : fmt.money(n, currency || "EUR"));
-const int = (n) => (n == null ? "—" : Math.round(n).toLocaleString("pt-PT"));
-function storeHtml(s) {
-  const shop = s.shopify, ads = s.meta, p = storePeriod;
-  const newest = shop.recent?.[0]?.name;
-  if (newest && storeSeen && newest !== storeSeen) flash(t("Nova venda na BareDesk: {n} · {v}", { n: newest, v: money(shop.recent[0].total, shop.currency) }));
-  if (newest) storeSeen = newest;
-  const off = (what, key) => `<div class="sh-off">${icon("alert")}<div><b>${t("{x} por ligar", { x: what })}</b>
-    <span>${t("Falta {k} no backend/.env deste PC.", { k: key })}</span></div></div>`;
-  const bad = (what, err) => `<div class="sh-off bad">${icon("alert")}<div><b>${t("{x} não respondeu", { x: what })}</b><span>${esc(err)}</span></div></div>`;
-  const period = `<div class="segx sh-period">${[["today", "Hoje"], ["week", "7 dias"], ["month", "30 dias"]].map(([v, l]) =>
-    `<button data-period="${v}" class="${v === p ? "on" : ""}">${t(l)}</button>`).join("")}</div>`;
-
-  let sales;
-  if (shop.source === "live") {
-    const w = shop[p], top = Math.max(1, ...shop.days);
-    sales = `<div class="sh-kpis">
-        <div><span>${t("Vendas")}</span><b class="num">${w.orders}</b></div>
-        <div><span>${t("Faturação")}</span><b class="num">${money(w.revenue, shop.currency)}</b></div>
-        <div><span>${t("Ticket médio")}</span><b class="num">${money(w.aov, shop.currency)}</b></div></div>
-      <div class="sh-bars" title="${t("Faturação por dia, últimos 14 dias")}">${shop.days.map((v, i) => `<i style="height:${v ? Math.max(6, v / top * 100) : 3}%" class="${i === 13 ? "now" : ""}" title="${money(v, shop.currency)}"></i>`).join("")}</div>
-      <div class="sh-orders">${shop.recent.length ? shop.recent.map((o) => `<div class="sh-order"><b>${esc(o.name)}</b><span class="ell grow">${esc(o.items)}</span>
-          <span class="faint">${fmt.ago(o.at)}</span><b>${money(o.total, shop.currency)}</b></div>`).join("") : `<span class="faint">${t("Ainda sem vendas nos últimos 30 dias.")}</span>`}</div>`;
-  } else sales = shop.source === "error" ? bad("Shopify", shop.error) : off("Shopify", shop.missing);
-
-  let funnel;
-  if (ads.source === "live") {
-    const a = ads[p];
-    const steps = [["Visualizações", a.views], ["Viram um produto", a.product_views], ["Carrinhos", a.carts], ["Checkouts", a.checkouts], ["Compras", a.purchases]];
-    const top = Math.max(1, ...steps.map(([, n]) => n || 0));
-    funnel = `<div class="sh-ads"><div class="sh-kpis sm">
-        <div><span>${t("Gasto")}</span><b class="num sm">${money(a.spend, "EUR")}</b></div>
-        <div><span>${t("Alcance")}</span><b class="num sm">${int(a.reach)}</b></div>
-        <div><span>${t("Cliques")}</span><b class="num sm">${int(a.clicks)}</b></div>
-        <div><span>ROAS</span><b class="num sm">${a.roas == null ? "—" : a.roas.toFixed(2).replace(".", ",") + "×"}</b></div></div>
-      <div class="sh-funnel">${steps.map(([l, n]) => `<div><span>${t(l)}</span><i><em style="width:${(n || 0) / top * 100}%"></em></i><b>${int(n)}</b></div>`).join("")}</div></div>`;
-  } else funnel = ads.source === "error" ? bad("Meta Ads", ads.error) : off("Meta Ads", ads.missing);
-
-  return `<div class="sh">
-    <div class="sh-head"><span class="src live">● ${t("Ao vivo")}</span><span class="faint">${t("atualizado {h}", { h: fmt.hhmm(s.at) })}</span><span class="grow"></span>${period}</div>
-    <div class="sh-cols"><section><h4>${icon("bag")}Shopify</h4>${sales}</section><section><h4>${icon("chart")}Meta Ads</h4>${funnel}</section></div></div>`;
-}
-// The shop and the prices keep moving while Home is open: the shop every minute, the prices every 30 s.
-setInterval(() => { if ($("wg-store")) loadWidget("store"); }, 60000);
-// (the TradingView tiles update themselves, live)
 // Home starts short: the projects by latest commit, what each person has to do and did today, the work, then what needs the person and the team. The rest
 // (gauges, agents, approvals, activity...) is one click away in "Personalizar" and on its own page.
-const DEFAULT_LAYOUT = ["repos", "markets", "store", "people", "work", "attention"];
+const DEFAULT_LAYOUT = ["repos", "people", "work", "attention"];
 const INSTRUMENTS = ["today", "usage", "cost"];
 
 /* ---------- the cockpit: the front of an AMG, lights on ----------
@@ -399,6 +253,7 @@ function cockpitHtml(greeting, date) {
       <p class="cockpit-date">${esc(date)}<i></i><time id="cockpit-clock">${new Date().toLocaleTimeString("pt-PT")}</time></p>
       <div class="cockpit-actions">
         ${TACHO}
+        <a class="btn amg" href="#/baredesk">${t("BareDesk")}</a>
         <a class="btn amg" href="#/tarefas">${t("Tarefas")}</a>
         <a class="btn amg" href="#/analise">${t("Análise")}</a>
         <button class="btn quiet" id="customize">${icon("sliders")}${t("Personalizar")}</button>
@@ -408,7 +263,7 @@ function cockpitHtml(greeting, date) {
 }
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home9.${me.username}`; // "9": markets (8 wide) beside the shop (4 wide) under the projects; older saved layouts start over
+const layoutKey = () => `hub.home10.${me.username}`; // "10": the markets and the shop left Home (the shop is the BareDesk section); older saved layouts start over
 function loadLayout() {
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }
@@ -525,9 +380,6 @@ function wireGrid(grid) {
       try { await api("/api/ponto", { method: "POST" }); flash(t("Ponto batido. A equipa já sabe.")); } catch (err) { flash(err.message); }
       loadWidget("ponto");
     } else if (e.target.closest("[data-customize]")) customizeHome();
-    else if (e.target.closest("[data-mk-add]")) pickMarkets();
-    else if (e.target.closest("[data-mk-del]")) saveMarkets(marketIds().filter((id) => id !== e.target.closest("[data-mk-del]").dataset.mkDel));
-    else if (e.target.closest("[data-period]")) { storePeriod = e.target.closest("[data-period]").dataset.period; loadWidget("store"); }
   });
 }
 

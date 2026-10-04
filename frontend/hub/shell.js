@@ -41,6 +41,7 @@ const COMMANDS = [
   ["Histórico", "history", "#/historico"], ["Semana", "calendar", "#/semana"], ["Equipa", "users", "#/equipa"], ["Análise", "chart", "#/analise"],
   ["Uso de IA", "token", "#/uso"], ["Despesas", "wallet", "#/despesas"], ["Memória", "layers", "#/memoria"], ["Definições", "gear", "#/definicoes"],
   ["Início", "home", "#/home"],
+  ["BareDesk", "bag", "#/baredesk"], ["Vendas da BareDesk", "bag", "#/vendas"], ["Anúncios da BareDesk", "trend", "#/anuncios"],
 ];
 const RESULT_ICON = { person: "users", task: "tasks", project: "folder", company: "building", memory: "layers", approval: "check", activity: "history", code: "code" };
 const RESULT_LABEL = { person: "Pessoa", task: "Tarefa", project: "Projeto", company: "Empresa", memory: "Memória", approval: "Aprovação", activity: "Atividade", code: "Código" };

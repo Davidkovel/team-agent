@@ -15,6 +15,14 @@ Read this after a `git clone` or `git pull`. The goal on every PC is the same: t
   its own (`is_local` is false), so there is no second Hub to confuse things. The key is still needed on the
   host — it is what makes its Hub listen on `0.0.0.0` — and for a widget outside the Radmin network.
 
+## Hub in the cloud (so nobody's PC has to be on)
+
+`fly.toml` + `backend/Dockerfile` run the Hub on Fly.io: one machine, `hub.db` and the company library on the volume `/data`.
+There is no Radmin and no sign-in by IP there. The widget needs `hub_url` **and** `key` in `widget.json`
+(`.\scripts\configurar_widget.ps1 -Key <team key> -User Marco -HubUrl https://<app>.fly.dev`): with the key it shows the
+team, gets the tasks and opens the Hub already signed in (`/api/local/session`). A plain browser signs in with the password.
+Deploy: `fly deploy` from the repo root. Once the cloud Hub is the real one, the sections below describe the old setup.
+
 ## Make it work
 
 ```powershell

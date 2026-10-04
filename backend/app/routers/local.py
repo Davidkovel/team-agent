@@ -17,7 +17,7 @@ from ..config import settings
 from ..db import get_db
 from ..models import Approval, Notification, User
 from ..realtime import rt
-from ..security import sees_all
+from ..security import make_jwt, sees_all
 from ..services import WIDGET_SEEN, hub_seen, iso, usage_fields, usage_numbers
 
 router = APIRouter(prefix="/api/local")
@@ -116,6 +116,14 @@ async def local_presence(body: WidgetPing, request: Request, db: AsyncSession = 
     WIDGET_SEEN[user.id] = time.time()
     await hub_seen(user.id, "widget")
     return {"ok": True, "name": user.display_name}
+
+
+@router.post("/session")
+async def local_session(body: WidgetPing, request: Request, db: AsyncSession = Depends(get_db),
+                        x_team_widget: str | None = Header(None)):
+    """A signed-in Hub session for the person at that widget, so the Hub opens with no password when it is not
+    on this computer (no IP sign-in there) and no agent is running. The team key is the proof."""
+    return {"token": make_jwt(await widget_user(body, request, db, x_team_widget))}
 
 
 @router.post("/ponto")

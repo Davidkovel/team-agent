@@ -160,9 +160,15 @@ def test_other_computer_needs_the_team_key_to_show_online(client, monkeypatch):
     monkeypatch.setattr(settings, "team_key", "segredo")
     assert stranger.get("/api/local/team", headers={"X-Team-Key": "errado"}).status_code == 403
     assert stranger.post("/api/local/presence", json={"user": "owner"}, headers={**ping, "X-Team-Key": "errado"}).status_code == 403
-    assert stranger.get("/api/local/week", headers={"X-Team-Key": "segredo"}).status_code == 403  # the ledger never opens to the network
+    assert stranger.get("/api/local/week", headers={"X-Team-Key": "errado"}).status_code == 403
+    assert stranger.post("/api/local/session", json={"user": "mark"}, headers={**ping, "X-Team-Key": "errado"}).status_code == 403
     try:
         with stranger:
+            # a Hub that is not on anybody's PC: the key alone gives the widget the ledger and a signed-in session
+            assert stranger.get("/api/local/week", headers={"X-Team-Key": "segredo"}).status_code == 200
+            assert stranger.post("/api/local/session", json={"user": "mark"}, headers={"X-Team-Key": "segredo"}).status_code == 403
+            token = stranger.post("/api/local/session", json={"user": "mark"}, headers={**ping, "X-Team-Key": "segredo"}).json()["token"]
+            assert stranger.get("/api/me", headers={"Authorization": f"Bearer {token}"}).json()["username"] == "mark"
             ok = stranger.post("/api/local/presence", json={"user": "mark"}, headers={**ping, "X-Team-Key": "segredo"})
             assert ok.status_code == 200
             team = {m["user"]: m for m in stranger.get("/api/local/team", headers={"X-Team-Key": "segredo"}).json()}

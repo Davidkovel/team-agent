@@ -1204,7 +1204,7 @@ class WidgetWindow(QWidget):
                 self._poll_notices(url, who)
             if tick % 2 == 0 and self._team is not None:
                 try:
-                    self._week = hub.get_json(url + "/api/local/week")  # only the server computer may read this; others keep the last value
+                    self._week = hub.get_json(url + "/api/local/week")  # needs the team key away from the server computer; without it the last value stays
                 except (OSError, ValueError, urllib.error.URLError):
                     pass
             tick += 1
@@ -1350,8 +1350,11 @@ class WidgetWindow(QWidget):
 
         def work():  # starting the server can take a few seconds
             error = hub.ready()
-            session = None if error else self.client.hub_session()
             url = hub.hub_url()
+            session = None if error else self.client.hub_session()
+            who = self._identity(self._team) if self._team else None
+            if not session and not error and who:
+                session = hub.session(url, who)
             if session:
                 url += f"/#login={session}" + (f"&to={page}" if page else "")
             elif page:

@@ -70,6 +70,15 @@ def ping_presence(url: str, user: str):
     except OSError:
         pass
 
+def session(url: str, user: str) -> str | None:
+    """A signed-in Hub session for `user`, asked with the team key: opens the Hub with no password when no agent is running."""
+    req = urllib.request.Request(url + "/api/local/session", data=json.dumps({"user": user}).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "X-Team-Widget": "1", "X-Team-Key": team_key()})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as res:
+            return json.load(res).get("token")
+    except (OSError, ValueError):
+        return None
 
 
 def punch(url: str, user: str) -> dict:

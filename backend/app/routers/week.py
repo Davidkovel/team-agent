@@ -7,7 +7,7 @@ from .. import week, worktree
 from ..db import get_db
 from ..models import User
 from ..security import current_user
-from .local import only_local
+from .local import local_or_team_key
 
 router = APIRouter(prefix="/api")
 
@@ -20,9 +20,9 @@ async def weekly_ledger(user: User = Depends(current_user), db: AsyncSession = D
 
 @router.get("/local/week")
 async def weekly_ledger_local(request: Request, db: AsyncSession = Depends(get_db)):
-    """Same ledger for the desktop widget on this computer, so it works before any login.
-    Only answers requests coming from this machine; anything else must use /api/week with a token."""
-    only_local(request)
+    """Same ledger for the desktop widget, so it works before any login.
+    Only answers this machine or a widget with the team key; anything else must use /api/week with a token."""
+    local_or_team_key(request)
     return await week.summary(db)
 
 

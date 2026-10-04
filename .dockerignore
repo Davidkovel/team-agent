@@ -1,0 +1,12 @@
+.git
+.venv
+**/__pycache__
+**/.pytest_cache
+**/.env
+**/*.db
+**/*.db-*
+**/*.db.bak-*
+**/*.log
+agent
+widget
+docs

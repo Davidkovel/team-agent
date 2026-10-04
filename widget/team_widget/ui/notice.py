@@ -18,6 +18,7 @@ UI = ("Segoe UI Variable Text", "Segoe UI")
 WIDTH, PAD, RADIUS = 420, 18, 16
 TOP = 18                                   # gap between the card and the top of the screen
 SLIDE_IN, HOLD, SLIDE_OUT, GAP = 380, 6000, 300, 250   # ms
+MAX_BATCH = 3                              # more than this at once (a computer that was off, catching up) become a single card
 
 
 def ring():
@@ -132,6 +133,10 @@ class Notices(QObject):
         self._queue, self._card = deque(), None
 
     def push(self, items):
+        items = list(items)
+        if len(items) > MAX_BATCH:
+            items = [{"title": f"{len(items)} tarefas novas", "body": "Foram enviadas enquanto estiveste fora.", "href": "#/tarefas",
+                      "directed": any(i.get("directed") for i in items)}]
         self._queue.extend(items)
         if self._card is None:
             self._next()

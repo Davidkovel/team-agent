@@ -864,7 +864,8 @@ class WidgetWindow(QWidget):
         self.punched.connect(self._punched)
         self.notices = Notices(self._open_notice)  # the black card that says a task was sent
         self.news.connect(self.notices.push)
-        self._notice_after = None  # newest "task sent" notice already looked at (None until the first look)
+        self._notice_after = None  # newest "task sent" notice when the widget started (None until the first look)
+        self._notice_seen = set()  # the ones already shown
         self._hub_page = None      # where the Hub should open, when something asked for a page
         self.on_status = lambda status: None  # tray hook
         self.notify = lambda title, text: None  # tray hook: a Windows notification
@@ -1211,15 +1212,19 @@ class WidgetWindow(QWidget):
             time.sleep(4)
 
     def _poll_notices(self, url, who):
-        """Tasks sent to anyone since the last look, for the black card. The first look only notes where things are, so a
-        widget that has just started does not replay old news."""
+        """Tasks sent to anyone since the widget started, for the black card. The first look only notes where things are, so
+        a widget that has just started does not replay old news. After that it asks for everything since then and shows what
+        it has not shown yet: the Hubs sync, so a notice can arrive after a newer one."""
         try:
             found = hub.get_notices(url, who, self._notice_after)
-            self._notice_after = max([found["latest"]] + [n["id"] for n in found["items"]])
+            if self._notice_after is None:
+                self._notice_after = found["latest"]
+            fresh = [n for n in found["items"] if n["id"] not in self._notice_seen]
         except (OSError, ValueError, KeyError, urllib.error.URLError):
             return  # a Hub from before this existed has no such door: no cards, and nothing else changes
-        if found["items"]:
-            self.news.emit(found["items"])
+        self._notice_seen.update(n["id"] for n in fresh)
+        if fresh:
+            self.news.emit(fresh)
 
     def _open_notice(self, href):
         """A card was clicked: the Hub opens on that task ("#/tarefas/3")."""

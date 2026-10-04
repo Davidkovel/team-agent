@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .config import settings
 from .models import (TASK_STAGE, Activity, AgentSession, AgentState, Approval, Meter, Notification, Subagent, Task, TaskEvent,
                      UsageRecord, User)
-from . import hub, sync
+from . import hub, push, sync
 from .realtime import rt
 from .security import sees_all
 
@@ -114,6 +114,7 @@ async def notify(db: AsyncSession, user_ids, kind: str, severity: str, title: st
     await db.commit()
     for user_id in targets:
         await rt.publish("notification", user_id)
+    await push.to_people(db, targets, title[:200], body, severity)
 
 
 async def deciders(db: AsyncSession) -> list[int]:

@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from .config import settings
-from . import migrate, selfupdate, sync
+from . import migrate, push, selfupdate, sync
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
-for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, selfupdate, ws, sync):
+for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, selfupdate, ws, sync, push):
     app.include_router(module.router)
 
 if Path(settings.frontend_dir).is_dir():

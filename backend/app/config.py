@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     # Meta Ads: a token with ads_read and the ad account ("act_123..." or just the number).
     meta_access_token: str = ""
     meta_ad_account: str = ""
+    # Where phone notifications go (push.py). Empty switches them off.
+    ntfy_url: str = "https://ntfy.sh"
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"
     david_password: str = "david-change-me"

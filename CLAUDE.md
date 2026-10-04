@@ -33,6 +33,13 @@ Kovel's PC used to be the host and had to be on for anyone to open the Hub. Not 
 - After a `git pull`: `.\scripts\iniciar.ps1`, and if a Hub from before is still running, stop that `uvicorn` first.
 - The company library (`library/`) is files in git, not the database: it travels by commit, not by sync.
 
+## Phone
+
+No phone app of our own: `backend/app/push.py` sends every notification (`services.notify`) to the person's topic on
+ntfy.sh, and the phone follows it in the ntfy app (bell → «Telemóvel» in the Hub shows the topic). Only the Hub where the
+notification is made sends it. The phone cannot open the Hub: it is not in Radmin, and the Hub is not put on the internet.
+`NTFY_URL=` (empty) switches it off.
+
 The sections below were written for the old host setup; where they disagree with this one, this one is right.
 
 ## Make it work

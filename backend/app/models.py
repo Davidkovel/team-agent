@@ -34,6 +34,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20))  # owner | member
     password_hash: Mapped[str] = mapped_column(String(200))
     agent_token_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    # the ntfy topic this person's phone follows (push.py); None = no phone
+    phone_topic: Mapped[str | None] = mapped_column(String(80))
 
 
 class Task(Base):

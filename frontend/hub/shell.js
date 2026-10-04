@@ -20,10 +20,25 @@ async function hubNews() {
 }
 function drawNotifications(inbox) {
   $("notif-panel").innerHTML = `<div class="pop-head"><b>${t("Notificações")}</b>
-      ${inbox.unread ? `<button class="btn quiet sm" id="read-all">${t("Marcar tudo como lido")}</button>` : ""}</div>
+      <span>${inbox.unread ? `<button class="btn quiet sm" id="read-all">${t("Marcar tudo como lido")}</button>` : ""}
+      <button class="btn quiet sm" id="phone-open">${t("Telemóvel")}</button></span></div>
     <div class="pop-body">${inbox.items.length ? inbox.items.map((n) => `<a class="ntf ${n.read ? "" : "unread"}" href="${esc(n.href || "#/home")}" data-n="${n.id}"><i></i>
       <div class="grow"><b>${esc(n.title)}</b>${n.body ? `<span class="ell">${esc(n.body)}</span>` : ""}<span>${fmt.ago(n.created_at)}</span></div></a>`).join("")
       : ui.empty("bell", "Sem notificações", "Só aparece aqui o que precisa de ti: aprovações, agentes parados, tarefas concluídas.")}</div>`;
+}
+/* The same notifications on the phone, through the ntfy app: the Hub only shows which topic to follow. */
+async function drawPhone(note = "") {
+  const p = await api("/api/phone", { method: "POST", body: {} });
+  $("notif-panel").innerHTML = `<div class="pop-head"><b>${t("Notificações no telemóvel")}</b>
+      <button class="btn quiet sm" id="phone-back">${t("Voltar")}</button></div>
+    <div class="pop-body" style="padding:12px 14px;display:grid;gap:10px">
+      <span>${t("1. Instala a app «ntfy» no telemóvel (Play Store ou App Store).")}</span>
+      <span>${t("2. Na app: «+» → cola este tópico. É só teu: não o partilhes.")}</span>
+      <code style="user-select:all;word-break:break-all">${esc(p.topic)}</code>
+      <span>${t("Ou abre este endereço no telemóvel:")} <a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></span>
+      <span><button class="btn sm" id="phone-test">${t("Enviar um teste")}</button>
+        <button class="btn quiet sm" id="phone-off">${t("Desligar o telemóvel")}</button></span>
+      ${note ? `<b>${esc(t(note))}</b>` : ""}</div>`;
 }
 async function toggleNotifications(open = $("notif-panel").hidden) {
   $("notif-panel").hidden = !open;
@@ -150,6 +165,13 @@ function hubStart() {
   $("palette").onclick = (e) => { if (e.target === $("palette")) togglePalette(false); };
   $("notif-panel").onclick = async (e) => {
     const item = e.target.closest("[data-n]");
+    if (e.target.closest("#phone-open")) return drawPhone();
+    if (e.target.closest("#phone-test")) {
+      const sent = (await api("/api/phone/test", { method: "POST", body: {} })).sent;
+      return drawPhone(sent ? "Enviado: vê o telemóvel." : "Não saiu: este computador está sem internet?");
+    }
+    if (e.target.closest("#phone-off")) { await api("/api/phone", { method: "DELETE" }); $("notif-panel").hidden = true; return; }
+    if (e.target.closest(".phone-setup, code") || e.target.closest("a[target]")) return;
     if (e.target.closest("#read-all")) await api("/api/notifications/read", { method: "POST", body: {} });
     else if (item) { await api("/api/notifications/read", { method: "POST", body: { ids: [Number(item.dataset.n)] } }); $("notif-panel").hidden = true; }
     hubNews();

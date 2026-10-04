@@ -1,5 +1,6 @@
 import os
 import tempfile
+import time
 
 os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{tempfile.mkdtemp()}/test.db")
 os.environ.setdefault("REDIS_URL", "")
@@ -102,3 +103,30 @@ def test_the_widgets_door_knows_its_people_and_its_visitors(client):
     assert notices(client, "Mark")["latest"] == notices(client, "mark")["latest"]  # by the name people see, too
     stranger = TestClient(app, client=("203.0.113.9", 5000))
     assert stranger.get("/api/local/notices?user=mark").status_code == 403
+
+
+def test_a_notification_also_goes_to_the_phone_of_who_asked_for_it(client, monkeypatch):
+    from app import push
+    sent = []
+
+    async def fake(topic, title, body, severity):
+        sent.append((topic, title))
+        return True
+
+    monkeypatch.setattr(push, "_post", fake)
+    owner, mark = login(client, "owner"), login(client, "mark")
+    assert client.get("/api/phone", headers=mark).json()["topic"] is None
+    topic = client.post("/api/phone", headers=mark).json()["topic"]
+    assert topic.startswith("amg-") and client.post("/api/phone", headers=mark).json()["topic"] == topic  # asking again keeps it
+    assert client.post("/api/phone/test", headers=mark).json() == {"sent": True}
+    assert client.post("/api/phone/test", headers=owner).status_code == 409  # the owner has no phone yet
+    sent.clear()
+    send(client, owner, "mark", "para o telemóvel")
+    end = time.time() + 5
+    while not sent and time.time() < end:  # it goes out behind the request
+        time.sleep(0.05)
+    assert [t for t, _ in sent] == [topic]  # only Marco has a phone, and he gets it once
+    client.delete("/api/phone", headers=mark)
+    send(client, owner, "mark", "já sem telemóvel")
+    time.sleep(0.5)
+    assert len(sent) == 1

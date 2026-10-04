@@ -166,20 +166,20 @@ const WIDGETS = {
     },
   },
   store: {
-    title: "BareDesk · loja", icon: "bag", w: 8, h: 2, on: [], pad: true,
+    title: "BareDesk · loja", icon: "bag", w: 4, h: 3, on: [], pad: true,
     async load() {
       const s = await api("/api/store/summary");
       return storeHtml(s);
     },
   },
   markets: {
-    title: "Mercados", icon: "trend", w: 6, h: 2, on: [],
+    title: "Mercados", icon: "trend", w: 8, h: 3, on: [],
+    head: () => `<button class="wg-act" data-mk-add>${icon("plus")}${t("Adicionar")}</button>`,
     async load() {
       const ids = marketIds();
       setTimeout(mountTradingView, 0); // the charts are TradingView's own, put in after the tiles are on the page
       return `<div class="tv-grid">${ids.map((id) => `<div class="tv-tile" data-tv="${esc(id)}"><div class="tv-slot"></div>
-          <button class="mk-del" data-mk-del="${esc(id)}" title="${t("Tirar")}">${icon("x")}</button></div>`).join("")}
-        <button class="tv-tile mk-add" data-mk-add>${icon("plus")}${t("Adicionar")}</button></div>`;
+          <button class="mk-del" data-mk-del="${esc(id)}" title="${t("Tirar")}">${icon("x")}</button></div>`).join("")}</div>`;
     },
   },
 };
@@ -194,7 +194,8 @@ function mountTradingView() {
     s.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
     s.async = true;
     s.textContent = JSON.stringify({ symbol: slot.parentElement.dataset.tv, width: "100%", height: "100%", locale: "pt", dateRange: "1D",
-      colorTheme: "dark", isTransparent: true, autosize: true, largeChartUrl: "", chartOnly: false, noTimeScale: true });
+      colorTheme: "dark", isTransparent: true, autosize: true, largeChartUrl: "", chartOnly: false, noTimeScale: true,
+      trendLineColor: "rgba(226, 232, 240, 1)", underLineColor: "rgba(226, 232, 240, 0.14)", underLineBottomColor: "rgba(226, 232, 240, 0)" });
     const box = document.createElement("div");
     box.className = "tradingview-widget-container";
     box.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
@@ -314,7 +315,7 @@ setInterval(() => { if ($("wg-store")) loadWidget("store"); }, 60000);
 // (the TradingView tiles update themselves, live)
 // Home starts short: the projects by latest commit, what each person has to do and did today, the work, then what needs the person and the team. The rest
 // (gauges, agents, approvals, activity...) is one click away in "Personalizar" and on its own page.
-const DEFAULT_LAYOUT = ["repos", "store", "markets", "people", "work", "attention"];
+const DEFAULT_LAYOUT = ["repos", "markets", "store", "people", "work", "attention"];
 const INSTRUMENTS = ["today", "usage", "cost"];
 
 /* ---------- the cockpit: the front of an AMG, lights on ----------
@@ -407,7 +408,7 @@ function cockpitHtml(greeting, date) {
 }
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home7.${me.username}`; // "7": the shop and the markets under the projects; older saved layouts start over
+const layoutKey = () => `hub.home9.${me.username}`; // "9": markets (8 wide) beside the shop (4 wide) under the projects; older saved layouts start over
 function loadLayout() {
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }
@@ -426,7 +427,7 @@ function setDensity(value) {
 function widgetHtml(item) {
   const w = WIDGETS[item.id];
   return `<section class="wg ${INSTRUMENTS.includes(item.id) ? "instr" : ""}" data-id="${item.id}" style="grid-column: span ${item.w}; grid-row: span ${item.h}; --w: ${item.w}">
-    <header class="wg-head" draggable="true">${icon(w.icon)}<b>${esc(t(w.title))}</b>
+    <header class="wg-head" draggable="true">${icon(w.icon)}<b>${esc(t(w.title))}</b>${w.head ? w.head() : ""}
       <div class="wg-tools">${w.href ? `<a href="${w.href}" title="${t("Ver tudo")}">${icon("arrow")}</a>` : ""}
         <button data-hide title="${t("Esconder")}">${icon("x")}</button></div></header>
     <div class="wg-body ${w.pad ? "pad" : ""}" id="wg-${item.id}"></div><span class="wg-grip" title="${t("Redimensionar")}"></span></section>`;

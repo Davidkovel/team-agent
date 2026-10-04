@@ -2,7 +2,8 @@
 <html lang="pt">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script>document.documentElement.classList.toggle("is-phone", matchMedia("(max-width: 900px)").matches && (matchMedia("(pointer: coarse)").matches || /[?&]phone=1/.test(location.search)));</script>
   <meta name="color-scheme" content="dark">
   <title>Agente AMG</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,10 +17,11 @@
   <meta name="apple-mobile-web-app-title" content="AMG">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=hub26">
-  <link rel="stylesheet" href="hub/design.css?v=hub26">
-  <link rel="stylesheet" href="hub/amg.css?v=hub26">
-  <link rel="stylesheet" href="hub/home.css?v=hub26">
+  <link rel="stylesheet" href="styles.css?v=hub27">
+  <link rel="stylesheet" href="hub/design.css?v=hub27">
+  <link rel="stylesheet" href="hub/amg.css?v=hub27">
+  <link rel="stylesheet" href="hub/home.css?v=hub27">
+  <link rel="stylesheet" href="hub/mobile.css?v=hub27">
 </head>
 <body>
   <section id="login" hidden>
@@ -63,11 +65,12 @@
   <div id="palette" class="pal" hidden></div>
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <div id="modal" class="modal" hidden><div class="modal-box" id="modal-box"></div></div>
-  <script src="hub/ui.js?v=hub26"></script>
-  <script src="hub/home.js?v=hub26"></script>
-  <script src="hub/pages.js?v=hub26"></script>
-  <script src="hub/baredesk.js?v=hub26"></script>
-  <script src="hub/shell.js?v=hub26"></script>
-  <script src="app.js?v=hub26"></script>
+  <script src="hub/ui.js?v=hub27"></script>
+  <script src="hub/home.js?v=hub27"></script>
+  <script src="hub/pages.js?v=hub27"></script>
+  <script src="hub/baredesk.js?v=hub27"></script>
+  <script src="hub/shell.js?v=hub27"></script>
+  <script src="app.js?v=hub27"></script>
+  <script src="hub/mobile.js?v=hub27"></script>
 </body>
 </html>

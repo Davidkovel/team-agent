@@ -1,0 +1,86 @@
+/* The phone: the Hub dressed as an iOS app. Everything here is scoped to html.is-phone, which mobile.js sets only on a small
+   touch screen (or with ?phone=1 to try it on a computer). On a computer nothing in this file applies. */
+#m-bar, #m-tabs, #m-sheet { display: none; }
+
+html.is-phone {
+  --m-bar: 48px; --m-tab: 56px; --m-bottom: env(safe-area-inset-bottom, 0px);
+  --m-glass: rgba(9, 9, 9, .74);
+  -webkit-text-size-adjust: 100%; overscroll-behavior-y: none;
+}
+html.is-phone body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+html.is-phone a, html.is-phone button { touch-action: manipulation; }
+
+/* the desktop sidebar is replaced by the bar on top and the tabs at the bottom (its elements stay in the page for the scripts) */
+html.is-phone .hub .hside { display: none !important; }
+html.is-phone .hub, html.is-phone .hub.collapsed { display: block; height: auto; overflow: visible; }
+html.is-phone .hub > main, html.is-phone .hub > main:has(> .page.inicio) { height: auto; overflow: visible;
+  padding: calc(var(--m-bar) + env(safe-area-inset-top, 0px) + 12px) 14px calc(var(--m-tab) + var(--m-bottom) + 28px) !important; }
+
+/* top bar: the star, the section, search and bells */
+html.is-phone #m-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; position: fixed; z-index: 60; top: 0; left: 0; right: 0;
+  height: calc(var(--m-bar) + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 12px 0;
+  background: var(--m-glass); -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px);
+  border-bottom: .5px solid rgba(255, 255, 255, .10); user-select: none; -webkit-user-select: none; }
+html.is-phone #m-bar .m-title { font: 600 17px/1 var(--ui); letter-spacing: -.01em; color: var(--text); text-align: center; }
+html.is-phone #m-bar .m-left, html.is-phone #m-bar .m-right { display: flex; align-items: center; gap: 4px; }
+html.is-phone #m-bar .m-right { justify-content: flex-end; }
+html.is-phone #m-bar .m-star { width: 30px; height: 30px; border-radius: 8px; display: block; box-shadow: 0 0 0 .5px rgba(255, 255, 255, .18); }
+html.is-phone .m-btn { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 12px; background: transparent; color: var(--text); cursor: pointer; }
+html.is-phone .m-btn:active { background: rgba(255, 255, 255, .10); }
+html.is-phone .m-btn svg.i { width: 22px; height: 22px; }
+html.is-phone .m-btn .m-count { position: absolute; top: 3px; right: 3px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: #ff453a; color: #fff;
+  font: 700 11px/17px var(--ui); text-align: center; box-shadow: 0 0 0 2px #090909; }
+
+/* tab bar at the bottom, like a native app */
+html.is-phone #m-tabs { display: flex; position: fixed; z-index: 60; left: 0; right: 0; bottom: 0; padding: 6px 6px var(--m-bottom);
+  background: var(--m-glass); -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px);
+  border-top: .5px solid rgba(255, 255, 255, .12); user-select: none; -webkit-user-select: none; }
+html.is-phone #m-tabs a, html.is-phone #m-tabs button { position: relative; flex: 1 1 0; min-width: 0; padding: 0; height: var(--m-tab); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  border: 0; background: transparent; color: #7d838c; font: 500 10px/1 var(--ui); letter-spacing: .01em; text-decoration: none; cursor: pointer; transition: color .15s; }
+html.is-phone #m-tabs svg.i { width: 25px; height: 25px; stroke-width: 1.7; transition: transform .2s var(--ease, ease); }
+html.is-phone #m-tabs .on { color: #fff; }
+html.is-phone #m-tabs .on svg.i { stroke-width: 2.1; transform: translateY(-1px); }
+html.is-phone #m-tabs .on::after { content: ""; position: absolute; top: 0; left: 50%; width: 22px; height: 2px; margin-left: -11px; border-radius: 0 0 2px 2px; background: var(--chrome); }
+html.is-phone #m-tabs a:active svg.i, html.is-phone #m-tabs button:active svg.i { transform: scale(.88); }
+html.is-phone #m-tabs .badge { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: #ff453a; color: #fff;
+  font: 700 11px/17px var(--ui); text-align: center; box-shadow: 0 0 0 2px #090909; }
+html.is-phone #m-tabs .badge[hidden] { display: none; }
+
+/* the section's own tabs (Empresas, Projetos, Código, BareDesk...) become a row of pills under the bar */
+html.is-phone .subtabs { position: sticky; z-index: 30; top: calc(var(--m-bar) + env(safe-area-inset-top, 0px)); display: flex; gap: 8px; overflow-x: auto; margin: -12px -14px 14px; padding: 10px 14px;
+  background: var(--m-glass); -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px); border: 0; border-bottom: .5px solid rgba(255, 255, 255, .08); scrollbar-width: none; }
+html.is-phone .subtabs::-webkit-scrollbar { display: none; }
+html.is-phone .subtabs a { flex: none; height: 34px; padding: 0 16px; display: inline-flex; align-items: center; gap: 6px; border-radius: 17px; border: 0;
+  background: rgba(255, 255, 255, .07); color: #b7bdc6; font: 500 14px var(--ui); text-decoration: none; }
+html.is-phone .subtabs a.on { background: var(--chrome); color: #0b0c0e; font-weight: 600; box-shadow: inset 0 1px 0 #fff; }
+html.is-phone .subtabs a::after, html.is-phone .subtabs a::before { display: none; }
+
+/* sheets: the notifications and "Mais" rise from the bottom */
+html.is-phone #notif-panel, html.is-phone #ai-panel { position: fixed !important; left: 0 !important; right: 0 !important; top: auto !important; bottom: 0 !important; width: auto !important;
+  max-height: 82vh; border-radius: 22px 22px 0 0 !important; padding-bottom: calc(var(--m-bottom) + 8px); z-index: 80; overflow-y: auto; animation: m-rise .28s cubic-bezier(.2, .8, .2, 1); }
+@keyframes m-rise { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+html.is-phone #m-sheet { position: fixed; inset: 0; z-index: 90; display: block; }
+html.is-phone #m-sheet[hidden] { display: none; }
+html.is-phone #m-sheet .m-bg { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); animation: m-fade .2s ease; }
+@keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
+html.is-phone #m-sheet .m-box { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 14px calc(var(--m-bottom) + 14px); border-radius: 22px 22px 0 0;
+  background: #121418; border-top: .5px solid rgba(255, 255, 255, .14); animation: m-rise .28s cubic-bezier(.2, .8, .2, 1); }
+html.is-phone #m-sheet .m-grab { display: block; width: 38px; height: 5px; margin: 0 auto 12px; border-radius: 3px; background: rgba(255, 255, 255, .22); }
+html.is-phone #m-sheet h3 { margin: 0 4px 10px; font: 600 12px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+html.is-phone #m-sheet .m-list { display: grid; border-radius: 14px; overflow: hidden; background: rgba(255, 255, 255, .05); }
+html.is-phone #m-sheet .m-row { display: flex; align-items: center; justify-content: flex-start; gap: 14px; width: 100%; min-height: 52px; padding: 0 16px; border: 0; background: transparent; color: var(--text);
+  font: 500 16px var(--ui); text-align: left; text-decoration: none; cursor: pointer; border-top: .5px solid rgba(255, 255, 255, .08); }
+html.is-phone #m-sheet .m-row:first-child { border-top: 0; }
+html.is-phone #m-sheet .m-row:active { background: rgba(255, 255, 255, .08); }
+html.is-phone #m-sheet .m-row svg.i { width: 22px; height: 22px; color: #aeb5be; flex: none; }
+html.is-phone #m-sheet .m-row i.m-count { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #ff453a; color: #fff; font: 700 12px/20px var(--ui); font-style: normal; text-align: center; }
+
+/* the floating Team AI button and the toasts clear the bars */
+html.is-phone #ai-fab { bottom: calc(var(--m-tab) + var(--m-bottom) + 14px) !important; right: 14px !important; }
+html.is-phone .toasts { top: calc(var(--m-bar) + env(safe-area-inset-top, 0px) + 8px) !important; bottom: auto !important; left: 12px !important; right: 12px !important; align-items: stretch; }
+
+/* touch comfort: no zoom on focus, bigger targets, rounder cards */
+html.is-phone input, html.is-phone select, html.is-phone textarea { font-size: 16px !important; }
+html.is-phone .btn { min-height: 40px; }
+html.is-phone .panel { border-radius: 18px; }
+html.is-phone .modal-box { border-radius: 20px; max-height: 88vh; overflow-y: auto; }

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .config import settings
 from .models import (TASK_STAGE, Activity, AgentSession, AgentState, Approval, Meter, Notification, Subagent, Task, TaskEvent,
                      UsageRecord, User)
-from . import hub
+from . import hub, sync
 from .realtime import rt
 from .security import sees_all
 
@@ -54,9 +54,13 @@ async def delete_tasks(db: AsyncSession, ids: list[int]):
     """Deletes tasks for good. What other records say about them stays (their cost, the activity feed), without the link."""
     if not ids:
         return
+    # plain DELETE/UPDATE: the other computers only hear about these rows through sync.note
+    await sync.note(db, TaskEvent, (await db.execute(select(TaskEvent.id).where(TaskEvent.task_id.in_(ids)))).scalars().all(), deleted=True)
     await db.execute(delete(TaskEvent).where(TaskEvent.task_id.in_(ids)))
     for model in (Approval, Activity, UsageRecord, AgentSession):
+        await sync.note(db, model, (await db.execute(select(model.id).where(model.task_id.in_(ids)))).scalars().all())
         await db.execute(update(model).where(model.task_id.in_(ids)).values(task_id=None))
+    await sync.note(db, Task, ids, deleted=True)
     await db.execute(delete(Task).where(Task.id.in_(ids)))
     await db.commit()
 

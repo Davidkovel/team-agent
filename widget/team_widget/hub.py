@@ -28,7 +28,10 @@ def _config() -> dict:
 
 
 def hub_url() -> str:
-    return (os.environ.get("TEAM_HUB_URL") or _config().get("hub_url") or DEFAULT_URL).rstrip("/")
+    url = _config().get("hub_url") or ""
+    if urlparse(url).hostname and urlparse(url).hostname.startswith("26."):
+        url = ""  # from when one computer was the host: now every computer runs its own Hub and they sync
+    return (os.environ.get("TEAM_HUB_URL") or url or DEFAULT_URL).rstrip("/")
 
 
 def team_key() -> str:
@@ -102,11 +105,11 @@ def start_local_server(url: str) -> bool:
     if not secret_file.exists():
         secret_file.write_text(secrets.token_urlsafe(48))
     env = {**os.environ, "DATABASE_URL": f"sqlite+aiosqlite:///{(DATA_DIR / 'hub.db').as_posix()}",
-           "REDIS_URL": "", "JWT_SECRET": secret_file.read_text().strip(), "TEAM_KEY": team_key()}
+           "REDIS_URL": "", "JWT_SECRET": secret_file.read_text().strip(), "TEAM_KEY": team_key(), "SYNC": "1"}
     port = str(urlparse(url).port or 8000)
     flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-    # With a team key this computer is the host: listen on the network (Radmin/LAN) so the others' widgets can reach it.
-    host = "0.0.0.0" if team_key() else "127.0.0.1"
+    # Listens on the network (Radmin) so the Hubs of the other computers can trade changes with this one.
+    host = "0.0.0.0"
     subprocess.Popen([str(python), "-m", "uvicorn", "app.main:app", "--host", host, "--port", port], cwd=backend, env=env,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
     for _ in range(30):

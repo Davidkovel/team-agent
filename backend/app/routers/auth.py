@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import sync
 from ..config import settings
 from ..db import get_db
 from ..models import User
@@ -39,6 +40,9 @@ def ip_map() -> dict[str, str]:
             if "=" in p:
                 ip, login = p.split("=", 1)
                 out[ip.strip()] = login.strip().lower()
+    me = sync.whoami() if settings.sync else None
+    if me:  # every computer runs its own Hub: on it, "this computer" is the person it belongs to
+        out["127.0.0.1"] = out["::1"] = me[1]
     return out
 
 

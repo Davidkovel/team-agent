@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from .config import settings
-from . import migrate
+from . import migrate, sync
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
@@ -88,19 +88,24 @@ async def offline_watcher():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await migrate.upgrade(engine)  # creates what is missing, never drops; backs the database up before changing it
+    if settings.sync:
+        await sync.prepare()  # before the first write: ids and the change log depend on it
     await seed()
     await sync_team_names()
     async with SessionLocal() as db:
         await purge_trash(db)  # what sat in the task bin past its hours while the Hub was off
     await rt.start()
     watcher = asyncio.create_task(offline_watcher())
+    syncing = asyncio.create_task(sync.loop()) if settings.sync else None
     yield
     watcher.cancel()
+    if syncing:
+        syncing.cancel()
     await rt.stop()
 
 
 app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
-for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, ws):
+for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, ws, sync):
     app.include_router(module.router)
 
 if Path(settings.frontend_dir).is_dir():

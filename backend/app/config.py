@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     # The team's Radmin VPN IPs (see CLAUDE.md), always signed in by computer. IP_USERS adds to these or overrides one.
     # Until 3 Oct David's IP lived only in the host's backend/.env and was missing there, so his browser got the password page.
     team_ip_users: str = "26.68.80.191=owner,26.244.76.112=mark,26.245.177.206=david"
+    # Hub-to-Hub sync (sync.py): every computer runs its own Hub and they trade changes; there is no host. The widget sets SYNC=1.
+    sync: bool = False
+    sync_seconds: int = 5
+    sync_port: int = 8000
+    # For a test or an odd network: this computer's number (0 = the owner's) and the other Hubs as "host:port,host:port".
+    sync_node: int = -1
+    sync_peers: str = ""
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"
     david_password: str = "david-change-me"

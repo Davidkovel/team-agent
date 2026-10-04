@@ -21,7 +21,8 @@ log = logging.getLogger("team.backend")
 # 2: projects, agent sessions, subagents, notifications, memory, expenses, AI requests; more fields on tasks and approvals.
 # 3: the task bin (trashed_at, trash_reason and what to restore on tasks).
 # 4: notifications say whether they were sent to that person (directed), for the widget's sound.
-SCHEMA_VERSION = 4
+# 5: sync_log and sync_meta, for the Hubs of the team's computers to trade changes (sync.py).
+SCHEMA_VERSION = 5
 
 
 def current_version(conn) -> int:

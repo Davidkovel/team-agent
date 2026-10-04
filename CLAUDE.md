@@ -1,6 +1,6 @@
 # Agente AMG (team-agent) — notes for Claude
 
-Read this after a `git clone` or `git pull`. The goal on every PC is the same: the widget is open and the person shows as online for the others.
+Read this after a `git clone` or `git pull`. The goal on every PC is the same: the widget is open, its own Hub runs and syncs with the others.
 
 ## The team setup
 
@@ -15,13 +15,25 @@ Read this after a `git clone` or `git pull`. The goal on every PC is the same: t
   its own (`is_local` is false), so there is no second Hub to confuse things. The key is still needed on the
   host — it is what makes its Hub listen on `0.0.0.0` — and for a widget outside the Radmin network.
 
-## Hub in the cloud (so nobody's PC has to be on)
+## No host: every PC runs its own Hub (since 4 Oct)
 
-`fly.toml` + `backend/Dockerfile` run the Hub on Fly.io: one machine, `hub.db` and the company library on the volume `/data`.
-There is no Radmin and no sign-in by IP there. The widget needs `hub_url` **and** `key` in `widget.json`
-(`.\scripts\configurar_widget.ps1 -Key <team key> -User Marco -HubUrl https://<app>.fly.dev`): with the key it shows the
-team, gets the tasks and opens the Hub already signed in (`/api/local/session`). A plain browser signs in with the password.
-Deploy: `fly deploy` from the repo root. Once the cloud Hub is the real one, the sections below describe the old setup.
+Kovel's PC used to be the host and had to be on for anyone to open the Hub. Not any more:
+
+- On every PC the widget starts a Hub on `127.0.0.1:8000` with its own `~/.team-agent/hub.db` (`SYNC=1`, listening on `0.0.0.0`).
+  A `hub_url` in `widget.json` that points at a `26.x` address is from the old setup and is ignored.
+- `backend/app/sync.py`: every 5 s each Hub calls the other two Radmin IPs (`team_ip_users`) on `/api/sync/exchange` and they
+  trade the rows that changed (`sync_log`; newest change to a row wins; deletes travel too). A PC that was off catches up when
+  it meets any other PC; a task sent meanwhile rings in its widget then.
+- New ids are `time * 4 + computer number` (owner 0, mark 1, david 2), so they never collide and still sort by age.
+- Kovel's database is the team's (`origin` in `sync_meta`). A PC that never synced takes it whole the first time the two
+  meet and drops its own local data. Until then its Hub is a separate, empty one.
+- Sign-in: on each PC `127.0.0.1` is the person whose Radmin IP that PC has. Online/offline of the others is not synced.
+- Only one of two PCs needs to accept connections for them to sync. Kovel's has the firewall rule; `iniciar.ps1` adds it on
+  the others when run as administrator (needed only for Marco and David to sync with each other while Kovel is off).
+- After a `git pull`: `.\scripts\iniciar.ps1`, and if a Hub from before is still running, stop that `uvicorn` first.
+- The company library (`library/`) is files in git, not the database: it travels by commit, not by sync.
+
+The sections below were written for the old host setup; where they disagree with this one, this one is right.
 
 ## Make it work
 

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import ponto
+from .. import ponto, sync
 from ..config import settings
 from ..db import get_db
 from ..models import Approval, Notification, User
@@ -88,6 +88,10 @@ async def local_notices(request: Request, user: str, after: int | None = None, d
     if not person:
         raise HTTPException(404, "Unknown user")
     mine = (Notification.user_id == person.id, Notification.kind == "task_new")
+    if sync.ACTIVE:  # ids are not in arrival order between computers: count by when each one got here
+        latest, found = await sync.notices(db, Notification, mine, after)
+        return {"latest": latest, "items": [{"id": seq, "title": n.title, "body": n.body, "href": n.href, "directed": bool(n.directed),
+                                             "created_at": iso(n.created_at)} for seq, n in found]}
     latest = (await db.execute(select(func.max(Notification.id)).where(*mine))).scalar() or 0
     rows = [] if after is None else (await db.execute(select(Notification).where(*mine, Notification.id > after)
                                                       .order_by(Notification.id))).scalars()

@@ -1,11 +1,11 @@
-// Início: the command center at a glance, as in the team's mockup: the greeting beside the front of the car, the team, four
-// shortcuts, today's progress, the tasks by day, the coming deadlines, what just happened, and a thought for the day.
+// Início: the command center at a glance. The organisation of the team's mockup in the AMG finish of the Hub: the greeting
+// beside a black Mercedes-AMG coming out of the dark, the team (small) with the notifications beside it, four shortcuts,
+// today's progress, the tasks by day, the coming deadlines, what just happened, and a thought for the day.
 // Every figure is the Hub's own record; where there is nothing, an honest empty state, never a made-up number.
 //
-// Light on the processor, because the Hub also runs inside the widget: the car is two still pictures drawn once (the car,
-// and its light on top; scripts/make_mercedes.py), the only motion is that light coming on once per session (opacity, done
-// by the graphics card), the clock changes once a minute, and nothing is blurred behind the cards (on a still background a
-// translucent card looks the same and costs nothing). The look is in hub/home.css.
+// Light on the processor, because the Hub also runs inside the widget: the car is a still photograph (WebP, the size the
+// screen needs: scripts/make_hero_photo.py), the only motion is the car coming out of the dark once per session (opacity,
+// done by the graphics card), the clock changes once a minute, and nothing is blurred. The look is in hub/home.css.
 
 const QUOTES = ["Disciplina hoje, liberdade amanhã.", "Grandes resultados exigem tempo, foco e consistência.",
   "Feito é melhor do que perfeito.", "Um passo de cada vez, todos os dias.", "Foca-te no que depende de ti.",
@@ -56,53 +56,92 @@ function whenOf(x, tab, now = new Date()) {
   return [tab === "tomorrow" ? hhmm : `${inDayLabel(d, now)} ${hhmm}`, ""];
 }
 
-// The tag beside a task: its project or company, else whose it is. The colour follows the name, so it is always the same.
-const TAG_TONES = ["blue", "green", "amber", "violet", "teal"];
-function tagOf(x) {
-  const label = x.project_name || companies.find((c) => c.id === x.company)?.name || nameOf(x.assignee);
-  let h = 0;
-  for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return [label, TAG_TONES[h % TAG_TONES.length]];
-}
+// the tag beside a task: its project or company, else whose it is
+const tagOf = (x) => x.project_name || companies.find((c) => c.id === x.company)?.name || nameOf(x.assignee);
 
 /* ---------- the blocks ---------- */
 const greetingOf = (hour) => (hour < 6 ? "Boa noite" : hour < 13 ? "Bom dia" : hour < 20 ? "Boa tarde" : "Boa noite");
 
 function heroHtml(now, ignite) {
-  const night = now.getHours() >= 20 || now.getHours() < 7;
   const date = now.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   return `<header class="in-hero ${ignite ? "ignite" : ""}">
     <div class="hero-copy">
-      <span class="hero-sky ${night ? "moon" : "sun"}">${icon(night ? "moon" : "sun")}</span>
-      <h1>${esc(t(greetingOf(now.getHours())))}, ${esc(me.display_name)}</h1>
-      <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i>·</i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
+      <div class="hero-eyebrow">${t("Centro de comando")}</div>
+      <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
+      <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
+      <p class="hero-quote">“${esc(t(quoteOfDay()))}”</p>
     </div>
-    <div class="hero-car" aria-hidden="true"><img src="assets/mercedes-front.svg" alt="" decoding="async"><img class="lights" src="assets/mercedes-lights.svg" alt="" decoding="async"></div>
-    <blockquote class="hero-quote">“${esc(t(quoteOfDay()))}”</blockquote>
+    <div class="hero-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" srcset="assets/amg-front-1200.webp 1200w, assets/amg-front-2400.webp 2400w"
+      sizes="(max-width: 700px) 100vw, (max-width: 1150px) 62vw, min(54vw, 860px)" alt="" decoding="async"></div>
   </header>`;
 }
 
-const cardHead = (ic, tone, title, sub, link = "") => `<header class="ch"><span class="ch-ic ${tone}">${icon(ic)}</span>
-  <div class="ch-t"><b>${esc(t(title))}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>${link}</header>`;
+const cardHead = (ic, title, sub = "", link = "") => `<header class="ch">${icon(ic)}<div class="ch-t"><b>${esc(t(title))}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>${link}</header>`;
 const seeAll = (label, href) => `<a class="ch-link" href="${href}">${esc(t(label))}${icon("chevron")}</a>`;
 
 const RING = { WORKING: "busy", ONLINE: "on", IDLE: "on", WAITING: "wait", PAUSED: "wait", ERROR: "bad", OFFLINE: "off" };
 async function teamCard() {
   const team = await api("/api/team");
   const online = team.filter((m) => m.status !== "OFFLINE").length;
-  return `${cardHead("users", "blue", "A tua equipa", `${team.length} ${t("membros")} · ${online} ${t("online")}`,
-    `<a class="ch-link pill" href="#/equipa">${t("Ver equipa")}${icon("chevron")}</a>`)}
-    <div class="crew" style="--n:${team.length || 1}">${team.map((m) => {
-      const tone = RING[m.status] || "off";
-      return `<a class="mate" href="#/equipa"><span class="mate-ring ${tone}">${ui.avatar(m.display_name, "xl")}<i></i></span>
-        <b>${esc(m.display_name)}</b><span class="mate-st ${tone}"><i></i>${esc(t((AGENT_ST[m.status] || [, m.status])[1]))}</span></a>`;
-    }).join("")}</div>`;
+  return `${cardHead("users", "A tua equipa", `${online} ${t("de")} ${team.length} ${t("online")}`, seeAll("Ver", "#/equipa"))}
+    <div class="mates">${team.map((m) => `<a class="mate ${RING[m.status] || "off"}" href="#/equipa">
+      <span class="mate-av">${ui.avatar(m.display_name)}<i></i></span><b>${esc(m.display_name)}</b>
+      <span class="mate-st">${esc(t((AGENT_ST[m.status] || [, m.status])[1]))}</span></a>`).join("")}</div>`;
 }
 
-const TILES = [["task", "plus", "blue", "Tarefa", "Criar nova tarefa"], ["agenda", "calendar", "green", "Calendário", "Ver prazos"],
-  ["note", "note", "violet", "Notas", "Guardar ideias"], ["team", "users", "amber", "Equipa", "Ver membros"]];
-const tilesHtml = () => `<nav class="in-tiles">${TILES.map(([act, ic, tone, title, sub]) => `<button class="in-tile ${tone}" data-act="${act}">
-  <span class="tile-ic">${icon(ic)}</span><span class="tile-t"><b>${esc(t(title))}</b><span>${esc(t(sub))}</span></span>${icon("chevron")}</button>`).join("")}</nav>`;
+/* ---------- notifications: the latest beside the team, the whole history one click away ---------- */
+const NOTE_ICON = { task_new: "tasks", task: "check", approval_required: "alert", approval_decided: "check", agent_failed: "alert", agent_waiting: "clock" };
+const noticeRow = (n) => `<button class="nrow ${n.read ? "" : "unread"}" data-n="${n.id}" data-href="${esc(n.href || "")}"><i></i>
+  <span class="n-ic">${icon(NOTE_ICON[n.kind] || "bell")}</span>
+  <span class="n-t"><b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ""}</span><time>${fmt.ago(n.created_at)}</time></button>`;
+
+async function newsCard() {
+  const inbox = await api("/api/notifications?limit=5");
+  const badge = $("in-unread");
+  if (badge) { badge.textContent = inbox.unread; badge.hidden = !inbox.unread; }
+  return `${cardHead("bell", "Notificações", inbox.unread ? "" : t("Tudo lido"),
+      `${inbox.unread ? `<span class="n-count">${inbox.unread} ${t("por ler")}</span>` : ""}
+      <button class="ch-link" data-act="alerts">${t("Histórico")}${icon("chevron")}</button>`)}
+    ${inbox.items.length ? `<div class="news">${inbox.items.map(noticeRow).join("")}</div>`
+      : `<p class="in-empty">${t("Ainda não há notificações. Aparecem aqui as tarefas novas, as aprovações e o que precisa de ti.")}</p>`}`;
+}
+
+async function openNotices() {
+  let inbox;
+  try { inbox = await request("/api/notifications?limit=100"); } catch (e) { flash(e.message); return; }
+  const days = new Map();
+  for (const n of inbox.items) days.set(fmt.day(n.created_at), [...(days.get(fmt.day(n.created_at)) || []), n]);
+  openModal(`<div class="rowx" style="margin-bottom:14px"><h3 class="grow" style="margin:0">${t("Notificações")}</h3>
+      ${inbox.unread ? `<button class="btn quiet sm" data-read-all>${t("Marcar tudo como lido")}</button>` : ""}
+      <button class="btn quiet sm" data-close>${icon("x")}</button></div>
+    ${days.size ? `<div class="n-hist">${[...days].map(([day, list]) =>
+      `<section><div class="n-day">${esc(day)}</div><div class="n-group news">${list.map(noticeRow).join("")}</div></section>`).join("")}</div>`
+      : ui.empty("bell", "Sem notificações", "Aparecem aqui as tarefas novas, as aprovações e o que precisa de ti.")}`);
+  $("modal-box").classList.add("wide");
+  $("modal-box").onclick = async (e) => {
+    if (e.target.closest("[data-read-all]")) {
+      await api("/api/notifications/read", { method: "POST", body: {} }).catch((err) => flash(err.message));
+      if (window.hubNews) hubNews().catch(() => {});
+      loadHome(["news"]);
+      return openNotices();
+    }
+    const row = e.target.closest("[data-n]");
+    if (row) { closeModal(); openNotice(row); }
+  };
+}
+
+// A notification opened: it is read now, and it takes you where it points.
+async function openNotice(row) {
+  api("/api/notifications/read", { method: "POST", body: { ids: [Number(row.dataset.n)] } })
+    .then(() => { if (window.hubNews) hubNews().catch(() => {}); loadHome(["news"]); }).catch(() => {});
+  if (row.dataset.href) location.hash = row.dataset.href;
+}
+
+const TILES = [["task", "plus", "Tarefa", "Criar nova tarefa"], ["agenda", "calendar", "Calendário", "Ver prazos"],
+  ["note", "note", "Notas", "Guardar ideias"], ["alerts", "bell", "Notificações", "Ver o histórico"]];
+const tilesHtml = () => `<nav class="in-tiles">${TILES.map(([act, ic, title, sub]) => `<button class="in-tile" data-act="${act}">
+  <span class="tile-ic"><span>${icon(ic)}</span></span>${act === "alerts" ? '<i class="badge-n" id="in-unread" hidden></i>' : ""}
+  <span class="tile-t"><b>${esc(t(title))}</b><span>${esc(t(sub))}</span></span>${icon("chevron")}</button>`).join("")}</nav>`;
 
 async function progressBody() {
   const p = planOf(await api("/api/tasks"));
@@ -112,12 +151,14 @@ async function progressBody() {
   const c = 2 * Math.PI * 52, off = total ? c * (1 - doneN / total) : c;
   return `<div class="prog">
       <div class="ring" style="--c:${c.toFixed(1)};--off:${off.toFixed(1)}"><svg viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="in-chrome" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#9aa2ab"/>
+          <stop offset=".7" stop-color="#eef1f4"/><stop offset="1" stop-color="#8f98a2"/></linearGradient></defs>
         <circle class="ring-track" cx="60" cy="60" r="52"/><circle class="ring-val" cx="60" cy="60" r="52"/></svg>
         <div><b>${doneN}<small>/${total}</small></b><span>${t("Tarefas hoje")}</span></div></div>
       <ul class="legend"><li><i class="ok"></i>${t("Concluídas")}<b>${doneN}</b></li>
         <li><i class="warn"></i>${t("Pendentes")}<b>${p.today.length - p.late.length}</b></li>
         <li><i class="bad"></i>${t("Atrasadas")}<b>${p.late.length}</b></li></ul></div>
-    <div class="week"><span class="week-ic">${icon("trend")}</span><div><b>${t("Progresso do grupo")}</b><span>${t("Esta semana")}</span></div></div>
+    <div class="week">${icon("trend")}<b>${t("Progresso do grupo")}</b><span>${t("esta semana")}</span></div>
     <div class="week-bar"><div class="in-bar"><i style="width:${pct}%"></i></div><b>${weekTotal ? `${pct}%` : "—"}</b></div>
     <div class="week-nums">${[[weekTotal, "Tarefas totais"], [weekDone, "Concluídas"], [p.inProgress, "Em curso"], [p.late.length, "Atrasadas"]]
       .map(([n, label]) => `<div><b>${n}</b><span>${t(label)}</span></div>`).join("")}</div>`;
@@ -131,12 +172,12 @@ const MAX_ROWS = 6;
 
 function taskRow(x, done) {
   const [when, late] = done ? [fmt.hhmm(x.completed_at), ""] : whenOf(x, tasksTab);
-  const [tag, tone] = tagOf(x), held = !done && heldByAgent(x);
+  const held = !done && heldByAgent(x);
   const check = done ? `<span class="tcheck">${icon("tick")}</span>`
     : held ? `<span class="tcheck held" title="${t("O agente está a tratar dela")}"></span>`
     : `<button class="tcheck" data-done="${x.id}" title="${t("Concluir")}" aria-label="${t("Concluir")}"></button>`;
   return `<div class="trow ${done ? "done" : ""}">${check}<button class="ttitle" data-task="${x.id}">${esc(x.title)}</button>
-    <span class="twhen ${late}">${esc(when)}</span><span class="ttag ${tone}">${esc(tag)}</span></div>`;
+    <span class="twhen ${late}">${esc(when)}</span><span class="ttag">${esc(tagOf(x))}</span></div>`;
 }
 
 async function tasksBody() {
@@ -156,7 +197,7 @@ function calRow(x) {
     <span class="ctitle">${esc(x.title)}</span><span class="ctime">${fmt.hhmm(x.deadline)}</span>${icon("chevron")}</button>`;
 }
 const noDeadlines = () => `<div class="in-none">${icon("calendar")}<div><b>${t("Sem prazos marcados")}</b>
-  <span>${t("Dá um prazo a uma tarefa e ela aparece aqui.")}</span></div><button class="in-btn" data-act="task">${t("Nova tarefa")}</button></div>`;
+  <span>${t("Dá um prazo a uma tarefa e ela aparece aqui.")}</span></div>${ui.btn("Nova tarefa", 'data-act="task"', "sm")}</div>`;
 
 async function calendarBody() {
   const p = planOf(await api("/api/tasks"));
@@ -179,13 +220,13 @@ async function activityBody() {
   if (!shown.length) return `<p class="in-empty">${t("Ainda não aconteceu nada.")}</p>`;
   return `<div class="arows">${shown.map((a) => {
     const [what, detail] = splitActivity(a);
-    return `<div class="arow"><span class="arow-av">${ui.avatar(a.name, "lg")}${online.has(a.user) ? "<i></i>" : ""}</span>
+    return `<div class="arow"><span class="arow-av">${ui.avatar(a.name)}${online.has(a.user) ? "<i></i>" : ""}</span>
       <div class="arow-t"><b>${esc(what)}</b>${detail ? `<span>${esc(detail)}</span>` : ""}</div><time>${fmt.ago(a.created_at)}</time></div>`;
   }).join("")}</div>`;
 }
 
 const quoteCard = () => `<figure class="in-quote"><blockquote>“${esc(t(quoteOfDay(3)))}”</blockquote>
-  <figcaption>${icon("crown")}${t("Centro de comando")}</figcaption></figure>`;
+  <figcaption><img src="assets/amg-wordmark.png" alt="AMG"></figcaption></figure>`;
 
 /* ---------- the shortcuts ---------- */
 // "Calendário": every deadline from today on (and the ones already missed), by day.
@@ -225,7 +266,9 @@ async function homeClick(e) {
   if (act === "task") return newTask();
   if (act === "agenda") return openAgenda();
   if (act === "note") return newNote();
-  if (act === "team") { location.hash = "#/equipa"; return; }
+  if (act === "alerts") return openNotices();
+  const notice = e.target.closest("[data-n]");
+  if (notice) return openNotice(notice);
   const tab = e.target.closest("[data-tab]");
   if (tab) { tasksTab = tab.dataset.tab; return mount($("in-tasks"), tasksBody, 4); }
   const done = e.target.closest("[data-done]");
@@ -254,28 +297,29 @@ function startHomeClock() {
 }
 
 // A promise, as the live events expect of the loaders they call.
-async function loadHome(parts = ["team", "plan", "act"]) {
+async function loadHome(parts = ["team", "news", "plan", "act"]) {
   if (!$("in-team")) return;
   const jobs = [];
   if (parts.includes("team")) jobs.push(mount($("in-team"), teamCard, 3));
+  if (parts.includes("news")) jobs.push(mount($("in-news"), newsCard, 3));
   if (parts.includes("plan")) jobs.push(mount($("in-prog"), progressBody, 5), mount($("in-tasks"), tasksBody, 5), mount($("in-cal"), calendarBody, 3));
   if (parts.includes("act")) jobs.push(mount($("in-act"), activityBody, 3));
   await Promise.all(jobs);
 }
 
 HUB_VIEWS.home = async function viewHome() {
-  let ignite = false; // the lights come on once per session; after that they are simply on
-  try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: lights on */ }
+  let ignite = false; // the car comes out of the dark once per session; after that it is simply there
+  try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: no start-up */ }
   $("view").innerHTML = `<div class="page inicio">${heroHtml(new Date(), ignite)}
-    <section class="in-card crew-card" id="in-team"></section>
+    <div class="in-top"><section class="in-card" id="in-team"></section><section class="in-card" id="in-news"></section></div>
     ${tilesHtml()}
     <div class="in-grid">
-      <section class="in-card in-prog">${cardHead("target", "blue", "Progresso da equipa", "", seeAll("Visão geral", "#/analise"))}<div id="in-prog"></div></section>
-      <section class="in-card in-tasks">${cardHead("tasks", "blue", "Tarefas", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
-      <section class="in-card in-cal">${cardHead("calendar", "green", "Calendário", t("Próximos prazos"),
-        `<button class="ch-link" data-act="agenda">${t("Ver calendário")}${icon("chevron")}</button>`)}<div id="in-cal"></div></section>
+      <section class="in-card in-prog">${cardHead("target", "Progresso da equipa", "", seeAll("Visão geral", "#/analise"))}<div id="in-prog"></div></section>
+      <section class="in-card in-tasks">${cardHead("tasks", "Tarefas", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
+      <section class="in-card in-cal">${cardHead("calendar", "Calendário", t("Próximos prazos"),
+        `<button class="ch-link" data-act="agenda">${t("Ver tudo")}${icon("chevron")}</button>`)}<div id="in-cal"></div></section>
       <div class="in-side">
-        <section class="in-card">${cardHead("bolt", "blue", "Atividade recente", "", seeAll("Ver todas", "#/aovivo"))}<div id="in-act"></div></section>
+        <section class="in-card">${cardHead("bolt", "Atividade recente", "", seeAll("Ver todas", "#/aovivo"))}<div id="in-act"></div></section>
         ${quoteCard()}
       </div>
     </div></div>`;
@@ -286,6 +330,7 @@ HUB_VIEWS.home = async function viewHome() {
 
 // A live event reloads only what shows that kind of thing ("tick" is the slow safety net: all of it).
 onLive(["presence"], () => loadHome(["team", "act"]));
+onLive(["notification"], () => loadHome(["news"]));
 onLive(["task"], () => loadHome(["plan", "act"]));
 onLive(["activity", "ponto"], () => loadHome(["act"]));
 onLive(["tick"], () => loadHome());

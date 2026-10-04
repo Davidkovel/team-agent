@@ -253,7 +253,6 @@ function cockpitHtml(greeting, date) {
       <p class="cockpit-date">${esc(date)}<i></i><time id="cockpit-clock">${new Date().toLocaleTimeString("pt-PT")}</time></p>
       <div class="cockpit-actions">
         ${TACHO}
-        <a class="btn amg" href="#/baredesk">${t("BareDesk")}</a>
         <a class="btn amg" href="#/tarefas">${t("Tarefas")}</a>
         <a class="btn amg" href="#/analise">${t("Análise")}</a>
         <button class="btn quiet" id="customize">${icon("sliders")}${t("Personalizar")}</button>
@@ -263,7 +262,7 @@ function cockpitHtml(greeting, date) {
 }
 
 /* ---------- the layout: order, size and visibility, kept per person ---------- */
-const layoutKey = () => `hub.home10.${me.username}`; // "10": the markets and the shop left Home (the shop is the BareDesk section); older saved layouts start over
+const layoutKey = () => `hub.home10.${me.username}`; // "10": the markets and the shop left Home (the shop is the BareDesk tab of Trabalho); older saved layouts start over
 function loadLayout() {
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey())) || []; } catch { /* a broken entry is the same as none */ }

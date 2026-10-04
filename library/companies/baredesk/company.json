@@ -38,12 +38,10 @@
     },
     {
       "id": "fotos", "label": "Fotos", "icon": "🖼️", "kind": "photos",
-      "description": "Fotos de produto, capturas e logos.",
+      "description": "Só o que importa da loja: as imagens dos anúncios e a marca. As capturas de ecrã de trabalho ficam de fora.",
       "sources": [
-        {"source": "theme", "path": "shots", "label": "Capturas"},
         {"source": "theme", "path": "ads/still", "label": "Anúncios"},
-        {"source": "marca", "path": "", "label": "Marca"},
-        {"source": "anuncio", "path": "stills", "label": "Reel"}
+        {"source": "marca", "path": "", "label": "Marca"}
       ]
     },
     {

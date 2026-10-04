@@ -159,3 +159,14 @@ function hubStart() {
     else if (e.key === "Escape") { togglePalette(false); $("notif-panel").hidden = true; }
   });
 }
+
+// When this PC's Hub has pulled a new version (selfupdate.py), the page reloads itself - but never in the middle of
+// typing or with a window open.
+let hubVersion = null;
+setInterval(async () => {
+  try {
+    const { head } = await (await fetch("/api/version", { cache: "no-store" })).json();
+    if (hubVersion && head && head !== hubVersion && $("modal").hidden && !document.activeElement?.matches("input, textarea, select")) location.reload();
+    hubVersion = head || hubVersion;
+  } catch { /* the Hub is restarting: ask again next minute */ }
+}, 60000);

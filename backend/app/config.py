@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     # For a test or an odd network: this computer's number (0 = the owner's) and the other Hubs as "host:port,host:port".
     sync_node: int = -1
     sync_peers: str = ""
+    # The BareDesk shop on Home (routers/markets.py). Secrets: only in backend/.env, never in git.
+    # Shopify: an Admin API token (shpat_..., scope read_orders) or, for an app made in the Dev Dashboard, its client id + secret.
+    shopify_store: str = "baredesk-store.myshopify.com"
+    shopify_admin_token: str = ""
+    shopify_client_id: str = ""
+    shopify_client_secret: str = ""
+    # Meta Ads: a token with ads_read and the ad account ("act_123..." or just the number).
+    meta_access_token: str = ""
+    meta_ad_account: str = ""
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"
     david_password: str = "david-change-me"

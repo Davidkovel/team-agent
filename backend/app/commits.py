@@ -39,7 +39,13 @@ def repos() -> list[dict]:
 def _local_path(repo: dict) -> Path | None:
     if repo.get("source") == "self":
         return hub.library_dir().parent
-    return hub.sources().get(repo.get("source", ""))
+    path = hub.sources().get(repo.get("source", ""))
+    if path:
+        return path
+    # no library/sources.json on this PC: a checkout beside team-agent with the repo's name is the same thing
+    # (Documents/baredesk-theme next to Documents/team-agent). Without this the BareDesk card said "no access" on every PC.
+    beside = hub.library_dir().parent.parent / repo.get("github", "").split("/")[-1]
+    return beside if (beside / ".git").exists() else None
 
 
 def _github(repo: dict, limit: int) -> list[dict]:

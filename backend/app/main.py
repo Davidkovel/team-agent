@@ -12,7 +12,7 @@ from . import migrate, sync
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
-from .routers import agent, agents, ai, analytics, auth, hub, local, ponto, tasks, team, week, work, ws
+from .routers import agent, agents, ai, analytics, auth, hub, local, markets, ponto, tasks, team, week, work, ws
 from .security import hash_password
 from .services import (ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
-for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, ws, sync):
+for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, ws, sync):
     app.include_router(module.router)
 
 if Path(settings.frontend_dir).is_dir():

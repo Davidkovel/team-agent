@@ -31,11 +31,13 @@ async function drawPhone(note = "") {
   const p = await api("/api/phone", { method: "POST", body: {} });
   $("notif-panel").innerHTML = `<div class="pop-head"><b>${t("Notificações no telemóvel")}</b>
       <button class="btn quiet sm" id="phone-back">${t("Voltar")}</button></div>
-    <div class="pop-body" style="padding:12px 14px;display:grid;gap:10px">
+    <div class="pop-body" style="padding:12px 14px;display:grid;gap:12px">
       <span>${t("1. Instala a app «ntfy» no telemóvel (Play Store ou App Store).")}</span>
-      <span>${t("2. Na app: «+» → cola este tópico. É só teu: não o partilhes.")}</span>
-      <code style="user-select:all;word-break:break-all">${esc(p.topic)}</code>
-      <span>${t("Ou abre este endereço no telemóvel:")} <a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a></span>
+      <span>${t("2. Copia o teu código. É só teu: não o partilhes.")}</span>
+      <code id="phone-topic" style="user-select:all;word-break:break-all">${esc(p.topic)}</code>
+      <button class="btn primary" id="phone-copy">${t("Copiar o código")}</button>
+      <span>${t("3. Abre o ntfy, toca em «+», cola o código e toca em «Subscribe». Aceita as notificações quando o telemóvel perguntar.")}</span>
+      <span>${t("4. Volta aqui e toca em «Enviar um teste»: tem de aparecer a notificação «Agente AMG».")}</span>
       <span><button class="btn sm" id="phone-test">${t("Enviar um teste")}</button>
         <button class="btn quiet sm" id="phone-off">${t("Desligar o telemóvel")}</button></span>
       ${note ? `<b>${esc(t(note))}</b>` : ""}</div>`;
@@ -169,6 +171,14 @@ function hubStart() {
     if (e.target.closest("#phone-test")) {
       const sent = (await api("/api/phone/test", { method: "POST", body: {} })).sent;
       return drawPhone(sent ? "Enviado: vê o telemóvel." : "Não saiu: este computador está sem internet?");
+    }
+    if (e.target.closest("#phone-copy")) {
+      const box = document.createElement("textarea"); // a field the phone can copy from (clipboard.writeText needs https)
+      box.value = $("phone-topic").textContent; box.readOnly = true; box.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+      document.body.appendChild(box); box.select(); box.setSelectionRange(0, box.value.length);
+      const ok = document.execCommand("copy"); box.remove();
+      flash(t(ok ? "Código copiado. Cola-o no ntfy." : "Não deu para copiar: mantém o dedo no código para o copiares."));
+      return;
     }
     if (e.target.closest("#phone-off")) { await api("/api/phone", { method: "DELETE" }); $("notif-panel").hidden = true; return; }
     if (e.target.closest(".phone-setup, code") || e.target.closest("a[target]")) return;

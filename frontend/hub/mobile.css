@@ -216,3 +216,5 @@ html.is-phone .m-pill.urgent { background: rgba(255, 69, 58, .18); color: #ff696
 html.is-phone .m-pill.high { background: rgba(255, 159, 10, .18); color: #ffb340; }
 html.is-phone .m-pill.ai { background: rgba(10, 132, 255, .18); color: #64a8ff; }
 html.is-phone[data-page="tarefas"] .subtabs { margin-bottom: 4px; }
+html.is-phone .m-row2 .late { color: #ff6961; font-weight: 600; }
+html.is-phone .m-row2 .today { color: #ffb340; font-weight: 600; }

@@ -116,21 +116,22 @@
       const [tasks, team, inbox] = await Promise.all([api("/api/tasks"), api("/api/team"), request("/api/notifications?limit=6")]);
       if (!$("m-home")) return;
       const mine = tasks.filter((x) => x.assignee === me.username && x.stage !== "done" && !x.trashed_at);
-      const today = new Date().toDateString();
-      const doneToday = tasks.filter((x) => x.assignee === me.username && x.status === "COMPLETED" && x.completed_at && new Date(x.completed_at).toDateString() === today).length;
       const online = team.filter((m) => m.status !== "OFFLINE").length;
-      const tile = (href, ic, n, label, hot = false) => `<a class="m-tile ${hot ? "hot" : ""}" href="${href}">${icon(ic)}<b>${n}</b><span>${t(label)}</span></a>`;
-      paint($("m-tiles"), tile("#/tarefas", "tasks", mine.length, "Por fazer") + tile("#/avisos", "bell", inbox.unread, "Avisos por ler", inbox.unread > 0)
-        + tile("#/equipa", "users", `${online}/${team.length}`, "Equipa online") + tile("#/tarefas", "check", doneToday, "Feitas hoje"));
+      const dueNow = mine.filter((x) => { const n = daysLate(x); return n !== null && n >= 0; }), urgent = mine.filter((x) => rank(x) < 2);
+      const tile = (href, ic, n, label, hot = false, tab = "") => `<a class="m-tile ${hot ? "hot" : ""}" href="${href}" ${tab ? `data-goto="${tab}"` : ""}>${icon(ic)}<b>${n}</b><span>${t(label)}</span></a>`;
+      paint($("m-tiles"), tile("#/tarefas", "calendar", dueNow.length, "Para hoje", dueNow.length > 0, "hoje") + tile("#/tarefas", "flag", urgent.length, "Urgentes", urgent.length > 0, "urgentes")
+        + tile("#/avisos", "bell", inbox.unread, "Avisos por ler", inbox.unread > 0) + tile("#/equipa", "users", `${online}/${team.length}`, "Equipa online"));
       paint($("m-todo"), `<section class="m-sec"><header><b>${t("Para fazer")}</b><a href="#/tarefas">${t("Ver todas")}</a></header>${mine.length
-        ? `<div class="m-list">${mine.slice(0, 4).map((x) => `<a class="m-row2" href="#/tarefas/${x.id}"><i class="m-dot ${x.priority === "high" ? "hot" : ""}"></i>
-            <div><b>${esc(x.title)}</b><span>${esc(x.project_name || x.company || x.project || t("Sem projeto"))}${x.deadline ? " · " + fmt.date(x.deadline) : ""}</span></div>${icon("chev")}</a>`).join("")}</div>`
+        ? `<div class="m-list">${[...mine].sort((a, b) => rank(a) - rank(b) || String(a.deadline || "9").localeCompare(String(b.deadline || "9")) || b.id - a.id).slice(0, 4).map((x) => `<a class="m-row2" href="#/tarefas/${x.id}"><i class="m-dot ${rank(x) < 2 ? "hot" : ""}"></i>
+            <div><b>${esc(x.title)}</b><span>${[esc(x.project_name || x.company || x.project || t("Sem projeto")), deadlineLabel(x)].filter(Boolean).join(" · ")}</span></div>${icon("chev")}</a>`).join("")}</div>`
         : `<div class="m-empty">${t("Nada por fazer. Bom trabalho.")}</div>`}</section>`);
       paint($("m-last"), `<section class="m-sec"><header><b>${t("Últimos avisos")}</b><a href="#/avisos">${t("Ver todos")}</a></header>${inbox.items.length
         ? `<div class="m-list">${inbox.items.slice(0, 3).map(nrow).join("")}</div>` : `<div class="m-empty">${t("Sem notificações.")}</div>`}</section>`);
     };
     reload = load;
-    $("view").onclick = (e) => { const row = e.target.closest("[data-n]"); if (row) api("/api/notifications/read", { method: "POST", body: { ids: [Number(row.dataset.n)] } }).then(() => hubNews()).catch(() => {}); };
+    $("view").onclick = (e) => {
+      const go = e.target.closest("[data-goto]"); if (go) taskTab = go.dataset.goto; // the tile opens Tarefas on its own tab
+      const row = e.target.closest("[data-n]"); if (row) api("/api/notifications/read", { method: "POST", body: { ids: [Number(row.dataset.n)] } }).then(() => hubNews()).catch(() => {}); };
     await load().catch((e) => { if (e.message !== "unauthorized") $("m-tiles").innerHTML = ui.error(e.message); });
   }
 

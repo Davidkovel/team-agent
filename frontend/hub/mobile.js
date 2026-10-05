@@ -92,7 +92,7 @@
 
   /* ---------- the screens ---------- */
   let reload = null; // reloads the screen on view
-  onLive(["task", "notification", "presence", "approval"], () => { if (reload && ($("m-home") || $("m-av"))) reload(); });
+  onLive(["task", "notification", "presence", "approval"], () => { if (reload && ($("m-home") || $("m-av") || $("m-tasks"))) reload(); });
 
   const KIND_ICON = { task_new: "tasks", task: "check", approval_required: "alert", approval_decided: "check", agent_failed: "alert", agent_waiting: "clock" };
   const nrow = (n) => `<a class="m-nrow ${n.read ? "" : "unread"}" href="${esc(n.href || "#/home")}" data-n="${n.id}"><span class="m-ico">${icon(KIND_ICON[n.kind] || "bell")}</span>
@@ -158,4 +158,82 @@
     };
     await load().catch((e) => { if (e.message !== "unauthorized") $("m-av-list").innerHTML = ui.error(e.message); });
   };
+
+  /* Tarefas: not the computer's board but a list with a tab for what matters. Hoje (due today or late), Urgentes (high or urgent),
+     Todas and Feitas. A task shows how important it is and how late; the circle finishes it, a tap opens it. */
+  const desktopTarefas = HUB_VIEWS.tarefas;
+  HUB_VIEWS.tarefas = (r) => (phone() ? phoneTarefas(r) : desktopTarefas(r));
+  let taskTab = null, taskScope = "mine";
+  const OPEN_ORDER = ["in_progress", "todo", "review", "approval", "blocked"];
+  const rank = (x) => (x.priority === "urgent" ? 0 : x.priority === "high" ? 1 : 2);
+  const daysLate = (x) => {
+    if (!x.deadline) return null;
+    const d = new Date(x.deadline), now = new Date();
+    return Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  };
+  const deadlineLabel = (x) => {
+    const n = daysLate(x);
+    if (n === null) return "";
+    if (n > 0) return `<span class="late">${t(n === 1 ? "Atrasada há 1 dia" : "Atrasada há {n} dias", { n })}</span>`;
+    return n === 0 ? `<span class="today">${t("Hoje")}</span>` : n === -1 ? t("Amanhã") : fmt.date(x.deadline);
+  };
+  const taskRow = (x, team) => `<div class="m-task ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${x.stage === "done" ? "done" : ""}" data-id="${x.id}">
+    <button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}">${x.stage === "done" ? icon("check") : ""}</button>
+    <div><b>${esc(x.title)}</b><span class="sub">${[x.project_name || x.company || x.project, team ? nameOf(x.assignee) : "", deadlineLabel(x)].filter(Boolean).join(" · ")}</span></div>
+    ${x.priority === "urgent" || x.priority === "high" ? `<em class="m-pill ${x.priority}">${t(PRIORITY[x.priority])}</em>` : x.stage === "in_progress" ? `<em class="m-pill ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="m-pill urgent">${t("Bloqueada")}</em>` : ""}</div>`;
+
+  async function phoneTarefas(r) {
+    page(`<div class="m-screen" id="m-tasks">
+      <header class="m-headrow"><div class="m-large"><span id="m-t-sub">&nbsp;</span><h1>${t("Tarefas")}</h1></div><button class="m-plus" data-new aria-label="${t("Nova tarefa")}">${icon("plus")}</button></header>
+      <div id="m-t-body">${ui.skeleton(5)}</div></div>`);
+    const load = async () => {
+      const all = (await api("/api/tasks")).filter((x) => !x.trashed_at);
+      if (!$("m-tasks")) return;
+      const team = all.some((x) => x.assignee !== me.username);
+      const scope = team && taskScope === "team" ? all : all.filter((x) => x.assignee === me.username);
+      const open = scope.filter((x) => x.stage !== "done");
+      const late = (x) => { const n = daysLate(x); return n !== null && n >= 0; }; // today or already late
+      const sets = {
+        hoje: open.filter(late),
+        urgentes: open.filter((x) => rank(x) < 2),
+        todas: open,
+        feitas: scope.filter((x) => x.stage === "done").sort((a, b) => String(b.completed_at || "").localeCompare(String(a.completed_at || ""))).slice(0, 30),
+      };
+      if (!taskTab) taskTab = sets.hoje.length ? "hoje" : sets.urgentes.length ? "urgentes" : "todas";
+      const overdue = open.filter((x) => (daysLate(x) ?? -1) > 0).length;
+      $("m-t-sub").textContent = `${open.length} ${t("por fazer")}${sets.hoje.length ? ` · ${sets.hoje.length} ${t("para hoje")}` : ""}${overdue ? ` · ${overdue} ${t(overdue === 1 ? "atrasada" : "atrasadas")}` : ""}`;
+      const seg = [["hoje", "Hoje"], ["urgentes", "Urgentes"], ["todas", "Todas"], ["feitas", "Feitas"]]
+        .map(([id, label]) => `<button data-tab="${id}" class="${id === taskTab ? "on" : ""} ${(id === "hoje" || id === "urgentes") && sets[id].length ? "hot" : ""}">${t(label)}${id !== "feitas" ? `<i>${sets[id].length}</i>` : ""}</button>`).join("");
+      const sort = (list) => [...list].sort((a, b) => rank(a) - rank(b) || String(a.deadline || "9").localeCompare(String(b.deadline || "9")) || b.id - a.id);
+      const group = (title, list, tone = "") => (list.length ? `<section class="m-sec"><h3 class="m-grp ${tone}">${t(title)} · ${list.length}</h3><div class="m-list">${sort(list).map((x) => taskRow(x, taskScope === "team")).join("")}</div></section>` : "");
+      const cur = sets[taskTab];
+      let body;
+      if (taskTab === "hoje") body = group("Atrasadas", cur.filter((x) => daysLate(x) > 0), "late") + group("Para hoje", cur.filter((x) => daysLate(x) === 0), "today");
+      else if (taskTab === "urgentes") body = group("Urgentes", cur.filter((x) => x.priority === "urgent"), "late") + group("Prioridade alta", cur.filter((x) => x.priority === "high"), "today");
+      else if (taskTab === "todas") body = OPEN_ORDER.map((st) => group(STAGE_LABEL[st], cur.filter((x) => x.stage === st))).join("");
+      else body = cur.length ? `<div class="m-list">${cur.map((x) => taskRow(x, taskScope === "team")).join("")}</div>` : "";
+      const empty = { hoje: ["calendar", "Nada para hoje", "Dá um prazo a uma tarefa e ela aparece aqui no dia."], urgentes: ["flag", "Nada urgente", "As tarefas de prioridade alta ou urgente aparecem aqui."],
+        todas: ["tasks", "Sem tarefas", "Cria a primeira com o botão +."], feitas: ["check", "Ainda nada concluído", "O que concluíres aparece aqui."] }[taskTab];
+      paint($("m-t-body"), `<div class="m-seg">${seg}</div>${team ? `<div class="m-seg small"><button data-scope="mine" class="${taskScope === "mine" ? "on" : ""}">${t("Minhas")}</button><button data-scope="team" class="${taskScope === "team" ? "on" : ""}">${t("Equipa")}</button></div>` : ""}
+        ${body || ui.empty(empty[0], empty[1], empty[2])}`);
+    };
+    reload = load;
+    $("view").onclick = async (e) => {
+      if (e.target.closest("[data-new]")) return newTask();
+      const done = e.target.closest("[data-done]");
+      if (done) {
+        done.disabled = true;
+        try { await api(`/api/tasks/${done.dataset.done}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); } catch (err) { flash(err.message); }
+        return load();
+      }
+      const tab = e.target.closest("[data-tab]"), scope = e.target.closest("[data-scope]");
+      if (tab) { taskTab = tab.dataset.tab; return load(); }
+      if (scope) { taskScope = scope.dataset.scope; return load(); }
+      const row = e.target.closest(".m-task");
+      if (row) openTaskModal(Number(row.dataset.id));
+    };
+    const linked = Number(r.company) || openTask; // #/tarefas/12 and the widget's "Open Task" open that task
+    if (linked) { openTask = null; openTaskModal(linked); }
+    await load().catch((e) => { if (e.message !== "unauthorized") $("m-t-body").innerHTML = ui.error(e.message); });
+  }
 })();

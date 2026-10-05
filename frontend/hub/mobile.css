@@ -177,3 +177,42 @@ html.is-phone .m-banner { height: 120px; overflow: hidden; border-radius: 20px; 
 html.is-phone .m-banner img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; opacity: .85; }
 html.is-phone[data-page="avisos"] .subtabs, html.is-phone[data-page="home"] .subtabs { display: none; }
 html.is-phone #m-av-list { display: grid; gap: 22px; }
+
+/* ---------- Tarefas: a list with a tab for what matters ---------- */
+html.is-phone .m-headrow { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+html.is-phone .m-plus { flex: none; display: grid; place-items: center; width: 46px; height: 46px; border: 0; border-radius: 50%; background: #f2f2f4; color: #0b0c0e; cursor: pointer; }
+html.is-phone .m-plus:active { opacity: .7; }
+html.is-phone .m-plus svg.i { width: 22px; height: 22px; stroke-width: 2.2; }
+html.is-phone #m-t-body { display: grid; gap: 16px; }
+html.is-phone .m-seg { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: #26272c; }
+html.is-phone .m-seg button { flex: 1 1 0; min-width: 0; height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 8px; background: transparent;
+  color: #c4c9d1; font: 500 13px var(--ui); cursor: pointer; }
+html.is-phone .m-seg button i { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: rgba(255, 255, 255, .13); font: 600 11px/18px var(--ui); font-style: normal; text-align: center; }
+html.is-phone .m-seg button.on { background: #5b5e66; color: #fff; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+html.is-phone .m-seg button.hot i { background: #ff453a; color: #fff; }
+html.is-phone .m-seg.small { width: 62%; justify-self: start; }
+html.is-phone .m-seg.small button { height: 28px; font-size: 12px; }
+html.is-phone .m-grp.late { color: #ff6961; }
+html.is-phone .m-grp.today { color: #ffb340; }
+html.is-phone .m-task { position: relative; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px 10px 14px; border-top: .5px solid rgba(255, 255, 255, .07); cursor: pointer; }
+html.is-phone .m-list > .m-task:first-child { border-top: 0; }
+html.is-phone .m-task:active { background: rgba(255, 255, 255, .05); }
+html.is-phone .m-task.urgent::before, html.is-phone .m-task.high::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 2px 2px 0; background: #ff453a; }
+html.is-phone .m-task.high::before { background: #ff9f0a; }
+html.is-phone .m-check { flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1.8px solid #5b6169; border-radius: 50%; background: transparent; color: #fff; cursor: pointer; }
+html.is-phone .m-check svg.i { width: 16px; height: 16px; stroke-width: 3; }
+html.is-phone .m-task.urgent .m-check { border-color: #ff453a; }
+html.is-phone .m-task.high .m-check { border-color: #ff9f0a; }
+html.is-phone .m-task.done .m-check { border-color: #30d158; background: #30d158; color: #06240f; }
+html.is-phone .m-task.done b { color: var(--muted); text-decoration: line-through; }
+html.is-phone .m-task > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
+html.is-phone .m-task b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: 500 16px/1.25 var(--ui); }
+html.is-phone .m-task.urgent b { font-weight: 700; }
+html.is-phone .m-task .sub { color: var(--muted); font: 400 13px/1.3 var(--ui); }
+html.is-phone .m-task .late { color: #ff6961; font-weight: 600; }
+html.is-phone .m-task .today { color: #ffb340; font-weight: 600; }
+html.is-phone .m-pill { flex: none; height: 22px; padding: 0 9px; border-radius: 11px; background: rgba(255, 255, 255, .1); color: #c4c9d1; font: 600 11px/22px var(--ui); font-style: normal; }
+html.is-phone .m-pill.urgent { background: rgba(255, 69, 58, .18); color: #ff6961; }
+html.is-phone .m-pill.high { background: rgba(255, 159, 10, .18); color: #ffb340; }
+html.is-phone .m-pill.ai { background: rgba(10, 132, 255, .18); color: #64a8ff; }
+html.is-phone[data-page="tarefas"] .subtabs { margin-bottom: 4px; }

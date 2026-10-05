@@ -182,3 +182,14 @@ html, body { background: var(--bg); }
   .bd-funnel div { grid-template-columns: minmax(0, 1fr) 64px 44px; }
   .bd-funnel i { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ---------- tasks that matter stand out: urgent, high, brand new, and "Para todos" as one card ---------- */
+.tk-top { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.tk.urgent { border-color: rgba(255, 69, 58, .6); background: linear-gradient(180deg, rgba(255, 69, 58, .14), var(--surface-2) 70%); box-shadow: 0 6px 18px rgba(255, 69, 58, .14); }
+.tk.urgent b { font-weight: 700; }
+.tk.high { border-left: 3px solid #ff9f0a; }
+.tk.fresh { animation: tk-fresh 2.2s ease-out 3; }
+@keyframes tk-fresh { 0%, 100% { outline: 0 solid rgba(238, 245, 255, 0); } 50% { outline: 4px solid rgba(238, 245, 255, .22); } }
+.av-stack { display: inline-flex; }
+.av-stack .av { margin-left: -7px; box-shadow: 0 0 0 2px var(--surface-2); }
+.av-stack .av:first-child { margin-left: 0; }

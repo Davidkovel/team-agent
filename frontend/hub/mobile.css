@@ -229,3 +229,5 @@ html.is-phone #m-av .nl-body { font-size: 13.5px; }
 html.is-phone #m-av .nl-x { width: 34px; height: 34px; font-size: 20px; }
 html.is-phone #m-av .nl-tick { width: 24px; height: 24px; }
 html.is-phone .btn.nl-danger { background: #c9372c !important; border-color: #c9372c !important; color: #fff !important; }
+html.is-phone .m-task.urgent { background: linear-gradient(90deg, rgba(255, 69, 58, .13), transparent 70%); }
+html.is-phone .m-task.all .sub { color: #9db8e8; }

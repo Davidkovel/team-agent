@@ -182,9 +182,9 @@
     if (n > 0) return `<span class="late">${t(n === 1 ? "Atrasada há 1 dia" : "Atrasada há {n} dias", { n })}</span>`;
     return n === 0 ? `<span class="today">${t("Hoje")}</span>` : n === -1 ? t("Amanhã") : fmt.date(x.deadline);
   };
-  const taskRow = (x, team) => `<div class="m-task ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${x.stage === "done" ? "done" : ""}" data-id="${x.id}">
+  const taskRow = (x, team) => `<div class="m-task ${x.group ? "all" : ""} ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${x.stage === "done" ? "done" : ""}" data-id="${x.id}">
     <button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}">${x.stage === "done" ? icon("check") : ""}</button>
-    <div><b>${esc(x.title)}</b><span class="sub">${[x.project_name || x.company || x.project, team ? nameOf(x.assignee) : "", deadlineLabel(x)].filter(Boolean).join(" · ")}</span></div>
+    <div><b>${esc(x.title)}</b><span class="sub">${[x.project_name || x.company || x.project, x.group ? t("Para todos") : team ? nameOf(x.assignee) : "", deadlineLabel(x)].filter(Boolean).join(" · ")}</span></div>
     ${x.priority === "urgent" || x.priority === "high" ? `<em class="m-pill ${x.priority}">${t(PRIORITY[x.priority])}</em>` : x.stage === "in_progress" ? `<em class="m-pill ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="m-pill urgent">${t("Bloqueada")}</em>` : ""}</div>`;
 
   async function phoneTarefas(r) {
@@ -195,7 +195,10 @@
       const all = (await api("/api/tasks")).filter((x) => !x.trashed_at);
       if (!$("m-tasks")) return;
       const team = all.some((x) => x.assignee !== me.username);
-      const scope = team && taskScope === "team" ? all : all.filter((x) => x.assignee === me.username);
+      const grouped = groupAll(all); // a task sent to everybody is one row, "Para todos"
+      const scope = team && taskScope === "team" ? grouped
+        : grouped.filter((x) => (x.group ? x.group.some((y) => y.assignee === me.username) : x.assignee === me.username))
+          .map((x) => (x.group ? { ...x.group.find((y) => y.assignee === me.username), group: x.group } : x));
       const open = scope.filter((x) => x.stage !== "done");
       const late = (x) => { const n = daysLate(x); return n !== null && n >= 0; }; // today or already late
       const sets = {

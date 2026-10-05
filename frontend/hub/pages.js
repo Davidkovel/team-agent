@@ -25,13 +25,32 @@ const HUMAN_STATUS = { todo: "TODO", blocked: "BLOCKED", review: "REVIEW", done:
 const canGiveToAI = (x) => ["TODO", "BLOCKED", "REVIEW", "FAILED", "STOPPED", "COMPLETED"].includes(x.status);
 const heldByAgent = (x) => ["IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP", "ASSIGNED"].includes(x.status);
 
+// A task sent to everybody is one task per person. Those made together (same text, same moment) are shown as ONE card, "Para todos".
+function groupAll(list) {
+  const used = new Set(), out = [];
+  for (const x of list) {
+    if (used.has(x.id)) continue;
+    const same = list.filter((y) => !used.has(y.id) && y.title === x.title && (y.description || "") === (x.description || "") && y.priority === x.priority
+      && (y.deadline || "") === (x.deadline || "") && Math.abs(new Date(y.created_at) - new Date(x.created_at)) < 30000);
+    if (same.length > 1 && new Set(same.map((y) => y.assignee)).size === same.length) { same.forEach((y) => used.add(y.id)); out.push({ ...x, group: same }); }
+    else { used.add(x.id); out.push(x); }
+  }
+  return out;
+}
+const importance = (x) => (x.priority === "urgent" ? 0 : x.priority === "high" ? 1 : 2);
+const isFresh = (x) => x.stage !== "done" && Date.now() - new Date(x.created_at) < 15 * 60000;
+
 function taskCard(x) {
   const late = x.deadline && x.stage !== "done" && new Date(x.deadline) < new Date();
-  return `<article class="tk" draggable="true" data-id="${x.id}">
+  const mineOf = x.group && x.group.find((y) => y.assignee === me.username);
+  const stack = x.group ? `<span class="av-stack">${x.group.map((y) => ui.avatar(nameOf(y.assignee), "sm")).join("")}</span>` : ui.avatar(nameOf(x.assignee), "sm");
+  const top = [x.priority === "urgent" ? ui.tag(t("Urgente"), "bad") : x.priority === "high" ? ui.tag(t("Alta"), "warn") : "", x.group ? ui.tag(t("Para todos"), "ai") : "", isFresh(x) ? ui.tag(t("Nova"), "ok") : ""].join("");
+  return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
+    ${top ? `<div class="tk-top">${top}</div>` : ""}
     <b>${esc(x.title)}</b>
     ${x.stage === "in_progress" || (x.progress > 0 && x.stage !== "done") ? ui.progress(x.progress, "ai") : ""}
-    <div class="tk-foot">${ui.avatar(nameOf(x.assignee), "sm")}<span class="grow ell">${esc(x.project_name || x.project || "")}</span>
-      ${x.agent_role ? ui.tag("IA", "ai") : ""}${x.priority !== "normal" ? ui.tag(t(PRIORITY[x.priority]), x.priority) : ""}
+    <div class="tk-foot">${stack}<span class="grow ell">${esc(x.project_name || x.project || "")}</span>
+      ${x.agent_role ? ui.tag("IA", "ai") : ""}${x.priority === "low" ? ui.tag(t(PRIORITY[x.priority]), x.priority) : ""}
       ${x.deadline ? ui.tag(fmt.date(x.deadline), late ? "bad" : "") : ""}</div></article>`;
 }
 
@@ -47,7 +66,7 @@ async function loadBoard() {
     if (!all.length) return `<div style="grid-column:1/-1">${ui.empty("tasks", "Sem tarefas", "Cria a primeira tarefa: fica contigo ou vai direta para um agente.",
       `<button class="btn sm primary" data-new-task>${t("Nova tarefa")}</button>`)}</div>`;
     return STAGES.map(([stage, label]) => {
-      const mine = tasks.filter((x) => x.stage === stage);
+      const mine = groupAll(tasks.filter((x) => x.stage === stage)).sort((a, b) => importance(a) - importance(b)); // urgent first, then as before
       const shown = stage === "done" ? mine.slice(0, 15) : mine;
       return `<section class="col" data-stage="${stage}"><div class="col-head"><span>${t(label)}</span><i>${mine.length}</i></div>
         ${shown.map(taskCard).join("") || `<p class="faint" style="margin:6px 2px;font-size:12px">${t("Vazio")}</p>`}</section>`;

@@ -253,3 +253,47 @@ def list_trash(section: dict) -> list[dict]:
             if file.is_file() and (not exts or file.name.lower().endswith(exts)):
                 items.append(_item(index, base, file, section) | {"folder": "" if file.parent == base / TRASH else file.parent.relative_to(base / TRASH).as_posix()})
     return items
+
+
+# ---- video posters: one still frame per video, so a gallery never has to open dozens of videos at once ----
+
+POSTER_DIR = Path.home() / ".team-agent" / "posters"
+POSTER_WIDTH = 480
+
+
+def ffmpeg() -> str | None:
+    """ffmpeg on PATH, or where winget puts it (winget's PATH change only reaches programs started after it)."""
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    winget = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Packages"
+    return next((str(p) for p in winget.glob("*FFmpeg*/*/bin/ffmpeg.exe")), None) if winget.is_dir() else None
+
+
+def poster(video: Path) -> Path | None:
+    """A JPEG of the frame at 1 s (or the first one), made once per file version; None when ffmpeg is missing or fails."""
+    import hashlib
+    import subprocess
+
+    st = video.stat()
+    key = hashlib.sha1(f"{video.resolve()}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:20]
+    out = POSTER_DIR / f"{key}.jpg"
+    if out.exists():
+        return out
+    exe = ffmpeg()
+    if not exe:
+        return None
+    POSTER_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_suffix(".tmp.jpg")
+    flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    for seek in ("1", "0"):   # videos shorter than a second have no frame at 1 s
+        try:
+            subprocess.run([exe, "-v", "error", "-y", "-ss", seek, "-i", str(video), "-frames:v", "1",
+                            "-vf", f"scale={POSTER_WIDTH}:-2", "-q:v", "4", str(tmp)],
+                           timeout=30, capture_output=True, creationflags=flags)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if tmp.exists() and tmp.stat().st_size:
+            tmp.replace(out)
+            return out
+    return None

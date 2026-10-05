@@ -2,7 +2,7 @@ import asyncio
 import mimetypes
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -104,6 +104,41 @@ async def media(company_id: str, section_id: str, id: str, token: str = Query(..
     if not path:
         raise HTTPException(404, "File not found")
     return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+
+
+@router.get("/hub/{company_id}/{section_id}/path")
+async def media_path(company_id: str, section_id: str, id: str, request: Request, token: str = Query(...),
+                     db: AsyncSession = Depends(get_db)):
+    """Where a media file is on this computer, only for a caller on this computer: the widget's player opens it from
+    disk (instant) instead of over HTTP, where Qt's FFmpeg takes seconds to start."""
+    if not request.client or request.client.host not in ("127.0.0.1", "::1"):
+        raise HTTPException(403, "Only from this computer")
+    if not await user_from_jwt(token, db):
+        raise HTTPException(401, "Invalid token")
+    _, section = _section_or_404(company_id, section_id)
+    path = hub.resolve_item(section, id)
+    if not path:
+        raise HTTPException(404, "File not found")
+    return {"path": str(path)}
+
+
+_posters = asyncio.Semaphore(2)   # ffmpeg runs at most twice at a time, so a big gallery never hogs the CPU
+
+
+@router.get("/hub/{company_id}/{section_id}/poster")
+async def video_poster(company_id: str, section_id: str, id: str, token: str = Query(...), db: AsyncSession = Depends(get_db)):
+    """A still JPEG of a video for galleries and playlists (404 when this server has no ffmpeg)."""
+    if not await user_from_jwt(token, db):
+        raise HTTPException(401, "Invalid token")
+    _, section = _section_or_404(company_id, section_id)
+    path = hub.resolve_item(section, id)
+    if not path or section["kind"] != "videos":
+        raise HTTPException(404, "File not found")
+    async with _posters:
+        jpg = await asyncio.to_thread(hub.poster, path)
+    if not jpg:
+        raise HTTPException(404, "No poster")
+    return FileResponse(jpg, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 
 class ItemOp(BaseModel):

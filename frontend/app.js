@@ -705,6 +705,25 @@ function mediaUrl({ company, section }, id) {
   return `/api/hub/${company.id}/${section.id}/media?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`;
 }
 
+// A video's still frame (a JPEG made once by the server): galleries show these instead of opening every video.
+function posterUrl({ company, section }, id) {
+  return `/api/hub/${company.id}/${section.id}/poster?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`;
+}
+function posterImg(ctx, it) {
+  return `<img loading="lazy" decoding="async" src="${posterUrl(ctx, it.id)}" alt="" data-video="${esc(mediaUrl(ctx, it.id))}" onerror="posterFailed(this)">`;
+}
+// No ffmpeg on this server: a browser can still show the first frame; the widget's engine cannot play MP4, so it keeps the dark tile.
+window.posterFailed = (img) => {
+  if (/QtWebEngine/.test(navigator.userAgent)) return img.remove();
+  const v = document.createElement("video");
+  v.preload = "metadata"; v.muted = true; v.src = img.dataset.video + "#t=0.1";
+  img.replaceWith(v);
+};
+
+// Inside the Agente AMG widget videos play in its own player (GPU, H.264): the widget's web engine has no MP4 codec.
+let amgNative = null;
+if (window.qt?.webChannelTransport && window.QWebChannel) new QWebChannel(qt.webChannelTransport, (ch) => { amgNative = ch.objects.amg || null; });
+
 function renderCards(body, ctx) {
   const clickable = ctx.data.kind === "cards";
   body.insertAdjacentHTML("beforeend", `<div class="grid">${ctx.data.items.map((it, i) => `
@@ -743,6 +762,15 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(
 // Video player with the whole library beside it, built like a small editor: a big timeline you can drag, jumps of 5 and
 // 10 s, frame stepping, an in/out loop, speed, and two ways to enlarge it (maximize inside the page, or real fullscreen).
 function openPlayer(ctx, items, current) {
+  if (amgNative) {
+    const abs = (u) => new URL(u, location.href).href;
+    amgNative.playVideos(JSON.stringify({
+      index: Math.max(0, items.findIndex((i) => i.id === current.id)),
+      items: items.map((it) => ({ name: it.name, url: abs(mediaUrl(ctx, it.id)), poster: abs(posterUrl(ctx, it.id)),
+        meta: `${it.group} · ${size(it.size)}${it.folder ? " · " + it.folder : ""}` })),
+    }));
+    return;
+  }
   let index = Math.max(0, items.findIndex((i) => i.id === current.id)), q = "", auto = true;
   let loopIn = null, loopOut = null, dragging = false;
   const FPS = 30;
@@ -834,7 +862,7 @@ function openPlayer(ctx, items, current) {
     const shown = items.map((it, i) => [it, i]).filter(([it]) => it.name.toLowerCase().includes(q));
     $("pv-items").innerHTML = shown.length ? shown.map(([it, i]) => `
       <button class="pl-item ${i === index ? "now" : ""}" data-i="${i}">
-        <span class="pl-thumb"><video preload="metadata" muted src="${url(it)}#t=0.1"></video></span>
+        <span class="pl-thumb">${posterImg(ctx, it)}</span>
         <span class="pl-text"><b>${esc(it.name)}</b><small>${esc(it.group)} · ${size(it.size)}</small></span>
         <span class="pl-no">${i === index ? "▶" : i + 1}</span>
       </button>`).join("") : '<div class="muted small" style="padding:12px">Nenhum vídeo com esse nome.</div>';
@@ -934,7 +962,7 @@ function renderMedia(body, ctx) {
     $("media").innerHTML = shown.length ? shown.map((it, n) => {
       const url = mediaUrl(ctx, it.id);
       return `<div class="media ${view === "trash" ? "in-trash" : ""}" data-id="${esc(it.id)}" style="--i:${Math.min(n, 14)}">
-        <div class="thumb">${isVideo ? `<video preload="metadata" src="${url}#t=0.1" muted></video><span class="play">▶</span>` : `<img loading="lazy" src="${url}" alt="${esc(it.name)}">`}</div>
+        <div class="thumb">${isVideo ? `${posterImg(ctx, it)}<span class="play">▶</span>` : `<img loading="lazy" src="${url}" alt="${esc(it.name)}">`}</div>
         ${manage ? `<button class="dots" data-menu="${esc(it.id)}" aria-label="Opções de ${esc(it.name)}" title="Opções">⋯</button>` : ""}
         <div class="cap"><b title="${esc(it.name)}">${esc(it.name)}</b><span class="muted">${it.folder ? "📁 " + esc(it.folder) + " · " : ""}${esc(it.group)} · ${size(it.size)}</span></div></div>`;
     }).join("") : `<div class="empty wide-empty">${view === "trash" ? "O lixo está vazio. O que mandares para aqui pode sempre ser restaurado." : "Nada para mostrar com este filtro."}</div>`;

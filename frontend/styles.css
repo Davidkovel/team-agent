@@ -391,7 +391,7 @@ table.ledger { width: 100%; border-collapse: collapse; font: 13px Consolas, "Cas
 .pl-item:hover { background: #111; }
 .pl-item.now { background: #151515; border-left-color: #fff; }
 .pl-thumb { display: block; width: 96px; height: 54px; background: #0a0a0a; overflow: hidden; }
-.pl-thumb video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.pl-thumb video, .pl-thumb img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .pl-text { display: grid; min-width: 0; } .pl-text b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-text small { color: var(--muted); } .pl-no { font: 12px Consolas, monospace; color: var(--muted); text-align: right; }
 .pl-item.now .pl-no { color: #fff; }

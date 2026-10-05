@@ -16,12 +16,15 @@ import os
 os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS",
                       "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-smooth-scrolling")
 
-from PySide6.QtCore import QElapsedTimer, QEasingCurve, QEvent, QRect, QRectF, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QElapsedTimer, QEasingCurve, QEvent, QFile, QIODevice, QObject, QRect, QRectF, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPen
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineScript
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from .motion import FrameClock, clock
+from .player import VideoPlayer
 
 BG = QColor(7, 7, 8)
 GROW_MS = 460
@@ -76,6 +79,28 @@ class Ghost(QWidget):
         p.drawPath(path)
 
 
+class Bridge(QObject):
+    """What the Hub page can ask of the widget (as `amg` over QWebChannel): today, playing videos in the native player."""
+    play = Signal(str)
+
+    @Slot(str)
+    def playVideos(self, payload: str):
+        self.play.emit(payload)
+
+
+def _channel_script() -> QWebEngineScript:
+    """Qt's qwebchannel.js, run before the Hub's own scripts so `QWebChannel` exists when app.js starts."""
+    f = QFile(":/qtwebchannel/qwebchannel.js")
+    f.open(QIODevice.ReadOnly)
+    script = QWebEngineScript()
+    script.setName("amg-webchannel")
+    script.setSourceCode(bytes(f.readAll()).decode("utf-8"))
+    script.setInjectionPoint(QWebEngineScript.DocumentCreation)
+    script.setWorldId(QWebEngineScript.MainWorld)
+    script.setRunsOnSubFrames(False)
+    return script
+
+
 class DragBar(QWidget):
     """Moves the window like a title bar; double-click switches full screen / smaller window."""
 
@@ -123,14 +148,71 @@ class HubExpander(QWidget):
         row.addWidget(shrink)
 
         self.view = QWebEngineView()
-        self.view.page().setBackgroundColor(BG)
-        self._ghost = Ghost()
+        page = self.view.page()
+        page.setBackgroundColor(BG)
+        # A crashed page used to leave a dead, frozen window: now it comes back by itself.
+        page.renderProcessTerminated.connect(self._page_died)
+        # Videos: the page hands them to the native player (Qt's Chromium has no H.264).
+        self._bridge = Bridge(self)
+        self._bridge.play.connect(self._play_videos)
+        self._channel = QWebChannel(page)
+        self._channel.registerObject("amg", self._bridge)
+        page.setWebChannel(self._channel)
+        page.scripts().insert(_channel_script())
 
-        box = QVBoxLayout(self)
+        self.player = VideoPlayer()
+        self.player.closed.connect(self._back_to_page)
+        self.player.fullscreen.connect(self._player_fullscreen)
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self.view)
+        self.stack.addWidget(self.player)
+        self._ghost = Ghost()
+        self._before_full = None
+
+        self.bar = bar
+        self.box = box = QVBoxLayout(self)
         box.setContentsMargins(EDGE, EDGE, EDGE, EDGE)  # the border strip is where resizing grabs
         box.setSpacing(0)
         box.addWidget(bar)
-        box.addWidget(self.view, 1)
+        box.addWidget(self.stack, 1)
+
+    # ------------------------------------------------------------ the page, the player, crashes
+
+    def _page_died(self, status, code):
+        if status != QWebEnginePage.NormalTerminationStatus:
+            QTimer.singleShot(400, self.view.reload)
+
+    def _play_videos(self, payload: str):
+        self.stack.setCurrentWidget(self.player)
+        self._set_page_state(QWebEnginePage.LifecycleState.Frozen)  # the page waits, still, while the video plays
+        self.player.open_playlist(payload)
+
+    def _back_to_page(self):
+        self._set_page_state(QWebEnginePage.LifecycleState.Active)
+        self.stack.setCurrentWidget(self.view)
+        self.view.setFocus()
+
+    def _player_fullscreen(self, on: bool):
+        self.bar.setVisible(not on)
+        self.box.setContentsMargins(*(0, 0, 0, 0) if on else (EDGE,) * 4)
+        if on:
+            self._before_full = (self.geometry(), self._full)
+            self.showFullScreen()
+        else:
+            self.showNormal()
+            if self._before_full:
+                self.setGeometry(self._before_full[0])
+                self._full = self._before_full[1]
+        self.player.setFocus()
+
+    def _set_page_state(self, state):
+        """Frozen when nobody sees the page (minimized, or a video on top): no timers, no painting, no CPU."""
+        page = self.view.page()
+        try:
+            if page.lifecycleState() != state:
+                page.setLifecycleState(state)
+        except Exception:
+            pass  # Chromium refuses Frozen while it thinks the page is visible; it just stays active then
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -203,6 +285,7 @@ class HubExpander(QWidget):
             return
         self._origin = QRect(origin)
         self._full = True
+        self._set_page_state(QWebEnginePage.LifecycleState.Active)
         if self.view.url().toString() != url:
             self.view.load(QUrl(url))  # loads while it grows, so the Hub is ready when the motion ends
         screen = QGuiApplication.screenAt(origin.center()) or QGuiApplication.primaryScreen()
@@ -212,6 +295,10 @@ class HubExpander(QWidget):
         """Shrinks back onto the widget and hides; the widget comes back via `collapsed`."""
         if self._busy or not self.isVisible():
             return
+        if self.stack.currentWidget() is self.player:
+            self.player.close_player()
+        if self.isFullScreen():
+            self._player_fullscreen(False)
         self._morph(self.geometry(), self._origin, SHRINK_MS, QEasingCurve.InCubic, keep_window=False)
 
     def _morph(self, start: QRect, end: QRect, ms: int, curve, keep_window: bool):
@@ -237,6 +324,7 @@ class HubExpander(QWidget):
             QTimer.singleShot(50, self._ghost.hide)  # a few frames of overlap while the Hub paints, so nothing flashes
         else:
             self._ghost.hide()
+            self._set_page_state(QWebEnginePage.LifecycleState.Frozen)
             self.collapsed.emit()
 
     # ------------------------------------------------------------ minimize from anywhere

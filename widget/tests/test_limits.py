@@ -5,7 +5,7 @@
 import json
 import time
 
-from team_widget.limits import claude_plan_usage
+from team_widget.limits import claude_plan_usage, rate_limits_from_account, save_rate_limits
 
 NOW = 1_791_200_000.0
 HOUR = 3600
@@ -65,3 +65,21 @@ def test_a_broken_file_is_nothing_to_show(tmp_path):
     path = tmp_path / "claude_usage.json"
     path.write_text("{not json", encoding="utf-8")
     assert claude_plan_usage(path, NOW) is None
+
+
+def test_the_accounts_answer_becomes_the_same_limits(tmp_path):
+    # the shape api.anthropic.com/api/oauth/usage answered on 5 Oct (other windows are null on a Pro plan)
+    body = {"five_hour": {"utilization": 44.0, "resets_at": "2026-10-05T16:50:00.498424+00:00", "limit_dollars": None},
+            "seven_day": {"utilization": 49.0, "resets_at": "2026-10-09T00:00:00.498441+00:00"}, "seven_day_opus": None}
+    limits = rate_limits_from_account(body)
+    assert limits == {"five_hour": {"used_percentage": 44.0, "resets_at": "2026-10-05T16:50:00.498424+00:00"},
+                      "seven_day": {"used_percentage": 49.0, "resets_at": "2026-10-09T00:00:00.498441+00:00"}}
+    path = tmp_path / "claude_usage.json"
+    save_rate_limits(limits, path, NOW)
+    plan = claude_plan_usage(path, NOW)
+    assert (plan["five"], plan["week"]) == (44.0, 49.0) and plan["week_reset"] > NOW
+
+
+def test_an_answer_without_figures_gives_nothing():
+    assert rate_limits_from_account({"five_hour": None, "seven_day": {"utilization": None}}) == {}
+    assert rate_limits_from_account("not a dict") == {}

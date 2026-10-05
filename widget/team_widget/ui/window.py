@@ -20,12 +20,12 @@ from pathlib import Path
 from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import (QColor, QConicalGradient, QFont, QFontMetricsF, QIcon, QImage, QLinearGradient, QPainter, QPainterPath,
                            QPen, QPixmap, QPolygonF, QRadialGradient)
-from PySide6.QtWidgets import (QAbstractButton, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
+from PySide6.QtWidgets import (QAbstractButton, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
                                QVBoxLayout, QWidget)
 
 from .. import hub, system
 from ..api.agent_client import AgentClient
-from ..limits import claude_plan_usage
+from ..limits import claude_plan_usage, refresh_from_account
 from ..state.store import StateStore
 from . import badge, prefs
 from .motion import clock
@@ -43,6 +43,7 @@ INNER = WIDTH - 28     # what the modules get
 SHADOW = 18
 RADIUS = 24
 GROW, SHRINK = 0.42, 0.32   # seconds
+ACCOUNT_EVERY = 75          # Hub polls (4 s each) between two looks at the Claude account's usage: every 5 minutes
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 LOGO = ASSETS / "logo.png"
 UI, MONO = ("Segoe UI Variable Text", "Segoe UI"), ("Cascadia Mono", "Consolas")
@@ -66,6 +67,13 @@ def elapsed(started_at) -> str:
 def ago(epoch: float) -> str:
     m = max(0, int(time.time() - epoch) // 60)
     return "agora" if m < 1 else f"há {m} min" if m < 60 else f"há {m // 60} h" if m < 1440 else f"há {m // 1440} d"
+
+
+def ago_iso(iso_time: str | None) -> str:
+    try:
+        return ago(datetime.fromisoformat(iso_time).timestamp()) if iso_time else ""
+    except ValueError:
+        return ""
 
 
 def until(epoch: float | None) -> str:
@@ -226,6 +234,49 @@ class Card(QWidget):
             p.drawRoundedRect(r, 18, 18)
         else:
             platter(p, QRectF(self.rect()))
+
+
+class NoticeRow(QFrame):
+    """One notification not read yet, in the cockpit's mini history: what happened (two lines at most) and when. Click: open it."""
+    clicked = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.item = None
+        self.setObjectName("notice")
+        self.setAttribute(Qt.WA_Hover)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setStyleSheet("QFrame#notice { background: transparent; border-radius: 10px; }"
+                           "QFrame#notice:hover { background: rgba(255, 255, 255, 16); }")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(8, 6, 8, 6)
+        row.setSpacing(9)
+        side = QVBoxLayout()
+        side.setContentsMargins(0, 6, 0, 0)
+        dot = QLabel()
+        dot.setFixedSize(6, 6)
+        dot.setStyleSheet(f"background: {WHITE}; border-radius: 3px;")
+        side.addWidget(dot)
+        side.addStretch(1)
+        row.addLayout(side)
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        self.title = label("", 9, TEXT, QFont.DemiBold, wrap=True)
+        self.meta = label("", 8, MUTED)
+        text.addWidget(self.title)
+        text.addWidget(self.meta)
+        row.addLayout(text, 1)
+
+    def show_item(self, item: dict):
+        self.item = item
+        self.title.setText(clip(item.get("title") or "", 100))   # two lines of the cockpit
+        body = (item.get("body") or "").strip().split("\n")[0]
+        when = ago_iso(item.get("created_at"))
+        self.meta.setText(clip(f"{when} · {body}" if body else when, 52))
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.clicked.emit()
 
 
 class Platter(QWidget):
@@ -832,6 +883,7 @@ class WidgetWindow(QWidget):
     hub_ready = Signal(object)  # (error, url) from the thread that wakes the Hub
     punched = Signal(object)    # the clock-in the Hub confirmed, or the error text
     news = Signal(object)       # tasks that were sent, from the thread that polls the Hub
+    inbox_news = Signal(object)  # the notifications not read yet, for the mini history (same thread)
 
     def __init__(self, store: StateStore, client: AgentClient):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.on_top() else Qt.Widget))
@@ -840,6 +892,8 @@ class WidgetWindow(QWidget):
         self.punched.connect(self._punched)
         self.notices = Notices(self._open_notice)  # the black card that says a task was sent
         self.news.connect(self.notices.push)
+        self.inbox_news.connect(self._render_notes)
+        self._inbox_seen, self._notes = None, None  # unread count last asked about, and what came back
         self._notice_after = None  # newest "task sent" notice when the widget started (None until the first look)
         self._notice_seen = set()  # the ones already shown
         self._hub_page = None      # where the Hub should open, when something asked for a page
@@ -989,6 +1043,30 @@ class WidgetWindow(QWidget):
         self.inbox.mousePressEvent = lambda e: self._open_hub()
         self.inbox.hide()
         col.insertWidget(col.indexOf(self.task_card), self.inbox)
+
+        # the notifications not read yet, readable here: a mini history (the whole one is in the Hub)
+        self.notes = Card()
+        head = QHBoxLayout()
+        head.addWidget(caption("Notificações"))
+        head.addStretch(1)
+        self.notes_count = label("", 8.5, TEXT, QFont.DemiBold)
+        head.addWidget(self.notes_count)
+        self.notes.box.addLayout(head)
+        self.note_rows = [NoticeRow() for _ in range(3)]
+        for row in self.note_rows:
+            row.clicked.connect(lambda row=row: self._read_notice(row.item))
+            self.notes.box.addWidget(row)
+        foot = QHBoxLayout()
+        foot.setContentsMargins(0, 2, 0, 0)
+        self.notes_more = label("", 8.5, MUTED)
+        foot.addWidget(self.notes_more)
+        foot.addStretch(1)
+        self.btn_notes = TextButton("Ver todas", "Abrir as notificações no Hub", MUTED)
+        self.btn_notes.clicked.connect(self._open_hub)
+        foot.addWidget(self.btn_notes)
+        self.notes.box.addLayout(foot)
+        self.notes.hide()
+        col.insertWidget(col.indexOf(self.task_card), self.notes)
         col.addWidget(self.task_card)
 
         self.ledger = Card()
@@ -1179,13 +1257,29 @@ class WidgetWindow(QWidget):
                 self._team = None  # the Hub is not answering
             if who and self._team is not None:
                 self._poll_notices(url, who)
+                self._poll_inbox(url, who, tick)
             if tick % 2 == 0 and self._team is not None:
                 try:
                     self._week = hub.get_json(url + "/api/local/week")  # needs the team key away from the server computer; without it the last value stays
                 except (OSError, ValueError, urllib.error.URLError):
                     pass
+            if tick % ACCOUNT_EVERY == 0:
+                refresh_from_account()  # the Claude usage figures straight from the account, here and never on the UI thread
             tick += 1
             time.sleep(4)
+
+    def _poll_inbox(self, url, who, tick):
+        """The notifications not read yet, for the mini history: asked again when their number changes (the team list already
+        carries it) and once a minute, so "há 3 min" stays true. An older Hub has no such door: then nothing changes."""
+        unread = next((p.get("unread") for p in self._team or [] if p["user"] == who), None)
+        if unread == self._inbox_seen and tick % 15:
+            return
+        try:
+            found = hub.get_inbox(url, who) if unread else {"unread": 0, "items": []}
+        except (OSError, ValueError, urllib.error.URLError):
+            return
+        self._inbox_seen = unread
+        self.inbox_news.emit(found)
 
     def _poll_notices(self, url, who):
         """Tasks sent to anyone since the widget started, for the black card. The first look only notes where things are, so
@@ -1231,20 +1325,42 @@ class WidgetWindow(QWidget):
         self._render_state()
 
     def _render_inbox(self, team):
-        """Approvals this person can decide and notifications they have not read. A new approval also raises a Windows notification."""
+        """Approvals this person can decide (the notifications have their own card). A new one raises a Windows notification."""
         mine = next((p for p in team or [] if p["user"] == self._identity(team or [])), None)
-        approvals, unread = (mine or {}).get("approvals") or 0, (mine or {}).get("unread") or 0
+        approvals = (mine or {}).get("approvals") or 0
         if self._waiting is not None and approvals > self._waiting:
             self.notify("Agente AMG", "Um agente está à espera da tua aprovação.")
         if mine is not None:
             self._waiting = approvals
-        parts = []
-        if approvals:
-            parts.append(f"{approvals} aprovação à espera" if approvals == 1 else f"{approvals} aprovações à espera")
-        if unread:
-            parts.append(f"{unread} notificação por ler" if unread == 1 else f"{unread} notificações por ler")
-        self.inbox_text.setText(" · ".join(parts))
-        self.inbox.setVisible(bool(parts))
+        self.inbox_text.setText(f"{approvals} aprovação à espera" if approvals == 1 else f"{approvals} aprovações à espera")
+        self.inbox.setVisible(bool(approvals))
+
+    def _render_notes(self, data):
+        """The mini history: the newest notifications not read yet (three at most), hidden when everything is read."""
+        if data is not None:
+            self._notes = data
+        data = self._notes or {"unread": 0, "items": []}
+        items = (data.get("items") or [])[:len(self.note_rows)]
+        for row, item in zip(self.note_rows, items + [None] * len(self.note_rows)):
+            row.setVisible(item is not None)
+            if item:
+                row.show_item(item)
+        unread = data.get("unread") or 0
+        self.notes_count.setText(f"{unread} por ler")
+        self.notes_more.setText(f"+{unread - len(items)} no Hub" if unread > len(items) else "")
+        self.notes.setVisible(bool(items))
+
+    def _read_notice(self, item):
+        """A notification clicked in the cockpit: read now (here, in the Hub and on its bell) and opened where it points."""
+        if not item:
+            return
+        data = self._notes or {}
+        self._render_notes({"unread": max(0, (data.get("unread") or 1) - 1),
+                            "items": [n for n in data.get("items") or [] if n.get("id") != item.get("id")]})
+        who, url = self._identity(self._team or []), hub.hub_url()
+        if who:
+            threading.Thread(target=hub.mark_read, args=(url, who, [item["id"]]), daemon=True).start()
+        self._open_notice(item.get("href") or "#/home")
 
     def set_on_top(self, on: bool):
         """Keep the widget above the other windows, or let it go behind them like any window."""

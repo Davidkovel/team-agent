@@ -6,6 +6,7 @@ Anyone on the network must use the normal, token-protected endpoints instead.
 import hmac
 import ipaddress
 import time
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
@@ -83,10 +84,7 @@ async def local_notices(request: Request, user: str, after: int | None = None, d
     Without `after` nothing is returned, only `latest`: a widget that has just started remembers where it is and does not
     replay old news. Each item says whether it is `directed` at this person (the widget rings for those)."""
     local_or_team_key(request)
-    wanted = user.strip().lower()
-    person = next((u for u in (await db.execute(select(User))).scalars() if wanted in (u.username.lower(), u.display_name.lower())), None)
-    if not person:
-        raise HTTPException(404, "Unknown user")
+    person = await _person(db, user)
     mine = (Notification.user_id == person.id, Notification.kind == "task_new")
     if sync.ACTIVE:  # ids are not in arrival order between computers: count by when each one got here
         latest, found = await sync.notices(db, Notification, mine, after)
@@ -99,17 +97,55 @@ async def local_notices(request: Request, user: str, after: int | None = None, d
                                          "created_at": iso(n.created_at)} for n in rows]}
 
 
+@router.get("/inbox")
+async def local_inbox(request: Request, user: str, limit: int = 3, db: AsyncSession = Depends(get_db)):
+    """What `user` has not read yet, newest first: the widget's mini history (the full one is in the Hub)."""
+    local_or_team_key(request)
+    person = await _person(db, user)
+    unread = (Notification.user_id == person.id, Notification.read_at.is_(None))
+    count = (await db.execute(select(func.count(Notification.id)).where(*unread))).scalar() or 0
+    rows = (await db.execute(select(Notification).where(*unread).order_by(Notification.created_at.desc(), Notification.id.desc())
+                             .limit(min(max(limit, 1), 20)))).scalars()
+    return {"unread": count, "items": [{"id": n.id, "kind": n.kind, "title": n.title, "body": n.body, "href": n.href,
+                                        "created_at": iso(n.created_at)} for n in rows]}
+
+
+class InboxRead(BaseModel):
+    user: str
+    ids: list[int]
+
+
+@router.post("/inbox/read")
+async def local_inbox_read(body: InboxRead, request: Request, db: AsyncSession = Depends(get_db),
+                           x_team_widget: str | None = Header(None)):
+    """A notification opened from the widget: read, there and on the Hub's bell. Only that person's own."""
+    user = await widget_user(WidgetPing(user=body.user), request, db, x_team_widget)
+    rows = (await db.execute(select(Notification).where(Notification.user_id == user.id, Notification.id.in_(body.ids),
+                                                        Notification.read_at.is_(None)))).scalars().all()
+    now = datetime.now(timezone.utc)
+    for n in rows:
+        n.read_at = now
+    await db.commit()
+    if rows:
+        await rt.publish("notification", user.id)
+    return {"read": len(rows)}
+
+
+async def _person(db: AsyncSession, name: str) -> User:
+    """The user a widget names, by login (mark) or by the name people see (Marco)."""
+    wanted = name.strip().lower()
+    person = next((u for u in (await db.execute(select(User))).scalars() if wanted in (u.username.lower(), u.display_name.lower())), None)
+    if not person:
+        raise HTTPException(404, "Unknown user")
+    return person
+
+
 async def widget_user(body: WidgetPing, request: Request, db: AsyncSession, x_team_widget: str | None) -> User:
     """The person a widget speaks for. The custom header keeps web pages from calling these endpoints."""
     local_or_team_key(request)
     if x_team_widget != "1":
         raise HTTPException(403, "Widget only")
-    wanted = body.user.strip().lower()
-    users = (await db.execute(select(User))).scalars().all()
-    user = next((u for u in users if wanted in (u.username.lower(), u.display_name.lower())), None)
-    if not user:
-        raise HTTPException(404, "Unknown user")
-    return user
+    return await _person(db, body.user)
 
 
 @router.post("/presence")

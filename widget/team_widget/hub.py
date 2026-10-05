@@ -49,6 +49,21 @@ def get_json(url: str, timeout: int = 5):
         return json.load(res)
 
 
+def get_inbox(url: str, user: str, limit: int = 3) -> dict:
+    """{unread, items}: the newest notifications `user` has not read, for the widget's mini history."""
+    return get_json(f"{url}/api/local/inbox?" + urlencode({"user": user, "limit": limit}))
+
+
+def mark_read(url: str, user: str, ids: list[int]):
+    """Marks notifications read from the widget (the Hub's bell follows). Quiet when the Hub does not answer."""
+    req = urllib.request.Request(url + "/api/local/inbox/read", data=json.dumps({"user": user, "ids": ids}).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "X-Team-Widget": "1", "X-Team-Key": team_key()})
+    try:
+        urllib.request.urlopen(req, timeout=5).close()
+    except OSError:
+        pass
+
+
 def get_notices(url: str, user: str, after: int | None) -> dict:
     """{latest, items}: the tasks sent to anyone since notice `after` (None: only where things are now), for `user`'s widget."""
     return get_json(f"{url}/api/local/notices?" + urlencode({"user": user, **({} if after is None else {"after": after})}))

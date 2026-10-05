@@ -135,3 +135,45 @@ html.is-phone .segx { background: #26272c; border: 0; border-radius: 10px; paddi
 html.is-phone .segx button { height: 30px; border-radius: 8px; font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; }
 html.is-phone .segx button.on { background: #5b5e66; color: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
 html.is-phone .bd-nav { width: 100%; border: 0; background: #1a1c20; border-radius: 14px; }
+
+/* ---------- the screens: a large title, number tiles, grouped lists (iOS settings style) ---------- */
+html.is-phone .m-screen { display: grid; gap: 22px; }
+html.is-phone .m-large span { display: block; color: var(--muted); font: 500 14px var(--ui); }
+html.is-phone .m-large h1 { margin: 4px 0 0; font: 500 38px/1.05 var(--serif); letter-spacing: -.01em; }
+html.is-phone .m-large h1 em { color: #aeb5be; }
+html.is-phone .m-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+html.is-phone .m-tile { position: relative; display: grid; gap: 2px; padding: 16px; border-radius: 20px; background: #14171b; border: .5px solid rgba(255, 255, 255, .08); color: var(--text); text-decoration: none; }
+html.is-phone .m-tile:active { background: #1b1f24; }
+html.is-phone .m-tile svg.i { width: 22px; height: 22px; color: #9aa1ab; }
+html.is-phone .m-tile b { margin-top: 10px; font: 700 34px/1 var(--display); letter-spacing: -.02em; }
+html.is-phone .m-tile span { color: var(--muted); font: 500 14px var(--ui); }
+html.is-phone .m-tile.hot b { color: #ff6961; }
+html.is-phone .m-tile.hot svg.i { color: #ff6961; }
+html.is-phone .m-sec header { display: flex; align-items: baseline; justify-content: space-between; margin: 0 4px 10px; }
+html.is-phone .m-sec header b { font: 700 21px var(--ui); letter-spacing: -.01em; }
+html.is-phone .m-sec header a { color: #9aa1ab; font: 500 15px var(--ui); text-decoration: none; }
+html.is-phone .m-grp { margin: 0 4px 8px; color: var(--faint); font: 600 12px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+html.is-phone .m-list { overflow: hidden; border-radius: 18px; background: #14171b; border: .5px solid rgba(255, 255, 255, .08); }
+html.is-phone .m-row2, html.is-phone .m-nrow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 11px 14px; border: 0; border-top: .5px solid rgba(255, 255, 255, .07);
+  background: transparent; color: var(--text); text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
+html.is-phone .m-list > :first-child { border-top: 0; }
+html.is-phone .m-row2:active, html.is-phone .m-nrow:active { background: rgba(255, 255, 255, .06); }
+html.is-phone .m-row2 > div, html.is-phone .m-nrow > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+html.is-phone .m-row2 b, html.is-phone .m-nrow b { font: 500 16px/1.25 var(--ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-phone .m-row2 span, html.is-phone .m-nrow span { color: var(--muted); font: 400 13px/1.3 var(--ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-phone .m-row2 svg.i:last-child { width: 16px; height: 16px; color: #5b6169; flex: none; }
+html.is-phone .m-dot { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1.6px solid #5b6169; }
+html.is-phone .m-dot.hot { border-color: #ff6961; }
+html.is-phone .m-ico { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, .08); color: #c4c9d1; }
+html.is-phone .m-ico svg.i { width: 19px; height: 19px; }
+html.is-phone .m-nrow time { flex: none; align-self: flex-start; margin-top: 2px; color: #6b7280; font: 400 12px var(--ui); }
+html.is-phone .m-nrow.unread { position: relative; }
+html.is-phone .m-nrow.unread::before { content: ""; position: absolute; left: 4px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: #0a84ff; }
+html.is-phone .m-nrow.unread b { font-weight: 700; }
+html.is-phone .m-nrow.unread .m-ico { background: rgba(255, 255, 255, .14); color: #fff; }
+html.is-phone .m-link { justify-self: start; margin: -8px 4px 0; padding: 6px 0; border: 0; background: transparent; color: #0a84ff; font: 500 16px var(--ui); cursor: pointer; }
+html.is-phone .m-empty { padding: 18px; border-radius: 18px; background: #14171b; border: .5px solid rgba(255, 255, 255, .08); color: var(--muted); font: 400 15px var(--ui); }
+html.is-phone .m-banner { height: 120px; overflow: hidden; border-radius: 20px; background: #0c0d0f; }
+html.is-phone .m-banner img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; opacity: .85; }
+html.is-phone[data-page="avisos"] .subtabs, html.is-phone[data-page="home"] .subtabs { display: none; }
+html.is-phone #m-av-list { display: grid; gap: 22px; }

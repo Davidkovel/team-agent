@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # Where phone notifications go (push.py). Empty switches them off.
     ntfy_url: str = "https://ntfy.sh"
     # The picture beside each phone notification (the Mercedes star): it has to be reachable from the internet, so it is the file in the public repo.
+    # Notifications from the AMG app itself on the iPhone (webpush.py): where its keys and subscriptions are kept, and who the push service may call about it.
+    webpush_dir: str = str(Path.home() / ".team-agent")
+    webpush_subject: str = "https://github.com"  # the push service wants a mailto: or a bare https address; no personal email goes out
     ntfy_icon: str = "https://raw.githubusercontent.com/Davidkovel/team-agent/main/frontend/assets/icon-512.png"
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"

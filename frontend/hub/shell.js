@@ -27,11 +27,37 @@ function drawNotifications(inbox) {
       : ui.empty("bell", "Sem notificações", "Só aparece aqui o que precisa de ti: aprovações, agentes parados, tarefas concluídas.")}</div>`;
 }
 /* The same notifications on the phone, through the ntfy app: the Hub only shows which topic to follow. */
+// The AMG app's own notifications (webpush.py): only on the phone, and only when the app is opened over https from the home screen.
+function appPushHtml(wp) {
+  if (!document.documentElement.classList.contains("is-phone") || !wp.available) return "";
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  let body;
+  if (!window.isSecureContext) body = `<span>${t("A app AMG pode mostrar ela própria as notificações, com o nome e o ícone da estrela. Para isso tem de ser aberta por https, e agora está em http.")}</span>`;
+  else if (!standalone) body = `<span>${t("Adiciona a app ao ecrã principal (Partilhar, Adicionar ao ecrã principal) e abre-a por lá para ligar as notificações.")}</span>`;
+  else if (wp.subscribed) body = `<span>${t("Ligadas: a app AMG recebe as notificações neste telemóvel.")}</span>
+    <span><button class="btn sm" id="wp-test">${t("Enviar um teste da app")}</button> <button class="btn quiet sm" id="wp-off">${t("Desligar")}</button></span>`;
+  else body = `<button class="btn primary" id="wp-enable">${t("Ativar as notificações da app")}</button>`;
+  return `<div style="display:grid;gap:10px;padding-bottom:14px;border-bottom:.5px solid rgba(255,255,255,.12)"><b>${t("Notificações da app AMG")}</b>${body}</div><b>${t("Ou com a app ntfy")}</b>`;
+}
+async function enableAppPush() {
+  try {
+    const reg = await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+    if ((await Notification.requestPermission()) !== "granted") return drawPhone("As notificações estão recusadas: ativa-as em Definições, Notificações, AMG.");
+    const { key } = await api("/api/webpush/key");
+    const raw = atob((key + "=".repeat((4 - (key.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
+    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)) }));
+    await api("/api/webpush/subscribe", { method: "POST", body: sub.toJSON() });
+    return drawPhone("Ligado: a app AMG já recebe as notificações. Podes desligar o ntfy aqui em baixo para não receberes duas.");
+  } catch (err) { return drawPhone("Não deu para ligar: " + err.message); }
+}
 async function drawPhone(note = "") {
+  const wp = await api("/api/webpush/key").catch(() => ({ available: false }));
   const p = await api("/api/phone", { method: "POST", body: {} });
   $("notif-panel").innerHTML = `<div class="pop-head"><b>${t("Notificações no telemóvel")}</b>
       <button class="btn quiet sm" id="phone-back">${t("Voltar")}</button></div>
     <div class="pop-body" style="padding:12px 14px;display:grid;gap:12px">
+      ${appPushHtml(wp)}
       <span>${t("1. Instala a app «ntfy» no telemóvel (Play Store ou App Store).")}</span>
       <span>${t("2. Copia o teu código. É só teu: não o partilhes.")}</span>
       <code id="phone-topic" style="user-select:all;word-break:break-all">${esc(p.topic)}</code>
@@ -171,6 +197,15 @@ function hubStart() {
     if (e.target.closest("#phone-test")) {
       const sent = (await api("/api/phone/test", { method: "POST", body: {} })).sent;
       return drawPhone(sent ? "Enviado: vê o telemóvel." : "Não saiu: este computador está sem internet?");
+    }
+    if (e.target.closest("#wp-enable")) return enableAppPush();
+    if (e.target.closest("#wp-test")) {
+      try { return drawPhone((await api("/api/webpush/test", { method: "POST", body: {} })).sent ? "Enviado: olha para o telemóvel." : "Não saiu: tenta ligar outra vez."); } catch (err) { return drawPhone(err.message); }
+    }
+    if (e.target.closest("#wp-off")) {
+      await api("/api/webpush/subscribe", { method: "DELETE" });
+      try { await (await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription())?.unsubscribe(); } catch { /* it was already gone */ }
+      return drawPhone("Desligadas.");
     }
     if (e.target.closest("#phone-copy")) {
       const box = document.createElement("textarea"); // a field the phone can copy from (clipboard.writeText needs https)

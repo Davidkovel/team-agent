@@ -40,6 +40,14 @@ ntfy.sh, and the phone follows it in the ntfy app (bell → «Telemóvel» in th
 notification is made sends it. The phone cannot open the Hub: it is not in Radmin, and the Hub is not put on the internet.
 `NTFY_URL=` (empty) switches it off.
 
+**The AMG app's own notifications** (`backend/app/webpush.py`, `frontend/sw.js`): Web Push to the app added to the iPhone's home screen
+(iOS 16.4+), which shows the app's name and icon and the task, unlike ntfy. Browsers only allow it over https, so the PC the phone opens
+needs `tailscale serve --bg 8000` (after HTTPS is enabled for the tailnet in the admin console, DNS) and the phone must open
+`https://<pc>.<tailnet>.ts.net`, add it to the home screen and tap «Ativar as notificações da app» (Mais, Notificações no telemóvel).
+Subscriptions and the VAPID key live in `~/.team-agent/` (`webpush.json`, `vapid-private.pem`), never in the database: a phone belongs to
+one Hub, which sends what is made on it and what arrives by sync. Needs `pywebpush` (in requirements); without it the Hub runs as before.
+Whoever creates a task for themselves gets it on the phone too (not in the bell or the widget).
+
 The sections below were written for the old host setup; where they disagree with this one, this one is right.
 
 ## Make it work

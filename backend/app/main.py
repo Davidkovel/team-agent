@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from .config import settings
-from . import migrate, push, selfupdate, sync
+from . import migrate, push, selfupdate, sync, webpush
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
@@ -98,8 +98,10 @@ async def lifespan(app: FastAPI):
     watcher = asyncio.create_task(offline_watcher())
     syncing = asyncio.create_task(sync.loop()) if settings.sync else None
     updating = asyncio.create_task(selfupdate.loop())
+    pushing = asyncio.create_task(webpush.loop())
     yield
     updating.cancel()
+    pushing.cancel()
     watcher.cancel()
     if syncing:
         syncing.cancel()
@@ -107,7 +109,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
-for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, selfupdate, ws, sync, push):
+for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, selfupdate, ws, sync, push, webpush):
     app.include_router(module.router)
 
 if Path(settings.frontend_dir).is_dir():

@@ -109,7 +109,7 @@ async def _announce(db: AsyncSession, sender: User, tasks: list[Task], everybody
         await notify(db, [person.id], "task_new", "info", title, task.description, f"#/tarefas/{task.id}", directed)
     mine = next((t for t in tasks if t.assignee_id == sender.id), None)
     if mine:  # whoever sends it knows: no bell and no widget ring for them, but their phone still gets it, as the proof it went in
-        await push.to_people(db, {sender.id}, f"Nova tarefa: {mine.title}"[:200], mine.description or "", "info")
+        await push.to_people(db, {sender.id}, f"Nova tarefa: {mine.title}"[:200], mine.description or "", "info", f"#/tarefas/{mine.id}")
 
 
 @router.post("")

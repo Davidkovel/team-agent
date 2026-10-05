@@ -114,7 +114,7 @@ async def notify(db: AsyncSession, user_ids, kind: str, severity: str, title: st
     await db.commit()
     for user_id in targets:
         await rt.publish("notification", user_id)
-    await push.to_people(db, targets, title[:200], body, severity)
+    await push.to_people(db, targets, title[:200], body, severity, href)
 
 
 async def deciders(db: AsyncSession) -> list[int]:

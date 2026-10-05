@@ -36,9 +36,13 @@ async def _post(topic: str, title: str, body: str, severity: str) -> bool:
         return False
 
 
-async def to_people(db: AsyncSession, user_ids, title: str, body: str, severity: str):
-    """Sends to the phones of these people, without making the caller wait for the internet."""
-    if not settings.ntfy_url or not user_ids:
+async def to_people(db: AsyncSession, user_ids, title: str, body: str, severity: str, href: str = ""):
+    """Sends to the phones of these people, without making the caller wait for the internet: the AMG app itself (webpush.py) and ntfy."""
+    if not user_ids:
+        return
+    from . import webpush  # the app's own notifications: nothing happens until a phone subscribes
+    await webpush.to_people(db, user_ids, title, body, href)
+    if not settings.ntfy_url:
         return
     topics = (await db.execute(select(User.phone_topic).where(User.id.in_(user_ids), User.phone_topic.is_not(None)))).scalars().all()
     for topic in topics:

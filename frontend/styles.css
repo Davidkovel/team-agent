@@ -323,7 +323,7 @@ button.primary:hover { background: var(--accent-2); }
 .gallery-bar input { flex: 1; min-width: 200px; }
 .seg { display: inline-flex; border: 1px solid var(--line); }
 .seg button { background: transparent; border: 0; border-radius: 0; padding: 9px 16px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 700; }
-.seg button.on { background: var(--accent); color: #fff; }
+.seg button.on { background: var(--accent); color: #0b0c0e; }
 .seg i { font-style: normal; opacity: .75; margin-left: 6px; }
 .chip-label { color: var(--muted); font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .14em; align-self: center; margin-right: 4px; }
 
@@ -344,6 +344,13 @@ button.primary:hover { background: var(--accent-2); }
 .pop-menu button { text-align: left; background: transparent; border: 0; border-radius: 2px; padding: 11px 14px; color: var(--text); font-size: 14px; letter-spacing: 0; text-transform: none; font-weight: 500; }
 .pop-menu button:hover, .pop-menu button:focus-visible { background: var(--panel-3); }
 .pop-menu button.danger { color: var(--bad); }
+.lib-card { position: relative; }
+.lib-card:hover .dots, .row:hover .dots { opacity: 1; transform: none; }
+.rows .row .row-dots { position: static; flex: none; width: 30px; height: 30px; font-size: 18px; }
+.row.in-trash, .lib-card.in-trash { opacity: .62; }
+.seg .seg-danger { color: var(--bad); }
+.seg .seg-danger:hover { background: var(--bad); color: #fff; }
+.danger-btn { background: var(--bad) !important; border-color: var(--bad) !important; color: #fff !important; }
 .wide-empty { grid-column: 1 / -1; }
 .more { display: flex; align-items: center; gap: 14px; margin: 18px 0 40px; }
 @media (max-width: 720px) { .hud { padding: 8px 16px; gap: 8px; } .hud-agents, .hud-stats { gap: 12px; } }

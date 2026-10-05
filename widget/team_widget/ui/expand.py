@@ -187,10 +187,12 @@ class HubExpander(QWidget):
         self._set_page_state(QWebEnginePage.LifecycleState.Frozen)  # the page waits, still, while the video plays
         self.player.open_playlist(payload)
 
-    def _back_to_page(self):
+    def _back_to_page(self, changed: bool = False):
         self._set_page_state(QWebEnginePage.LifecycleState.Active)
         self.stack.setCurrentWidget(self.view)
         self.view.setFocus()
+        if changed:   # a video went to the Lixo from the player: the gallery reads the section again
+            self.view.page().runJavaScript("window.amgLibraryChanged && window.amgLibraryChanged()")
 
     def _player_fullscreen(self, on: bool):
         self.bar.setVisible(not on)

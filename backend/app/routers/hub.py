@@ -152,6 +152,7 @@ OPS = {
     "move": ("moveu", lambda s, b: hub.move_item(s, b.id, b.folder)),
     "trash": ("mandou para o lixo", lambda s, b: hub.trash_item(s, b.id)),
     "restore": ("restaurou do lixo", lambda s, b: hub.restore_item(s, b.id)),
+    "purge": ("apagou de vez", lambda s, b: hub.purge_item(s, b.id)),
 }
 
 
@@ -161,6 +162,18 @@ async def section_trash(company_id: str, section_id: str, user: User = Depends(c
     return {"items": hub.list_trash(section) if hub.manageable(section) else [], "kind": section["kind"]}
 
 
+@router.post("/hub/{company_id}/{section_id}/trash/empty")
+async def empty_section_trash(company_id: str, section_id: str, user: User = Depends(current_user),
+                              db: AsyncSession = Depends(get_db)):
+    company, section = _section_or_404(company_id, section_id)
+    if not hub.purgeable(section):
+        raise HTTPException(403, "Daqui só se restaura: apagar de vez é só nos vídeos e nas fotos.")
+    gone = hub.empty_trash(section)
+    await log_activity(db, user, "library_purge", f"{user.display_name} esvaziou o lixo ({gone}) em {company['name']} › {section['label']}",
+                       company=company["id"])
+    return {"ok": True, "deleted": gone}
+
+
 @router.post("/hub/{company_id}/{section_id}/item/{op}")
 async def manage_item(company_id: str, section_id: str, op: str, body: ItemOp,
                       user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
@@ -168,7 +181,7 @@ async def manage_item(company_id: str, section_id: str, op: str, body: ItemOp,
     if op not in OPS:
         raise HTTPException(404, "Unknown action")
     if not hub.manageable(section):
-        raise HTTPException(403, "Esta secção não é uma galeria.")
+        raise HTTPException(403, "Esta secção não se gere por aqui.")
     verb, run = OPS[op]
     old_name = body.id.split(":", 1)[-1].rsplit("/", 1)[-1]
     try:

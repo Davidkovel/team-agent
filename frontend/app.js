@@ -723,28 +723,134 @@ window.posterFailed = (img) => {
 // Inside the Agente AMG widget videos play in its own player (GPU, H.264): the widget's web engine has no MP4 codec.
 let amgNative = null;
 if (window.qt?.webChannelTransport && window.QWebChannel) new QWebChannel(qt.webChannelTransport, (ch) => { amgNative = ch.objects.amg || null; });
+window.amgLibraryChanged = () => render();   // the widget's player sent something to the Lixo
+
+// Every section can send things to its Lixo and bring them back; only videos and photos can be deleted for good.
+function popMenu(btn, entries, pick) {
+  closeMenu();
+  const menu = document.createElement("div");
+  menu.className = "pop-menu";
+  menu.innerHTML = entries.map(([act, label, tone = ""]) => `<button class="${tone}" data-act="${act}">${label}</button>`).join("");
+  document.body.append(menu);
+  const r = btn.getBoundingClientRect();
+  menu.style.top = Math.min(r.bottom + 6, innerHeight - menu.offsetHeight - 8) + "px";
+  menu.style.left = Math.max(8, Math.min(r.right - menu.offsetWidth, innerWidth - menu.offsetWidth - 8)) + "px";
+  menu.onclick = (e) => { const act = e.target.closest("[data-act]")?.dataset.act; if (act) { closeMenu(); pick(act); } };
+}
+
+function libraryOps(ctx, reload) {
+  const base = `/api/hub/${ctx.company.id}/${ctx.section.id}`;
+  const post = async (action, id, extra = {}) => {
+    try { await api(`${base}/item/${action}`, { method: "POST", body: { id, ...extra } }); closeModal(); await reload(); return true; }
+    catch (err) { const box = $("op-error"); if (box) box.textContent = err.message; else flash(err.message); return false; }
+  };
+  const done = { trash: "Mandado para o Lixo. Podes restaurá-lo lá.", restore: "Restaurado", purge: "Apagado de vez" };
+  return {
+    base, post,
+    async run(action, it) {
+      if (action === "purge") return confirmPurge(`«${esc(it.name)}» vai ser apagado de vez. Isto não se desfaz.`, () => post("purge", it.id).then((ok) => ok && flash(done.purge)));
+      if (await post(action, it.id)) flash(done[action]);
+    },
+    rename(it) {
+      openModal(`<h3>Mudar o nome</h3><form id="op-form" class="form"><label class="wide">Novo nome<input id="op-name" value="${esc(it.name)}" required maxlength="120"></label>
+        <p class="error wide" id="op-error"></p><div class="wide"><button class="primary">Guardar</button> <button type="button" class="ghost" data-close>Cancelar</button></div></form>`);
+      const input = $("op-name"); input.focus(); input.setSelectionRange(0, it.name.lastIndexOf(".") > 0 ? it.name.lastIndexOf(".") : it.name.length);
+      $("op-form").onsubmit = async (e) => { e.preventDefault(); if (await post("rename", it.id, { name: input.value })) flash("Nome alterado"); };
+    },
+    emptyTrash(count) {
+      confirmPurge(`${count} ficheiro${count === 1 ? "" : "s"} do lixo ${count === 1 ? "vai" : "vão"} ser apagado${count === 1 ? "" : "s"} de vez. Isto não se desfaz.`, async () => {
+        try { const r = await api(`${base}/trash/empty`, { method: "POST" }); closeModal(); await reload(); flash(`Lixo esvaziado (${r.deleted})`); }
+        catch (err) { flash(err.message); }
+      });
+    },
+  };
+}
+
+function confirmPurge(text, go) {
+  openModal(`<h3>Apagar de vez?</h3><p>${text}</p>
+    <div class="form"><div class="wide"><button class="primary danger-btn" id="purge-yes">Apagar de vez</button> <button type="button" class="ghost" data-close>Cancelar</button></div></div>`);
+  $("purge-yes").onclick = go;
+}
+
+// The Lista / Lixo switch above a section's items, and the ⋯ menu of each item.
+function manageBar(state, counts) {
+  return `<div class="seg" id="lib-view"><button class="${state.view === "list" ? "on" : ""}" data-libview="list">Lista <i>${counts[0]}</i></button>` +
+    `<button class="${state.view === "trash" ? "on" : ""}" data-libview="trash">Lixo <i>${counts[1]}</i></button></div>`;
+}
 
 function renderCards(body, ctx) {
-  const clickable = ctx.data.kind === "cards";
-  body.insertAdjacentHTML("beforeend", `<div class="grid">${ctx.data.items.map((it, i) => `
-    <div class="card ${clickable ? "click" : ""}" data-i="${i}">
+  const clickable = ctx.data.kind === "cards", manage = !!ctx.data.manage;
+  const state = { view: "list" };
+  let trash = [];
+  const reload = async () => {
+    const [d, t] = await Promise.all([api(ops.base), manage ? api(`${ops.base}/trash`) : { items: [] }]);
+    ctx.data = d; trash = t.items; draw();
+  };
+  const ops = libraryOps(ctx, reload);
+  const list = () => (state.view === "trash" ? trash : ctx.data.items);
+  body.insertAdjacentHTML("beforeend", `${manage ? '<div class="toolbar" id="lib-bar"></div>' : ""}<div class="grid" id="lib-cards"></div>`);
+  const draw = () => {
+    if (manage) $("lib-bar").innerHTML = manageBar(state, [ctx.data.items.length, trash.length]);
+    const items = list();
+    $("lib-cards").innerHTML = items.length ? items.map((it, i) => `
+    <div class="card lib-card ${clickable && state.view === "list" ? "click" : ""} ${state.view === "trash" ? "in-trash" : ""}" data-i="${i}">
+      ${manage ? `<button class="dots" data-menu="${i}" aria-label="Opções de ${esc(it.name)}" title="Opções">⋯</button>` : ""}
       <span class="ico">${icon(ctx.section.id)}</span>
-      <h3>${esc(it.name)}</h3><p>${esc(it.description)}</p>${it.tag ? `<span class="tag">${esc(it.tag)}</span>` : ""}
-    </div>`).join("")}</div>`);
-  if (clickable) body.onclick = (e) => { const c = e.target.closest("[data-i]"); if (c) openFile(ctx, ctx.data.items[c.dataset.i]); };
+      <h3>${esc(it.name)}</h3><p>${esc(it.description || "")}</p>${it.tag ? `<span class="tag">${esc(it.tag)}</span>` : ""}
+    </div>`).join("") : `<div class="empty wide-empty">${state.view === "trash" ? "O lixo está vazio." : "Nada aqui."}</div>`;
+  };
+  body.onclick = (e) => {
+    const t = e.target;
+    if (t.closest("[data-libview]")) { state.view = t.closest("[data-libview]").dataset.libview; draw(); return; }
+    const dots = t.closest(".dots");
+    if (dots) {
+      const it = list()[dots.dataset.menu];
+      const entries = state.view === "trash" ? [["restore", "↩ Restaurar"]]
+        : [...(clickable ? [["open", "👁 Abrir"]] : []), ["trash", "🗑 Mandar para o lixo", "danger"]];
+      popMenu(dots, entries, (act) => (act === "open" ? openFile(ctx, it) : ops.run(act, it)));
+      return;
+    }
+    const c = t.closest("[data-i]");
+    if (c && clickable && state.view === "list") openFile(ctx, ctx.data.items[c.dataset.i]);
+  };
+  draw();
+  if (manage) api(`${ops.base}/trash`).then((t) => { trash = t.items; draw(); }).catch(() => {});
 }
 
 function renderFiles(body, ctx) {
-  body.insertAdjacentHTML("beforeend", `<div class="toolbar"><input id="filter" placeholder="🔍 Procurar ficheiro…"></div><div class="rows" id="rows"></div>`);
+  const manage = !!ctx.data.manage, state = { view: "list" };
+  let trash = [];
+  const reload = async () => {
+    const [d, t] = await Promise.all([api(ops.base), manage ? api(`${ops.base}/trash`) : { items: [] }]);
+    ctx.data = d; trash = t.items; draw();
+  };
+  const ops = libraryOps(ctx, reload);
+  const list = () => (state.view === "trash" ? trash : ctx.data.items);
+  body.insertAdjacentHTML("beforeend", `<div class="toolbar">${manage ? '<span id="lib-bar"></span>' : ""}<input id="filter" placeholder="🔍 Procurar ficheiro…"></div><div class="rows" id="rows"></div>`);
   const draw = () => {
+    if (manage) $("lib-bar").innerHTML = manageBar(state, [ctx.data.items.length, trash.length]);
     const q = $("filter").value.toLowerCase();
-    $("rows").innerHTML = ctx.data.items.map((it, i) => [it, i]).filter(([it]) => (it.folder + "/" + it.name).toLowerCase().includes(q)).slice(0, 300)
-      .map(([it, i]) => `<div class="row" data-i="${i}">${icon("docs")}<b>${esc(it.name)}</b><span class="tag">${esc(it.group)}</span><span class="path">${esc(it.folder)}</span><span class="muted">${size(it.size)}</span></div>`).join("")
-      || '<div class="empty">Nenhum ficheiro encontrado.</div>';
+    $("rows").innerHTML = list().map((it, i) => [it, i]).filter(([it]) => (it.folder + "/" + it.name).toLowerCase().includes(q)).slice(0, 300)
+      .map(([it, i]) => `<div class="row ${state.view === "trash" ? "in-trash" : ""}" data-i="${i}">${icon("docs")}<b>${esc(it.name)}</b><span class="tag">${esc(it.group)}</span><span class="path">${esc(it.folder)}</span><span class="muted">${size(it.size)}</span>${manage ? `<button class="dots row-dots" data-menu="${i}" aria-label="Opções de ${esc(it.name)}" title="Opções">⋯</button>` : ""}</div>`).join("")
+      || `<div class="empty">${state.view === "trash" ? "O lixo está vazio." : "Nenhum ficheiro encontrado."}</div>`;
   };
   $("filter").oninput = draw;
   draw();
-  body.onclick = (e) => { const r = e.target.closest("[data-i]"); if (r) openFile(ctx, ctx.data.items[r.dataset.i]); };
+  body.onclick = (e) => {
+    const t = e.target;
+    if (t.closest("[data-libview]")) { state.view = t.closest("[data-libview]").dataset.libview; draw(); return; }
+    const dots = t.closest(".dots");
+    if (dots) {
+      const it = list()[dots.dataset.menu];
+      const entries = state.view === "trash" ? [["restore", "↩ Restaurar"]]
+        : [["open", "👁 Abrir"], ["rename", "✎ Mudar o nome"], ["trash", "🗑 Mandar para o lixo", "danger"]];
+      popMenu(dots, entries, (act) => (act === "open" ? openFile(ctx, it) : act === "rename" ? ops.rename(it) : ops.run(act, it)));
+      return;
+    }
+    const r = t.closest("[data-i]");
+    if (r && state.view === "list") openFile(ctx, ctx.data.items[r.dataset.i]);
+  };
+  if (manage) api(`${ops.base}/trash`).then((t) => { trash = t.items; draw(); }).catch(() => {});
 }
 
 function flash(text) {
@@ -766,7 +872,8 @@ function openPlayer(ctx, items, current) {
     const abs = (u) => new URL(u, location.href).href;
     amgNative.playVideos(JSON.stringify({
       index: Math.max(0, items.findIndex((i) => i.id === current.id)),
-      items: items.map((it) => ({ name: it.name, url: abs(mediaUrl(ctx, it.id)), poster: abs(posterUrl(ctx, it.id)),
+      api: abs(`/api/hub/${ctx.company.id}/${ctx.section.id}`), token,
+      items: items.map((it) => ({ id: it.id, name: it.name, url: abs(mediaUrl(ctx, it.id)), poster: abs(posterUrl(ctx, it.id)),
         meta: `${it.group} · ${size(it.size)}${it.folder ? " · " + it.folder : ""}` })),
     }));
     return;
@@ -954,7 +1061,8 @@ function renderMedia(body, ctx) {
   const draw = () => {
     const all = list(), groups = [...new Set(all.map((i) => i.group))], folders = [...new Set(all.map((i) => i.folder).filter(Boolean))].sort();
     $("g-view").innerHTML = `<button class="${view === "gallery" ? "on" : ""}" data-view="gallery">Galeria <i>${items.length}</i></button>` +
-      (manage ? `<button class="${view === "trash" ? "on" : ""}" data-view="trash">Lixo <i>${trash.length}</i></button>` : "");
+      (manage ? `<button class="${view === "trash" ? "on" : ""}" data-view="trash">Lixo <i>${trash.length}</i></button>` : "") +
+      (manage && view === "trash" && trash.length ? '<button class="seg-danger" data-empty="1">Esvaziar o lixo</button>' : "");
     $("groups").innerHTML = groups.length > 1 ? ["", ...groups].map((g) => `<span class="chip ${g === group ? "active" : ""}" data-g="${esc(g)}">${esc(g || "Tudo")}</span>`).join("") : "";
     $("folders").innerHTML = folders.length ? '<span class="chip-label">Pastas</span>' + ["", ...folders].map((f) => `<span class="chip ${f === folder ? "active" : ""}" data-f="${esc(f)}">${esc(f || "Todas")}</span>`).join("") : "";
     const shown = all.filter((it) => (!group || it.group === group) && (!folder || it.folder === folder) && it.name.toLowerCase().includes(q)).slice(0, 400);
@@ -1000,7 +1108,7 @@ function renderMedia(body, ctx) {
   const openMenu = (btn, it) => {
     closeMenu();
     const entries = view === "trash"
-      ? [["restore", "↩ Restaurar"], ["view", "👁 Ver em grande"]]
+      ? [["restore", "↩ Restaurar"], ["view", "👁 Ver em grande"], ["purge", "✖ Apagar de vez", "danger"]]
       : [["view", "👁 Ver em grande"], ["rename", "✎ Mudar o nome"], ["move", "📁 Mover / organizar"], ["trash", "🗑 Mandar para o lixo", "danger"]];
     const menu = document.createElement("div");
     menu.className = "pop-menu";
@@ -1015,6 +1123,7 @@ function renderMedia(body, ctx) {
       closeMenu();
       if (act === "view") view_(it);
       else if (ask[act]) ask[act](it);
+      else if (act === "purge") confirmPurge(`«${esc(it.name)}» vai ser apagado de vez. Isto não se desfaz.`, async () => { if (await post("purge", it.id)) flash("Apagado de vez"); });
       else {
         const card = body.querySelector(`.media[data-id="${CSS.escape(it.id)}"]`);
         card?.classList.add("leaving");
@@ -1028,6 +1137,7 @@ function renderMedia(body, ctx) {
   body.onclick = (e) => {
     const t = e.target;
     if (t.dataset.view) { view = t.dataset.view; group = folder = ""; draw(); return; }
+    if (t.dataset.empty) { libraryOps(ctx, reload).emptyTrash(trash.length); return; }
     if (t.dataset.g !== undefined) { group = t.dataset.g; draw(); return; }
     if (t.dataset.f !== undefined) { folder = t.dataset.f; draw(); return; }
     const dots = t.closest(".dots");

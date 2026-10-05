@@ -47,6 +47,8 @@ def companies() -> dict[str, dict]:
             data = _load_json(folder / "company.json", None)
             if data and ID_RE.match(folder.name):
                 data["id"] = folder.name
+                for section in data.get("sections", []):
+                    section["_company"] = folder.name   # the plugins' trash is kept per company
                 out[folder.name] = data
     return out
 
@@ -104,8 +106,7 @@ def _frontmatter(text: str) -> dict:
 def list_section(company_id: str, section: dict) -> dict:
     kind = section["kind"]
     if kind == "static":
-        file = library_dir() / "companies" / company_id / section["file"]
-        return {"items": _load_json(file, []), "missing": []}
+        return {"items": static_items(section | {"_company": company_id}), "missing": []}
 
     items, missing = [], []
     for index, entry in enumerate(section.get("sources", [])):
@@ -158,16 +159,21 @@ def resolve_item(section: dict, item_id: str) -> Path | None:
     return target
 
 
-# ---- gallery management: rename / move / trash / restore (videos and photos only) ----
+# ---- library management: rename / move / trash / restore / delete for good, in every section ----
+# Videos and photos keep their trash next to them (`<folder>/.lixo`), as before. Everything else (theme, skills,
+# documents) goes to ~/.team-agent/lixo/<folder hash>, so a Shopify theme or the Claude skills folder never gets a
+# stray `.lixo` that a push or Claude would pick up. Ids of trashed items are `<entry>:.lixo/<path>` either way.
+# Plugins are a list in git (plugins.json): trashing one hides it on this computer (~/.team-agent/lixo/static.json).
 BAD_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+TRASH_DIR = Path.home() / ".team-agent" / "lixo"
 
 
 class ManageError(ValueError):
-    """A request the gallery refuses; the message is shown to the person."""
+    """A request the library refuses; the message is shown to the person."""
 
 
 def manageable(section: dict) -> bool:
-    return section["kind"] in ("videos", "photos")
+    return section["kind"] in ("videos", "photos", "files", "cards", "static")
 
 
 def clean_name(name: str) -> str:
@@ -177,22 +183,47 @@ def clean_name(name: str) -> str:
     return name
 
 
-def _locate(section: dict, item_id: str) -> tuple[int, Path, Path]:
-    """(entry index, base folder, file) for an item; never outside the entry's folder."""
-    path = resolve_item(section, item_id)
-    index = int(item_id.split(":", 1)[0])
-    base = entry_base(section["sources"][index])
-    if path is None or base is None or not base.is_dir():
+def trash_root(section: dict, base: Path) -> Path:
+    if section["kind"] in ("videos", "photos"):
+        return base / TRASH
+    import hashlib
+    return TRASH_DIR / hashlib.sha1(str(base.resolve()).lower().encode()).hexdigest()[:16]
+
+
+def _locate(section: dict, item_id: str) -> tuple[int, dict, Path, Path, bool]:
+    """(entry index, entry, base folder, file, is in the trash) for an item; never outside the entry's folders."""
+    try:
+        index_text, rel = item_id.split(":", 1)
+        index = int(index_text)
+        entry = section["sources"][index]
+    except (ValueError, IndexError, KeyError):
         raise ManageError("Ficheiro não encontrado.")
-    return index, base.resolve(), path
+    base = entry_base(entry)
+    if base is None:
+        raise ManageError("Ficheiro não encontrado.")
+    if not base.is_dir():
+        raise ManageError("Este ficheiro é fixo nesta secção: não se mexe por aqui.")
+    base = base.resolve()
+    path, in_trash = None, rel.startswith(TRASH + "/")
+    if in_trash:
+        root = trash_root(section, base).resolve()
+        target = (root / rel[len(TRASH) + 1:]).resolve()
+        path = target if target.is_file() and target.is_relative_to(root) else None
+    else:
+        path = resolve_item(section, item_id)
+    if path is None:
+        raise ManageError("Ficheiro não encontrado.")
+    return index, entry, base, path, in_trash
 
 
-def _id(index: int, base: Path, file: Path) -> str:
-    return f"{index}:{file.relative_to(base).as_posix()}"
+def _skill(entry: dict) -> bool:
+    return entry.get("cards") == "skills"
 
 
 def rename_item(section: dict, item_id: str, new_name: str) -> str:
-    index, base, path = _locate(section, item_id)
+    index, entry, base, path, in_trash = _locate(section, item_id)
+    if _skill(entry) or in_trash:
+        raise ManageError("Isto não se renomeia aqui.")
     new = clean_name(new_name)
     if Path(new).suffix.lower() != path.suffix.lower():
         raise ManageError(f"Mantém a extensão {path.suffix}.")
@@ -200,11 +231,13 @@ def rename_item(section: dict, item_id: str, new_name: str) -> str:
     if target.exists():
         raise ManageError("Já existe um ficheiro com esse nome.")
     path.rename(target)
-    return _id(index, base, target)
+    return f"{index}:{target.relative_to(base).as_posix()}"
 
 
 def move_item(section: dict, item_id: str, folder: str) -> str:
-    index, base, path = _locate(section, item_id)
+    index, entry, base, path, in_trash = _locate(section, item_id)
+    if _skill(entry) or in_trash:
+        raise ManageError("Isto não se move aqui.")
     parts = [clean_name(p) for p in folder.replace("\\", "/").split("/") if p.strip()]
     dest = base.joinpath(*parts).resolve()
     if not dest.is_relative_to(base) or (parts and parts[0] == TRASH):
@@ -214,45 +247,138 @@ def move_item(section: dict, item_id: str, folder: str) -> str:
         raise ManageError("Essa pasta já tem um ficheiro com o mesmo nome.")
     dest.mkdir(parents=True, exist_ok=True)
     shutil.move(str(path), str(target))
-    return _id(index, base, target)
+    return f"{index}:{target.relative_to(base).as_posix()}"
 
 
 def trash_item(section: dict, item_id: str) -> str:
-    index, base, path = _locate(section, item_id)
-    rel = path.relative_to(base)
-    target = base / TRASH / rel
+    if section["kind"] == "static":
+        return _static_move(section, item_id, "trash")
+    index, entry, base, path, in_trash = _locate(section, item_id)
+    if in_trash:
+        raise ManageError("Já está no lixo.")
+    unit = path.parent if _skill(entry) else path      # a skill goes with its whole folder
+    rel = unit.relative_to(base)
+    root = trash_root(section, base)
+    target = root / rel
     if target.exists():
         target = target.with_name(f"{int(time.time())}-{rel.name}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(path), str(target))
-    return _id(index, base, target)
+    shutil.move(str(unit), str(target))
+    inside = target / path.name if _skill(entry) else target
+    return f"{index}:{TRASH}/{inside.relative_to(root).as_posix()}"
 
 
 def restore_item(section: dict, item_id: str) -> str:
-    index, base, path = _locate(section, item_id)
-    rel = path.relative_to(base).as_posix()
-    if not rel.startswith(TRASH + "/"):
+    if section["kind"] == "static":
+        return _static_move(section, item_id, "restore")
+    index, entry, base, path, in_trash = _locate(section, item_id)
+    if not in_trash:
         raise ManageError("Este ficheiro não está no lixo.")
-    target = base / rel[len(TRASH) + 1:]
+    unit = path.parent if _skill(entry) else path
+    root = trash_root(section, base).resolve()
+    target = base / unit.relative_to(root)
     if target.exists():
         raise ManageError("Já existe um ficheiro com esse nome no sítio original.")
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(path), str(target))
-    return _id(index, base, target)
+    shutil.move(str(unit), str(target))
+    inside = target / path.name if _skill(entry) else target
+    return f"{index}:{inside.relative_to(base).as_posix()}"
+
+
+def purgeable(section: dict) -> bool:
+    """Only videos and photos can be deleted for good; the theme, skills, documents and plugins can only be restored."""
+    return section["kind"] in ("videos", "photos")
+
+
+def purge_item(section: dict, item_id: str) -> str:
+    """Deletes for good a video or photo that is already in the trash."""
+    if not purgeable(section):
+        raise ManageError("Daqui só se restaura: apagar de vez é só nos vídeos e nas fotos.")
+    index, entry, base, path, in_trash = _locate(section, item_id)
+    if not in_trash:
+        raise ManageError("Primeiro manda-o para o lixo; só do lixo se apaga de vez.")
+    path.unlink()
+    return ""
+
+
+def empty_trash(section: dict) -> int:
+    if not purgeable(section):
+        raise ManageError("Daqui só se restaura: apagar de vez é só nos vídeos e nas fotos.")
+    gone = 0
+    for item in list_trash(section):
+        try:
+            purge_item(section, item["id"])
+            gone += 1
+        except (ManageError, OSError):
+            pass
+    return gone
 
 
 def list_trash(section: dict) -> list[dict]:
+    if section["kind"] == "static":
+        hidden = _static_state(section)["trash"]
+        return [it | {"id": f"s:{it.get('name', '')}"} for it in _static_all(section) if it.get("name") in hidden]
     items = []
-    exts = ()
     for index, entry in enumerate(section.get("sources", [])):
         base = entry_base(entry)
-        if base is None or not base.is_dir() or not (base / TRASH).is_dir():
+        if base is None or not base.is_dir():
+            continue
+        root = trash_root(section, base.resolve())
+        if not root.is_dir():
+            continue
+        if _skill(entry):
+            for skill in sorted(root.glob("*/SKILL.md")):
+                meta = _frontmatter(skill.read_text(encoding="utf-8", errors="replace"))
+                items.append({"id": f"{index}:{TRASH}/{skill.relative_to(root).as_posix()}", "name": meta.get("name", skill.parent.name),
+                              "description": meta.get("description", ""), "tag": entry.get("label", "")})
             continue
         exts = exts_of(section, entry)
-        for file in sorted((base / TRASH).rglob("*")):
+        for file in sorted(root.rglob("*")):
             if file.is_file() and (not exts or file.name.lower().endswith(exts)):
-                items.append(_item(index, base, file, section) | {"folder": "" if file.parent == base / TRASH else file.parent.relative_to(base / TRASH).as_posix()})
+                stat, rel = file.stat(), file.relative_to(root)
+                items.append({"id": f"{index}:{TRASH}/{rel.as_posix()}", "name": file.name,
+                              "folder": "" if rel.parent == Path(".") else rel.parent.as_posix(),
+                              "size": stat.st_size, "mtime": int(stat.st_mtime), "group": section_entry_label(section, index)})
     return items
+
+
+# plugins: a list in git, hidden per computer
+def _static_key(section: dict) -> str:
+    return f"{section.get('_company', '')}/{section['id']}"
+
+
+def _static_all(section: dict) -> list[dict]:
+    return _load_json(library_dir() / "companies" / section.get("_company", "") / section["file"], [])
+
+
+def _static_state(section: dict) -> dict:
+    state = _load_json(TRASH_DIR / "static.json", {}).get(_static_key(section), {})
+    return {"trash": list(state.get("trash", []))}
+
+
+def _static_move(section: dict, item_id: str, op: str) -> str:
+    name = item_id[2:] if item_id.startswith("s:") else ""
+    if not name or name not in {it.get("name") for it in _static_all(section)}:
+        raise ManageError("Não encontrado.")
+    state = _static_state(section)
+    if op == "trash":
+        if name in state["trash"]:
+            raise ManageError("Já está no lixo.")
+        state["trash"].append(name)
+    else:
+        if name not in state["trash"]:
+            raise ManageError("Não está no lixo.")
+        state["trash"].remove(name)
+    everything = _load_json(TRASH_DIR / "static.json", {})
+    everything[_static_key(section)] = state
+    TRASH_DIR.mkdir(parents=True, exist_ok=True)
+    (TRASH_DIR / "static.json").write_text(json.dumps(everything, ensure_ascii=False, indent=1), encoding="utf-8")
+    return item_id
+
+
+def static_items(section: dict) -> list[dict]:
+    off = set(_static_state(section)["trash"])
+    return [it | {"id": f"s:{it.get('name', '')}"} for it in _static_all(section) if it.get("name") not in off]
 
 
 # ---- video posters: one still frame per video, so a gallery never has to open dozens of videos at once ----

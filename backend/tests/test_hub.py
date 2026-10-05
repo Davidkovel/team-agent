@@ -26,15 +26,21 @@ def library(tmp_path_factory):
     (project / "skills" / "boa" / "SKILL.md").write_text("---\nname: boa\ndescription: Sync to GitHub\n---\nbody", encoding="utf-8")
     (project / "videos").mkdir()
     (project / "videos" / "ad.mp4").write_bytes(b"0" * 2048)
+    (root / "notas").mkdir()
+    (root / "notas" / "nota.md").write_text("# nota", encoding="utf-8")
     (root / "secret.txt").write_text("outside", encoding="utf-8")
-    (root / "sources.json").write_text(json.dumps({"proj": str(project)}), encoding="utf-8")
+    (root / "sources.json").write_text(json.dumps({"proj": str(project), "notas": str(root / "notas")}), encoding="utf-8")
     company = root / "companies" / "acme"
     company.mkdir(parents=True)
     (company / "company.json").write_text(json.dumps({"name": "Acme", "sections": [
         {"id": "skills", "label": "Skills", "kind": "cards", "editable": True,
          "sources": [{"source": "proj", "path": "skills", "cards": "skills"}]},
         {"id": "videos", "label": "Videos", "kind": "videos", "sources": [{"source": "proj", "path": "videos"}]},
+        {"id": "docs", "label": "Docs", "kind": "files", "sources": [{"source": "notas", "path": ""}]},
+        {"id": "plugins", "label": "Plugins", "kind": "static", "file": "plugins.json"},
     ]}), encoding="utf-8")
+    (company / "plugins.json").write_text(json.dumps([{"name": "Figma", "description": "d"}, {"name": "Shopify", "description": "d"}]),
+                                          encoding="utf-8")
     old = settings.library_dir
     settings.library_dir = str(root)
     yield root
@@ -50,7 +56,7 @@ def login(client, username):
 def test_companies_and_cards(client, library):
     _, owner = login(client, "owner")
     companies = client.get("/api/hub/companies", headers=owner).json()
-    assert companies[0]["name"] == "Acme" and {s["id"]: s["count"] for s in companies[0]["sections"]} == {"skills": 1, "videos": 1}
+    assert companies[0]["name"] == "Acme" and {s["id"]: s["count"] for s in companies[0]["sections"]} == {"skills": 1, "videos": 1, "docs": 1, "plugins": 2}
     card = client.get("/api/hub/acme/skills", headers=owner).json()["items"][0]
     assert card["name"] == "boa" and card["description"] == "Sync to GitHub"
 
@@ -181,8 +187,46 @@ def test_gallery_rename_move_trash_restore_and_stay_inside(client, library):
             f.unlink(missing_ok=True)
 
 
-def test_gallery_actions_only_on_galleries_and_need_login(client, library):
-    _, owner = login(client, "owner")
-    assert client.post("/api/hub/acme/skills/item/trash", headers=owner, json={"id": "0:boa/SKILL.md"}).status_code == 403
+def test_library_actions_need_login(client, library):
     assert client.post("/api/hub/acme/videos/item/trash", json={"id": "0:ad.mp4"}).status_code == 401
     assert (library / "project" / "videos" / "ad.mp4").exists()
+
+
+def test_trash_and_restore_in_every_section_but_delete_for_good_only_media(client, library, tmp_path, monkeypatch):
+    from app import hub
+    monkeypatch.setattr(hub, "TRASH_DIR", tmp_path / "lixo")
+    _, owner = login(client, "owner")
+
+    def op(section, action, **body):
+        return client.post(f"/api/hub/acme/{section}/item/{action}", headers=owner, json=body)
+
+    def names(section, trash=False):
+        r = client.get(f"/api/hub/acme/{section}" + ("/trash" if trash else ""), headers=owner).json()
+        return [i["name"] for i in r["items"]]
+
+    skill = library / "project" / "skills" / "boa"
+    gone = op("skills", "trash", id="0:boa/SKILL.md").json()["id"]
+    assert not skill.exists() and names("skills") == [] and names("skills", True) == ["boa"]
+    assert not (library / "project" / "skills" / ".lixo").exists()          # the trash lives outside the folder
+    assert op("skills", "purge", id=gone).status_code == 400                 # skills are only restored
+    assert op("skills", "restore", id=gone).status_code == 200 and (skill / "SKILL.md").exists()
+
+    gone = op("docs", "trash", id="0:nota.md").json()["id"]
+    assert names("docs") == [] and names("docs", True) == ["nota.md"]
+    assert client.post("/api/hub/acme/docs/trash/empty", headers=owner).status_code == 403
+    assert op("docs", "restore", id=gone).status_code == 200 and names("docs") == ["nota.md"]
+
+    assert op("plugins", "trash", id="s:Figma").status_code == 200
+    assert names("plugins") == ["Shopify"] and names("plugins", True) == ["Figma"]
+    assert op("plugins", "trash", id="s:Nada").status_code == 400
+    assert op("plugins", "restore", id="s:Figma").status_code == 200 and names("plugins") == ["Figma", "Shopify"]
+
+    clip = library / "project" / "videos" / "lixo-teste.mp4"
+    clip.write_bytes(b"1")
+    gone = op("videos", "trash", id="0:lixo-teste.mp4").json()["id"]
+    assert op("videos", "purge", id="0:ad.mp4").status_code == 400          # only from the trash
+    assert op("videos", "purge", id=gone).status_code == 200 and not (library / "project" / "videos" / ".lixo" / "lixo-teste.mp4").exists()
+    clip.write_bytes(b"1")
+    op("videos", "trash", id="0:lixo-teste.mp4")
+    assert client.post("/api/hub/acme/videos/trash/empty", headers=owner).json()["deleted"] == 1
+    assert names("videos", True) == [] and (library / "project" / "videos" / "ad.mp4").exists()

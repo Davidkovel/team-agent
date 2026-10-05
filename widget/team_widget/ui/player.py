@@ -9,6 +9,7 @@ Keys: Space/K play · J/L 10 s · ←/→ 5 s · , . one frame · ↑/↓ volume
       I/O loop in/out · X clear loop · N/P next/previous · F or double-click full screen · Esc back to the Hub
 """
 import json
+import urllib.error
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -158,6 +159,18 @@ class Glyph(QAbstractButton):
             p.setPen(ink)
             p.drawRoundedRect(QRectF(cx - 8, cy - 5, 16, 10), 5, 5)
             tri(cx + 3, cy - 5, 3.5)
+        elif g == "trash":
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QColor(255, 120, 110, 255 if self._hover else 200))
+            p.drawLine(QPointF(cx - 7, cy - 5), QPointF(cx + 7, cy - 5))
+            p.drawLine(QPointF(cx - 2.5, cy - 7.5), QPointF(cx + 2.5, cy - 7.5))
+            body = QPainterPath(QPointF(cx - 5.5, cy - 5))
+            body.lineTo(cx - 4.5, cy + 7)
+            body.lineTo(cx + 4.5, cy + 7)
+            body.lineTo(cx + 5.5, cy - 5)
+            p.drawPath(body)
+            p.drawLine(QPointF(cx - 1.5, cy - 2), QPointF(cx - 1.5, cy + 4.5))
+            p.drawLine(QPointF(cx + 1.5, cy - 2), QPointF(cx + 1.5, cy + 4.5))
         elif g == "back":
             p.setBrush(Qt.NoBrush)
             p.setPen(ink)
@@ -248,7 +261,7 @@ class Timeline(QWidget):
 
 
 class VideoPlayer(QWidget):
-    closed = Signal()               # back to the Hub
+    closed = Signal(bool)           # back to the Hub; True when something was sent to the Lixo meanwhile
     fullscreen = Signal(bool)       # the Hub window should cover the whole monitor (or come back)
 
     def __init__(self, parent=None):
@@ -274,6 +287,7 @@ class VideoPlayer(QWidget):
             QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
         """)
         self.items, self.index, self.fps = [], 0, 30.0
+        self.api, self.token, self.changed = "", "", False
         self.loop_in = self.loop_out = None
         self._full = False
 
@@ -314,6 +328,8 @@ class VideoPlayer(QWidget):
         self.count.setFont(ui_font(9.5, QFont.DemiBold))
         back = Glyph("back", "Voltar ao Hub (Esc)")
         back.clicked.connect(self.close_player)
+        self.b_trash = Glyph("trash", "Mandar este vídeo para o Lixo (Delete): fica no Lixo do Hub e pode ser restaurado")
+        self.b_trash.clicked.connect(self.trash_current)
         titles = QVBoxLayout()
         titles.setSpacing(2)
         titles.addWidget(self.name)
@@ -324,6 +340,7 @@ class VideoPlayer(QWidget):
         head.addLayout(titles, 1)
         head.addWidget(self.count)
         head.addSpacing(10)
+        head.addWidget(self.b_trash)
         head.addWidget(back)
 
         # ---- stage: the picture, with a quiet status line over it
@@ -458,6 +475,8 @@ class VideoPlayer(QWidget):
     def open_playlist(self, payload: str):
         data = json.loads(payload)
         self.items = data.get("items") or []
+        self.api, self.token, self.changed = data.get("api", ""), data.get("token", ""), False
+        self.b_trash.setVisible(bool(self.api and self.token))
         self.list.clear()
         for i, it in enumerate(self.items):
             row = QListWidgetItem(f"{it['name']}\n{it.get('meta', '')}")
@@ -466,7 +485,7 @@ class VideoPlayer(QWidget):
             row.setIcon(self._blank_icon())
             self.list.addItem(row)
             if it.get("poster"):
-                self._load_poster(i, it["poster"])
+                self._load_poster(row, it["poster"])
         self.filter.clear()
         self.open_index(int(data.get("index", 0)))
         self.setFocus()
@@ -476,16 +495,16 @@ class VideoPlayer(QWidget):
         pm.fill(QColor(0, 0, 0))
         return pm
 
-    def _load_poster(self, i, url):
+    def _load_poster(self, row, url):
         reply = self._net.get(QNetworkRequest(QUrl(url)))
 
         def done():
             img = QImage()
-            if reply.error() == reply.NetworkError.NoError and img.loadFromData(reply.readAll()) and i < self.list.count():
+            if reply.error() == reply.NetworkError.NoError and img.loadFromData(reply.readAll()) and self.list.row(row) >= 0:
                 big = img.scaled(224, 126, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)   # fill, then crop the middle
                 pm = QPixmap.fromImage(big.copy((big.width() - 224) // 2, (big.height() - 126) // 2, 224, 126))
                 pm.setDevicePixelRatio(2)
-                self.list.item(i).setIcon(pm)
+                row.setIcon(pm)
             reply.deleteLater()
         reply.finished.connect(done)
 
@@ -517,7 +536,39 @@ class VideoPlayer(QWidget):
         self.media.stop()
         self.media.setSource(QUrl())   # lets go of the file and the decoder
         self._ticker.stop()
-        self.closed.emit()
+        self.closed.emit(self.changed)
+
+    def trash_current(self):
+        """Sends the video on screen to the section's Lixo (the Hub can restore it) and goes on to the next one."""
+        if not (self.items and self.api and self.token):
+            return
+        it = self.items[self.index]
+        self.media.stop()
+        self.media.setSource(QUrl())   # Windows cannot move a file that is still open
+        req = urllib.request.Request(f"{self.api}/item/trash", data=json.dumps({"id": it["id"]}).encode(), method="POST",
+                                     headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"})
+        try:
+            urllib.request.urlopen(req, timeout=10).close()
+        except urllib.error.HTTPError as e:
+            try:
+                why = json.load(e).get("detail", "")
+            except ValueError:
+                why = ""
+            self._set_status(f"Não foi para o lixo: {why or e.code}")
+            return
+        except OSError as e:
+            self._set_status(f"Não foi para o lixo: {e}")
+            return
+        self.changed = True
+        del self.items[self.index]
+        self.list.takeItem(self.index)
+        for r in range(self.list.count()):
+            self.list.item(r).setData(Qt.UserRole, r)
+        if not self.items:
+            self.close_player()
+            return
+        self.open_index(min(self.index, len(self.items) - 1))
+        self._show_osd(f"«{it['name']}» foi para o Lixo")
 
     # ------------------------------------------------------------ transport
 
@@ -696,6 +747,8 @@ class VideoPlayer(QWidget):
             return super().keyPressEvent(e)
         if k == Qt.Key_Escape:
             self.toggle_full() if self._full else self.close_player()
+        elif k == Qt.Key_Delete:
+            self.trash_current()
         elif k in (Qt.Key_Space, Qt.Key_K):
             self.toggle()
         elif k == Qt.Key_Left:
@@ -761,7 +814,7 @@ if __name__ == "__main__":   # python -m team_widget.ui.player <video url or fil
     app = QApplication(sys.argv)
     urls = [a if "://" in a else QUrl.fromLocalFile(str(Path(a).resolve())).toString() for a in sys.argv[1:]]
     w = VideoPlayer()
-    w.closed.connect(app.quit)
+    w.closed.connect(lambda _changed: app.quit())
     w.resize(1400, 860)
     w.show()
     w.open_playlist(json.dumps({"index": 0, "items": [{"name": u.rsplit("/", 1)[-1], "url": u} for u in urls]}))

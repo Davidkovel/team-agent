@@ -44,21 +44,36 @@ def test_the_widget_sees_the_newest_unread_notifications(client):
     assert inbox(client, "Mark")["unread"] == box["unread"]   # by the name people see, too
 
 
-def test_a_notification_read_from_the_widget_leaves_the_list(client):
-    first = inbox(client, "mark")["items"][0]
+def test_a_notification_read_from_the_widget_stays_in_the_history_as_read(client):
+    box = inbox(client, "mark")
+    first = box["items"][0]
     r = client.post("/api/local/inbox/read", headers=WIDGET, json={"user": "mark", "ids": [first["id"]]})
     assert r.status_code == 200 and r.json()["read"] == 1
-    assert first["id"] not in [n["id"] for n in inbox(client, "mark", 20)["items"]]
+    after = inbox(client, "mark", 20)
+    assert after["unread"] == box["unread"] - 1
+    assert next(n for n in after["items"] if n["id"] == first["id"])["read"] is True
+    assert all(not n["read"] for n in after["items"][:after["unread"]])   # the unread ones come first
     mark = login(client, "mark")
     seen = {n["id"]: n["read"] for n in client.get("/api/notifications?limit=200", headers=mark).json()["items"]}
     assert seen[first["id"]] is True                          # the Hub's bell agrees
 
 
+def test_with_everything_read_the_history_still_shows_the_latest(client):
+    ids = [n["id"] for n in inbox(client, "mark", 20)["items"] if not n["read"]]
+    client.post("/api/local/inbox/read", headers=WIDGET, json={"user": "mark", "ids": ids})
+    box = inbox(client, "mark")
+    assert box["unread"] == 0 and len(box["items"]) == 3 and all(n["read"] for n in box["items"])
+    assert box["items"][0]["title"] == "Owner deu-te uma tarefa: Quarta"   # newest first
+
+
 def test_nobody_reads_someone_elses_notifications(client):
-    marks = [n["id"] for n in inbox(client, "mark", 20)["items"]]
-    r = client.post("/api/local/inbox/read", headers=WIDGET, json={"user": "david", "ids": marks[:1]})
-    assert r.json()["read"] == 0 and marks[0] in [n["id"] for n in inbox(client, "mark", 20)["items"]]
-    assert client.post("/api/local/inbox/read", json={"user": "mark", "ids": marks[:1]}).status_code == 403  # widgets only
+    owner = login(client, "owner")
+    client.post("/api/tasks", headers=owner, json={"title": "Só minha", "assignee": "mark", "for_ai": False})
+    mine = inbox(client, "mark")["items"][0]
+    assert mine["read"] is False
+    r = client.post("/api/local/inbox/read", headers=WIDGET, json={"user": "david", "ids": [mine["id"]]})
+    assert r.json()["read"] == 0 and inbox(client, "mark")["items"][0]["read"] is False
+    assert client.post("/api/local/inbox/read", json={"user": "mark", "ids": [mine["id"]]}).status_code == 403  # widgets only
 
 
 def test_the_door_knows_its_people_and_its_visitors(client):

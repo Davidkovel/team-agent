@@ -99,15 +99,20 @@ async def local_notices(request: Request, user: str, after: int | None = None, d
 
 @router.get("/inbox")
 async def local_inbox(request: Request, user: str, limit: int = 3, db: AsyncSession = Depends(get_db)):
-    """What `user` has not read yet, newest first: the widget's mini history (the full one is in the Hub)."""
+    """The widget's mini history (the full one is in the Hub): what `user` has not read yet, newest first, then the newest
+    already read to fill it, so it never goes blank once everything is read. Each item says whether it was read."""
     local_or_team_key(request)
     person = await _person(db, user)
+    limit = min(max(limit, 1), 20)
+    newest = (Notification.created_at.desc(), Notification.id.desc())
     unread = (Notification.user_id == person.id, Notification.read_at.is_(None))
     count = (await db.execute(select(func.count(Notification.id)).where(*unread))).scalar() or 0
-    rows = (await db.execute(select(Notification).where(*unread).order_by(Notification.created_at.desc(), Notification.id.desc())
-                             .limit(min(max(limit, 1), 20)))).scalars()
+    rows = list((await db.execute(select(Notification).where(*unread).order_by(*newest).limit(limit))).scalars())
+    if len(rows) < limit:
+        rows += (await db.execute(select(Notification).where(Notification.user_id == person.id, Notification.read_at.is_not(None))
+                                  .order_by(*newest).limit(limit - len(rows)))).scalars()
     return {"unread": count, "items": [{"id": n.id, "kind": n.kind, "title": n.title, "body": n.body, "href": n.href,
-                                        "created_at": iso(n.created_at)} for n in rows]}
+                                        "read": n.read_at is not None, "created_at": iso(n.created_at)} for n in rows]}
 
 
 class InboxRead(BaseModel):

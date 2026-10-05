@@ -307,6 +307,9 @@ class NoticeRow(QFrame):
     def show_item(self, item: dict):
         self.item = item
         self.icon.setPixmap(note_icon(item.get("kind"), 26, self.devicePixelRatioF()))
+        read = bool(item.get("read"))                              # already read: still in the history, dimmed
+        self.title.setFont(font(9, QFont.Normal if read else QFont.DemiBold, UI))
+        recolour(self.title, MUTED if read else TEXT)
         self.title.setText(clip(item.get("title") or "", 100))   # two lines of the cockpit
         body = (item.get("body") or "").strip().split("\n")[0]
         when = ago_iso(item.get("created_at"))
@@ -1376,7 +1379,7 @@ class WidgetWindow(QWidget):
         if unread == self._inbox_seen and tick % 15:
             return
         try:
-            found = hub.get_inbox(url, who) if unread else {"unread": 0, "items": []}
+            found = hub.get_inbox(url, who)
         except (OSError, ValueError, urllib.error.URLError):
             return
         self._inbox_seen = unread
@@ -1437,7 +1440,7 @@ class WidgetWindow(QWidget):
         self.inbox.setVisible(bool(approvals))
 
     def _render_notes(self, data):
-        """The mini history: the newest notifications not read yet (three at most), hidden when everything is read."""
+        """The mini history: the three newest notifications, the ones not read yet first and in bold, the rest dimmed."""
         if data is not None:
             self._notes = data
         data = self._notes or {"unread": 0, "items": []}
@@ -1447,20 +1450,22 @@ class WidgetWindow(QWidget):
             if item:
                 row.show_item(item)
         unread = data.get("unread") or 0
-        self.notes_count.setText(f"{unread} por ler")
-        self.notes_more.setText(f"+{unread - len(items)} no Hub" if unread > len(items) else "")
+        shown = sum(1 for n in items if not n.get("read"))
+        self.notes_count.setText(f"{unread} por ler" if unread else "tudo lido")
+        self.notes_more.setText(f"+{unread - shown} por ler no Hub" if unread > shown else "")
         self.notes.setVisible(bool(items))
 
     def _read_notice(self, item):
-        """A notification clicked in the cockpit: read now (here, in the Hub and on its bell) and opened where it points."""
+        """A notification clicked in the cockpit: opened where it points, and read now if it was not (here, in the Hub, on its bell)."""
         if not item:
             return
-        data = self._notes or {}
-        self._render_notes({"unread": max(0, (data.get("unread") or 1) - 1),
-                            "items": [n for n in data.get("items") or [] if n.get("id") != item.get("id")]})
-        who, url = self._identity(self._team or []), hub.hub_url()
-        if who:
-            threading.Thread(target=hub.mark_read, args=(url, who, [item["id"]]), daemon=True).start()
+        if not item.get("read"):
+            data = self._notes or {}
+            self._render_notes({"unread": max(0, (data.get("unread") or 1) - 1),
+                                "items": [{**n, "read": True} if n.get("id") == item.get("id") else n for n in data.get("items") or []]})
+            who, url = self._identity(self._team or []), hub.hub_url()
+            if who:
+                threading.Thread(target=hub.mark_read, args=(url, who, [item["id"]]), daemon=True).start()
         self._open_notice(item.get("href") or "#/home")
 
     def set_on_top(self, on: bool):

@@ -329,6 +329,32 @@ async def read_notifications(body: ReadIn, user: User = Depends(current_user), d
     return {"ok": True}
 
 
+class DeleteIn(BaseModel):
+    ids: list[int] = []
+    all: bool = False        # every notification of this person
+    read: bool = False       # only the ones already read
+
+
+@router.post("/notifications/delete")
+async def delete_notifications(body: DeleteIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Notifications chosen in the Hub (the bell, or Avisos on the phone): gone for good, here, in the widget and, by sync,
+    on the other computers. Only the person's own."""
+    query = select(Notification).where(Notification.user_id == user.id)
+    if body.read:
+        query = query.where(Notification.read_at.is_not(None))
+    elif not body.all:
+        if not body.ids:
+            return {"deleted": 0}
+        query = query.where(Notification.id.in_(body.ids))
+    rows = (await db.execute(query)).scalars().all()
+    for n in rows:
+        await db.delete(n)  # one by one through the session, so sync sees each delete and passes it on
+    await db.commit()
+    if rows:
+        await rt.publish("notification", user.id)
+    return {"deleted": len(rows)}
+
+
 # ---------------------------------------------------------------- needs attention
 
 async def attention_items(db: AsyncSession, user: User) -> list[dict]:

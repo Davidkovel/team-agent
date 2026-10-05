@@ -4,7 +4,7 @@
 window.hubBell = true;
 let lastNotification = null; // newest id already seen in this window: only later ones raise a toast
 async function hubNews() {
-  const inbox = await request("/api/notifications?limit=30");
+  const inbox = await request("/api/notifications?limit=100");
   $("bell-n").textContent = inbox.unread;
   $("bell-n").hidden = !inbox.unread;
   const newest = inbox.items[0]?.id || 0;
@@ -18,13 +18,98 @@ async function hubNews() {
   if (!$("notif-panel").hidden) drawNotifications(inbox);
   return inbox;
 }
+/* The list of notifications, the same on the computer's bell and on the phone's Avisos: by day, each with what kind of thing
+   it is written out, unread ones lit. «Escolher» turns on ticks to pick which ones to delete; the × deletes one at once. */
+const NOTIF_KIND = {
+  task_new: ["tasks", "Tarefa nova"], task: ["tasks", "Tarefa"], task_completed: ["check", "Tarefa concluída"],
+  approval_required: ["alert", "Pede aprovação"], approval_decided: ["check", "Aprovação decidida"],
+  agent_failed: ["alert", "Agente falhou"], agent_waiting: ["clock", "Agente à espera"],
+};
+const NOTIF_DAYS = ["Hoje", "Ontem", "Esta semana", "Mais antigas"];
+function notifDay(iso) {
+  const d = new Date(iso), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  return days <= 0 ? "Hoje" : days === 1 ? "Ontem" : days < 7 ? "Esta semana" : "Mais antigas";
+}
+const notifSel = { on: false, picked: new Set(), confirm: false };  // the choosing mode, shared by the bell and Avisos
+
+function notifToolbar(inbox) {
+  const n = notifSel.picked.size;
+  if (!notifSel.on) {
+    return `<div class="nl-bar">${inbox.unread ? `<button class="btn quiet sm" data-nl="read-all">${t("Marcar tudo como lido")}</button>` : ""}
+      ${inbox.items.length ? `<button class="btn sm" data-nl="pick">${icon("check")}${t("Escolher para apagar")}</button>` : ""}</div>`;
+  }
+  if (notifSel.confirm) {
+    return `<div class="nl-bar nl-confirm"><b>${t(n === 1 ? "Apagar 1 notificação de vez?" : "Apagar {n} notificações de vez?", { n })}</b>
+      <span><button class="btn sm nl-danger" data-nl="yes">${t("Sim, apagar")}</button> <button class="btn quiet sm" data-nl="no">${t("Não")}</button></span></div>`;
+  }
+  const all = inbox.items.length && n === inbox.items.length;
+  return `<div class="nl-bar nl-picking"><span class="nl-count">${n ? t(n === 1 ? "1 escolhida" : "{n} escolhidas", { n }) : t("Toca nas que queres apagar")}</span>
+    <span><button class="btn quiet sm" data-nl="all">${t(all ? "Nenhuma" : "Todas")}</button>
+    <button class="btn quiet sm" data-nl="read">${t("Só as lidas")}</button>
+    <button class="btn sm nl-danger" data-nl="delete" ${n ? "" : "disabled"}>${t("Apagar")}${n ? ` (${n})` : ""}</button>
+    <button class="btn quiet sm" data-nl="cancel">${t("Cancelar")}</button></span></div>`;
+}
+
+function notifListHtml(inbox) {
+  if (!inbox.items.length) return ui.empty("bell", "Sem notificações", "Só aparece aqui o que precisa de ti: tarefas novas, aprovações, agentes parados.");
+  const groups = {};
+  for (const n of [...inbox.items].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))) (groups[notifDay(n.created_at)] ||= []).push(n);
+  const row = (n) => {
+    const [ic, kind] = NOTIF_KIND[n.kind] || ["bell", "Aviso"], picked = notifSel.picked.has(n.id);
+    return `<div class="nl-row ${n.read ? "" : "unread"} ${picked ? "picked" : ""} ${notifSel.on ? "picking" : ""}" data-n="${n.id}">
+      ${notifSel.on ? `<span class="nl-tick" aria-hidden="true">${picked ? icon("check") : ""}</span>` : ""}
+      <span class="nl-ico ${n.severity === "high" || n.kind.endsWith("failed") || n.kind === "approval_required" ? "hot" : ""}">${icon(ic)}</span>
+      <a class="nl-main" href="${esc(n.href || "#/home")}" data-open="${n.id}">
+        <span class="nl-kind">${t(kind)}${n.read ? "" : ` · <em>${t("por ler")}</em>`}</span>
+        <b>${esc(n.title)}</b>${n.body ? `<span class="nl-body">${esc(n.body)}</span>` : ""}</a>
+      <time title="${esc(fmt.date ? fmt.date(n.created_at) : n.created_at)}">${fmt.ago(n.created_at)}</time>
+      ${notifSel.on ? "" : `<button class="nl-x" data-del="${n.id}" title="${t("Apagar esta notificação")}" aria-label="${t("Apagar esta notificação")}">×</button>`}</div>`;
+  };
+  return NOTIF_DAYS.filter((g) => groups[g]).map((g) => `<section class="nl-group"><h4>${t(g)} <i>${groups[g].length}</i></h4>${groups[g].map(row).join("")}</section>`).join("");
+}
+
+// One click handler for both places. Returns true when it handled the click; `redraw` paints the list again.
+async function notifClick(e, inbox, redraw) {
+  const act = e.target.closest("[data-nl]")?.dataset.nl, del = e.target.closest("[data-del]"), row = e.target.closest("[data-n]");
+  const remove = async (body) => {
+    try { const r = await api("/api/notifications/delete", { method: "POST", body }); flash(t(r.deleted === 1 ? "1 notificação apagada." : "{n} notificações apagadas.", { n: r.deleted })); }
+    catch (err) { flash(err.message); }
+    Object.assign(notifSel, { on: false, confirm: false }); notifSel.picked.clear();
+    await hubNews(); await redraw();
+  };
+  if (act) {
+    e.preventDefault();
+    if (act === "read-all") { await api("/api/notifications/read", { method: "POST", body: {} }); await hubNews(); return redraw(), true; }
+    if (act === "pick") { notifSel.on = true; notifSel.picked.clear(); }
+    else if (act === "cancel") { notifSel.on = false; notifSel.confirm = false; notifSel.picked.clear(); }
+    else if (act === "all") { const every = notifSel.picked.size === inbox.items.length; notifSel.picked.clear(); if (!every) inbox.items.forEach((n) => notifSel.picked.add(n.id)); }
+    else if (act === "read") { notifSel.picked.clear(); inbox.items.filter((n) => n.read).forEach((n) => notifSel.picked.add(n.id)); if (!notifSel.picked.size) flash(t("Não há notificações lidas.")); }
+    else if (act === "delete") notifSel.confirm = notifSel.picked.size > 0;
+    else if (act === "no") notifSel.confirm = false;
+    else if (act === "yes") { await remove({ ids: [...notifSel.picked] }); return true; }
+    redraw(true);
+    return true;
+  }
+  if (del) { e.preventDefault(); await remove({ ids: [Number(del.dataset.del)] }); return true; }
+  if (row && notifSel.on) {   // choosing: a tap ticks it instead of opening it
+    e.preventDefault();
+    const id = Number(row.dataset.n);
+    notifSel.picked.has(id) ? notifSel.picked.delete(id) : notifSel.picked.add(id);
+    redraw(true);
+    return true;
+  }
+  if (row) { api("/api/notifications/read", { method: "POST", body: { ids: [Number(row.dataset.n)] } }).then(() => hubNews()).catch(() => {}); return false; }
+  return false;
+}
+
+let bellInbox = { unread: 0, items: [] };
 function drawNotifications(inbox) {
-  $("notif-panel").innerHTML = `<div class="pop-head"><b>${t("Notificações")}</b>
-      <span>${inbox.unread ? `<button class="btn quiet sm" id="read-all">${t("Marcar tudo como lido")}</button>` : ""}
-      <button class="btn quiet sm" id="phone-open">${t("Telemóvel")}</button></span></div>
-    <div class="pop-body">${inbox.items.length ? inbox.items.map((n) => `<a class="ntf ${n.read ? "" : "unread"}" href="${esc(n.href || "#/home")}" data-n="${n.id}"><i></i>
-      <div class="grow"><b>${esc(n.title)}</b>${n.body ? `<span class="ell">${esc(n.body)}</span>` : ""}<span>${fmt.ago(n.created_at)}</span></div></a>`).join("")
-      : ui.empty("bell", "Sem notificações", "Só aparece aqui o que precisa de ti: aprovações, agentes parados, tarefas concluídas.")}</div>`;
+  bellInbox = inbox;
+  for (const id of [...notifSel.picked]) if (!inbox.items.some((n) => n.id === id)) notifSel.picked.delete(id);
+  $("notif-panel").innerHTML = `<div class="pop-head"><b>${t("Notificações")}${inbox.unread ? ` <i class="nl-badge">${inbox.unread}</i>` : ""}</b>
+      <button class="btn quiet sm" id="phone-open">${t("Telemóvel")}</button></div>
+    ${notifToolbar(inbox)}<div class="pop-body nl-list">${notifListHtml(inbox)}</div>`;
 }
 /* The same notifications on the phone, through the ntfy app: the Hub only shows which topic to follow. */
 // The AMG app's own notifications (webpush.py): only on the phone, and only when the app is opened over https from the home screen.
@@ -70,6 +155,7 @@ async function drawPhone(note = "") {
 }
 async function toggleNotifications(open = $("notif-panel").hidden) {
   $("notif-panel").hidden = !open;
+  if (!open) { notifSel.on = notifSel.confirm = false; notifSel.picked.clear(); }
   if (open) drawNotifications(await hubNews());
 }
 onLive(["notification"], hubNews);
@@ -217,11 +303,12 @@ function hubStart() {
     }
     if (e.target.closest("#phone-off")) { await api("/api/phone", { method: "DELETE" }); $("notif-panel").hidden = true; return; }
     if (e.target.closest(".phone-setup, code") || e.target.closest("a[target]")) return;
-    if (e.target.closest("#read-all")) await api("/api/notifications/read", { method: "POST", body: {} });
-    else if (item) { await api("/api/notifications/read", { method: "POST", body: { ids: [Number(item.dataset.n)] } }); $("notif-panel").hidden = true; }
-    hubNews();
+    if (await notifClick(e, bellInbox, (local) => (local ? drawNotifications(bellInbox) : null))) return;
+    if (item) $("notif-panel").hidden = true;   // opening one: it was marked read on the way
   };
-  document.addEventListener("click", (e) => { if (!$("notif-panel").hidden && !e.target.closest("#notif-panel, #bell")) $("notif-panel").hidden = true; });
+  document.addEventListener("click", (e) => {
+    if (!$("notif-panel").hidden && !e.composedPath().some((el) => el.id === "notif-panel" || el.id === "bell")) $("notif-panel").hidden = true;
+  });
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); togglePalette(); }
     else if (e.key === "Escape") { togglePalette(false); $("notif-panel").hidden = true; }
@@ -231,10 +318,12 @@ function hubStart() {
 // When this PC's Hub has pulled a new version (selfupdate.py), the page reloads itself - but never in the middle of
 // typing or with a window open.
 let hubVersion = null;
-setInterval(async () => {
+window.hubCheckVersion = async () => {
   try {
     const { head } = await (await fetch("/api/version", { cache: "no-store" })).json();
     if (hubVersion && head && head !== hubVersion && $("modal").hidden && !document.activeElement?.matches("input, textarea, select")) location.reload();
     hubVersion = head || hubVersion;
   } catch { /* the Hub is restarting: ask again next minute */ }
-}, 60000);
+};
+hubCheckVersion();
+setInterval(hubCheckVersion, 60000);

@@ -218,3 +218,14 @@ html.is-phone .m-pill.ai { background: rgba(10, 132, 255, .18); color: #64a8ff; 
 html.is-phone[data-page="tarefas"] .subtabs { margin-bottom: 4px; }
 html.is-phone .m-row2 .late { color: #ff6961; font-weight: 600; }
 html.is-phone .m-row2 .today { color: #ffb340; font-weight: 600; }
+
+/* Avisos: the shared notifications list, sized for a finger */
+html.is-phone #m-av .nl-bar { position: sticky; top: calc(var(--m-bar) + env(safe-area-inset-top, 0px)); z-index: 30; background: #000; border-radius: 0; margin: 0 -14px; padding: 10px 14px; }
+html.is-phone #m-av .nl-bar .btn { min-height: 36px; }
+html.is-phone #m-av .nl-list { margin: 0 -14px; }
+html.is-phone #m-av .nl-row { padding: 12px 14px; }
+html.is-phone #m-av .nl-main b { font-size: 15px; }
+html.is-phone #m-av .nl-body { font-size: 13.5px; }
+html.is-phone #m-av .nl-x { width: 34px; height: 34px; font-size: 20px; }
+html.is-phone #m-av .nl-tick { width: 24px; height: 24px; }
+html.is-phone .btn.nl-danger { background: #c9372c !important; border-color: #c9372c !important; color: #fff !important; }

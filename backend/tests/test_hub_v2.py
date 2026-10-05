@@ -198,3 +198,36 @@ def test_a_question_goes_to_the_askers_own_agent(client):
     answered = client.get(f"/api/ai/requests/{asked['id']}", headers=david).json()
     assert (answered["status"], answered["answer"]) == ("DONE", "Nothing is waiting for you.")
     assert client.get(f"/api/ai/requests/{asked['id']}", headers=owner).status_code == 404
+
+
+def test_notifications_are_deleted_one_by_one_the_read_ones_or_all_and_only_ones_own(client):
+    from app.db import SessionLocal
+    from app.models import User
+    from sqlalchemy import select
+
+    async def make():
+        async with SessionLocal() as db:
+            users = {u.username: u.id for u in (await db.execute(select(User))).scalars()}
+            for i in range(4):
+                await services.notify(db, [users["mark"]], "task_new", "info", f"Tarefa {i}")
+            await services.notify(db, [users["david"]], "task_new", "info", "Do David")
+    asyncio.run(make())
+    mark, david = login(client, "mark"), login(client, "david")
+    client.post("/api/notifications/delete", headers=mark, json={"all": True})   # start from a clean inbox
+    asyncio.run(make())
+    items = client.get("/api/notifications", headers=mark).json()["items"]
+    assert len(items) == 4
+    davids = client.get("/api/notifications", headers=david).json()["items"][0]["id"]
+    assert client.post("/api/notifications/delete", headers=mark, json={"ids": [items[0]["id"], davids]}).json()["deleted"] == 1
+    assert client.get("/api/notifications", headers=david).json()["items"][0]["id"] == davids        # not his to delete
+    client.post("/api/notifications/read", headers=mark, json={"ids": [items[1]["id"]]})
+    assert client.post("/api/notifications/delete", headers=mark, json={"read": True}).json()["deleted"] == 1
+    assert client.post("/api/notifications/delete", headers=mark, json={}).json()["deleted"] == 0   # nothing chosen: nothing goes
+    assert client.post("/api/notifications/delete", headers=mark, json={"all": True}).json()["deleted"] == 2
+    assert client.get("/api/notifications", headers=mark).json()["items"] == []
+    assert client.post("/api/notifications/delete", json={"all": True}).status_code == 401
+
+
+def test_the_hub_pages_are_always_revalidated(client):
+    assert client.get("/").headers.get("cache-control") == "no-cache"
+    assert "cache-control" not in {k.lower() for k in client.get("/api/version").headers}

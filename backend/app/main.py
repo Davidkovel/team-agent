@@ -112,5 +112,15 @@ app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
 for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, selfupdate, ws, sync, push, webpush):
     app.include_router(module.router)
 
+@app.middleware("http")
+async def always_fresh(request, call_next):
+    """The Hub's pages and scripts are revalidated on every load (a 304 when nothing changed): the iPhone app, which Safari
+    caches hard, then always shows the version this computer has, the moment it has it."""
+    response = await call_next(request)
+    if not request.url.path.startswith(("/api", "/ws")) and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 if Path(settings.frontend_dir).is_dir():
     app.mount("/", StaticFiles(directory=settings.frontend_dir, html=True), name="dashboard")

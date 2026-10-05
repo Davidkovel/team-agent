@@ -92,7 +92,10 @@
 
   /* ---------- the screens ---------- */
   let reload = null; // reloads the screen on view
-  onLive(["task", "notification", "presence", "approval"], () => { if (reload && ($("m-home") || $("m-av") || $("m-tasks"))) reload(); });
+  const busy = () => !sheet.hidden || !$("modal").hidden || document.activeElement?.matches("input, textarea, select");
+  onLive(["task", "notification", "presence", "approval", "activity", "tick"], () => {
+    if (reload && !busy() && ($("m-home") || $("m-av") || $("m-tasks"))) reload().catch(() => {});
+  });
 
   const KIND_ICON = { task_new: "tasks", task: "check", approval_required: "alert", approval_decided: "check", agent_failed: "alert", agent_waiting: "clock" };
   const nrow = (n) => `<a class="m-nrow ${n.read ? "" : "unread"}" href="${esc(n.href || "#/home")}" data-n="${n.id}"><span class="m-ico">${icon(KIND_ICON[n.kind] || "bell")}</span>
@@ -137,25 +140,26 @@
 
   /* Avisos: the notifications as an inbox, by day, unread first in bold. A tap marks it read and opens it. */
   HUB_VIEWS.avisos = async function () {
+    notifSel.on = notifSel.confirm = false; notifSel.picked.clear();
     page(`<div class="m-screen" id="m-av"><header class="m-large"><span id="m-av-sub"></span><h1>${t("Notificações")}</h1></header><div id="m-av-list">${ui.skeleton(5)}</div></div>`);
-    const load = async () => {
-      const inbox = await request("/api/notifications?limit=60");
+    let inbox = { unread: 0, items: [] };
+    const draw = () => {
       if (!$("m-av")) return;
       $("m-av-sub").textContent = inbox.unread ? t("{n} por ler", { n: inbox.unread }) : t("Tudo lido");
-      const groups = {};
-      for (const n of inbox.items) (groups[when(n.created_at)] ||= []).push(n);
-      paint($("m-av-list"), `${inbox.unread ? `<button class="m-link" data-read-all>${t("Marcar tudo como lido")}</button>` : ""}${inbox.items.length
-        ? ["Hoje", "Ontem", "Esta semana", "Mais antigas"].filter((g) => groups[g]).map((g) => `<section class="m-sec"><h3 class="m-grp">${t(g)}</h3><div class="m-list">${groups[g].map(nrow).join("")}</div></section>`).join("")
-        : ui.empty("bell", "Sem notificações", "Aparece aqui o que precisa de ti: tarefas novas, aprovações, agentes parados.")}
+      $("m-av-list").innerHTML = `${notifToolbar(inbox)}<div class="nl-list">${notifListHtml(inbox)}</div>
         <section class="m-sec"><h3 class="m-grp">${t("No telemóvel")}</h3><div class="m-list"><button class="m-row2" data-phone>${icon("bell")}<div><b>${t("Receber as notificações no telemóvel")}</b>
-          <span>${t("Para o aviso chegar ao ecrã de bloqueio")}</span></div>${icon("chev")}</button></div></section>`);
+          <span>${t("Para o aviso chegar ao ecrã de bloqueio")}</span></div>${icon("chev")}</button></div></section>`;
+    };
+    const load = async () => {
+      if (notifSel.on) return;   // never repaint under a finger that is choosing
+      inbox = await request("/api/notifications?limit=100");
+      for (const id of [...notifSel.picked]) if (!inbox.items.some((n) => n.id === id)) notifSel.picked.delete(id);
+      draw();
     };
     reload = load;
     $("view").onclick = async (e) => {
-      const row = e.target.closest("[data-n]");
-      if (row) api("/api/notifications/read", { method: "POST", body: { ids: [Number(row.dataset.n)] } }).then(() => hubNews()).catch(() => {});
-      if (e.target.closest("[data-read-all]")) { await api("/api/notifications/read", { method: "POST", body: {} }); hubNews(); load(); }
-      if (e.target.closest("[data-phone]")) { e.stopPropagation(); phoneSetup(); }
+      if (e.target.closest("[data-phone]")) { e.stopPropagation(); return phoneSetup(); }
+      await notifClick(e, inbox, (local) => (local ? draw() : load()));
     };
     await load().catch((e) => { if (e.message !== "unauthorized") $("m-av-list").innerHTML = ui.error(e.message); });
   };

@@ -1295,15 +1295,35 @@ function refresh(type) {
   setTimeout(() => { pending.delete(type); readCache.clear(); [...(loaders[type] || []), ...(HUB_LOADERS[type] || [])].forEach((fn) => fn().catch(() => {})); }, 300);
 }
 
+// An iPhone freezes the app in the background and its socket can come back "open" but dead, so nothing new arrives.
+// Coming back after more than a few seconds away (or the page restored from memory) always opens a fresh socket.
+let liveSocket = null, hiddenAt = 0;
 function connect() {
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?token=${token}`);
+  liveSocket = ws;
   const ping = () => { if (ws.readyState === 1) ws.send("ping"); };
   let timer = null;
   ws.onopen = () => { $("live").textContent = "● ao vivo"; $("live").classList.add("live"); timer = setInterval(ping, 10000); };
   ws.onmessage = (e) => refresh(JSON.parse(e.data).type);
-  ws.onclose = () => { clearInterval(timer); $("live").textContent = "a reconectar"; $("live").classList.remove("live"); if (token) setTimeout(connect, 3000); };
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) ping(); });
+  ws.onclose = () => {
+    clearInterval(timer);
+    if (liveSocket !== ws) return;   // replaced on purpose: the new one is already connecting
+    $("live").textContent = "a reconectar"; $("live").classList.remove("live");
+    if (token) setTimeout(connect, 3000);
+  };
 }
+function wakeUp() {
+  if (!token || !liveSocket) return;
+  const old = liveSocket;
+  if (old.readyState !== 1 || Date.now() - hiddenAt > 5000) { liveSocket = null; try { old.close(); } catch { /* already gone */ } connect(); }
+  Object.keys(loaders).forEach(refresh);
+  refresh("tick");
+  if (window.hubNews) hubNews().catch(() => {});
+  if (window.hubCheckVersion) hubCheckVersion();
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = Date.now(); else wakeUp(); });
+window.addEventListener("pageshow", (e) => { if (e.persisted) { hiddenAt = 0; wakeUp(); } });
+window.addEventListener("online", wakeUp);
 
 async function start() {
   try { me = await api("/api/me"); } catch { return; }
@@ -1315,7 +1335,6 @@ async function start() {
   $("bell").onclick = openInbox;
   hubStart(); // sidebar tools, notifications, the command palette and the Team AI
   const every = (ms, fn) => setInterval(() => { if (!document.hidden) fn(); }, ms);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) Object.keys(loaders).forEach(refresh); });
   every(30000, () => drawHud()); // keeps the clock honest
   await loadStats().catch(() => {}); // names first, so every view shows Kovel/Marco/David
   render();

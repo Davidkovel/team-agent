@@ -367,12 +367,15 @@ class Meter(QWidget):
 
 
 class Hover(QAbstractButton):
-    """A button whose hover and press states fade instead of snapping."""
+    """A button whose hover and press states fade instead of snapping, and that answers a click with a wave
+    spreading from under the finger."""
 
     def __init__(self):
         super().__init__()
         self.setCursor(Qt.PointingHandCursor)
         self.hover = self.press = 0.0
+        self.wave, self._wave_at, self._wave_reach = 1.0, QPointF(), 0.0
+        self._wave = animate(self, 460, lambda v: self._set("wave", v))
         self._hover = animate(self, 180, lambda v: self._set("hover", v))
         self._press = animate(self, 110, lambda v: self._set("press", v))
         self.pressed.connect(lambda: self._to(self._press, self.press, 1))
@@ -388,6 +391,26 @@ class Hover(QAbstractButton):
         anim.setStartValue(current)
         anim.setEndValue(float(end))
         anim.start()
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            at = e.position()
+            self._wave_at = at
+            self._wave_reach = math.hypot(max(at.x(), self.width() - at.x()), max(at.y(), self.height() - at.y()))
+            self._to(self._wave, 0.0, 1)
+        super().mousePressEvent(e)
+
+    def paint_wave(self, p: QPainter, shape: QPainterPath, colour=WHITE, strength=0.26):
+        """The click wave, kept inside the button's own shape."""
+        if not 0 < self.wave < 1:
+            return
+        p.save()
+        p.setClipPath(shape)
+        p.setPen(Qt.NoPen)
+        p.setBrush(rgba(colour, strength * (1 - self.wave)))
+        r = self._wave_reach * (0.15 + 0.85 * self.wave)
+        p.drawEllipse(self._wave_at, r, r)
+        p.restore()
 
     def enterEvent(self, e):
         self._to(self._hover, self.hover, 1)
@@ -413,6 +436,9 @@ class IconButton(Hover):
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 255, 255, int(14 * self.hover + 10 * self.press)))
         p.drawEllipse(QRectF(1, 1, 26, 26))
+        disc = QPainterPath()
+        disc.addEllipse(QRectF(1, 1, 26, 26))
+        self.paint_wave(p, disc)
         v = int(150 + 90 * self.hover)
         p.setPen(pen(QColor(v, v + 3, v + 6), 1.5))
         p.setBrush(Qt.NoBrush)
@@ -453,8 +479,11 @@ class TextButton(Hover):
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(.5, .5, -.5, -.5)
         p.setPen(pen(rgba(self._colour, .28), 1))
-        p.setBrush(rgba(self._colour, .16 if self.underMouse() else .07))
+        p.setBrush(rgba(self._colour, .07 + .09 * self.hover + .08 * self.press))
         p.drawRoundedRect(r, 12, 12)
+        pill = QPainterPath()
+        pill.addRoundedRect(r, 12, 12)
+        self.paint_wave(p, pill, self._colour)
         p.setPen(QColor(self._colour))
         p.setFont(self._font)
         p.drawText(r, Qt.AlignCenter, self._text)
@@ -667,9 +696,22 @@ class Member(Hover):
         self._f_name, self._f_state, self._f_time, self._f_small, self._f_pill = (
             font(10, QFont.DemiBold, UI), font(8.5, QFont.Normal, UI), font(11, QFont.DemiBold, DISPLAY),
             font(7, QFont.Normal, UI), font(8.5, QFont.DemiBold, UI))
+        self._f_tag = font(6.5, QFont.Bold, UI, spacing=0.6)
+        self._t, self.ping = 0.0, 1.0
+        self._ping = animate(self, 900, lambda v: self._set("ping", v))
+        clock().frame.connect(self._frame)
         self.setEnabled(False)
 
+    def _frame(self, t):
+        self._t = t
+        if self._person and self._person.get("online") and self.isVisible():
+            self.update()  # the online dot breathes
+
     def set(self, person: dict, me: bool):
+        was = self._person
+        if was and was.get("user") == person.get("user") and (
+                (person.get("online") and not was.get("online")) or (person.get("ponto") and not was.get("ponto"))):
+            self._to(self._ping, 0.0, 1)  # just came online or clocked in: one ring out of the picture
         self._person, self._me = person, me
         can = me and not person.get("ponto") and person.get("user") is not None
         self.setEnabled(can)
@@ -692,16 +734,34 @@ class Member(Hover):
         p.setBrush(QColor(0, 0, 0))
         p.drawEllipse(av)
         paint_star(p, av.adjusted(4, 4, -4, -4), 1.0 if online else 0.35)
-        p.setPen(QPen(QColor(255, 255, 255, 120 if online else 26), 1.2))
+        breath = 0.5 + 0.5 * math.sin(self._t * 2.4)
+        p.setPen(QPen(rgba(COLORS["ONLINE"], 0.45 + 0.4 * breath) if online else QColor(255, 255, 255, 26), 1.3))
         p.setBrush(Qt.NoBrush)
         p.drawEllipse(av.adjusted(0.6, 0.6, -0.6, -0.6))
+        if 0 < self.ping < 1:
+            p.setPen(QPen(rgba(COLORS["ONLINE"], 0.9 * (1 - self.ping)), 2))
+            r = 5 + 12 * self.ping
+            p.drawEllipse(av.center(), r, r)
         dot = QPointF(av.right() - 3, av.bottom() - 3)
+        if online:  # a sonar ring leaving the dot
+            k = (self._t / 1.8) % 1.0
+            p.setPen(Qt.NoPen)
+            p.setBrush(rgba(COLORS["ONLINE"], 0.42 * (1 - k)))
+            p.drawEllipse(dot, 4.4 + 5 * k, 4.4 + 5 * k)
         p.setPen(QPen(QColor(24, 24, 26), 2.5))
         p.setBrush(QColor(COLORS["ONLINE"] if online else COLORS["OFFLINE"]))
         p.drawEllipse(dot, 4.4, 4.4)
         p.setPen(QColor(TEXT) if online else QColor(MUTED))
         p.setFont(self._f_name)
         p.drawText(QRectF(48, 8, 150, 18), Qt.AlignLeft | Qt.AlignVCenter, person["name"])
+        if self._me:  # which row is yours
+            tag = QRectF(48 + QFontMetricsF(self._f_name).horizontalAdvance(person["name"]) + 7, 11, 22, 13)
+            p.setPen(Qt.NoPen)
+            p.setBrush(rgba(COLORS["ONLINE"] if online else MUTED, 0.2))
+            p.drawRoundedRect(tag, 6.5, 6.5)
+            p.setPen(QColor(COLORS["ONLINE"] if online else MUTED))
+            p.setFont(self._f_tag)
+            p.drawText(tag, Qt.AlignCenter, "TU")
         state = {"WORKING": "A trabalhar", "WAITING": "À espera", "PAUSED": "Em pausa", "ERROR": "Erro"}.get(person.get("status"), "Online") \
             if online else "Offline"
         p.setPen(QColor(MUTED) if online else QColor(FAINT))
@@ -719,6 +779,9 @@ class Member(Hover):
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(255, 255, 255, int(235 + 20 * self.hover)))
             p.drawRoundedRect(pill, 13, 13)
+            shape = QPainterPath()
+            shape.addRoundedRect(pill, 13, 13)
+            self.paint_wave(p, shape, "#000000", 0.22)
             p.setPen(QColor("#000000"))
             p.setFont(self._f_pill)
             p.drawText(pill, Qt.AlignCenter, "Bater ponto")

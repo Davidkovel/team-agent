@@ -130,3 +130,24 @@ def test_a_notification_also_goes_to_the_phone_of_who_asked_for_it(client, monke
     send(client, owner, "mark", "já sem telemóvel")
     time.sleep(0.5)
     assert len(sent) == 1
+
+
+def test_who_sends_a_task_to_themselves_gets_it_on_the_phone_but_not_in_the_bell(client, monkeypatch):
+    from app import push
+    sent = []
+
+    async def fake(topic, title, body, severity):
+        sent.append((topic, title))
+        return True
+
+    monkeypatch.setattr(push, "_post", fake)
+    mark = login(client, "mark")
+    topic = client.post("/api/phone", headers=mark).json()["topic"]
+    after = mark_point(client)
+    send(client, mark, "mark", "Para mim no telemóvel")
+    end = time.time() + 5
+    while not sent and time.time() < end:  # it goes out behind the request
+        time.sleep(0.05)
+    assert sent == [(topic, "Nova tarefa: Para mim no telemóvel")]
+    assert notices(client, "mark", after["mark"])["items"] == []  # the bell and the widget stay quiet for who sends it
+    client.delete("/api/phone", headers=mark)

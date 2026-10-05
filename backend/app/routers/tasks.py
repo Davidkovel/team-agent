@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import hub
+from .. import hub, push
 from ..db import get_db
 from ..models import AgentSession, Approval, Project, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
@@ -107,6 +107,9 @@ async def _announce(db: AsyncSession, sender: User, tasks: list[Task], everybody
         else:
             title, directed = f"{sender.display_name} mandou uma tarefa a {task.assignee.display_name}: {task.title}", False
         await notify(db, [person.id], "task_new", "info", title, task.description, f"#/tarefas/{task.id}", directed)
+    mine = next((t for t in tasks if t.assignee_id == sender.id), None)
+    if mine:  # whoever sends it knows: no bell and no widget ring for them, but their phone still gets it, as the proof it went in
+        await push.to_people(db, {sender.id}, f"Nova tarefa: {mine.title}"[:200], mine.description or "", "info")
 
 
 @router.post("")

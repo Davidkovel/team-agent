@@ -17,9 +17,10 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtCore import QByteArray, QEasingCurve, QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import (QColor, QConicalGradient, QFont, QFontMetricsF, QIcon, QImage, QLinearGradient, QPainter, QPainterPath,
                            QPen, QPixmap, QPolygonF, QRadialGradient)
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QAbstractButton, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
                                QVBoxLayout, QWidget)
 
@@ -236,6 +237,42 @@ class Card(QWidget):
             platter(p, QRectF(self.rect()))
 
 
+# the Hub's own icons (frontend/app.js, hub/ui.js): a notification looks the same in the cockpit and in the Hub
+NOTE_GLYPHS = {
+    "task_new": '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 12l3 3 5-6"/>',
+    "task": '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+    "approval_required": '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
+    "approval_decided": '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+    "agent_failed": '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
+    "agent_waiting": '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+}
+BELL = '<path d="M6 17V11a6 6 0 1112 0v6l2 2H4z"/><path d="M10 21a2 2 0 004 0"/>'
+_note_icons: dict[tuple, QPixmap] = {}
+
+
+def note_icon(kind: str | None, size: int, dpr: float) -> QPixmap:
+    """A notification's icon on a dark disc with a chrome ring, as in the Hub; drawn once per kind and screen density."""
+    key = (kind, size, round(dpr, 2))
+    if key not in _note_icons:
+        pix = QPixmap(round(size * dpr), round(size * dpr))
+        pix.setDevicePixelRatio(dpr)
+        pix.fill(Qt.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing)
+        disc = QRadialGradient(QPointF(size / 2, size * 0.3), size * 0.7)
+        disc.setColorAt(0, QColor("#2b3036"))
+        disc.setColorAt(1, QColor("#0c0d10"))
+        p.setBrush(disc)
+        p.setPen(QPen(QColor(222, 229, 238, 70), 1))
+        p.drawEllipse(QRectF(0.5, 0.5, size - 1, size - 1))
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#e8ecf0" stroke-width="1.9" '
+               f'stroke-linecap="round" stroke-linejoin="round">{NOTE_GLYPHS.get(kind, BELL)}</svg>')
+        QSvgRenderer(QByteArray(svg.encode())).render(p, QRectF(size * 0.26, size * 0.26, size * 0.48, size * 0.48))
+        p.end()
+        _note_icons[key] = pix
+    return _note_icons[key]
+
+
 class NoticeRow(QFrame):
     """One notification not read yet, in the cockpit's mini history: what happened (two lines at most) and when. Click: open it."""
     clicked = Signal()
@@ -252,11 +289,11 @@ class NoticeRow(QFrame):
         row.setContentsMargins(8, 6, 8, 6)
         row.setSpacing(9)
         side = QVBoxLayout()
-        side.setContentsMargins(0, 6, 0, 0)
-        dot = QLabel()
-        dot.setFixedSize(6, 6)
-        dot.setStyleSheet(f"background: {WHITE}; border-radius: 3px;")
-        side.addWidget(dot)
+        side.setContentsMargins(0, 1, 0, 0)
+        self.icon = QLabel()
+        self.icon.setFixedSize(26, 26)
+        self.icon.setStyleSheet("background: transparent;")
+        side.addWidget(self.icon)
         side.addStretch(1)
         row.addLayout(side)
         text = QVBoxLayout()
@@ -269,6 +306,7 @@ class NoticeRow(QFrame):
 
     def show_item(self, item: dict):
         self.item = item
+        self.icon.setPixmap(note_icon(item.get("kind"), 26, self.devicePixelRatioF()))
         self.title.setText(clip(item.get("title") or "", 100))   # two lines of the cockpit
         body = (item.get("body") or "").strip().split("\n")[0]
         when = ago_iso(item.get("created_at"))

@@ -8,7 +8,6 @@ like iOS widgets: the hero card (time, date, how things are, the star), the Clau
 Every animation runs off one frame clock at the monitor's refresh rate (motion.py).
 """
 import getpass
-import json
 import math
 import os
 import threading
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (QAbstractButton, QGraphicsOpacityEffect, QHBoxLay
 
 from .. import hub, system
 from ..api.agent_client import AgentClient
+from ..limits import claude_plan_usage
 from ..state.store import StateStore
 from . import badge, prefs
 from .motion import clock
@@ -78,30 +78,6 @@ def until(epoch: float | None) -> str:
 
 def meter_color(pct):
     return COLORS["ERROR"] if pct >= 85 else COLORS["WAITING"] if pct >= 60 else WHITE
-
-
-def _reset_of(limit) -> float | None:
-    """When a limit resets, if Claude Code said so (epoch seconds or ISO text)."""
-    v = (limit or {}).get("resets_at")
-    if isinstance(v, (int, float)):
-        return float(v)
-    try:
-        return datetime.fromisoformat(v.replace("Z", "+00:00")).timestamp() if isinstance(v, str) else None
-    except ValueError:
-        return None
-
-
-def claude_plan_usage() -> dict | None:
-    """The real plan limits, saved by claude_statusline.py every time Claude Code answers, or None."""
-    try:
-        saved = json.loads((hub.DATA_DIR / "claude_usage.json").read_text(encoding="utf-8"))
-        limits = saved["rate_limits"]
-        week = limits["seven_day"]["used_percentage"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    five = limits.get("five_hour") or {}
-    return {"week": week, "week_reset": _reset_of(limits.get("seven_day")), "five": five.get("used_percentage"),
-            "five_reset": _reset_of(five), "saved_at": saved.get("saved_at", 0)}
 
 
 def clip(text: str, n: int) -> str:
@@ -1560,12 +1536,14 @@ class WidgetWindow(QWidget):
         who = self._identity(hub_team) or state.get("user")
         mine = next((m for m in hub_team if m.get("user") == who and "week_cost_usd" in m), None) \
             or next((m for m in state.get("team") or [] if m.get("user") == who), {})
-        plan = claude_plan_usage()
+        plan = claude_plan_usage()  # None when Claude Code has not reported recently (limits.py)
         if plan:
             self._load = plan["week"]
             week, five = plan["week"], plan["five"]
-            self.tile_week.set(week, f"{round(week)}%", until(plan["week_reset"]) or "esta semana")
-            self.tile_session.set(five, "—" if five is None else f"{round(five)}%", until(plan["five_reset"]) or "do plano")
+            read = "agora" if time.time() - plan["saved_at"] < 600 else f"lido {ago(plan['saved_at'])}"
+            self.tile_week.set(week, f"{round(week)}%", until(plan["week_reset"]) or read)
+            self.tile_session.set(five, "—" if five is None else f"{round(five)}%",
+                                  "sem dados recentes" if five is None else until(plan["five_reset"]) or read)
         else:
             spent = mine.get("week_cost_usd") or 0
             self._load = mine.get("week_pct") if spent else None

@@ -103,6 +103,7 @@ To try changes without touching the real Hub: a second server on another port wi
 
 ## Working on the code
 
-- Tests: `cd backend; ..\.venv\Scripts\python -m pytest -q` and the same in `agent`.
+- Tests: `cd backend; ..\.venv\Scripts\python -m pytest -q` and the same in `agent`; the widget's Qt-free parts with
+  `cd widget; ..\.venv\Scripts\python -m pytest tests -q`.
 - Commit and push straight to `main`.
 - Never commit `.env`, `widget.json`, tokens or the team key.

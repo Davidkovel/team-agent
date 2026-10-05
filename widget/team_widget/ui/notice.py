@@ -153,3 +153,94 @@ class Notices(QObject):
             card.clicked.connect(lambda href=item["href"]: self._open_page(href))
         card.finished.connect(lambda: (card.close(), card.deleteLater(), QTimer.singleShot(GAP, self._next)))
         card.run()
+
+
+ONLINE = QColor("#7fd492")
+P_WIDTH, P_HEIGHT, P_EDGE, P_GAP, P_HOLD = 300, 68, 18, 10, 4500
+
+
+class PresenceCard(QWidget):
+    """Somebody came online: a small card in the bottom right corner of the screen, the way Steam says it."""
+    finished = Signal()
+
+    def __init__(self, name: str, text: str, slot: int):
+        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setFixedSize(P_WIDTH, P_HEIGHT)
+        self._name, self._text, self._leaving = name, text, False
+        self._f_name, self._f_text = _font(10.5, QFont.DemiBold), _font(9)
+        area = QGuiApplication.primaryScreen().availableGeometry()
+        self._rest, self._off = area.right() - P_WIDTH - P_EDGE, area.right() + 1
+        self._y = area.bottom() - P_EDGE - P_HEIGHT - slot * (P_HEIGHT + P_GAP)
+        self._slide = QVariantAnimation(self)
+        self._slide.valueChanged.connect(self._at)
+
+    def _at(self, k):
+        self.move(round(self._off + (self._rest - self._off) * k), self._y)
+        self.setWindowOpacity(min(1.0, k * 1.6))
+
+    def _go(self, start, end, ms, curve):
+        self._slide.stop()
+        self._slide.setStartValue(start)
+        self._slide.setEndValue(end)
+        self._slide.setDuration(ms)
+        self._slide.setEasingCurve(curve)
+        self._slide.start()
+
+    def run(self):
+        self.setWindowOpacity(0)
+        self.move(self._off, self._y)
+        self.show()
+        self._go(0.0, 1.0, SLIDE_IN, QEasingCurve.OutCubic)
+        QTimer.singleShot(P_HOLD, self.leave)
+
+    def leave(self):
+        if self._leaving:
+            return
+        self._leaving = True
+        self._go(self._slide.currentValue() or 1.0, 0.0, SLIDE_OUT, QEasingCurve.InCubic)
+        self._slide.finished.connect(self.finished.emit)
+
+    def mousePressEvent(self, e):
+        self.leave()
+
+    def paintEvent(self, _):
+        from . import badge
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(self.rect()).adjusted(.5, .5, -.5, -.5), 14, 14)
+        p.fillPath(path, BG)
+        p.save()
+        p.setClipPath(path)
+        p.fillRect(QRectF(0, 0, 3, P_HEIGHT), ONLINE)   # the green edge
+        p.restore()
+        p.setPen(QPen(QColor(255, 255, 255, 34), 1))
+        p.drawPath(path)
+        av = QRectF(16, P_HEIGHT / 2 - 20, 40, 40)
+        p.setPen(QPen(ONLINE, 1.4))
+        p.setBrush(QColor(0, 0, 0))
+        p.drawEllipse(av)
+        badge.star(p, av.adjusted(5, 5, -5, -5))
+        p.setFont(self._f_name)
+        p.setPen(TEXT)
+        name = QFontMetricsF(self._f_name).elidedText(self._name, Qt.ElideRight, P_WIDTH - 86)
+        p.drawText(QRectF(70, 14, P_WIDTH - 86, 20), Qt.AlignLeft | Qt.AlignVCenter, name)
+        p.setFont(self._f_text)
+        p.setPen(ONLINE)
+        p.drawText(QRectF(70, 35, P_WIDTH - 86, 18), Qt.AlignLeft | Qt.AlignVCenter, self._text)
+
+
+class Presence(QObject):
+    """The presence cards on the screen: each new one sits above the ones still showing."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cards = {}   # slot -> card
+
+    def show(self, name: str, text: str = "está online"):
+        slot = next(i for i in range(len(self._cards) + 1) if i not in self._cards)
+        card = self._cards[slot] = PresenceCard(name, text, slot)
+        card.finished.connect(lambda: (self._cards.pop(slot, None), card.close(), card.deleteLater()))
+        card.run()

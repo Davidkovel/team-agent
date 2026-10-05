@@ -30,7 +30,7 @@ from ..limits import claude_plan_usage, refresh_from_account
 from ..state.store import StateStore
 from . import badge, prefs
 from .motion import clock
-from .notice import Notices
+from .notice import Notices, Presence
 
 TEXT, MUTED, FAINT = "#f2f3f5", "#8d9198", "#4e5258"
 WHITE, RED = "#ffffff", "#e5534b"
@@ -996,6 +996,8 @@ class WidgetWindow(QWidget):
         self.punched.connect(self._punched)
         self.notices = Notices(self._open_notice)  # the black card that says a task was sent
         self.news.connect(self.notices.push)
+        self.presence = Presence(self)  # the corner card that says a teammate came online
+        self._online_seen = None
         self.inbox_news.connect(self._render_notes)
         self._inbox_seen, self._notes = None, None  # unread count last asked about, and what came back
         self._notice_after = None  # newest "task sent" notice when the widget started (None until the first look)
@@ -1607,6 +1609,18 @@ class WidgetWindow(QWidget):
                     self.notify("Ponto", f"{names[user]} bateu o ponto às {hhmm(at)}")
         self._ponto_seen = now
 
+    def _follow_online(self, team):
+        """Tells this person when a teammate comes online, the way Steam does."""
+        if not team:  # no answer yet: the first real list is a look, not news
+            return
+        now = {p["user"]: bool(p.get("online")) for p in team}
+        me = self._identity(team)
+        if self._online_seen is not None:
+            for p in team:
+                if now[p["user"]] and not self._online_seen.get(p["user"]) and p["user"] != me:
+                    self.presence.show(p["name"])
+        self._online_seen = now
+
     def punch_ponto(self):
         who = self._identity(self._team or [])
         if not who:
@@ -1645,6 +1659,7 @@ class WidgetWindow(QWidget):
                 self._render_inbox(team)
                 self._render_usage()
                 self._follow_ponto(team)
+                self._follow_online(team)
             self._team_seen = team
         week = self._week
         if week is not None and week is not self._week_seen:

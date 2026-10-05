@@ -136,6 +136,30 @@ async def local_inbox_read(body: InboxRead, request: Request, db: AsyncSession =
     return {"read": len(rows)}
 
 
+class InboxDelete(BaseModel):
+    user: str
+    ids: list[int] = []
+    all: bool = False
+
+
+@router.post("/inbox/delete")
+async def local_inbox_delete(body: InboxDelete, request: Request, db: AsyncSession = Depends(get_db),
+                             x_team_widget: str | None = Header(None)):
+    """Notifications cleared from the widget (one, or `all` of them): gone for good, here, on the Hub's bell and, by sync,
+    on the other computers. Only that person's own."""
+    user = await widget_user(WidgetPing(user=body.user), request, db, x_team_widget)
+    mine = select(Notification).where(Notification.user_id == user.id)
+    if not body.all:
+        mine = mine.where(Notification.id.in_(body.ids))
+    rows = (await db.execute(mine)).scalars().all()
+    for n in rows:
+        await db.delete(n)  # one by one through the session, so sync sees each delete and passes it on
+    await db.commit()
+    if rows:
+        await rt.publish("notification", user.id)
+    return {"deleted": len(rows)}
+
+
 async def _person(db: AsyncSession, name: str) -> User:
     """The user a widget names, by login (mark) or by the name people see (Marco)."""
     wanted = name.strip().lower()

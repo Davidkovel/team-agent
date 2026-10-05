@@ -73,6 +73,14 @@ def test_two_hubs_trade_changes_and_neither_is_the_host():
             httpx.post(A + "/api/tasks", headers=login(A, "owner"), json={"title": "outra para o Marco", "assignee": "mark", "for_ai": False})
             wait(lambda: any("outra para o Marco" in n["title"] + n["body"] for n in
                              httpx.get(B + "/api/local/notices", params={"user": "mark", "after": after}).json()["items"]))
+
+            # Marco deletes it in his widget: it is gone from the owner's computer too
+            gone = next(n for n in httpx.get(B + "/api/local/inbox", params={"user": "mark", "limit": 20}).json()["items"]
+                        if "outra para o Marco" in n["title"])
+            httpx.post(B + "/api/local/inbox/delete", json={"user": "mark", "ids": [gone["id"]]}, headers={"X-Team-Widget": "1"})
+            mark_on_a = login(A, "mark")
+            wait(lambda: gone["id"] not in [n["id"] for n in httpx.get(A + "/api/notifications", params={"limit": 200},
+                                                                       headers=mark_on_a).json()["items"]])
         finally:
             for proc in (a, b):
                 if proc:

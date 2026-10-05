@@ -64,6 +64,19 @@ def mark_read(url: str, user: str, ids: list[int]):
         pass
 
 
+def delete_notes(url: str, user: str, ids: list[int] | None = None) -> bool:
+    """Deletes `user`'s notifications for good (the Hub's bell and the other computers follow); ids None: all of them.
+    False when the Hub does not answer."""
+    body = {"user": user, "ids": ids or [], "all": ids is None}
+    req = urllib.request.Request(url + "/api/local/inbox/delete", data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "X-Team-Widget": "1", "X-Team-Key": team_key()})
+    try:
+        urllib.request.urlopen(req, timeout=5).close()
+        return True
+    except OSError:
+        return False
+
+
 def get_notices(url: str, user: str, after: int | None) -> dict:
     """{latest, items}: the tasks sent to anyone since notice `after` (None: only where things are now), for `user`'s widget."""
     return get_json(f"{url}/api/local/notices?" + urlencode({"user": user, **({} if after is None else {"after": after})}))

@@ -80,3 +80,38 @@ def test_the_door_knows_its_people_and_its_visitors(client):
     assert client.get("/api/local/inbox?user=nobody").status_code == 404
     stranger = TestClient(app, client=("203.0.113.9", 5000))
     assert stranger.get("/api/local/inbox?user=mark").status_code == 403
+
+
+def test_a_notification_deleted_from_the_widget_is_gone_from_the_hub_too(client):
+    owner = login(client, "owner")
+    client.post("/api/tasks", headers=owner, json={"title": "Para apagar", "assignee": "mark", "for_ai": False})
+    box = inbox(client, "mark")
+    gone = box["items"][0]
+    assert gone["title"] == "Owner deu-te uma tarefa: Para apagar" and gone["read"] is False
+    r = client.post("/api/local/inbox/delete", headers=WIDGET, json={"user": "mark", "ids": [gone["id"]]})
+    assert r.status_code == 200 and r.json()["deleted"] == 1
+    after = inbox(client, "mark", 20)
+    assert gone["id"] not in [n["id"] for n in after["items"]] and after["unread"] == box["unread"] - 1
+    mark = login(client, "mark")
+    assert gone["id"] not in [n["id"] for n in client.get("/api/notifications?limit=200", headers=mark).json()["items"]]
+
+
+def test_clear_all_empties_only_that_persons_notifications(client):
+    owner = login(client, "owner")
+    client.post("/api/tasks", headers=owner, json={"title": "Para o David", "assignee": "david", "for_ai": False})
+    davids = [n["id"] for n in inbox(client, "david", 20)["items"]]
+    assert davids and inbox(client, "mark")["items"]
+    r = client.post("/api/local/inbox/delete", headers=WIDGET, json={"user": "mark", "all": True})
+    assert r.status_code == 200 and r.json()["deleted"] > 0
+    assert inbox(client, "mark") == {"unread": 0, "items": []}
+    assert [n["id"] for n in inbox(client, "david", 20)["items"]] == davids   # David's are his
+
+
+def test_nobody_deletes_someone_elses_notifications(client):
+    owner = login(client, "owner")
+    client.post("/api/tasks", headers=owner, json={"title": "Do Marco", "assignee": "mark", "for_ai": False})
+    mine = inbox(client, "mark")["items"][0]
+    r = client.post("/api/local/inbox/delete", headers=WIDGET, json={"user": "david", "ids": [mine["id"]]})
+    assert r.json()["deleted"] == 0
+    assert client.post("/api/local/inbox/delete", json={"user": "mark", "all": True}).status_code == 403   # widgets only
+    assert inbox(client, "mark")["items"][0]["id"] == mine["id"]

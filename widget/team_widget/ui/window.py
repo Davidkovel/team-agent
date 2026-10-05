@@ -273,9 +273,34 @@ def note_icon(kind: str | None, size: int, dpr: float) -> QPixmap:
     return _note_icons[key]
 
 
+class Elided(QLabel):
+    """One line of text that ends in "…" when it does not fit, and never widens what holds it."""
+
+    def __init__(self, size, colour, weight=QFont.Normal):
+        super().__init__()
+        self._full = ""
+        self.setFont(font(size, weight, UI))
+        recolour(self, colour)
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+
+    def set_full(self, text: str):
+        self._full = text
+        self._elide()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._elide()
+
+    def _elide(self):
+        self.setText(QFontMetricsF(self.font()).elidedText(self._full, Qt.ElideRight, max(0, self.width())))
+
+
 class NoticeRow(QFrame):
-    """One notification not read yet, in the cockpit's mini history: what happened (two lines at most) and when. Click: open it."""
+    """One notification in the cockpit's mini history, on two short lines that never grow: what happened, and when.
+    Click: open it. ×: delete it."""
     clicked = Signal()
+    dismissed = Signal()
+    H = 40
 
     def __init__(self):
         super().__init__()
@@ -283,37 +308,39 @@ class NoticeRow(QFrame):
         self.setObjectName("notice")
         self.setAttribute(Qt.WA_Hover)
         self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(self.H)
         self.setStyleSheet("QFrame#notice { background: transparent; border-radius: 10px; }"
                            "QFrame#notice:hover { background: rgba(255, 255, 255, 16); }")
         row = QHBoxLayout(self)
-        row.setContentsMargins(8, 6, 8, 6)
-        row.setSpacing(9)
-        side = QVBoxLayout()
-        side.setContentsMargins(0, 1, 0, 0)
+        row.setContentsMargins(6, 4, 3, 4)
+        row.setSpacing(8)
         self.icon = QLabel()
-        self.icon.setFixedSize(26, 26)
+        self.icon.setFixedSize(22, 22)
         self.icon.setStyleSheet("background: transparent;")
-        side.addWidget(self.icon)
-        side.addStretch(1)
-        row.addLayout(side)
+        row.addWidget(self.icon, 0, Qt.AlignVCenter)
         text = QVBoxLayout()
-        text.setSpacing(2)
-        self.title = label("", 9, TEXT, QFont.DemiBold, wrap=True)
-        self.meta = label("", 8, MUTED)
+        text.setSpacing(0)
+        self.title = Elided(9, TEXT, QFont.DemiBold)
+        self.meta = Elided(8, MUTED)
         text.addWidget(self.title)
         text.addWidget(self.meta)
         row.addLayout(text, 1)
+        self.bin = Dismiss("Apagar esta notificação")
+        self.bin.clicked.connect(lambda: self.dismissed.emit())
+        row.addWidget(self.bin, 0, Qt.AlignVCenter)
 
     def show_item(self, item: dict):
         self.item = item
-        self.icon.setPixmap(note_icon(item.get("kind"), 26, self.devicePixelRatioF()))
+        self.icon.setPixmap(note_icon(item.get("kind"), 22, self.devicePixelRatioF()))
         read = bool(item.get("read"))                              # already read: still in the history, dimmed
         self.title.setFont(font(9, QFont.Normal if read else QFont.DemiBold, UI))
         recolour(self.title, MUTED if read else TEXT)
-        self.title.setText(clip(item.get("title") or "", 100))   # two lines of the cockpit
+        title = item.get("title") or ""
         body = (item.get("body") or "").strip().split("\n")[0]
         when = ago_iso(item.get("created_at"))
-        self.meta.setText(clip(f"{when} · {body}" if body else when, 52))
+        self.title.set_full(title)
+        self.meta.set_full(f"{when} · {body}" if body else when)
+        self.setToolTip(title + (f"\n{body}" if body else ""))   # the whole text, when a line had to be cut
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
@@ -490,6 +517,35 @@ class TextButton(Hover):
         p.setPen(QColor(self._colour))
         p.setFont(self._font)
         p.drawText(r, Qt.AlignCenter, self._text)
+
+    def set_text(self, text, colour=None):
+        """Another word (and colour) on the same pill, which takes the new word's width."""
+        self._text, self._colour = text, colour or self._colour
+        self.setFixedSize(round(QFontMetricsF(self._font).horizontalAdvance(text)) + 22, 24)
+        self.update()
+
+
+class Dismiss(Hover):
+    """The small × that deletes one notification."""
+
+    def __init__(self, tip):
+        super().__init__()
+        self.setFixedSize(22, 22)
+        self.setToolTip(tip)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, int(16 * self.hover + 12 * self.press)))
+        p.drawEllipse(QRectF(1, 1, 20, 20))
+        disc = QPainterPath()
+        disc.addEllipse(QRectF(1, 1, 20, 20))
+        self.paint_wave(p, disc)
+        v = int(120 + 120 * self.hover)
+        p.setPen(pen(QColor(v, v + 3, v + 6), 1.4))
+        p.drawLine(QPointF(8, 8), QPointF(14, 14))
+        p.drawLine(QPointF(14, 8), QPointF(8, 14))
 
 
 class Badge(QWidget):
@@ -1152,20 +1208,28 @@ class WidgetWindow(QWidget):
 
         # the notifications not read yet, readable here: a mini history (the whole one is in the Hub)
         self.notes = Card()
+        self.notes.box.setSpacing(3)
         head = QHBoxLayout()
         head.addWidget(caption("Notificações"))
         head.addStretch(1)
         self.notes_count = label("", 8.5, TEXT, QFont.DemiBold)
         head.addWidget(self.notes_count)
         self.notes.box.addLayout(head)
-        self.note_rows = [NoticeRow() for _ in range(3)]
+        self.note_rows = [NoticeRow() for _ in range(3)]   # never more: the rest is in the Hub
         for row in self.note_rows:
             row.clicked.connect(lambda row=row: self._read_notice(row.item))
+            row.dismissed.connect(lambda row=row: self._delete_notice(row.item))
             self.notes.box.addWidget(row)
         foot = QHBoxLayout()
-        foot.setContentsMargins(0, 2, 0, 0)
-        self.notes_more = label("", 8.5, MUTED)
-        foot.addWidget(self.notes_more)
+        foot.setContentsMargins(0, 3, 0, 0)
+        self.btn_clear = TextButton("Limpar tudo", "Apagar todas as tuas notificações, aqui e no Hub", MUTED)
+        self.btn_clear.clicked.connect(self._clear_notes)
+        self._clear_armed = False
+        self._clear_timer = QTimer(self)
+        self._clear_timer.setSingleShot(True)
+        self._clear_timer.setInterval(3500)
+        self._clear_timer.timeout.connect(lambda: self._arm_clear(False))
+        foot.addWidget(self.btn_clear)
         foot.addStretch(1)
         self.btn_notes = TextButton("Ver todas", "Abrir as notificações no Hub", MUTED)
         self.btn_notes.clicked.connect(self._open_hub)
@@ -1452,10 +1516,52 @@ class WidgetWindow(QWidget):
             if item:
                 row.show_item(item)
         unread = data.get("unread") or 0
-        shown = sum(1 for n in items if not n.get("read"))
         self.notes_count.setText(f"{unread} por ler" if unread else "tudo lido")
-        self.notes_more.setText(f"+{unread - shown} por ler no Hub" if unread > shown else "")
         self.notes.setVisible(bool(items))
+        if not items:
+            self._arm_clear(False)
+
+    def _delete_notice(self, item):
+        """The × on a notification: gone from here at once, and for good from the Hub (its bell, the other computers)."""
+        if not item:
+            return
+        data = self._notes or {}
+        self._render_notes({"unread": max(0, (data.get("unread") or 0) - (0 if item.get("read") else 1)),
+                            "items": [n for n in data.get("items") or [] if n.get("id") != item.get("id")]})
+        self._delete_notes([item["id"]])
+
+    def _clear_notes(self):
+        """"Limpar tudo" asks first: the pill turns into "Apagar todas?" for a few seconds, and only a second click deletes."""
+        if not self._clear_armed:
+            self._arm_clear(True)
+            return
+        self._arm_clear(False)
+        self._render_notes({"unread": 0, "items": []})
+        self._delete_notes(None)
+
+    def _arm_clear(self, armed: bool):
+        self._clear_armed = armed
+        self.btn_clear.set_text("Apagar todas?" if armed else "Limpar tudo", RED if armed else MUTED)
+        if armed:
+            self._clear_timer.start()
+        else:
+            self._clear_timer.stop()
+
+    def _delete_notes(self, ids):
+        """Deletes in the Hub (ids None: all of this person's) off the UI thread, then asks again so the card fills back up
+        with the next ones."""
+        who, url = self._identity(self._team or []), hub.hub_url()
+        if not who:
+            return
+
+        def run():
+            hub.delete_notes(url, who, ids)
+            try:
+                self.inbox_news.emit(hub.get_inbox(url, who))
+            except (OSError, ValueError, urllib.error.URLError):
+                pass
+
+        threading.Thread(target=run, daemon=True).start()
 
     def _read_notice(self, item):
         """A notification clicked in the cockpit: opened where it points, and read now if it was not (here, in the Hub, on its bell)."""

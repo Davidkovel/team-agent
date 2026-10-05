@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     meta_ad_account: str = ""
     # Where phone notifications go (push.py). Empty switches them off.
     ntfy_url: str = "https://ntfy.sh"
+    # The picture beside each phone notification (the Mercedes star): it has to be reachable from the internet, so it is the file in the public repo.
+    ntfy_icon: str = "https://raw.githubusercontent.com/Davidkovel/team-agent/main/frontend/assets/icon-512.png"
     owner_password: str = "owner-change-me"
     mark_password: str = "mark-change-me"
     david_password: str = "david-change-me"

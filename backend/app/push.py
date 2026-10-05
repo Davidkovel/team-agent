@@ -26,8 +26,10 @@ _sending: set[asyncio.Task] = set()
 async def _post(topic: str, title: str, body: str, severity: str) -> bool:
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            res = await client.post(settings.ntfy_url, json={"topic": topic, "title": title, "message": body or title,
-                                                             "priority": PRIORITY.get(severity, 3), "tags": ["racing_car"]})
+            message = {"topic": topic, "title": title, "message": body or title, "priority": PRIORITY.get(severity, 3), "tags": ["racing_car"]}
+            if settings.ntfy_icon:
+                message["icon"] = settings.ntfy_icon
+            res = await client.post(settings.ntfy_url, json=message)
         return res.status_code < 300
     except httpx.HTTPError as exc:
         log.info("Phone notification not sent (%s)", type(exc).__name__)  # no internet: the Hub's own bell still has it

@@ -56,4 +56,4 @@ class SelfUpdate:
         self.server.close()  # free the single-widget name first, so the new copy does not hand over to this one
         flags = NO_WINDOW | getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         subprocess.Popen([sys.executable, "-m", "team_widget"], cwd=str(REPO / "widget"), creationflags=flags, close_fds=True)
-        self.app.quit()
+        self.app.exit(0)  # not quit(): the widget's windows refuse to close, and Qt 6 then cancels the quit

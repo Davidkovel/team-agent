@@ -63,6 +63,32 @@ Same title = the note is rewritten, not repeated: keep one note per subject with
 Categories in use: REGRAS, HUB, WIDGET, TELEMÓVEL, DESIGN. Team notes go to every PC by sync and into every task's
 prompt, so keep them short, in Portuguese, and without secrets, IPs or keys.
 
+## Claude na equipa: modelos, subagentes e budget
+
+Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em português de Portugal.
+
+- **O modelo certo para cada trabalho:** Haiku para pesquisar e procurar; Sonnet para rotina (textos, revisões, mudanças simples); Opus para decidir, desenhar e problemas difíceis.
+- **Subagentes só para trabalho grande ou em paralelo:** pesquisas largas, varrer muitos ficheiros, rever antes do push. Cada um começa do zero e gasta do limite do plano (5 h e semana): em paralelo fica mais rápido, não mais barato. Para uma coisa pequena, faz tu. Diz à pessoa quando lanças um e porquê.
+- **Limite do plano quase no fim** (sessão de 5 h acima de ~75%): nada de subagentes em paralelo, os que forem precisos em Haiku ou Sonnet, e acabar e fazer commit do que está a meio.
+- **Agentes da equipa** em `.claude/agents/`: `pesquisador` (Haiku), `explorador` (Haiku, só lê), `revisor-hub` (Sonnet, antes do push), `designer-hub` (Sonnet), `marketing` (Sonnet, BareDesk e escolas).
+- **Várias sessões no mesmo PC:** ver as outras (ListAgents) antes de mexer em ficheiros partilhados e combinar por mensagem; nunca deixar commits por enviar; o merge ou o reset do trabalho de outra sessão é a pessoa que decide.
+
+### Testar uma mudança no Hub
+
+1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".
+2. Hub de teste, a partir de `backend/`: `DATABASE_URL=sqlite+aiosqlite:///<cópia> REDIS_URL= SYNC=0 ..\.venv\Scripts\python -m uvicorn app.main:app --port 8010` (com `FRONTEND_DIR=<cópia do frontend>` para não mostrar trabalho a meio no Hub verdadeiro).
+3. PC: Chrome headless com `--window-size=1500,1200 --screenshot=<png> "http://127.0.0.1:8010/#login=<token>&to=/tarefas"`; o token vem de `POST /api/auth/auto`.
+4. Telemóvel: uma página de teste com `<iframe src="/?phone=1#/home" width="393">` (o headless não fica mais estreito do que ~490 px, e o `#login=` apaga o `?phone=1`).
+5. No fim: apagar as páginas de teste e parar o Hub da 8010.
+
+### Publicar
+
+1. O frontend mudou: subir o `?v=hubN` no `frontend/index.html`.
+2. `git add` só dos teus ficheiros, commit em português, `git fetch` + `git rebase origin/main` + `git push`.
+3. O backend mudou: reiniciar o Hub deste PC (parar o `uvicorn ... --port 8000` e o widget, correr `Abrir AMG.cmd`); os outros PCs reiniciam sozinhos quando fazem pull.
+4. Quando o `GET /api/version` muda, os telemóveis recarregam sozinhos em até 15 s.
+5. Escrever o que mudou na Memória do Hub (`scripts/memoria.py`, acima).
+
 The sections below were written for the old host setup; where they disagree with this one, this one is right.
 
 ## Make it work

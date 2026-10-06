@@ -8,8 +8,10 @@ import sys
 from pathlib import Path
 
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from . import selfupdate
 from .api.agent_client import AgentClient
 from .state.store import StateStore
 from .ui.tray import start_tray
@@ -75,6 +77,17 @@ def main():
     tray = start_tray(window)
     server = listen_for_second_copy(name, window)  # noqa: F841 - kept alive while the widget runs
     window.show_panel()
+
+    started_at = selfupdate.head()   # the commit this widget is running
+
+    def follow_updates():
+        if selfupdate.widget_changed(started_at) and selfupdate.relaunch():
+            updates.stop()   # iniciar.ps1 closes this widget and opens the new one
+            window.notify("Agente AMG", "Chegou uma versão nova: o widget reinicia sozinho.")
+
+    updates = QTimer()
+    updates.timeout.connect(follow_updates)
+    updates.start(selfupdate.EVERY_MS)
     app.exec()
     if tray:
         tray.hide()

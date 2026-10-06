@@ -28,6 +28,7 @@ function panelMate(m) {
 async function drawPanel() {
   if (!panelOpen() || !me?.username || panelHiggs) return;
   const [limits, team, board] = await Promise.all([api("/api/limits").catch(() => null), api("/api/team"), api("/api/ponto").catch(() => null)]);
+  const version = await fetch("/api/version", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
   const clock = board?.people.find((p) => p.user === me.username);
   const mine = team.find((m) => m.user === me.username) || {}, plan = limits?.claude;
   const claude = plan
@@ -45,7 +46,9 @@ async function drawPanel() {
     <section><h4>${icon("videos")}Higgsfield</h4>${panelMeter("Créditos usados", higgs, higgs == null ? t("Por definir: arrasta para dizer quanto já gastaste.") : "")}
       <input id="hpanel-higgs" type="range" min="0" max="100" value="${higgs ?? 0}" aria-label="Higgsfield"></section>
     <section><h4>${icon("users")}${t("Equipa")}<em>${team.filter((m) => m.status !== "OFFLINE").length} ${t("de")} ${team.length} online</em></h4>
-      <div class="pmates">${team.map(panelMate).join("")}</div></section>`;
+      <div class="pmates">${team.map(panelMate).join("")}</div></section>
+    ${version?.head ? `<p class="pver" title="${esc(version.subject || "")}"><span>${t("Versão")} <b>${esc(version.head.split("-")[0])}</b>${version.when ? ` · ${fmt.ago(version.when)}` : ""}</span>
+      ${version.subject ? `<em>${esc(version.subject)}</em>` : ""}<small>${t("Atualiza-se sozinho quando alguém faz push.")}</small></p>` : ""}`;
   if ($("hpanel-ponto")) $("hpanel-ponto").onclick = async (e) => {
     const stop = !!e.currentTarget.dataset.stop;
     await api(stop ? "/api/ponto/stop" : "/api/ponto", { method: "POST" });

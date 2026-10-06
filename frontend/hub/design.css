@@ -512,3 +512,7 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .pclock b { font: 600 30px var(--display); letter-spacing: -.02em; color: var(--muted); }
 .pclock.on b { color: var(--ok); }
 .pclock-n { display: block; margin-top: 8px; color: var(--faint); font-size: 11px; }
+
+.pver { display: grid; gap: 3px; margin: 0; padding: 4px 6px 0; color: var(--faint); font-size: 11px; }
+.pver b { color: var(--muted); font: 600 11px var(--mono); }
+.pver em { font-style: normal; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

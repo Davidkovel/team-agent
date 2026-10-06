@@ -48,8 +48,9 @@ def current() -> str:
 async def version():
     now = time.monotonic()
     if CACHE.get("at", -10) < now - 5:
-        CACHE.update(at=now, head=await asyncio.to_thread(current))
-    return {"head": CACHE["head"]}
+        subject, _, when = (await asyncio.to_thread(git, "log", "-1", "--format=%s%x1f%cI")).partition("\x1f")
+        CACHE.update(at=now, head=await asyncio.to_thread(current), subject=subject, when=when)
+    return {"head": CACHE["head"], "subject": CACHE["subject"], "when": CACHE["when"]}   # the last change, for whoever wants to see it arrived
 
 
 def pull_once() -> bool:

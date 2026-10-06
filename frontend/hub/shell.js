@@ -346,8 +346,15 @@ function hubStart() {
 let hubVersion = null;
 window.hubCheckVersion = async () => {
   try {
-    const { head } = await (await fetch("/api/version", { cache: "no-store" })).json();
-    if (hubVersion && head && head !== hubVersion && $("modal").hidden && !document.activeElement?.matches("input, textarea, select")) location.reload();
+    const { head, subject } = await (await fetch("/api/version", { cache: "no-store" })).json();
+    if (hubVersion && head && head !== hubVersion && $("modal").hidden && !document.activeElement?.matches("input, textarea, select")) {
+      sessionStorage.setItem("hub.updated", "1");   // the page that comes back says what arrived
+      location.reload();
+    }
+    if (!hubVersion && sessionStorage.getItem("hub.updated")) {
+      sessionStorage.removeItem("hub.updated");
+      setTimeout(() => flash(`${t("Hub atualizado")}${subject ? `: ${subject}` : "."}`), 1500);
+    }
     hubVersion = head || hubVersion;
   } catch { /* the Hub is restarting: ask again next minute */ }
 };

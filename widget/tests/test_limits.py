@@ -83,3 +83,14 @@ def test_the_accounts_answer_becomes_the_same_limits(tmp_path):
 def test_an_answer_without_figures_gives_nothing():
     assert rate_limits_from_account({"five_hour": None, "seven_day": {"utilization": None}}) == {}
     assert rate_limits_from_account("not a dict") == {}
+
+
+def test_the_widget_restarts_only_when_a_new_commit_touched_it(monkeypatch):
+    from team_widget import selfupdate
+    touched = {"files": "widget/team_widget/ui/window.py"}
+    monkeypatch.setattr(selfupdate, "git", lambda *args: touched["files"] if args[0] == "diff" else "")
+    assert selfupdate.widget_changed("aaa", "bbb") is True
+    assert selfupdate.widget_changed("aaa", "aaa") is False   # nothing was pulled
+    assert selfupdate.widget_changed("", "bbb") is False      # git did not answer when the widget started
+    touched["files"] = ""                                     # the pull only changed the Hub
+    assert selfupdate.widget_changed("aaa", "bbb") is False

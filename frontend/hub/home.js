@@ -82,7 +82,7 @@ const cardHead = (ic, title, sub = "", link = "") => `<header class="ch">${icon(
 const seeAll = (label, href) => `<a class="ch-link" href="${href}">${esc(t(label))}${icon("chevron")}</a>`;
 
 const PLACE = { pc: ["monitor", "No computador"], phone: ["phone", "No telemóvel"] };
-function personHtml(m, nums = "") {
+function personHtml(m) {
   const on = m.status !== "OFFLINE", where = (m.where || []).filter((w) => PLACE[w]);
   const working = m.status === "WORKING" && m.task;
   const state = working ? "work" : m.status === "WAITING" || m.status === "PAUSED" ? "wait" : m.status === "ERROR" ? "bad" : on ? "on" : "off";
@@ -92,24 +92,14 @@ function personHtml(m, nums = "") {
     : both ? t("PC e telemóvel") : where.includes("phone") ? t("No telemóvel") : t("No computador");
   return `<a class="person ${state}" href="#/equipa" title="${esc(working ? `${t("A trabalhar")}: ${m.task}` : line)}">
     <span class="p-ring">${ui.avatar(m.display_name)}${on ? `<i class="p-place">${badge}</i>` : ""}</span>
-    <b>${esc(m.user === me.username ? t("Tu") : m.display_name)}</b><span>${esc(line)}</span>${working ? `<em>${esc(m.task)}</em>` : ""}${nums}</a>`;
+    <b>${esc(m.user === me.username ? t("Tu") : m.display_name)}</b><span>${esc(line)}</span>${working ? `<em>${esc(m.task)}</em>` : ""}</a>`;
 }
 async function teamCard() {
-  const [team, tasks, board] = await Promise.all([api("/api/team"), api("/api/tasks").catch(() => []), api("/api/ponto").catch(() => null)]);
+  const team = await api("/api/team");
   const online = team.filter((m) => m.status !== "OFFLINE").length;
   const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
-  // under each face, the day in three numbers: what they closed, what is still theirs, and the hours on the clock
-  const dawn = startOfDay(new Date());
-  const nums = (m) => {
-    const mine = tasks.filter((x) => x.assignee === m.user);
-    const closed = tasks.filter((x) => x.stage === "done" && x.completed_at && new Date(x.completed_at) >= dawn && (x.completed_by || x.assignee) === m.user).length;
-    const open = mine.filter((x) => x.stage !== "done").length;
-    const clock = board?.people.find((p) => p.user === m.user);
-    return `<span class="p-nums"><i title="${t("Tarefas concluídas hoje")}"><b>${closed}</b>${t("feitas")}</i><i title="${t("Tarefas por fazer")}"><b>${open}</b>${t("por fazer")}</i>
-      <i class="${clock?.running ? "on" : ""}" title="${t(clock?.at ? (clock.running ? "Horas de hoje, a contar" : "Horas de hoje, ponto parado") : "Ainda não bateu o ponto")}"><b>${clock?.at ? pontoWorked(clock) : "—"}</b>${t("hoje")}</i></span>`;
-  };
   return `${cardHead("users", "A tua equipa", `${online} ${t("de")} ${team.length} ${t("online")}`, seeAll("Ver", "#/equipa"))}
-    <div class="people">${order.map((m) => personHtml(m, nums(m))).join("")}</div>`;
+    <div class="people">${order.map(personHtml).join("")}</div>`;
 }
 
 /* ---------- notifications: the latest beside the team, the whole history one click away ---------- */

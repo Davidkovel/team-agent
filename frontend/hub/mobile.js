@@ -213,8 +213,9 @@
     const hour = new Date().getHours(), greeting = hour < 6 ? "Boa noite" : hour < 13 ? "Bom dia" : hour < 20 ? "Boa tarde" : "Boa noite";
     const date = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
     page(`<div class="m-screen" id="m-home">
-      <header class="m-large"><span>${esc(date[0].toUpperCase() + date.slice(1))}</span><h1>${esc(t(greeting))}, <em>${esc(me.display_name)}</em></h1></header>
-      <div id="m-alert"></div><div class="m-stats" id="m-stats">${ui.skeleton(1)}</div><div id="m-team"></div><div id="m-todo"></div><div id="m-last"></div></div>`);
+      <header class="m-large m-amg"><span class="m-eyebrow">${t("Centro de comando")}</span><h1>${esc(t(greeting))}, <em>${esc(me.display_name)}</em></h1>
+        <span>${esc(date[0].toUpperCase() + date.slice(1))}</span><div class="m-amg-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" alt="" decoding="async"></div></header>
+      <div id="m-alert"></div><div class="m-stats" id="m-stats">${ui.skeleton(1)}</div><div id="m-todo"></div><div id="m-team"></div><div id="m-last"></div></div>`);
     const load = async () => {
       const [tasks, team, inbox] = await Promise.all([api("/api/tasks"), api("/api/team"), request("/api/notifications?limit=6")]);
       if (!$("m-home")) return;

@@ -33,7 +33,8 @@
 
   document.body.insertAdjacentHTML("beforeend", `
     <header id="m-bar">
-      <div class="m-left"><a href="#/home" aria-label="Início"><img class="m-star" src="assets/icon-192.png" alt=""></a></div>
+      <div class="m-left"><a href="#/home" class="m-home" aria-label="Início"><img class="m-star" src="assets/icon-192.png" alt=""></a>
+        <a class="m-back" id="m-back" href="#/home" hidden>${icon("chev")}<span id="m-back-t"></span></a></div>
       <div class="m-title" id="m-title"></div>
       <div class="m-right">
         <button class="m-btn" id="m-search" aria-label="Procurar">${icon("search")}</button>
@@ -48,12 +49,33 @@
   const tabs = $("m-tabs"), sheet = $("m-sheet");
 
   // title and highlighted tab follow the page
+  // Where "back" goes from each page: Trabalho and Tarefas are drill-downs on the phone, not rows of tabs.
+  const coName = (id) => companies.find((c) => c.id === id)?.name || t("Empresa");
+  const backOf = (r) => {
+    if (r.tab === "baredesk") return r.company ? ["#/baredesk", "BareDesk"] : ["#/empresas", "Trabalho"];
+    if (r.tab === "empresas" && r.company) return r.section ? [`#/empresas/${r.company}`, coName(r.company)] : ["#/empresas", "Trabalho"];
+    if (r.tab === "projetos") return r.company ? ["#/projetos", "Projetos"] : ["#/empresas", "Trabalho"];
+    if (r.tab === "codigo" || r.tab === "entregas") return ["#/empresas", "Trabalho"];
+    if (r.tab === "aprovacoes" || r.tab === "semana") return ["#/tarefas", "Tarefas"];
+    return null;
+  };
+  const titleOf = (r, fallback) => {
+    if (r.tab === "baredesk") return r.company ? companies.find((c) => c.id === "baredesk")?.sections.find((x) => x.id === r.company)?.label || (r.company === "loja" ? "Loja" : "BareDesk") : "BareDesk";
+    if (r.tab === "empresas" && r.company) return r.section ? companies.find((c) => c.id === r.company)?.sections.find((x) => x.id === r.section)?.label || coName(r.company) : coName(r.company);
+    const page = TABS_ALL.find(([id]) => id === r.tab);
+    return backOf(r) && page ? page[1] : fallback;
+  };
+  const TABS_ALL = NAV.flatMap(([, , pages]) => pages);
   const sync = () => {
     let r;
     try { r = route(); } catch { return; }
     const tab = TABS.find(([, , , pages]) => pages.includes(r.tab));
     const section = NAV.find(([, , pages]) => pages.some(([id]) => id === r.tab));
-    $("m-title").textContent = t(r.tab === "avisos" ? "Notificações" : tab ? tab[1] : section ? section[0] : "Mais");
+    $("m-title").textContent = t(titleOf(r, r.tab === "avisos" ? "Notificações" : tab ? tab[1] : section ? section[0] : "Mais"));
+    const back = backOf(r);
+    $("m-back").hidden = !back;
+    document.documentElement.classList.toggle("m-deep", !!back);
+    if (back) { $("m-back").href = back[0]; $("m-back-t").textContent = t(back[1]); }
     tabs.querySelectorAll("[data-tab]").forEach((a) => a.classList.toggle("on", a.dataset.tab === (tab ? tab[0] : "more")));
     document.documentElement.dataset.page = r.tab;
   };
@@ -146,8 +168,9 @@
   const faces = (list) => `<span class="m-faces">${list.slice(0, 3).map((y) => ui.avatar(nameOf(y.assignee), "sm")).join("")}</span>`;
   const taskRow = (x, team) => {
     const tone = x.stage === "done" ? "done" : x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
-    const meta = [x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : x.stage === "done" && x.completed_by ? `<span class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</span>` : "",
-      esc(x.project_name || companies.find((c) => c.id === x.company)?.name || ""), x.stage === "done" ? "" : deadlineLabel(x),
+    const coLabel = companies.find((c) => c.id === x.company)?.name;
+    const meta = [coLabel ? `<span class="m-co-tag">${esc(coLabel)}</span>` : "", x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : x.stage === "done" && x.completed_by ? `<span class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</span>` : "",
+      esc(x.project_name || ""), x.stage === "done" ? "" : deadlineLabel(x),
       x.stage === "in_progress" ? `<span class="ai">${t("Em curso")}</span>` : x.stage === "blocked" ? `<span class="late">${t("Bloqueada")}</span>` : ""].filter(Boolean);
     return `<div class="m-task ${tone}" data-id="${x.id}">
       <button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}">${x.stage === "done" ? icon("tick") : ""}</button>
@@ -250,10 +273,95 @@
     await load().catch((e) => { if (e.message !== "unauthorized") $("m-av-list").innerHTML = ui.error(e.message); });
   };
 
+  /* ---------- Trabalho: a way in, like Files. The companies as folders, the rest of the work as a list; inside a company,
+     its shop, its tasks, its library and who worked there. The computer keeps its own pages. ---------- */
+  const coHref = (c) => (c.id === "baredesk" ? "#/baredesk" : `#/empresas/${c.id}`);
+  const secHref = (c, sec) => (c.id === "baredesk" ? `#/baredesk/${sec}` : `#/empresas/${c.id}/${sec}`);
+  const shopLive = (store) => store && (store.shopify?.source === "live" || store.meta?.source === "live");
+  const desktopEmpresas = HUB_VIEWS.empresas, desktopBaredesk = HUB_VIEWS.baredesk;
+  HUB_VIEWS.empresas = (r) => (!phone() || r.section ? desktopEmpresas(r) : r.company ? phoneCompany(r.company) : phoneWork());
+  HUB_VIEWS.baredesk = async (r) => {
+    if (!phone()) return desktopBaredesk(r);
+    if (!r.company) return phoneCompany("baredesk");
+    await desktopBaredesk(r); // one part of the company, full screen; the bar above says which and goes back
+    const sec = companies.find((c) => c.id === "baredesk")?.sections.find((x) => x.id === r.company);
+    const h = $("view").querySelector(".ph h1");
+    if (h) h.textContent = t(sec ? sec.label : r.company === "loja" ? "Loja" : "BareDesk");
+  };
+
+  async function phoneWork() {
+    page(`<div class="m-screen" id="m-work"><header class="m-large"><span>${t("Empresas e projetos")}</span><h1>${t("Trabalho")}</h1></header>
+      <div id="m-w-body">${ui.skeleton(4)}</div></div>`);
+    const load = async () => {
+      const [tasks, projects, commits, store] = await Promise.all([api("/api/tasks"), api("/api/projects").catch(() => []),
+        api("/api/commits?limit=20").catch(() => []), companies.some((c) => c.id === "baredesk") ? api("/api/store/summary").catch(() => null) : null]);
+      const works = await Promise.all(companies.map((c) => api(`/api/work/${c.id}`).catch(() => null)));
+      if (!$("m-work")) return;
+      const open = asOne(tasks.filter((x) => !x.trashed_at)).filter((x) => x.stage !== "done");
+      const card = (c, i) => {
+        const n = open.filter((x) => x.company === c.id).length, top = works[i]?.people?.[0];
+        const shop = c.id === "baredesk" ? (shopLive(store) ? `<span class="ok">● ${t("Loja ao vivo")}</span>` : `<span class="warn">${t("Loja por ligar")}</span>`) : "";
+        return `<a class="m-co" href="${coHref(c)}"><span class="m-co-logo">${esc(c.short || c.name.slice(0, 3))}</span>
+          <div class="m-co-t"><b>${esc(c.name)}</b><span>${esc(c.tagline || "")}</span></div>${icon("chev")}
+          <div class="m-co-facts"><span><b>${n}</b> ${t(n === 1 ? "tarefa aberta" : "tarefas abertas")}</span>${shop}
+            ${top ? `<span>${t("Mais ativo")}: ${esc(top.name)}</span>` : ""}</div></a>`;
+      };
+      const last = commits[0];
+      const row = (href, ic, title, sub, tone = "") => `<a class="m-row2" href="${href}"><span class="m-ico ${tone}">${icon(ic)}</span>
+        <div><b>${t(title)}</b><span>${sub}</span></div>${icon("chev")}</a>`;
+      paint($("m-w-body"), `<section class="m-sec"><header><b>${t("Empresas")}</b></header>
+          ${companies.length ? `<div class="m-cos">${companies.map(card).join("")}</div>` : `<div class="m-empty">${icon("building")}<span>${t("Ainda não há empresas.")}</span></div>`}</section>
+        <section class="m-sec"><header><b>${t("Geral")}</b></header><div class="m-list">
+          ${row("#/projetos", "folder", "Projetos", projects.length ? esc(t(projects.length === 1 ? "1 projeto" : "{n} projetos", { n: projects.length })) : esc(t("Ainda sem projetos")), "blue")}
+          ${row("#/codigo", "code", "Código", last ? `${esc(fmt.ago(last.date))} · ${esc(last.author)}` : esc(t("Sem commits")), "green")}
+          ${row("#/entregas", "layers", "Entregas", last ? esc(last.message) : esc(t("Ainda sem entregas")), "orange")}</div></section>`);
+    };
+    reload = load;
+    $("view").onclick = null;
+    await load().catch((e) => { if (e.message !== "unauthorized") $("m-w-body").innerHTML = ui.error(e.message); });
+  }
+
+  async function phoneCompany(id) {
+    const c = companies.find((x) => x.id === id);
+    if (!c) { page(ui.empty("building", "Empresa não encontrada", "")); return; }
+    page(`<div class="m-screen" id="m-co"><header class="m-large"><span>${esc(c.tagline || "")}</span><h1>${esc(c.name)}</h1></header>
+      <div id="m-co-body">${ui.skeleton(5)}</div></div>`);
+    const load = async () => {
+      const [tasks, work, store] = await Promise.all([api("/api/tasks"), api(`/api/work/${id}`).catch(() => null),
+        id === "baredesk" ? api("/api/store/summary").catch(() => null) : null]);
+      if (!$("m-co")) return;
+      const open = asOne(tasks.filter((x) => !x.trashed_at)).filter((x) => x.stage !== "done" && x.company === id)
+        .map((x) => (x.group && x.group.some((y) => y.assignee === me.username) ? { ...x.group.find((y) => y.assignee === me.username), group: x.group } : x)).sort(byImportance);
+      const shop = id !== "baredesk" ? "" : `<section class="m-sec"><header><b>${t("Loja")}</b></header><div class="m-list">${shopLive(store)
+        ? `<a class="m-row2" href="#/baredesk/loja"><span class="m-ico green">${icon("bag")}</span><div><b>${t("Loja ao vivo")}</b><span>${t("Faturação, vendas e anúncios")}</span></div>${icon("chev")}</a>`
+        : `<div class="m-row2 m-off"><span class="m-ico orange">${icon("alert")}</span><div><b>${t("Shopify e Meta por ligar")}</b><span>${t("Os números da loja aparecem quando a loja estiver ligada.")}</span></div></div>`}</div></section>`;
+      const people = work?.people?.length ? `<div class="m-chips">${work.people.slice(0, 6).map((p) => `<span class="m-chip">${ui.avatar(p.name, "sm")}${esc(p.name)}<i>${p.count}</i></span>`).join("")}</div>`
+        : `<div class="m-empty">${icon("users")}<span>${t("Ainda ninguém trabalhou aqui.")}</span></div>`;
+      paint($("m-co-body"), `${shop}
+        <section class="m-sec"><header><b>${t("Tarefas")}</b><a href="#/tarefas" data-co="${esc(id)}">${t("Ver todas")}</a></header>${open.length
+          ? `<div class="m-list">${open.slice(0, 5).map((x) => taskRow(x, true)).join("")}</div>` : `<div class="m-empty">${icon("check")}<span>${t("Sem tarefas abertas.")}</span></div>`}</section>
+        <section class="m-sec"><header><b>${t("Biblioteca")}</b></header><div class="m-list">${c.sections.map((x) => `<a class="m-row2" href="${secHref(c, x.id)}">
+          <span class="m-ico">${icon(x.id)}</span><div><b>${esc(t(x.label))}</b><span>${esc(x.description || "")}</span></div>${x.count != null ? `<em class="m-count2">${x.count}</em>` : ""}${icon("chev")}</a>`).join("")}</div></section>
+        <section class="m-sec"><header><b>${t("Quem trabalhou")}</b></header>${people}</section>`);
+    };
+    reload = load;
+    $("view").onclick = async (e) => {
+      const co = e.target.closest("[data-co]"); if (co) taskCo = co.dataset.co;
+      const done = e.target.closest("[data-done]");
+      if (done) {
+        e.preventDefault(); done.disabled = true; done.closest(".m-task")?.classList.add("finishing");
+        try { await api(`/api/tasks/${done.dataset.done}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); } catch (err) { flash(err.message); }
+        return load();
+      }
+      const task = e.target.closest(".m-task"); if (task) openTaskModal(Number(task.dataset.id));
+    };
+    await load().catch((e) => { if (e.message !== "unauthorized") $("m-co-body").innerHTML = ui.error(e.message); });
+  }
+
   /* Tarefas: like Reminders. Hoje, Próximas and Feitas, each in blocks; the circle finishes a task, a tap opens it. */
   const desktopTarefas = HUB_VIEWS.tarefas;
   HUB_VIEWS.tarefas = (r) => (phone() ? phoneTarefas(r) : desktopTarefas(r));
-  let taskTab = "hoje", taskScope = "mine";
+  let taskTab = "hoje", taskScope = "mine", taskCo = "";
 
   async function phoneTarefas(r) {
     page(`<div class="m-screen" id="m-tasks">
@@ -261,8 +369,12 @@
         <div class="m-head-act"><span id="m-t-scope"></span><button class="m-plus" data-new aria-label="${t("Nova tarefa")}">${icon("plus")}</button></div></header>
       <div id="m-t-body">${ui.skeleton(5)}</div></div>`);
     const load = async () => {
-      const all = (await api("/api/tasks")).filter((x) => !x.trashed_at);
+      const [list, approvals] = await Promise.all([api("/api/tasks"), api("/api/approvals").catch(() => [])]);
       if (!$("m-tasks")) return;
+      const withCo = companies.filter((c) => list.some((x) => !x.trashed_at && x.company === c.id));
+      if (taskCo && taskCo !== "none" && !withCo.some((c) => c.id === taskCo)) taskCo = "";
+      const all = list.filter((x) => !x.trashed_at && (!taskCo || (taskCo === "none" ? !x.company : x.company === taskCo)));
+      const waiting = approvals.filter((a) => a.status === "PENDING").length;
       const hasTeam = all.some((x) => x.assignee !== me.username), team = hasTeam && taskScope === "team";
       const p = plan(scopeOf(all, team ? "team" : "mine"));
       $("m-t-sub").textContent = `${p.open.length} ${t("por fazer")}${p.nLate ? ` · ${p.nLate} ${t(p.nLate === 1 ? "atrasada" : "atrasadas")}` : ""}`;
@@ -276,7 +388,11 @@
       else body = block("Hoje", p.feitas.today, "ok", team, false) + block("Ontem", p.feitas.yesterday, "ok", team, false) + block("Mais antigas", p.feitas.older, "ok", team, false);
       const empty = { hoje: ["check", "Tudo feito por hoje", "Quando houver algo para fazer, aparece aqui."], proximas: ["calendar", "Nada marcado", "As tarefas com prazo para os próximos dias aparecem aqui."],
         feitas: ["check", "Ainda nada concluído", "O que concluíres aparece aqui."] }[taskTab];
-      paint($("m-t-body"), `<div class="m-seg">${seg}</div>${body || `<div class="m-empty big">${icon(empty[0])}<b>${t(empty[1])}</b><span>${t(empty[2])}</span></div>`}`);
+      const coBar = withCo.length ? `<div class="m-filter">${[["", "Todas"], ...withCo.map((c) => [c.id, c.name]), ["none", "Sem empresa"]]
+        .map(([id, label]) => `<button data-co="${esc(id)}" class="${id === taskCo ? "on" : ""}">${esc(t(label))}</button>`).join("")}</div>` : "";
+      const wait = waiting ? `<a class="m-approve" href="#/aprovacoes">${icon("alert")}<span>${t(waiting === 1 ? "1 aprovação à espera" : "{n} aprovações à espera", { n: waiting })}</span>${icon("chev")}</a>` : "";
+      const week = `<div class="m-list"><a class="m-row2" href="#/semana"><span class="m-ico">${icon("calendar")}</span><div><b>${t("Resumo da semana")}</b><span>${t("O que a equipa fez e o que vem a seguir")}</span></div>${icon("chev")}</a></div>`;
+      paint($("m-t-body"), `${wait}<div class="m-seg">${seg}</div>${coBar}${body || `<div class="m-empty big">${icon(empty[0])}<b>${t(empty[1])}</b><span>${t(empty[2])}</span></div>`}${week}`);
     };
     reload = load;
     $("view").onclick = async (e) => {
@@ -288,8 +404,9 @@
         try { await api(`/api/tasks/${done.dataset.done}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); } catch (err) { flash(err.message); }
         return load();
       }
-      const tab = e.target.closest("[data-tab]"), scope = e.target.closest("[data-scope]");
+      const tab = e.target.closest("[data-tab]"), scope = e.target.closest("[data-scope]"), co = e.target.closest("[data-co]");
       if (tab) { taskTab = tab.dataset.tab; return load(); }
+      if (co) { taskCo = co.dataset.co; return load(); }
       if (scope) { taskScope = scope.dataset.scope; return load(); }
       const row = e.target.closest(".m-task");
       if (row) openTaskModal(Number(row.dataset.id));

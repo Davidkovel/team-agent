@@ -372,3 +372,63 @@ html.is-phone .m-person > span { color: var(--m-dim); font: 400 12.5px var(--m-f
 html.is-phone .m-person.on > span { color: var(--m-green); }
 html.is-phone .m-person.work > span { color: #64a8ff; }
 html.is-phone .m-person em { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c7c7cc; font: 400 11.5px var(--m-font); font-style: normal; }
+
+/* ---------- Trabalho and Tarefas as drill-downs: no rows of tabs, a back link on the bar ---------- */
+html.is-phone[data-page="empresas"] .subtabs, html.is-phone[data-page="projetos"] .subtabs, html.is-phone[data-page="codigo"] .subtabs,
+html.is-phone[data-page="entregas"] .subtabs, html.is-phone[data-page="baredesk"] .subtabs, html.is-phone[data-page="tarefas"] .subtabs,
+html.is-phone[data-page="aprovacoes"] .subtabs, html.is-phone[data-page="semana"] .subtabs { display: none; }
+html.is-phone .m-back { display: inline-flex; align-items: center; gap: 2px; margin-left: -6px; padding: 6px 4px; color: var(--m-blue); font: 400 17px var(--m-font); text-decoration: none; white-space: nowrap; }
+html.is-phone .m-back[hidden] { display: none; }
+html.is-phone .m-back svg.i { width: 22px; height: 22px; stroke-width: 2.4; transform: scaleX(-1); }
+html.is-phone .m-back span { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+html.is-phone.m-deep .m-home { display: none; }
+/* a part of a company opened full screen: the computer's pills and titles are not needed, the bar says where you are */
+html.is-phone[data-page="baredesk"] .bd-nav, html.is-phone[data-page="baredesk"] .ph-eyebrow { display: none; }
+html.is-phone[data-page="empresas"] .chips, html.is-phone[data-page="empresas"] #work, html.is-phone[data-page="empresas"] #co-over,
+html.is-phone[data-page="empresas"] .split > .side { display: none; }
+html.is-phone .ph { margin-bottom: 14px; }
+html.is-phone .ph h1 { font: 700 30px var(--m-font); letter-spacing: -.02em; }
+
+/* Trabalho: the companies as folders */
+html.is-phone .m-cos { display: grid; gap: 12px; }
+html.is-phone .m-co { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; color: #fff; text-decoration: none;
+  background: linear-gradient(150deg, #2a2a2e, #161618 65%); border: .5px solid rgba(255, 255, 255, .12); box-shadow: 0 12px 30px rgba(0, 0, 0, .45); transition: transform .15s ease; }
+html.is-phone .m-co:active { transform: scale(.98); }
+html.is-phone .m-co-logo { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 15px; color: #0b0c0e; font: 800 16px var(--m-font); letter-spacing: .06em;
+  background: linear-gradient(145deg, #ffffff, #b9c0c8 55%, #eef1f4); box-shadow: inset 0 1px 0 #fff, 0 4px 12px rgba(0, 0, 0, .5); }
+html.is-phone .m-co-t { display: grid; gap: 2px; min-width: 0; }
+html.is-phone .m-co-t b { font: 700 21px var(--m-font); letter-spacing: -.02em; }
+html.is-phone .m-co-t span { color: var(--m-dim); font: 400 14px var(--m-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-phone .m-co > svg.i { width: 18px; height: 18px; color: #636366; }
+html.is-phone .m-co-facts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; padding-top: 12px; border-top: .5px solid rgba(255, 255, 255, .1); }
+html.is-phone .m-co-facts span { padding: 5px 10px; border-radius: 10px; background: rgba(118, 118, 128, .22); color: #d1d1d6; font: 500 13px var(--m-font); }
+html.is-phone .m-co-facts b { color: #fff; }
+html.is-phone .m-co-facts .ok { color: var(--m-green); background: rgba(48, 209, 88, .14); }
+html.is-phone .m-co-facts .warn { color: var(--m-orange); background: rgba(255, 159, 10, .14); }
+html.is-phone .m-ico.blue { background: var(--m-blue); color: #fff; }
+html.is-phone .m-ico.green { background: var(--m-green); color: #04230d; }
+html.is-phone .m-ico.orange { background: var(--m-orange); color: #2b1900; }
+html.is-phone .m-row2 .m-ico { width: 32px; height: 32px; border-radius: 8px; }
+html.is-phone .m-row2 .m-ico svg.i { width: 18px; height: 18px; }
+html.is-phone .m-row2 { position: relative; }
+html.is-phone .m-list > .m-row2 + .m-row2 { border-top: 0; }
+html.is-phone .m-list > .m-row2 + .m-row2::before { content: ""; position: absolute; top: 0; left: 58px; right: 0; border-top: .5px solid var(--m-line); }
+html.is-phone .m-row2.m-off { cursor: default; }
+html.is-phone .m-count2 { flex: none; color: var(--m-dim); font: 400 16px var(--m-font); font-style: normal; }
+html.is-phone .m-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+html.is-phone .m-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px 5px 5px; border-radius: 20px; background: var(--m-card); font: 500 14px var(--m-font); }
+html.is-phone .m-chip i { color: var(--m-dim); font-style: normal; }
+
+/* Tarefas: approvals waiting, the company filter, the company label */
+html.is-phone .m-approve { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: 14px; background: rgba(255, 159, 10, .14); border: 1px solid rgba(255, 159, 10, .45);
+  color: var(--m-orange); font: 600 16px var(--m-font); text-decoration: none; }
+html.is-phone .m-approve span { flex: 1; }
+html.is-phone .m-approve svg.i { width: 20px; height: 20px; }
+html.is-phone .m-filter { display: flex; gap: 8px; overflow-x: auto; margin-top: -8px; scrollbar-width: none; }
+html.is-phone .m-filter::-webkit-scrollbar { display: none; }
+html.is-phone .m-filter button { flex: none; height: 32px; padding: 0 14px; border: 0; border-radius: 16px; background: var(--m-card); color: #d1d1d6; font: 500 14px var(--m-font); cursor: pointer; }
+html.is-phone .m-filter button.on { background: #fff; color: #000; font-weight: 600; }
+html.is-phone .m-co-tag { display: inline-block; padding: 0 6px; border-radius: 5px; background: rgba(118, 118, 128, .3); color: #e5e5ea; font: 600 11.5px/18px var(--m-font); }
+html.is-phone #m-w-body, html.is-phone #m-co-body { display: grid; gap: 26px; }
+html.is-phone[data-page="baredesk"] .ph p { display: none; }
+html.is-phone .bd-desc { margin: -6px 2px 14px; color: var(--m-dim); font: 400 15px var(--m-font); }

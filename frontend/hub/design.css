@@ -576,3 +576,41 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .tread ul li::marker { font-size: 14px; }
 .tread a { color: #a9c6ff; text-decoration: underline; text-decoration-color: rgba(169, 198, 255, .4); text-underline-offset: 3px; }
 .tread a:hover { color: #fff; text-decoration-color: #fff; }
+
+/* ---------------------------------------------------------------- the window of a task, read from top to bottom */
+.tview { display: grid; gap: 16px; max-width: 800px; margin: 0 auto; }
+.tv-head { display: flex; align-items: flex-start; gap: 12px; }
+.tv-head h3 { flex: 1; margin: 0; font: 600 23px/1.25 var(--display); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.tv-facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tfact { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 3px 12px 3px 9px; border-radius: 999px; border: 1px solid var(--line-2);
+  background: rgba(255, 255, 255, .03); font-size: 12.5px; }
+.tfact svg.i { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.tfact .av { flex: none; width: 20px; height: 20px; font-size: 9px; }
+.tfact em { color: var(--faint); font-style: normal; }
+.tfact b { font-weight: 600; }
+.tfact.dim b { color: var(--muted); font-weight: 500; }
+.tfact.bad { border-color: rgba(239, 111, 94, .5); background: rgba(239, 111, 94, .08); } .tfact.bad b, .tfact.bad svg.i { color: var(--bad); }
+.tfact.warn b { color: var(--warn); }
+.tfact.ok b, .tfact.ok svg.i { color: var(--ok); }
+.tv-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.tv-state { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: var(--faint); font-size: 12px; }
+.tv-state select { height: 34px; width: auto; padding-top: 0; padding-bottom: 0; line-height: 32px; }
+.tv-text { display: grid; gap: 18px; }
+.tv-text .tread { max-width: none; font-size: 15px; }
+.tv-goal { padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, .02); }
+.tv-goal.ok { border-color: rgba(95, 207, 140, .35); }
+.tv-goal > small, .tv-box > small, .tv-sub { display: block; margin-bottom: 6px; color: var(--faint); font: 600 10px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+.tv-sub { margin-top: 16px; }
+.tv-box { padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); }
+.tv-fold { border-top: 1px solid var(--line); padding-top: 12px; }
+.tv-fold > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--muted); font: 600 12.5px var(--ui); list-style: none; }
+.tv-fold > summary::-webkit-details-marker { display: none; }
+.tv-fold > summary::after { content: "+"; margin-left: auto; color: var(--faint); font: 400 16px var(--mono); }
+.tv-fold[open] > summary::after { content: "–"; }
+.tv-fold > summary:hover { color: var(--text); }
+.tv-fold > summary svg.i { width: 15px; height: 15px; }
+.tv-fold[open] > summary { margin-bottom: 12px; }
+.tv-fold.tdue { display: block; margin: 0; padding: 12px 0 0; border-radius: 0; border-width: 1px 0 0; background: none; }
+.tdue-in { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tdue-in input { flex: 0 1 220px; width: auto; }
+.tv-fold .tdue-now { margin: 8px 0 0; }

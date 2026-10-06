@@ -370,73 +370,65 @@ async function openTaskModal(id) {
   try { [x, all] = await Promise.all([request_(`/api/tasks/${id}`), request_("/api/tasks")]); } catch (e) { flash(e.message); return; }
   const group = groupAll(all.filter((y) => !y.trashed_at)).find((g) => g.group && g.group.some((y) => y.id === x.id))?.group;
   const held = heldByAgent(x), running = ["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status);
-  const kv = [["Responsável", group ? `${t("Todos")} (${group.length})` : esc(nameOf(x.assignee))],
-    ["Criada por", x.created_by ? `${esc(nameOf(x.created_by))} · ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}` : "—"],
-    ...(x.stage === "done" && !group ? [["Concluída por", x.completed_by ? `${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : ""}` : `<span class="faint">${t("Sem registo")}</span>`]] : []), ["Projeto", esc(x.project_name || x.project || "—")],
-    ["Empresa", esc(companies.find((c) => c.id === x.company)?.name || "—")], ["Prioridade", t(PRIORITY[x.priority])],
-    ["Prazo", x.deadline ? `${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}` : "—"], ["Agente", x.agent_role ? esc(t(ROLES[x.agent_role])) : "—"],
-    ["Branch", x.git_branch ? `<span class="mono">${esc(x.git_branch)}</span>` : "—"],
-    ["Custo de IA", x.ai_cost_usd == null ? `<span class="faint">${t("Sem dados")}</span>` : `${fmt.usd(x.ai_cost_usd)} ${ui.src("estimated")}`]];
-  openModal(`<div class="rowx" style="margin-bottom:12px"><h3 style="margin:0" class="grow">${esc(x.title)}</h3>
+  // The window of a task, made to be read from top to bottom: the title, a line of facts that only says what the task has
+  // (no table of dashes), what can be done with it, then its text. The deadline and the history are folded underneath.
+  const late = x.stage !== "done" && x.deadline && new Date(x.deadline) < new Date();
+  const company = companies.find((c) => c.id === x.company)?.name;
+  const fact = (ic, label, value, cls = "") => `<span class="tfact ${cls}">${ic}<em>${t(label)}</em><b>${value}</b></span>`;
+  const facts = [fact(group ? icon("users") : ui.avatar(nameOf(x.assignee), "sm"), "Para", group ? `${t("Todos")} (${group.length})` : esc(nameOf(x.assignee))),
+    x.deadline ? fact(icon("calendar"), late ? "Atrasada desde" : "Prazo", `${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}`, late ? "bad" : "") : x.stage !== "done" ? fact(icon("calendar"), "Prazo", t("sem prazo"), "dim") : "",
+    x.priority && x.priority !== "normal" ? fact(icon("flag"), "Prioridade", t(PRIORITY[x.priority]), x.priority === "urgent" ? "bad" : x.priority === "high" ? "warn" : "dim") : "",
+    x.project_name || x.project ? fact(icon("folder"), "Projeto", esc(x.project_name || x.project)) : "",
+    company ? fact(icon("building"), "Empresa", esc(company)) : "",
+    x.agent_role ? fact(icon("bot"), "Agente", esc(t(ROLES[x.agent_role]))) : "",
+    x.created_by ? fact(icon("clock"), "Pedida por", `${esc(nameOf(x.created_by))} · ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}`, "dim") : "",
+    x.stage === "done" && !group && x.completed_by ? fact(icon("check"), "Concluída por", `${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : ""}`, "ok") : ""].filter(Boolean).join("");
+  const steps = x.events.filter((e) => e.kind !== "note");
+  const buttons = `${canGiveToAI(x) ? ui.btn("Entregar à IA", "data-act=ai", "", "bot") : ""}
+    ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
+    ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
+    ${!held && x.stage !== "done" ? ui.btn("Concluir", "data-act=done", "ok", "check") : ""}
+    ${ui.btn("Editar", "data-act=edit", "quiet")}`;
+  openModal(`<div class="tview">
+    <header class="tv-head"><h3>${esc(x.title)}</h3>
       ${group ? ui.tag(t("{a} de {b} feito", { a: group.filter((y) => y.stage === "done").length, b: group.length }), group.every((y) => y.stage === "done") ? "ok" : "")
-        : ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></div>
-    ${x.stage !== "done" ? `<div class="panel pad tdue ${x.deadline && new Date(x.deadline) < new Date() ? "late" : ""}"><div class="ph-eyebrow">${t("Prazo")}</div>
-        <p class="tdue-now">${x.deadline ? (new Date(x.deadline) < new Date() ? `${t("Atrasada")}: ${t("era para")} ${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}` : `${t("Até")} ${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}`)
-          : t("Sem prazo. Dá-lhe um dia e uma hora: passado esse momento, a tarefa fica atrasada.")}</p>
-        <input type="datetime-local" id="task-due" value="${x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}" aria-label="${t("Prazo")}">
+        : ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></header>
+    <div class="tv-facts">${facts}</div>
+    ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
+    ${x.current_action && running ? `<div class="now">${esc(x.current_action)}</div>` : ""}
+    ${x.blocked_reason ? `<p class="msg note" style="margin:0">${esc(x.blocked_reason)}</p>` : ""}
+    <div class="tv-acts">${buttons}
+      ${held ? "" : `<label class="tv-state">${t("Estado")}<select id="task-status">${options([["", t("mudar…")], ["TODO", t("Por fazer")], ["BLOCKED", t("Bloqueada")], ["REVIEW", t("Em revisão")], ["COMPLETED", t("Concluída")]], "")}</select></label>`}</div>
+    <section class="tv-text">
+      ${x.description ? `<div class="tread">${richText(x.description)}</div>` : `<p class="faint" style="margin:0">${t("Esta tarefa não tem descrição: o título diz tudo.")}</p>`}
+      ${x.goal ? `<div class="tv-goal"><small>${t("Objetivo")}</small><div class="tread">${richText(x.goal)}</div></div>` : ""}
+      ${x.requirements?.length ? `<div class="tv-goal"><small>${t("O que tem de ficar feito")}</small><div class="tread"><ul>${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></div></div>` : ""}
+      ${x.result ? `<div class="tv-goal ok"><small>${t("Resultado")}</small><div class="tread">${richText(x.result)}</div></div>` : ""}
+    </section>
+    ${group ? `<section class="tv-box"><small>${t("Quem já fez")} · ${esc(whoLeft(group))}</small>
+      <div class="who-list" style="padding:6px 0 0">${group.map((y) => `<div class="who-line ${y.stage === "done" ? "did" : ""}">${whoFace(y, "")}<div><b>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` <small>${t("tu")}</small>` : ""}</b>
+        <span>${y.stage === "done" ? `${t("Feito")}${y.completed_at ? ` · ${fmt.day(y.completed_at)} ${fmt.hhmm(y.completed_at)}` : ""}${y.completed_by && y.completed_by !== y.assignee ? ` · ${t("por")} ${esc(nameOf(y.completed_by))}` : ""}`
+          : esc(t(STAGE_LABEL[y.stage]))}</span></div></div>`).join("")}</div></section>` : ""}
+    ${x.stage !== "done" ? `<details class="tv-fold tdue ${late ? "late" : ""}" ${x.deadline ? "" : "open"}><summary>${icon("calendar")}${t(x.deadline ? "Mudar o prazo" : "Dar um prazo")}</summary>
+      <div class="tdue-in"><input type="datetime-local" id="task-due" value="${x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}" aria-label="${t("Prazo")}">
         <div class="tdue-quick">${[["Hoje 18:00", 0], ["Amanhã 18:00", 1], ...((5 - new Date().getDay() + 7) % 7 > 1 ? [["Sexta 18:00", (5 - new Date().getDay() + 7) % 7]] : []), ["Daqui a 1 semana", 7]]
           .map(([label, days]) => `<button type="button" class="chp" data-due-days="${days}">${t(label)}</button>`).join("")}</div>
-        <div class="rowx">${ui.btn("Guardar prazo", "data-act=due", "sm primary")}${x.deadline ? ui.btn("Tirar prazo", "data-act=nodue", "sm quiet") : ""}</div></div>` : ""}
-    ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx" style="margin-bottom:12px"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
-    ${x.current_action && running ? `<div class="now" style="margin-bottom:12px">${esc(x.current_action)}</div>` : ""}
-    ${x.blocked_reason ? `<p class="msg note" style="margin:0 0 12px">${esc(x.blocked_reason)}</p>` : ""}
-    <div class="detail"><div class="stack">
-      ${x.description ? `<div class="tread">${richText(x.description)}</div>` : ""}
-      ${x.goal ? `<p style="margin:0" class="dim"><b>${t("Objetivo")}:</b> ${esc(x.goal)}</p>` : ""}
-      ${x.requirements?.length ? `<ul style="margin:0;padding-left:18px" class="dim">${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
-      ${x.result ? `<div class="panel pad"><div class="ph-eyebrow">${t("Resultado")}</div><div class="tread">${richText(x.result)}</div></div>` : ""}
-      ${group ? `<div class="panel">${ui.sec("Quem já fez").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
-        <div class="who-list">${group.map((y) => `<div class="who-line ${y.stage === "done" ? "did" : ""}">${whoFace(y, "")}<div><b>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` <small>${t("tu")}</small>` : ""}</b>
-          <span>${y.stage === "done" ? `${t("Feito")}${y.completed_at ? ` · ${fmt.day(y.completed_at)} ${fmt.hhmm(y.completed_at)}` : ""}${y.completed_by && y.completed_by !== y.assignee ? ` · ${t("por")} ${esc(nameOf(y.completed_by))}` : ""}`
-            : esc(t(STAGE_LABEL[y.stage]))}</span></div></div>`).join("")}</div>
-        <p class="faint" style="margin:0;padding:4px var(--pad) 12px;font-size:12px">${esc(whoLeft(group))}</p></div>` : ""}
-      <div class="panel tnotes">${ui.sec("Notas").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
-        ${x.events.some((e) => e.kind === "note") ? `<div class="tnote-list">${x.events.filter((e) => e.kind === "note").map((e) => `<div class="tnote">${ui.avatar(e.data?.name || "?", "sm")}
-          <div><b>${esc(e.data?.name || t("Agente"))}</b><time>${fmt.day(e.created_at)} ${fmt.hhmm(e.created_at)}</time><div class="tread small">${richText(e.message)}</div></div></div>`).join("")}</div>`
-          : `<p class="faint" style="margin:0;padding:2px var(--pad) 10px">${t("Ainda sem notas. Escreve aqui o que ficou decidido, um link, até onde chegou ou porque está à espera.")}</p>`}
-        <form class="tnote-new" id="task-note"><textarea name="text" rows="2" placeholder="${t("Escrever uma nota…")}" required></textarea>
-          <button class="btn sm primary" type="submit">${t("Guardar nota")}</button></form></div>
-      <div class="panel">${ui.sec("Histórico").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
-        <div class="hist">${(x.log || []).map((e) => `<div class="hist-row">${ui.avatar(e.name, "sm")}<div><b>${esc(e.name)}</b> ${esc(group && e.kind === "task_created" ? t("criou a tarefa para todos") : e.message)}
-          <time>${fmt.day(e.at)} ${fmt.hhmm(e.at)}</time></div></div>`).join("") || `<p class="faint" style="margin:0">${t("Sem registo.")}</p>`}</div></div>
-      <div class="panel">${ui.sec("Atividade").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
-        ${x.events.some((e) => e.kind !== "note") ? `<div class="tl" style="padding-bottom:8px">${ui.feed(x.events.filter((e) => e.kind !== "note").slice(-30).map((e) => ({ at: e.created_at, text: e.message,
-          tone: e.kind === "error" ? "bad" : e.kind === "decision" ? "warn" : e.kind === "result" ? "ok" : "ai" })))}</div>`
-          : `<p class="faint" style="margin:0;padding:6px var(--pad) 14px">${t("Ainda sem atividade.")}</p>`}</div>
-    </div><div class="stack">
-      <dl class="kv panel pad" style="grid-template-columns:104px minmax(0,1fr);margin:0">${kv.map(([k, v]) => `<dt>${t(k)}</dt><dd>${v}</dd>`).join("")}</dl>
-      <div class="rowx" style="flex-wrap:wrap">
-        ${canGiveToAI(x) ? ui.btn("Entregar à IA", "data-act=ai", "primary", "bot") : ""}
-        ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
-        ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
-        ${!held && x.stage !== "done" ? ui.btn("Concluir", "data-act=done", "ok", "check") : ""}
-        ${ui.btn("Editar", "data-act=edit", "quiet")}</div>
-      ${held ? "" : `<label class="field">${t("Mudar estado")}<select id="task-status">${options([["", "—"], ["TODO", t("Por fazer")], ["BLOCKED", t("Bloqueada")], ["REVIEW", t("Em revisão")], ["COMPLETED", t("Concluída")]], "")}</select></label>`}
-      ${x.sessions.length ? `<div class="panel">${x.sessions.slice(0, 4).map((s) => `<div class="rw">${ui.status(s.status)}<div class="rw-main"><b class="mono">${fmt.tokens(s.tokens.total)} tokens</b>
+        ${ui.btn("Guardar prazo", "data-act=due", "sm primary")}${x.deadline ? ui.btn("Tirar prazo", "data-act=nodue", "sm quiet") : ""}</div>
+      <p class="tdue-now">${t("Passado o dia e a hora do prazo, a tarefa fica atrasada.")}</p></details>` : ""}
+    <details class="tv-fold"><summary>${icon("history")}${t("Histórico e pormenores")}</summary>
+      <div class="hist">${(x.log || []).map((e) => `<div class="hist-row">${ui.avatar(e.name, "sm")}<div><b>${esc(e.name)}</b> ${esc(group && e.kind === "task_created" ? t("criou a tarefa para todos") : e.message)}
+        <time>${fmt.day(e.at)} ${fmt.hhmm(e.at)}</time></div></div>`).join("") || `<p class="faint" style="margin:0">${t("Sem registo.")}</p>`}</div>
+      ${steps.length ? `<small class="tv-sub">${t("O que a IA fez")}</small><div class="tl">${ui.feed(steps.slice(-30).map((e) => ({ at: e.created_at, text: e.message,
+        tone: e.kind === "error" ? "bad" : e.kind === "decision" ? "warn" : e.kind === "result" ? "ok" : "ai" })))}</div>` : ""}
+      ${x.git_branch || x.ai_cost_usd != null ? `<dl class="kv" style="grid-template-columns:104px minmax(0,1fr);margin:14px 0 0">
+        ${x.git_branch ? `<dt>Branch</dt><dd><span class="mono">${esc(x.git_branch)}</span></dd>` : ""}
+        ${x.ai_cost_usd != null ? `<dt>${t("Custo de IA")}</dt><dd>${fmt.usd(x.ai_cost_usd)} ${ui.src("estimated")}</dd>` : ""}</dl>` : ""}
+      ${x.sessions.length ? `<small class="tv-sub">${t("Sessões de IA")}</small><div class="panel">${x.sessions.slice(0, 4).map((s) => `<div class="rw">${ui.status(s.status)}<div class="rw-main"><b class="mono">${fmt.tokens(s.tokens.total)} tokens</b>
         <span>${esc(s.model || "—")} · ${fmt.span(s.started_at, s.finished_at)}</span></div></div>`).join("")}</div>` : ""}
-      ${x.approvals.length ? `<div class="panel">${x.approvals.slice(0, 4).map((a) => `<a class="rw" href="#/aprovacoes" data-close><div class="rw-main"><b>${esc(a.action)}</b>
+      ${x.approvals.length ? `<small class="tv-sub">${t("Aprovações")}</small><div class="panel">${x.approvals.slice(0, 4).map((a) => `<a class="rw" href="#/aprovacoes" data-close><div class="rw-main"><b>${esc(a.action)}</b>
         <span>${t({ PENDING: "pendente", APPROVED: "aprovado", REJECTED: "recusado" }[a.status])}</span></div></a>`).join("")}</div>` : ""}
-    </div></div>`);
+    </details></div>`);
   $("modal-box").classList.add("wide");
-  $("task-note").onsubmit = async (e) => {
-    e.preventDefault();
-    const text = e.target.text.value.trim();
-    if (!text) return;
-    e.target.querySelector("button").disabled = true;
-    try { await api(`/api/tasks/${x.id}/notes`, { method: "POST", body: { text } }); flash(t("Nota guardada.")); openTaskModal(x.id); }
-    catch (err) { flash(err.message); e.target.querySelector("button").disabled = false; }
-  };
-  $("task-note").text.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("task-note").requestSubmit(); };   // Ctrl+Enter saves
   $("modal-box").onclick = async (e) => {
     const quick = e.target.closest("[data-due-days]");
     if (quick) { $("task-due").value = dueAt(Number(quick.dataset.dueDays)); return; }   // fills the field; "Guardar prazo" keeps it

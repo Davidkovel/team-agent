@@ -419,29 +419,3 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 #in-team .p-place { width: 20px; height: 20px; }
 #in-team .p-place svg.i { width: 11px; height: 11px; }
 #in-team .people { padding: 2px 0 6px; }
-
-/* ---------------------------------------------------------------- the team is one thin line across the page, not a card of
-   its own (Kovel, 6 Oct: the profiles took too much room). Small faces with the name and where each person is beside
-   them; the finished tasks go under it, three side by side, so the two together are lower than the old pair of cards. */
-.in-top { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-#in-team { flex-direction: row; align-items: center; gap: 22px; padding: 9px 18px; }
-#in-team .ch { flex: none; margin: 0; gap: 10px; }
-#in-team .ch .ch-link { margin-left: 6px; }
-#in-team .people { flex: 1; justify-content: flex-start; align-items: center; gap: 26px; padding: 0; }
-#in-team .person { flex: 0 1 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; justify-items: start; align-content: center;
-  column-gap: 10px; row-gap: 0; padding: 3px 6px; text-align: left; border: 0; background: none; }
-#in-team .p-ring { grid-row: 1 / 3; width: 36px; height: 36px; margin: 0; padding: 2px; }
-#in-team .p-ring .av { width: 32px; height: 32px; font-size: 13px; border-width: 2px; }
-#in-team .p-place { right: -4px; bottom: -3px; width: 16px; height: 16px; }
-#in-team .p-place svg.i { width: 9px; height: 9px; }
-#in-team .person.on .p-place::after { width: 6px; height: 6px; }
-#in-team .person b { font-size: 13px; line-height: 1.2; }
-#in-team .person > span:not(.p-ring) { font-size: 11px; line-height: 1.2; }
-#in-team .person em { display: none; }
-#in-done .dn-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 22px; }
-#in-done .dn-row + .dn-row { border-top: 0; }
-@media (max-width: 1150px) {
-  #in-team { flex-direction: column; align-items: stretch; gap: 8px; }
-  #in-done .dn-list { grid-template-columns: minmax(0, 1fr); }
-  #in-done .dn-row + .dn-row { border-top: 1px solid rgba(255, 255, 255, .05); }
-}

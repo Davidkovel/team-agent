@@ -298,6 +298,10 @@ class HubExpander(QWidget):
         self._set_page_state(QWebEnginePage.LifecycleState.Active)
         if self.view.url().toString() != url:
             self.view.load(QUrl(url))  # loads while it grows, so the Hub is ready when the motion ends
+        else:
+            # The page was frozen while hidden, so it has not looked for a new version of the Hub since it was last open:
+            # it looks now, instead of showing the old page until its own timer comes round (a browser tab was ahead of it).
+            self.view.page().runJavaScript("window.hubCheckVersion && window.hubCheckVersion()")
         self._morph(origin, self._windowed_rect(origin.center()), GROW_MS, QEasingCurve.OutQuart, keep_window=True)
 
     def collapse(self):

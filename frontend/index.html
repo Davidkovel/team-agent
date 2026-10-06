@@ -17,11 +17,11 @@
   <meta name="apple-mobile-web-app-title" content="AMG">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=hub52">
-  <link rel="stylesheet" href="hub/design.css?v=hub52">
-  <link rel="stylesheet" href="hub/amg.css?v=hub52">
-  <link rel="stylesheet" href="hub/home.css?v=hub52">
-  <link rel="stylesheet" href="hub/mobile.css?v=hub52">
+  <link rel="stylesheet" href="styles.css?v=hub55">
+  <link rel="stylesheet" href="hub/design.css?v=hub55">
+  <link rel="stylesheet" href="hub/amg.css?v=hub55">
+  <link rel="stylesheet" href="hub/home.css?v=hub55">
+  <link rel="stylesheet" href="hub/mobile.css?v=hub55">
 </head>
 <body>
   <section id="login" hidden>
@@ -53,10 +53,15 @@
           <button id="bell" class="tool" title="Notificações" aria-label="Notificações"><i id="bell-n" class="count" hidden></i></button>
           <button id="maximize" class="tool" title="Ecrã inteiro" aria-label="Ecrã inteiro"></button>
           <button id="collapse" class="tool" title="Recolher a barra" aria-label="Recolher a barra"></button>
+          <button id="panel-toggle" class="tool" title="Painel: limites e equipa" aria-label="Painel: limites e equipa"></button>
         </div>
       </div>
     </aside>
     <main id="view"></main>
+    <aside id="hpanel" aria-label="Painel">
+      <header><b>Painel</b><button id="hpanel-close" class="tool" title="Fechar" aria-label="Fechar"></button></header>
+      <div id="hpanel-body"></div>
+    </aside>
   </div>
 
   <div id="notif-panel" class="pop" hidden></div>
@@ -65,12 +70,13 @@
   <div id="palette" class="pal" hidden></div>
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <div id="modal" class="modal" hidden><div class="modal-box" id="modal-box"></div></div>
-  <script src="hub/ui.js?v=hub52"></script>
-  <script src="hub/home.js?v=hub52"></script>
-  <script src="hub/pages.js?v=hub52"></script>
-  <script src="hub/baredesk.js?v=hub52"></script>
-  <script src="hub/shell.js?v=hub52"></script>
-  <script src="app.js?v=hub52"></script>
-  <script src="hub/mobile.js?v=hub52"></script>
+  <script src="hub/ui.js?v=hub55"></script>
+  <script src="hub/home.js?v=hub55"></script>
+  <script src="hub/pages.js?v=hub55"></script>
+  <script src="hub/baredesk.js?v=hub55"></script>
+  <script src="hub/shell.js?v=hub55"></script>
+  <script src="hub/painel.js?v=hub55"></script>
+  <script src="app.js?v=hub55"></script>
+  <script src="hub/mobile.js?v=hub55"></script>
 </body>
 </html>

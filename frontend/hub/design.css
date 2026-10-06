@@ -461,3 +461,49 @@ a.rw:hover, .rw.click:hover { background: rgba(255, 255, 255, .03); cursor: poin
 .push-photos figure.more { display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: var(--r-md); border: 1px dashed var(--line-2); color: var(--muted); }
 .push-files { margin-top: 12px; }
 .push-files summary { cursor: pointer; color: var(--muted); font: 600 12px var(--ui); }
+
+/* ---------------------------------------------------------------- the side panel: the widget's numbers inside the Hub */
+#hpanel { display: none; }
+html:not(.is-phone) .hub.paneled { grid-template-columns: 236px minmax(0, 1fr) 304px; }
+html:not(.is-phone) .hub.paneled.collapsed { grid-template-columns: 60px minmax(0, 1fr) 304px; }
+html:not(.is-phone) .hub.paneled #hpanel { display: flex; flex-direction: column; height: 100vh; min-width: 0; overflow-y: auto;
+  background: linear-gradient(180deg, #0a0b0d, #060708); box-shadow: inset 1px 0 0 rgba(255, 255, 255, .06); }
+html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
+#hpanel > header { display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px 18px; }
+#hpanel > header b { font: 600 11px var(--ui); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+#hpanel-body { display: grid; gap: 12px; padding: 6px 12px 24px; }
+#hpanel section { padding: 14px 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(21, 24, 29, .96), rgba(10, 12, 14, .96)); }
+#hpanel h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font: 600 12.5px var(--ui); }
+#hpanel h4 svg.i { width: 15px; height: 15px; color: var(--muted); }
+#hpanel h4 em { margin-left: auto; font: 500 11px var(--ui); color: var(--faint); }
+#panel-toggle.on { color: #fff; background: rgba(255, 255, 255, .1); }
+.pnote { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.pm + .pm { margin-top: 14px; }
+.pm-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.pm-top span { color: var(--muted); font-size: 12px; }
+.pm-top b { font: 600 20px var(--display); letter-spacing: -.01em; }
+.pm-bar { height: 6px; margin-top: 7px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.pm-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #9aa2ab, #f3f5f7); transition: width .5s var(--ease); }
+.pm.warn .pm-bar i { background: var(--warn); } .pm.warn .pm-top b { color: var(--warn); }
+.pm.bad .pm-bar i { background: var(--bad); } .pm.bad .pm-top b { color: var(--bad); }
+.pm.none .pm-top b { color: var(--faint); }
+.pm small { display: block; margin-top: 6px; color: var(--faint); font-size: 11px; }
+#hpanel-higgs { width: 100%; margin-top: 12px; accent-color: #eceef1; }
+.pmates { display: grid; gap: 12px; }
+.pmate { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: center; }
+.pmate-av { position: relative; display: block; }
+.pmate-av > i { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid #0e1013; background: var(--idle); }
+.pmate.ok .pmate-av > i, .pmate.busy .pmate-av > i { background: var(--ok); }
+.pmate.warn .pmate-av > i { background: var(--warn); } .pmate.bad .pmate-av > i { background: var(--bad); }
+.pmate > div:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }
+.pmate > div:nth-child(2) b { font: 600 13px var(--ui); }
+.pmate > div:nth-child(2) span { color: var(--muted); font-size: 11.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pmate.off > div:nth-child(2) b { color: var(--muted); }
+.pmate-nums { grid-column: 2; display: flex; gap: 12px; }
+.pmate-n { color: var(--faint); font-size: 11px; } .pmate-n b { color: var(--text); font-weight: 600; }
+.pmate-n.warn b { color: var(--warn); } .pmate-n.bad b { color: var(--bad); } .pmate-n.none b { color: var(--faint); }
+@media (max-width: 1100px) {
+  html:not(.is-phone) .hub.paneled, html:not(.is-phone) .hub.paneled.collapsed { grid-template-columns: 236px minmax(0, 1fr); }
+  html:not(.is-phone) .hub.paneled.collapsed { grid-template-columns: 60px minmax(0, 1fr); }
+  html:not(.is-phone) .hub.paneled #hpanel { position: fixed; top: 0; right: 0; bottom: 0; width: 304px; z-index: 45; box-shadow: -24px 0 60px rgba(0, 0, 0, .7); }
+}

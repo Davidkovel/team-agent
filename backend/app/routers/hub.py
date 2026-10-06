@@ -4,6 +4,8 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
+
+from .. import limits
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -238,6 +240,12 @@ async def commit_blob(repo: str, sha: str, path: str, user: User = Depends(curre
 async def repos_recent(user: User = Depends(current_user)):
     """The team's repositories, the one with the latest commit first."""
     return await asyncio.to_thread(commits.projects)
+
+
+@router.get("/limits")
+async def my_limits(user: User = Depends(current_user)):
+    """The Claude plan windows (5 h, week) of the person whose computer this Hub runs on. Nobody else's are known here."""
+    return {"claude": await asyncio.to_thread(limits.plan) if limits.is_owner(user.username) else None}
 
 
 @router.put("/meters/{service}")

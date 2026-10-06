@@ -39,7 +39,7 @@
     seen[s.id] = line;
     return `<article class="of-desk st-${cls} ${fresh ? "fresh" : ""}">
       <header><span class="of-who">${ui.avatar(s.name)}<i></i></span>
-        <div class="of-id"><b>${esc(s.name)}</b><span>${esc(s.project)}${s.model ? ` · ${esc(model(s.model))}` : ""}</span></div>
+        <div class="of-id"><b>${esc(s.name)}</b><span>${esc(s.project)}${s.model ? ` · ${esc(model(s.model))}` : ""}${s.tokens ? ` · ${esc(tokens(s.tokens))}` : ""}</span></div>
         <em class="of-state">${t(label)}</em></header>
       ${s.prompt ? `<p class="of-ask">“${esc(s.prompt)}”</p>` : ""}
       <div class="of-now">${icon(s.state === "waiting" ? "bell" : s.state === "ended" ? "check" : "bolt")}<span>${esc(s.action && s.action !== "aberto" ? s.action : s.state === "idle" ? t("aberto, à espera de um pedido") : s.action || "—")}</span>

@@ -6,6 +6,7 @@ a window that makes 500 tool calls is one row that changes, writes to it are thr
 table) moves only the latest state. What a step says is its name in words ("a editar pages.js"), never what is inside
 a file, a command or a search. History older than a week is dropped.
 """
+import asyncio
 import re
 import time
 from datetime import datetime, timedelta, timezone
@@ -16,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
-from .. import health
+from .. import health, transcripts
 from ..models import ClaudeAgent, ClaudeSession, PcHealth, User
 from ..realtime import rt
 from ..security import current_user
@@ -97,6 +98,14 @@ def _text(response) -> str:
     if isinstance(response, list):
         return " ".join(_text(part) for part in response if isinstance(part, (dict, str)))
     return ""
+
+
+async def _used(path) -> dict | None:
+    """Tokens and model so far of a transcript on this PC (only Claude Code's own .jsonl files under .claude)."""
+    path = str(path or "")
+    if not path.endswith(".jsonl") or ".claude" not in path:
+        return None
+    return await asyncio.to_thread(transcripts.usage, path)
 
 
 def _status(row: ClaudeSession, status: str, when: datetime):
@@ -193,6 +202,10 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
         if agent:
             agent.status, agent.finished_at, agent.action = "done", when, ""
             agent.result = one_line(body.get("last_assistant_message") or agent.result, 230)
+            used = await _used(body.get("agent_transcript_path"))
+            if used:
+                agent.tokens = used["tokens"] or agent.tokens
+                agent.model = one_line(used["model"] or agent.model, 30)
     elif event == "PermissionRequest":
         _status(row, "waiting", when)
         row.action = "precisa da tua autorização"
@@ -208,6 +221,12 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
     elif event == "SessionEnd":
         _status(row, "ended", when)
         row.ended_at, row.action = when, "fechado"
+    if event in ("Stop", "SessionEnd"):
+        used = await _used(body.get("transcript_path"))
+        if used:
+            row.tokens = used["tokens"]
+            if used["model"]:
+                body["model"] = used["model"]
     if body.get("model"):
         model = body["model"]
         row.model = one_line(model.get("display_name") or model.get("id") if isinstance(model, dict) else model, 60)
@@ -266,7 +285,7 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
     for a in agents:
         by_session.setdefault(a.session_id, []).append(a)
     sessions = [{"id": r.id, "key": r.key, "user": r.user.username, "name": r.user.display_name, "project": r.project, "state": _state(r),
-                 "prompt": r.prompt, "action": r.action, "model": r.model, "since": iso(r.since), "started_at": iso(r.started_at),
+                 "prompt": r.prompt, "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
                  "updated_at": iso(r.updated_at), "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]} for r in rows]
     names = {r.id: (r.user.display_name, r.project) for r in rows}
     film = []

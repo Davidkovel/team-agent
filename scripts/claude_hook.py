@@ -64,6 +64,10 @@ def step(data: dict) -> dict:
         body["message"] = cut(data["message"], 200)
     if data.get("error"):
         body["error"] = cut(data["error"], 200)
+    if event in ("Stop", "SessionEnd") and data.get("transcript_path"):
+        body["transcript_path"] = str(data["transcript_path"])  # the Hub reads only usage numbers in it (transcripts.py)
+    if event == "SubagentStop" and data.get("agent_transcript_path"):
+        body["agent_transcript_path"] = str(data["agent_transcript_path"])
     if event in ("Stop", "SessionStart"):
         model = model_of(data.get("transcript_path"))
         if model:

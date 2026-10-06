@@ -130,3 +130,23 @@ def test_what_each_step_says(client):
     assert say("WebSearch", {"query": "salário do Kovel"}) == "a pesquisar na web"
     assert say("mcp__claude-in-chrome__navigate", {}) == "a usar o Chrome"
     assert say("Agent", {"subagent_type": "revisor-hub", "description": "Rever antes do push"}) == "lançou revisor-hub: Rever antes do push"
+
+
+def test_tokens_and_model_come_from_the_transcripts(client, tmp_path):
+    import json
+    owner = login(client, "owner")
+    folder = tmp_path / ".claude" / "projects" / "x"
+    folder.mkdir(parents=True)
+    main, sub = folder / "s6.jsonl", folder / "agent-a6.jsonl"
+    record = lambda i, model, out: json.dumps({"type": "assistant", "message": {"id": i, "model": model, "usage": {"input_tokens": 100, "output_tokens": out}}})
+    main.write_text(record("m1", "claude-opus-5-5", 50) + "\n", encoding="utf-8")
+    sub.write_text(record("s1", "claude-haiku-4-5", 20) + "\n", encoding="utf-8")
+    step(client, "PreToolUse", session="s6", tool_name="Agent", tool_use_id="tu-6", tool_input={"description": "Procurar", "subagent_type": "explorador"})
+    step(client, "SubagentStart", session="s6", agent_id="a6", agent_type="explorador")
+    step(client, "SubagentStop", session="s6", agent_id="a6", agent_type="explorador", agent_transcript_path=str(sub))
+    step(client, "Stop", session="s6", transcript_path=str(main))
+    w = window(client, owner, "s6")
+    assert w["tokens"] == 150 and w["model"] == "claude-opus-5-5"
+    assert w["agents"][0]["tokens"] == 120 and w["agents"][0]["model"] == "claude-haiku-4-5"
+    step(client, "Stop", session="s6", transcript_path="C:\Windows\win.ini")  # never anything but Claude Code's own files
+    assert window(client, owner, "s6")["tokens"] == 150

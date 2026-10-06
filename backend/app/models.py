@@ -296,6 +296,7 @@ class ClaudeSession(Base):
     prompt: Mapped[str] = mapped_column(String(200), default="")  # the start of the last request, one line
     action: Mapped[str] = mapped_column(String(160), default="")  # what it is doing now, in words ("a editar pages.js")
     model: Mapped[str] = mapped_column(String(60), default="")
+    tokens: Mapped[int] = mapped_column(Integer, default=0)  # used so far, from its transcript (transcripts.py)
     since: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # when the current status began
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

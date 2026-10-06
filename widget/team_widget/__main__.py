@@ -11,6 +11,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
 
 from .api.agent_client import AgentClient
+from .selfupdate import SelfUpdate
 from .state.store import StateStore
 from .ui.tray import start_tray
 from .ui.window import UI, WidgetWindow, font
@@ -73,7 +74,8 @@ def main():
     window = WidgetWindow(store, client)
     window.quit = app.quit
     tray = start_tray(window)
-    server = listen_for_second_copy(name, window)  # noqa: F841 - kept alive while the widget runs
+    server = listen_for_second_copy(name, window)
+    updater = SelfUpdate(app, window, server)  # noqa: F841 - kept alive while the widget runs
     window.show_panel()
     app.exec()
     if tray:

@@ -49,3 +49,21 @@ def test_widget_clocks_in_and_team_list_carries_it(client):
     team = {p["user"]: p for p in client.get("/api/local/team").json()}
     assert team["david"]["ponto"] == r.json()["at"]
     assert client.post("/api/local/ponto", json={"user": "ninguem"}, headers=WIDGET).status_code == 404
+
+
+def test_the_clock_stops_and_starts_again_and_keeps_what_was_worked(client):
+    owner = headers(client, "owner")
+    assert client.post("/api/ponto/stop", headers=owner).json()["at"] is None   # nothing to stop before clocking in
+    first = client.post("/api/ponto", headers=owner).json()
+    assert first["running"] is True and first["since"] == first["at"] and first["worked_s"] == 0
+
+    stopped = client.post("/api/ponto/stop", headers=owner).json()
+    assert stopped["running"] is False and stopped["since"] is None and stopped["worked_s"] >= 0 and stopped["at"] == first["at"]
+    assert client.post("/api/ponto/stop", headers=owner).json() == stopped   # stopping twice changes nothing
+
+    again = client.post("/api/ponto", headers=owner).json()
+    assert again["running"] is True and again["since"] and again["at"] == first["at"] and again["worked_s"] == stopped["worked_s"]
+    mine = next(p for p in client.get("/api/ponto", headers=owner).json()["people"] if p["user"] == "owner")
+    assert mine == {k: again[k] for k in mine}
+    team = {p["user"]: p for p in client.get("/api/local/team").json()}
+    assert team["owner"]["ponto_state"]["running"] is True and team["owner"]["ponto"] == first["at"]

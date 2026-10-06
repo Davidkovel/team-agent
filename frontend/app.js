@@ -584,6 +584,12 @@ function tickClock() {
   requestAnimationFrame(tickClock);
 }
 
+// 3h 25 worked today: the stretches the clock already ran plus the one running now.
+const pontoWorked = (p) => {
+  const s = (p?.worked_s || 0) + (p?.running && p.since ? Math.max(0, (Date.now() - new Date(p.since)) / 1000) : 0);
+  return `${Math.floor(s / 3600)}h ${String(Math.floor(s % 3600 / 60)).padStart(2, "0")}`;
+};
+
 function drawPonto(board) {
   const mine = board.people.find((p) => p.user === me.username);
   const done = board.people.filter((p) => p.at);
@@ -599,8 +605,10 @@ function drawPonto(board) {
     }).join(""));
   }
   if (!$("ponto-people")) return;
-  $("ponto-btn").disabled = !!mine?.at;
-  $("ponto-btn").innerHTML = mine?.at ? `${icon("check")}Ponto batido às ${time(mine.at)}` : "Bater o ponto";
+  $("ponto-btn").disabled = false;   // the same button starts the clock, stops it and starts it again
+  $("ponto-btn").dataset.stop = mine?.running ? "1" : "";
+  $("ponto-btn").innerHTML = mine?.running ? `${icon("pause")}Parar o ponto · ${pontoWorked(mine)} hoje`
+    : mine?.at ? `${icon("play")}Retomar o ponto · ${pontoWorked(mine)} hoje` : "Bater o ponto";
   $("ponto-count").textContent = `${done.length} de ${board.people.length}`;
   paint($("ponto-people"), board.people.map((p) => `
     <div class="ponto-person ${p.at ? "done" : ""}"><span class="avatar">${initial(p.name)}</span>
@@ -627,7 +635,11 @@ async function loadPonto() {
 async function punch() {
   window.Notification?.permission === "default" && Notification.requestPermission().catch(() => {});
   $("ponto-btn").disabled = true;
-  try { await api("/api/ponto", { method: "POST" }); await loadPonto(); flash("Ponto batido. A equipa já sabe."); }
+  try {
+    const stop = !!$("ponto-btn").dataset.stop;
+    await api(stop ? "/api/ponto/stop" : "/api/ponto", { method: "POST" }); await loadPonto();
+    flash(stop ? "Ponto parado: as horas deixaram de contar." : "Ponto a contar. A equipa já sabe.");
+  }
   catch (e) { $("ponto-btn").disabled = false; flash(e.message); }
 }
 

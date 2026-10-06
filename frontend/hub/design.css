@@ -507,3 +507,8 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
   html:not(.is-phone) .hub.paneled.collapsed { grid-template-columns: 60px minmax(0, 1fr); }
   html:not(.is-phone) .hub.paneled #hpanel { position: fixed; top: 0; right: 0; bottom: 0; width: 304px; z-index: 45; box-shadow: -24px 0 60px rgba(0, 0, 0, .7); }
 }
+
+.pclock { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pclock b { font: 600 30px var(--display); letter-spacing: -.02em; color: var(--muted); }
+.pclock.on b { color: var(--ok); }
+.pclock-n { display: block; margin-top: 8px; color: var(--faint); font-size: 11px; }

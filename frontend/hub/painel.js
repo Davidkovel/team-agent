@@ -27,7 +27,8 @@ function panelMate(m) {
 
 async function drawPanel() {
   if (!panelOpen() || !me?.username || panelHiggs) return;
-  const [limits, team] = await Promise.all([api("/api/limits").catch(() => null), api("/api/team")]);
+  const [limits, team, board] = await Promise.all([api("/api/limits").catch(() => null), api("/api/team"), api("/api/ponto").catch(() => null)]);
+  const clock = board?.people.find((p) => p.user === me.username);
   const mine = team.find((m) => m.user === me.username) || {}, plan = limits?.claude;
   const claude = plan
     ? panelMeter("Sessão de 5 horas", plan.five, plan.five == null ? t("Sem sessão aberta agora.") : plan.five_reset ? `${t("Renova às")} ${panelClock(plan.five_reset)}` : "")
@@ -36,11 +37,21 @@ async function drawPanel() {
       + panelMeter("Semana (custo no Hub)", mine.week_pct, mine.week_pct == null ? "" : `$${mine.week_cost_usd} ${t("de")} $${mine.week_budget_usd}`);
   const higgs = mine.higgsfield_pct;
   $("hpanel-body").innerHTML = `
+    ${clock ? `<section><h4>${icon("clock")}${t("Ponto")}<em>${t(clock.running ? "a contar" : clock.at ? "parado" : "por bater")}</em></h4>
+      <div class="pclock ${clock.running ? "on" : ""}"><b>${pontoWorked(clock)}</b>
+        <button class="btn sm ${clock.running ? "" : "primary"}" id="hpanel-ponto" data-stop="${clock.running ? 1 : ""}">${t(clock.running ? "Parar" : clock.at ? "Retomar" : "Bater o ponto")}</button></div>
+      <small class="pclock-n">${clock.at ? `${t("Primeira entrada às")} ${time(clock.at)}` : t("Começa a contar quando bateres o ponto.")}</small></section>` : ""}
     <section><h4>${icon("spark")}Claude</h4>${claude}</section>
     <section><h4>${icon("videos")}Higgsfield</h4>${panelMeter("Créditos usados", higgs, higgs == null ? t("Por definir: arrasta para dizer quanto já gastaste.") : "")}
       <input id="hpanel-higgs" type="range" min="0" max="100" value="${higgs ?? 0}" aria-label="Higgsfield"></section>
     <section><h4>${icon("users")}${t("Equipa")}<em>${team.filter((m) => m.status !== "OFFLINE").length} ${t("de")} ${team.length} online</em></h4>
       <div class="pmates">${team.map(panelMate).join("")}</div></section>`;
+  if ($("hpanel-ponto")) $("hpanel-ponto").onclick = async (e) => {
+    const stop = !!e.currentTarget.dataset.stop;
+    await api(stop ? "/api/ponto/stop" : "/api/ponto", { method: "POST" });
+    flash(t(stop ? "Ponto parado: as horas deixaram de contar." : "Ponto a contar."));
+    drawPanel().catch(() => {});
+  };
   const range = $("hpanel-higgs");
   range.oninput = () => { panelHiggs = true; range.previousElementSibling.querySelector("b").textContent = `${range.value}%`; };
   range.onchange = async () => {

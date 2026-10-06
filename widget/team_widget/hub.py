@@ -119,9 +119,10 @@ def session(url: str, user: str) -> str | None:
         return None
 
 
-def punch(url: str, user: str) -> dict:
-    """Clocks `user` in for today ("bater o ponto") and returns {user, name, at}. Raises OSError when the Hub does not answer."""
-    req = urllib.request.Request(url + "/api/local/ponto", data=json.dumps({"user": user}).encode(), method="POST",
+def punch(url: str, user: str, stop: bool = False) -> dict:
+    """Starts `user`'s clock ("bater o ponto"), or stops it, and returns {user, name, at, running, worked_s, since}.
+    Raises OSError when the Hub does not answer."""
+    req = urllib.request.Request(url + "/api/local/ponto" + ("/stop" if stop else ""), data=json.dumps({"user": user}).encode(), method="POST",
                                  headers={"Content-Type": "application/json", "X-Team-Widget": "1", "X-Team-Key": team_key()})
     with urllib.request.urlopen(req, timeout=5) as res:
         return json.load(res)

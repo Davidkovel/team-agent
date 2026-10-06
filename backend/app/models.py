@@ -162,6 +162,10 @@ class Ponto(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     day: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # The clock can be stopped and started again: what was worked before the last stop, whether it counts now, and since when.
+    worked_s: Mapped[int | None] = mapped_column(Integer, default=0)
+    running: Mapped[bool | None] = mapped_column(Boolean, default=True)
+    since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # None on a running row from before: it runs since `at`
 
 
 class Project(Base):

@@ -59,6 +59,7 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
     out = []
     week_cost, meters, budget = await usage_numbers(db)
     clocked = await ponto.punches(db)
+    clocks = await ponto.rows(db)
     # what is waiting for each person: counts only, the widget opens the Hub for the rest
     waiting = dict((await db.execute(select(Approval.user_id, func.count(Approval.id)).where(Approval.status == "PENDING")
                                      .group_by(Approval.user_id))).all())
@@ -71,6 +72,7 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
                     "task": presence.get("task", "") if presence else "",
                     "via": (presence.get("via") or "agent") if presence else None,
                     "ponto": iso(clocked.get(u.id)),  # when they clocked in today, or None
+                    "ponto_state": ponto.state(clocks.get(u.id)),  # running or stopped, and the hours so far
                     "approvals": sum(waiting.values()) if sees_all(u) else waiting.get(u.id, 0),  # the ones this person may decide
                     "unread": unread.get(u.id, 0),
                     **usage_fields(u.id, week_cost, meters, budget)})
@@ -213,3 +215,10 @@ async def local_ponto(body: WidgetPing, request: Request, db: AsyncSession = Dep
                       x_team_widget: str | None = Header(None)):
     """Clock in from the widget, for the person sitting at that computer."""
     return await ponto.punch(db, await widget_user(body, request, db, x_team_widget))
+
+
+@router.post("/ponto/stop")
+async def local_ponto_stop(body: WidgetPing, request: Request, db: AsyncSession = Depends(get_db),
+                           x_team_widget: str | None = Header(None)):
+    """Stop the clock from the widget, for the person sitting at that computer."""
+    return await ponto.stop(db, await widget_user(body, request, db, x_team_widget))

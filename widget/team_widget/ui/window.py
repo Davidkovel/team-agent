@@ -64,6 +64,21 @@ def worked(iso_time: str) -> str:
     return f"{minutes // 60}h {minutes % 60:02d}"
 
 
+def worked_of(person: dict) -> str:
+    """3h 25 worked today: the stretches the clock already ran, plus the one running now. It stands still while stopped."""
+    state = person.get("ponto_state")
+    if not state:   # a Hub from before the clock could stop
+        return worked(person["ponto"])
+    seconds = int(state.get("worked_s") or 0)
+    if state.get("running") and state.get("since"):
+        seconds += max(0, int((datetime.now().astimezone() - datetime.fromisoformat(state["since"]).astimezone()).total_seconds()))
+    return f"{seconds // 3600}h {seconds % 3600 // 60:02d}"
+
+
+def clock_runs(person: dict) -> bool:
+    return bool(person.get("ponto")) and (person.get("ponto_state") or {}).get("running", True)
+
+
 def elapsed(started_at) -> str:
     if not started_at:
         return ""
@@ -778,10 +793,11 @@ class Member(Hover):
                 (person.get("online") and not was.get("online")) or (person.get("ponto") and not was.get("ponto"))):
             self._to(self._ping, 0.0, 1)  # just came online or clocked in: one ring out of the picture
         self._person, self._me = person, me
-        can = me and not person.get("ponto") and person.get("user") is not None
+        can = me and person.get("user") is not None   # their own line starts the clock, stops it and starts it again
         self.setEnabled(can)
         self.setCursor(Qt.PointingHandCursor if can else Qt.ArrowCursor)
-        self.setToolTip("Bater o ponto" if can else "")
+        self.setToolTip("" if not can else "Bater o ponto" if not person.get("ponto") else
+                        "Parar o ponto: as horas deixam de contar" if clock_runs(person) else "Retomar o ponto")
         self.update()
 
     def paintEvent(self, _):
@@ -833,12 +849,14 @@ class Member(Hover):
         p.setFont(self._f_state)
         p.drawText(QRectF(48, 26, 150, 16), Qt.AlignLeft | Qt.AlignVCenter, state)
         if person.get("ponto"):
-            p.setPen(QColor(TEXT))
+            runs = clock_runs(person)
+            p.setPen(QColor(TEXT) if runs else QColor(MUTED))   # stopped, the hours go grey and stand still
             p.setFont(self._f_time)
-            p.drawText(QRectF(w - 80, 8, 80, 20), Qt.AlignRight | Qt.AlignVCenter, worked(person["ponto"]))
+            p.drawText(QRectF(w - 80, 8, 80, 20), Qt.AlignRight | Qt.AlignVCenter, worked_of(person))
             p.setPen(QColor(FAINT))
             p.setFont(self._f_small)
-            p.drawText(QRectF(w - 80, 28, 80, 14), Qt.AlignRight | Qt.AlignVCenter, f"desde {hhmm(person['ponto'])}")
+            note = f"desde {hhmm(person['ponto'])}" if runs else "parado · retomar" if self._me else "parado"
+            p.drawText(QRectF(w - 110, 28, 110, 14), Qt.AlignRight | Qt.AlignVCenter, note)
         elif self.isEnabled():
             pill = QRectF(w - 92, h / 2 - 13, 92, 26)
             p.setPen(Qt.NoPen)
@@ -1766,12 +1784,14 @@ class WidgetWindow(QWidget):
         if not who:
             self.notify("Ponto", "O Hub não respondeu. Tenta outra vez daqui a pouco.")
             return
+        mine = next((p for p in self._team or [] if p.get("user") == who), {})
+        stop = clock_runs(mine)   # running: this click stops it; not started or stopped: it starts
         for m in self.members:
             m.setEnabled(False)
 
         def work():
             try:
-                self.punched.emit(hub.punch(hub.hub_url(), who))
+                self.punched.emit(hub.punch(hub.hub_url(), who, stop))
             except (OSError, ValueError) as e:
                 self.punched.emit(str(e))
 
@@ -1785,9 +1805,16 @@ class WidgetWindow(QWidget):
         if self._ponto_seen is not None:
             self._ponto_seen[result["user"]] = result["at"]
         if self._team:
-            self._team = [{**p, "ponto": result["at"]} if p["user"] == result["user"] else p for p in self._team]
+            state = {k: result.get(k) for k in ("at", "running", "worked_s", "since")} if "running" in result else None
+            self._team = [{**p, "ponto": result["at"], "ponto_state": state} if p["user"] == result["user"] else p for p in self._team]
         self._render_people(self._team)
-        self.notify("Ponto", f"Ponto batido às {hhmm(result['at'])}. A equipa já sabe.")
+        if not result.get("running", True):
+            mine = {"ponto": result["at"], "ponto_state": result}
+            self.notify("Ponto", f"Ponto parado: {worked_of(mine)} hoje. Clica na tua linha para retomar.")
+        elif result.get("since") and result["since"] != result["at"]:
+            self.notify("Ponto", "Ponto a contar outra vez. A equipa já sabe.")
+        else:
+            self.notify("Ponto", f"Ponto batido às {hhmm(result['at'])}. A equipa já sabe.")
 
     # ------------------------------------------------------------ rendering
 

@@ -19,3 +19,9 @@ async def ponto_today(user: User = Depends(current_user), db: AsyncSession = Dep
 async def ponto_punch(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """Clock in for today. The whole team is told."""
     return await ponto.punch(db, user)
+
+
+@router.post("/ponto/stop")
+async def ponto_stop(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Stop the clock: the hours of today stop counting until it is started again (POST /ponto)."""
+    return await ponto.stop(db, user)

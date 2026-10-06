@@ -66,6 +66,6 @@ window.addEventListener("DOMContentLoaded", function startPanel() { // app.js, w
   const wait = setInterval(() => { // the panel needs to know who is signed in, and that happens after this file loads
     if (!me?.username) return;
     clearInterval(wait);
-    setPanel(localStorage.getItem(PANEL_KEY) === "open" || new URLSearchParams(location.search).has("painel")); // ?painel=1 opens it, to show somebody
+    setPanel(localStorage.getItem(PANEL_KEY) !== "closed" || new URLSearchParams(location.search).has("painel")); // open until somebody closes it; ?painel=1 opens it again
   }, 400);
 });

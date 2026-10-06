@@ -48,6 +48,13 @@ Subscriptions and the VAPID key live in `~/.team-agent/` (`webpush.json`, `vapid
 one Hub, which sends what is made on it and what arrives by sync. Needs `pywebpush` (in requirements); without it the Hub runs as before.
 Whoever creates a task for themselves gets it on the phone too (not in the bell or the widget).
 
+**Phone sign-in through Tailscale (6 Oct, David's iPhone).** Behind `tailscale serve` the Hub sees the *phone's* own tailnet
+address (100.x and its fd7a:… IPv6), not 127.0.0.1, so the phone got the password page. Fix per PC: put the phone's two
+addresses in `backend/.env` → `IP_USERS=<phone 100.x>=david,<phone fd7a:…>=david` (`tailscale ip -4 <phone>` / `-6`), then
+restart the Hub. `auth.py` also treats this PC's own addresses as its person (for requests the proxy makes from the PC itself).
+Setting it up on a PC: `winget install Tailscale.Tailscale`, sign in on PC and phone with the same account, enable HTTPS in
+the admin console (DNS → HTTPS Certificates), then `tailscale serve --bg 8000`; the address is `https://<pc>.<tailnet>.ts.net`.
+
 ## Keep the Hub's Memória up to date (always)
 
 Marco asked (6 Oct): everything we change in the widget or the Hub must also be written into the Hub's **Memória**

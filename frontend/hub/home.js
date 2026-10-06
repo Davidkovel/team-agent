@@ -70,6 +70,8 @@ function heroHtml(now, ignite) {
       <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
       <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
       <p class="hero-quote">“${esc(t(quoteOfDay()))}”</p>
+      <div class="hero-acts"><button class="hero-act main" data-act="task">${icon("plus")}${t("Nova tarefa")}</button>
+        <button class="hero-act" data-act="note">${icon("note")}${t("Nota")}</button><button class="hero-act" data-act="agenda">${icon("calendar")}${t("Prazos")}</button></div>
     </div>
     <div class="hero-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" srcset="assets/amg-front-1200.webp 1200w, assets/amg-front-2400.webp 2400w"
       sizes="(max-width: 700px) 100vw, (max-width: 1150px) 62vw, min(54vw, 860px)" alt="" decoding="async"></div>
@@ -79,14 +81,25 @@ function heroHtml(now, ignite) {
 const cardHead = (ic, title, sub = "", link = "") => `<header class="ch">${icon(ic)}<div class="ch-t"><b>${esc(t(title))}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>${link}</header>`;
 const seeAll = (label, href) => `<a class="ch-link" href="${href}">${esc(t(label))}${icon("chevron")}</a>`;
 
-const RING = { WORKING: "busy", ONLINE: "on", IDLE: "on", WAITING: "wait", PAUSED: "wait", ERROR: "bad", OFFLINE: "off" };
+const PLACE = { pc: ["monitor", "No computador"], phone: ["phone", "No telemóvel"] };
+function personHtml(m) {
+  const on = m.status !== "OFFLINE", where = (m.where || []).filter((w) => PLACE[w]);
+  const working = m.status === "WORKING" && m.task;
+  const state = working ? "work" : m.status === "WAITING" || m.status === "PAUSED" ? "wait" : m.status === "ERROR" ? "bad" : on ? "on" : "off";
+  const both = where.includes("pc") && where.includes("phone");
+  const badge = on ? icon(working ? "bolt" : where.includes("phone") && !where.includes("pc") ? "phone" : "monitor") : "";
+  const line = working ? t("A trabalhar") : !on ? (m.last_seen ? fmt.ago(m.last_seen) : t("Offline"))
+    : both ? t("PC e telemóvel") : where.includes("phone") ? t("No telemóvel") : t("No computador");
+  return `<a class="person ${state}" href="#/equipa" title="${esc(working ? `${t("A trabalhar")}: ${m.task}` : line)}">
+    <span class="p-ring">${ui.avatar(m.display_name)}${on ? `<i class="p-place">${badge}</i>` : ""}</span>
+    <b>${esc(m.user === me.username ? t("Tu") : m.display_name)}</b><span>${esc(line)}</span>${working ? `<em>${esc(m.task)}</em>` : ""}</a>`;
+}
 async function teamCard() {
   const team = await api("/api/team");
   const online = team.filter((m) => m.status !== "OFFLINE").length;
+  const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
   return `${cardHead("users", "A tua equipa", `${online} ${t("de")} ${team.length} ${t("online")}`, seeAll("Ver", "#/equipa"))}
-    <div class="mates">${team.map((m) => `<a class="mate ${RING[m.status] || "off"}" href="#/equipa">
-      <span class="mate-av">${ui.avatar(m.display_name)}<i></i></span><b>${esc(m.display_name)}</b>
-      <span class="mate-st">${esc(t((AGENT_ST[m.status] || [, m.status])[1]))}</span></a>`).join("")}</div>`;
+    <div class="people">${order.map(personHtml).join("")}</div>`;
 }
 
 /* ---------- notifications: the latest beside the team, the whole history one click away ---------- */
@@ -96,7 +109,7 @@ const noticeRow = (n) => `<button class="nrow ${n.read ? "" : "unread"}" data-n=
   <span class="n-t"><b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ""}</span><time>${fmt.ago(n.created_at)}</time></button>`;
 
 async function newsCard() {
-  const inbox = await api("/api/notifications?limit=5");
+  const inbox = await api("/api/notifications?limit=4");
   const badge = $("in-unread");
   if (badge) { badge.textContent = inbox.unread; badge.hidden = !inbox.unread; }
   return `${cardHead("bell", "Notificações", inbox.unread ? "" : t("Tudo lido"),
@@ -137,12 +150,6 @@ async function openNotice(row) {
   if (row.dataset.href) location.hash = row.dataset.href;
 }
 
-const TILES = [["task", "plus", "Tarefa", "Criar nova tarefa"], ["agenda", "calendar", "Calendário", "Ver prazos"],
-  ["note", "note", "Notas", "Guardar ideias"], ["alerts", "bell", "Notificações", "Ver o histórico"]];
-const tilesHtml = () => `<nav class="in-tiles">${TILES.map(([act, ic, title, sub]) => `<button class="in-tile" data-act="${act}">
-  <span class="tile-ic"><span>${icon(ic)}</span></span>${act === "alerts" ? '<i class="badge-n" id="in-unread" hidden></i>' : ""}
-  <span class="tile-t"><b>${esc(t(title))}</b><span>${esc(t(sub))}</span></span>${icon("chevron")}</button>`).join("")}</nav>`;
-
 async function progressBody() {
   const p = planOf(asOne(await api("/api/tasks"))); // a task sent to everybody counts once, done when all did it
   const doneN = p.doneToday.length, total = doneN + p.today.length;
@@ -162,6 +169,27 @@ async function progressBody() {
     <div class="week-bar"><div class="in-bar"><i style="width:${pct}%"></i></div><b>${weekTotal ? `${pct}%` : "—"}</b></div>
     <div class="week-nums">${[[weekTotal, "Tarefas totais"], [weekDone, "Concluídas"], [p.inProgress, "Em curso"], [p.late.length, "Atrasadas"]]
       .map(([n, label]) => `<div><b>${n}</b><span>${t(label)}</span></div>`).join("")}</div>`;
+}
+
+/* ---------- what is urgent, above everything; the three numbers ---------- */
+async function alertBody() {
+  const [tasks, inbox] = await Promise.all([api("/api/tasks"), api("/api/notifications?limit=1")]);
+  const p = planOf(asOne(tasks));
+  const urgent = p.open.filter((x) => x.priority === "urgent").sort((a, b) => (a.deadline || "9").localeCompare(b.deadline || "9"));
+  const hot = p.open.filter((x) => x.priority === "urgent" || x.priority === "high").length;
+  const row = (x) => {
+    const own = x.group ? x.group.find((y) => y.assignee === me.username) : x.assignee === me.username ? x : null;
+    const mineDone = own && own.stage === "done";
+    const [when, late] = whenOf(x, "today");
+    return `<div class="u-row" data-task="${(own || x).id}">${own && !mineDone ? `<button class="tcheck" data-done="${own.id}" title="${t("Concluir")}"></button>` : `<span class="tcheck ${mineDone ? "part" : ""}">${mineDone ? icon("tick") : ""}</span>`}
+      <div class="u-t"><b>${esc(x.title)}</b><span>${esc(x.group ? whoLeft(x.group) : nameOf(x.assignee))}${when ? ` · <em class="${late}">${esc(when)}</em>` : ` · ${t("Sem prazo")}`}</span></div>
+      ${x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.assignee), "sm")}${icon("chevron")}</div>`;
+  };
+  const stat = (n, label, tone, ic, act) => `<button class="stat ${n ? `lit ${tone}` : ""}" ${act}><span class="stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></button>`;
+  return `${urgent.length ? `<section class="urgent"><header><i class="pulse"></i><b>${t(urgent.length === 1 ? "Urgente" : "Urgentes")}</b><span>${urgent.length}</span></header>
+      <div class="u-rows">${urgent.slice(0, 4).map(row).join("")}</div></section>` : ""}
+    <div class="stats">${stat(p.today.length, "Para hoje", "today", "calendar", 'data-go="#/tarefas"')}${stat(hot, "Urgentes", "hot", "flag", 'data-go="#/tarefas"')}
+      ${stat(inbox.unread, "Por ler", "unread", "bell", 'data-act="alerts"')}${stat(p.late.length, "Atrasadas", "hot", "clock", 'data-go="#/tarefas"')}</div>`;
 }
 
 let tasksTab = "today";
@@ -278,6 +306,8 @@ async function homeClick(e) {
   if (act === "agenda") return openAgenda();
   if (act === "note") return newNote();
   if (act === "alerts") return openNotices();
+  const go = e.target.closest("[data-go]");
+  if (go) { location.hash = go.dataset.go; return; }
   const notice = e.target.closest("[data-n]");
   if (notice) return openNotice(notice);
   const tab = e.target.closest("[data-tab]");
@@ -314,6 +344,7 @@ async function loadHome(parts = ["team", "news", "plan", "act"]) {
   const jobs = [];
   if (parts.includes("team")) jobs.push(mount($("in-team"), teamCard, 3));
   if (parts.includes("news")) jobs.push(mount($("in-news"), newsCard, 3));
+  if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan")) jobs.push(mount($("in-prog"), progressBody, 5), mount($("in-tasks"), tasksBody, 5), mount($("in-cal"), calendarBody, 3));
   if (parts.includes("act")) jobs.push(mount($("in-act"), activityBody, 3));
   await Promise.all(jobs);
@@ -323,11 +354,11 @@ HUB_VIEWS.home = async function viewHome() {
   let ignite = false; // the car comes out of the dark once per session; after that it is simply there
   try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: no start-up */ }
   $("view").innerHTML = `<div class="page inicio">${heroHtml(new Date(), ignite)}
+    <div id="in-alert" class="in-alert"></div>
     <div class="in-top"><section class="in-card" id="in-team"></section><section class="in-card" id="in-news"></section></div>
-    ${tilesHtml()}
     <div class="in-grid">
+      <section class="in-card in-tasks">${cardHead("tasks", "A seguir", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
       <section class="in-card in-prog">${cardHead("target", "Progresso da equipa", "", seeAll("Visão geral", "#/analise"))}<div id="in-prog"></div></section>
-      <section class="in-card in-tasks">${cardHead("tasks", "Tarefas", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
       <section class="in-card in-cal">${cardHead("calendar", "Calendário", t("Próximos prazos"),
         `<button class="ch-link" data-act="agenda">${t("Ver tudo")}${icon("chevron")}</button>`)}<div id="in-cal"></div></section>
       <div class="in-side">

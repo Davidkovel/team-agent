@@ -94,9 +94,87 @@ function doneColumn(list, label) {
       ${showOlderDone ? older.slice(0, 20).map(doneCard).join("") : ""}` : ""}</section>`;
 }
 
+/* ---------- Tarefas as lists, like the phone: Hoje, Próximas and Feitas side by side, each in blocks ---------- */
+let taskView = (() => { try { return localStorage.getItem("hub.taskView") || "lista"; } catch { return "lista"; } })();
+let taskCoFilter = "";
+const tlDay = (iso) => {
+  const d = new Date(iso), now = new Date();
+  return Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+};
+const tlLate = (x) => (x.deadline ? tlDay(x.deadline) : null);
+const tlOrder = (a, b) => importance(a) - importance(b) || String(a.deadline || "9").localeCompare(String(b.deadline || "9")) || b.id - a.id;
+function tlWhen(x) {
+  const n = tlLate(x);
+  if (n === null) return "";
+  if (n > 0) return `<em class="late">${t(n === 1 ? "Atrasada há 1 dia" : "Atrasada há {n} dias", { n })}</em>`;
+  if (n === 0) return `<em class="today">${t("Hoje")} ${fmt.hhmm(x.deadline)}</em>`;
+  return n === -1 ? `${t("Amanhã")} ${fmt.hhmm(x.deadline)}` : `${fmt.date(x.deadline)}`;
+}
+function tlRow(x) {
+  const own = x.group ? x.group.find((y) => y.assignee === me.username) : x;
+  const done = x.stage === "done", tone = done ? "done" : x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
+  const co = companies.find((c) => c.id === x.company)?.name;
+  const meta = [co ? `<span class="tl-co">${esc(co)}</span>` : "", x.project_name ? esc(x.project_name) : "",
+    x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : done ? (x.completed_by ? `<span class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</span>` : "") : esc(nameOf(x.assignee)),
+    done ? (x.completed_at ? `${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : "") : tlWhen(x),
+    x.stage === "in_progress" ? `<em class="ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="late">${t("Bloqueada")}</em>` : ""].filter(Boolean);
+  const check = done ? `<span class="tl-check">${icon("tick")}</span>`
+    : own && own.stage !== "done" && !heldByAgent(own) ? `<button class="tl-check" data-done="${own.id}" title="${t("Concluir")}"></button>`
+    : `<span class="tl-check ${own && own.stage === "done" ? "part" : "held"}">${own && own.stage === "done" ? icon("tick") : ""}</span>`;
+  return `<div class="tl-row ${tone}" data-id="${(own || x).id}">${check}
+    <div class="tl-t"><b>${tone === "urgent" ? '<i class="bang">!!</i>' : tone === "high" ? '<i class="bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span>${meta.join(" · ")}</span>` : ""}</div>
+    ${x.group ? whoFaces(x.group) : ui.avatar(nameOf(done && x.completed_by ? x.completed_by : x.assignee), "sm")}</div>`;
+}
+const tlBlock = (title, list, tone = "", sort = true) => (list.length ? `<div class="tl-block"><h4 class="${tone}"><i></i>${t(title)}<span>${list.length}</span></h4>
+  <div class="tl-list">${(sort ? [...list].sort(tlOrder) : list).map(tlRow).join("")}</div></div>` : "");
+let showOlderFeitas = false;
+
+async function loadLists(board) {
+  await mount(board, async () => {
+    const [list, approvals] = await Promise.all([api("/api/tasks"), api("/api/approvals").catch(() => [])]);
+    const all = list.filter((x) => !x.trashed_at);
+    const people = [...new Set(all.map((x) => x.assignee))];
+    const withCo = companies.filter((c) => all.some((x) => x.company === c.id));
+    if (taskCoFilter && taskCoFilter !== "none" && !withCo.some((c) => c.id === taskCoFilter)) taskCoFilter = "";
+    paint($("task-filter"), [["", t("Todas")], ...people.map((u) => [u, nameOf(u)])]
+      .map(([u, label]) => `<button class="chp ${u === taskFilter ? "on" : ""}" data-u="${esc(u)}">${esc(label)}</button>`).join("")
+      + (withCo.length ? `<span class="chp-sep"></span>${[["", "Todas as empresas"], ...withCo.map((c) => [c.id, c.name]), ["none", "Sem empresa"]]
+        .map(([id, label]) => `<button class="chp ${id === taskCoFilter ? "on" : ""}" data-co="${esc(id)}">${esc(t(label))}</button>`).join("")}` : ""));
+    const mine = all.filter((x) => (!taskFilter || x.assignee === taskFilter) && (!taskCoFilter || (taskCoFilter === "none" ? !x.company : x.company === taskCoFilter)));
+    // filtered by a person, a task for everybody stands for that person's copy; otherwise it is one card for all
+    const cards = taskFilter ? groupAll(all).filter((g) => g.group ? g.group.some((y) => y.assignee === taskFilter) : g.assignee === taskFilter)
+      .map((g) => (g.group ? { ...g.group.find((y) => y.assignee === taskFilter), group: g.group } : g))
+      .filter((x) => !taskCoFilter || (taskCoFilter === "none" ? !x.company : x.company === taskCoFilter)) : asOne(mine);
+    const open = cards.filter((x) => x.stage !== "done"), rest = open.filter((x) => x.priority !== "urgent");
+    const later = rest.filter((x) => tlLate(x) !== null && tlLate(x) < 0);
+    const done = cards.filter((x) => x.stage === "done").sort((a, b) => String(b.completed_at || "").localeCompare(String(a.completed_at || "")));
+    const doneOn = (x) => tlDay(x.completed_at || x.updated_at || x.created_at);
+    const hoje = [["Urgentes", open.filter((x) => x.priority === "urgent"), "late"], ["Atrasadas", rest.filter((x) => tlLate(x) > 0), "late"],
+      ["Para hoje", rest.filter((x) => tlLate(x) === 0), "today"], ["Sem prazo", rest.filter((x) => tlLate(x) === null), ""]];
+    const prox = [["Amanhã", later.filter((x) => tlLate(x) === -1)], ["Esta semana", later.filter((x) => tlLate(x) < -1 && tlLate(x) >= -7)], ["Mais tarde", later.filter((x) => tlLate(x) < -7)]];
+    const older = done.filter((x) => doneOn(x) > 1);
+    const count = (blocks) => blocks.reduce((k, b) => k + b[1].length, 0);
+    const col = (title, sub, n, body, empty, tone = "") => `<section class="tl-col ${tone}"><header><b>${t(title)}</b><span>${esc(sub)}</span><i>${n}</i></header>
+      ${body || `<p class="tl-empty">${t(empty)}</p>`}</section>`;
+    const waiting = approvals.filter((a) => a.status === "PENDING").length;
+    if (!all.length) return ui.empty("tasks", "Sem tarefas", "Cria a primeira tarefa: fica contigo ou vai direta para um agente.", `<button class="btn sm primary" data-new-task>${t("Nova tarefa")}</button>`);
+    return `${waiting ? `<a class="tl-approve" href="#/aprovacoes">${icon("alert")}<span>${t(waiting === 1 ? "1 aprovação à espera" : "{n} aprovações à espera", { n: waiting })}</span>${icon("chevron")}</a>` : ""}
+      <div class="tl-cols">
+      ${col("Hoje", t("o que é para fazer já"), count(hoje), hoje.map(([title, l, tone]) => tlBlock(title, l, tone)).join(""), "Tudo feito por hoje.", count(hoje) && hoje[0][1].length ? "hot" : "")}
+      ${col("Próximas", t("com prazo nos próximos dias"), count(prox), prox.map(([title, l]) => tlBlock(title, l)).join(""), "Nada marcado para os próximos dias.")}
+      ${col("Feitas", t("as mais recentes primeiro"), done.length, tlBlock("Hoje", done.filter((x) => doneOn(x) <= 0), "ok", false) + tlBlock("Ontem", done.filter((x) => doneOn(x) === 1), "ok", false)
+        + (older.length ? `<button class="tl-more" data-older-feitas>${t(showOlderFeitas ? "Esconder as anteriores" : "Ver as anteriores ({n})", { n: older.length })}</button>${showOlderFeitas ? tlBlock("Mais antigas", older.slice(0, 40), "ok", false) : ""}` : ""),
+        "Ainda nada concluído.")}
+      </div>`;
+  }, 6);
+}
+
 async function loadBoard() {
   const board = $("board");
   if (!board) return;
+  board.classList.toggle("is-lists", taskView === "lista");
+  if (taskView === "lista") { $("bin")?.setAttribute("hidden", ""); return loadLists(board); }
+  $("bin")?.removeAttribute("hidden");
   await mount(board, async () => {
     const all = (await api("/api/tasks")).filter((x) => !x.trashed_at); // what went into the bin as finished stays in the numbers, not on the board
     const people = [...new Set(all.map((x) => x.assignee))];
@@ -287,8 +365,9 @@ async function openTaskModal(id) {
 }
 
 HUB_VIEWS.tarefas = async function (r) {
-  page(`${ui.head("Centro de comando", t("Tarefas"), t("O trabalho das pessoas e dos agentes, por estado. Arrasta um cartão para lhe mudar o estado."),
-    ui.btn("Nova tarefa", "data-new-task", "primary", "plus"))}
+  page(`${ui.head("Centro de comando", t("Tarefas"), t("Hoje, as próximas e as feitas. O quadro tem as colunas por estado, para arrastar cartões."),
+    `<div class="segx" id="task-view">${[["lista", "Lista"], ["quadro", "Quadro"]].map(([v, l]) => `<button data-view="${v}" class="${v === taskView ? "on" : ""}">${t(l)}</button>`).join("")}</div>
+    ${ui.btn("Nova tarefa", "data-new-task", "primary", "plus")}`)}
     <div class="chipbar" id="task-filter"></div><div class="board" id="board"></div><div class="bin" id="bin"></div>`);
   const view = $("view");
   view.onclick = (e) => {
@@ -296,6 +375,25 @@ HUB_VIEWS.tarefas = async function (r) {
     if (e.target.closest("[data-bin-open]")) return openBin();
     const chip = e.target.closest("#task-filter [data-u]");
     if (chip) { taskFilter = chip.dataset.u; $("board")._html = null; return loadBoard(); }
+    const coChip = e.target.closest("#task-filter [data-co]");
+    if (coChip) { taskCoFilter = coChip.dataset.co; $("board")._html = null; return loadBoard(); }
+    const viewBtn = e.target.closest("[data-view]");
+    if (viewBtn) {
+      taskView = viewBtn.dataset.view;
+      try { localStorage.setItem("hub.taskView", taskView); } catch { /* private window: it just is not remembered */ }
+      $("task-view").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === viewBtn));
+      $("board")._html = null;
+      return loadBoard();
+    }
+    if (e.target.closest("[data-older-feitas]")) { showOlderFeitas = !showOlderFeitas; return loadBoard(); }
+    const tick = e.target.closest(".tl-row [data-done]");
+    if (tick) {
+      tick.disabled = true; tick.closest(".tl-row").classList.add("finishing");
+      api(`/api/tasks/${tick.dataset.done}`, { method: "PATCH", body: { status: "COMPLETED" } }).then(() => flash(t("Tarefa concluída.")), (err) => flash(err.message)).finally(loadBoard);
+      return;
+    }
+    const line = e.target.closest(".tl-row");
+    if (line) return openTaskModal(Number(line.dataset.id));
     if (e.target.closest("[data-older-done]")) { showOlderDone = !showOlderDone; return loadBoard(); }
     const card = e.target.closest(".tk");
     if (card) openTaskModal(Number(card.dataset.id));
@@ -858,7 +956,42 @@ HUB_VIEWS.codigo = async function () {
   await done;
 };
 
+/* Trabalho, the way in (2026-10-06, like the phone): the companies as folders, the rest of the work beside them.
+   A company opens its own page (#/empresas/<id>), BareDesk its shop; nothing is opened before you choose. */
+async function workOverview() {
+  page(`${ui.head("Trabalho", t("Trabalho"), t("As empresas e o trabalho em geral. Escolhe uma empresa para entrar nela."))}<div id="work-in">${ui.skeleton(6)}</div>`);
+  await mount($("work-in"), async () => {
+    const [tasks, projects, commits, store] = await Promise.all([api("/api/tasks"), api("/api/projects").catch(() => []), api("/api/commits?limit=20").catch(() => []),
+      companies.some((c) => c.id === "baredesk") ? api("/api/store/summary").catch(() => null) : null]);
+    const works = await Promise.all(companies.map((c) => api(`/api/work/${c.id}`).catch(() => null)));
+    const cards = asOne(tasks.filter((x) => !x.trashed_at));
+    const live = store && (store.shopify?.source === "live" || store.meta?.source === "live");
+    const folder = (c, i) => {
+      const open = cards.filter((x) => x.company === c.id && x.stage !== "done").length, done = cards.filter((x) => x.company === c.id && x.stage === "done").length;
+      const top = works[i]?.people?.[0];
+      const shop = c.id === "baredesk" ? `<a class="wf-fact ${live ? "ok" : "warn"}" href="#/baredesk">${live ? `● ${t("Loja ao vivo")}` : t("Loja por ligar")}</a>` : "";
+      return `<article class="wf">
+        <a class="wf-head" href="${c.id === "baredesk" ? "#/baredesk" : `#/empresas/${c.id}`}"><span class="wf-logo">${esc(c.short || c.name.slice(0, 3))}</span>
+          <div><b>${esc(c.name)}</b><span>${esc(c.tagline || "")}</span></div>${icon("chevron")}</a>
+        <div class="wf-facts"><span class="wf-fact"><b>${open}</b> ${t(open === 1 ? "tarefa aberta" : "tarefas abertas")}</span><span class="wf-fact"><b>${done}</b> ${t("feitas")}</span>${shop}
+          ${top ? `<span class="wf-fact">${t("Mais ativo")}: ${esc(top.name)}</span>` : ""}</div>
+        <div class="wf-lib">${c.sections.map((x) => `<a href="${c.id === "baredesk" ? `#/baredesk/${x.id}` : `#/empresas/${c.id}/${x.id}`}">${icon(x.id)}<span>${esc(t(x.label))}</span>${x.count != null ? `<i>${x.count}</i>` : ""}</a>`).join("")}</div></article>`;
+    };
+    const general = (href, ic, title, sub, body) => `<a class="in-card wg" href="${href}"><header class="ch">${icon(ic)}<div class="ch-t"><b>${esc(t(title))}</b><span>${esc(sub)}</span></div>${icon("chevron")}</header>${body}</a>`;
+    const cline = (c) => `<div class="wg-row">${ui.avatar(c.author, "sm")}<div><b>${esc(c.message)}</b><span>${esc(c.author)} · ${esc(fmt.ago(c.date))}</span></div></div>`;
+    return `<div class="wf-grid">${companies.length ? companies.map(folder).join("") : ui.empty("building", "Ainda não há empresas", "")}</div>
+      <div class="sec" style="margin-top:22px"><span>${t("Geral")}</span></div>
+      <div class="wg-grid">
+        ${general("#/projetos", "folder", "Projetos", projects.length ? t(projects.length === 1 ? "1 projeto" : "{n} projetos", { n: projects.length }) : t("Ainda sem projetos"),
+          projects.length ? projects.slice(0, 3).map((x) => `<div class="wg-row"><span class="wg-dot"></span><div><b>${esc(x.name)}</b></div></div>`).join("") : `<p class="wg-none">${t("Um projeto junta tarefas, agentes e custo num só sítio.")}</p>`)}
+        ${general("#/codigo", "code", "Código", commits[0] ? `${t("último")} ${fmt.ago(commits[0].date)}` : t("Sem commits"), commits.slice(0, 3).map(cline).join("") || `<p class="wg-none">${t("Sem commits.")}</p>`)}
+        ${general("#/entregas", "layers", "Entregas", t("o que mudou em cada push"), commits[0] ? `<div class="wg-row"><span class="wg-dot"></span><div><b>${esc(commits[0].message)}</b><span>${esc(commits[0].author)} · ${esc(fmt.ago(commits[0].date))}</span></div></div>` : `<p class="wg-none">${t("Ainda sem entregas.")}</p>`)}
+      </div>`;
+  }, 6);
+}
+
 HUB_VIEWS.empresas = async function (r) {
+  if (!r.company) return workOverview();
   const done = viewCompanies(r); // the older page: the company's library (theme, skills, videos, photos, docs)
   const company = companies.find((c) => c.id === r.company) || companies[0];
   const anchor = $("work");

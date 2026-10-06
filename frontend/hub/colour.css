@@ -1,0 +1,106 @@
+/* =====================================================================
+   Colour: the Hub on a computer, no longer black and grey. Loaded last, so it only re-colours what the other
+   files draw: deep indigo instead of black, light in three colours behind the page, glass cards, and one colour
+   per thing (team cyan, tasks violet, notes amber, alerts pink). The phone (html.is-phone) keeps its own look.
+   Delete the <link> in index.html and the Hub is as it was.
+   ===================================================================== */
+html:not(.is-phone) {
+  --bg: #0b0920; --panel: #14123a; --panel-2: #1b1848; --panel-3: #262258;
+  --surface: #151238; --surface-2: #1c1947; --surface-3: #27235c;
+  --text: #f5f4ff; --muted: #aeabdb; --faint: #7672ab;
+  --line: rgba(160, 150, 255, .14); --sep: rgba(160, 150, 255, .14); --line-2: rgba(170, 160, 255, .28);
+  --accent: #8b7bff; --accent-rgb: 139, 123, 255; --accent-2: #a995ff; --accent-dark: #6a55f0;
+  --ai: #5ee0ff; --ai-rgb: 94, 224, 255;
+  --ok: #3ee08f; --warn: #ffc24d; --bad: #ff5f7e; --idle: #8f8bc4;
+  --cyan: #5ee0ff; --violet: #a78bff; --pink: #ff7ad1; --amber: #ffc24d;
+  --chrome: linear-gradient(100deg, #7cf0ff 0%, #a78bff 48%, #ff7ad1 100%);
+  --chrome-line: linear-gradient(90deg, transparent, rgba(94, 224, 255, .75) 25%, rgba(167, 139, 255, .9) 50%, rgba(255, 122, 209, .75) 75%, transparent);
+  --metal: linear-gradient(180deg, #2c2870 0%, #1d1a4e 100%);
+  --metal-hi: linear-gradient(135deg, #6b5cff 0%, #a45cff 55%, #ff5fb7 100%);
+  --drl: #c9b8ff;
+  --glass: linear-gradient(160deg, rgba(46, 39, 124, .62), rgba(20, 17, 60, .78));
+}
+
+/* ---------------------------------------------------------------- the room: three lights on a dark blue wall */
+html:not(.is-phone), html:not(.is-phone) body { background: var(--bg); }
+html:not(.is-phone) .hub > main {
+  background:
+    radial-gradient(900px 520px at 82% -6%, rgba(124, 92, 255, .42), transparent 70%),
+    radial-gradient(760px 460px at 4% 4%, rgba(0, 200, 255, .22), transparent 70%),
+    radial-gradient(1000px 560px at 55% 112%, rgba(255, 76, 168, .22), transparent 70%),
+    var(--bg);
+  background-attachment: local;
+}
+
+/* ---------------------------------------------------------------- the sidebar */
+html:not(.is-phone) .hside { background: linear-gradient(180deg, #17124a 0%, #0e0b2c 60%, #150b33 100%); box-shadow: inset -1px 0 0 rgba(160, 150, 255, .16); }
+html:not(.is-phone) .side-link.active { background: linear-gradient(90deg, rgba(139, 123, 255, .42), rgba(255, 122, 209, .14)); color: #fff; }
+html:not(.is-phone) .side-link.active::before { background: linear-gradient(180deg, var(--cyan), var(--pink)); width: 3px; }
+html:not(.is-phone) .side-link:hover { background: rgba(139, 123, 255, .16); }
+html:not(.is-phone) .side-nav .side-link:nth-of-type(6n + 1) svg.i { color: var(--cyan); }
+html:not(.is-phone) .side-nav .side-link:nth-of-type(6n + 2) svg.i { color: var(--violet); }
+html:not(.is-phone) .side-nav .side-link:nth-of-type(6n + 3) svg.i { color: var(--ok); }
+html:not(.is-phone) .side-nav .side-link:nth-of-type(6n + 4) svg.i { color: var(--amber); }
+html:not(.is-phone) .side-nav .side-link:nth-of-type(6n + 5) svg.i { color: var(--pink); }
+html:not(.is-phone) .side-nav .side-link:nth-of-type(6n + 6) svg.i { color: #7c9dff; }
+html:not(.is-phone) .side-search { background: rgba(139, 123, 255, .1); border-color: rgba(160, 150, 255, .22); }
+html:not(.is-phone) .side-link .badge, html:not(.is-phone) .subtabs .badge { background: linear-gradient(135deg, #ff5fb7, #ff8a4d); color: #fff; }
+
+/* ---------------------------------------------------------------- cards: coloured glass */
+html:not(.is-phone) .in-card, html:not(.is-phone) .panel, html:not(.is-phone) .in-tile {
+  background: var(--glass); border-color: rgba(160, 150, 255, .2);
+  box-shadow: 0 22px 54px -30px rgba(96, 64, 255, .75), inset 0 1px 0 rgba(255, 255, 255, .06);
+  backdrop-filter: blur(14px);
+}
+html:not(.is-phone) .in-card::before { opacity: .9; height: 2px; left: 0; right: 0; border-radius: 10px 10px 0 0; }
+html:not(.is-phone) .in-tile:hover { border-color: rgba(190, 180, 255, .5); transform: translateY(-2px); }
+html:not(.is-phone) .ch > svg.i { color: var(--cyan); }
+html:not(.is-phone) .ch-t b::before { color: var(--violet); }
+html:not(.is-phone) .ch-link { color: var(--violet); }
+html:not(.is-phone) .ch-link:hover { color: #fff; }
+
+/* ---------------------------------------------------------------- the hero */
+html:not(.is-phone) .in-hero h1 em, html:not(.is-phone) .ph h1 {
+  background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+html:not(.is-phone) .ph h1 { width: fit-content; }
+html:not(.is-phone) .hero-eyebrow, html:not(.is-phone) .ph-eyebrow { color: var(--cyan); }
+html:not(.is-phone) .hero-eyebrow::before { background: repeating-linear-gradient(-62deg, var(--pink) 0 2.2px, transparent 2.2px 4.8px); }
+html:not(.is-phone) .hero-date { color: var(--muted); }
+html:not(.is-phone) .hero-date time { color: var(--amber); }
+html:not(.is-phone) .hero-car { filter: drop-shadow(0 30px 60px rgba(124, 92, 255, .55)); }
+
+/* ---------------------------------------------------------------- the four tiles, one colour each */
+html:not(.is-phone) .tile-ic { background: conic-gradient(from 200deg, var(--cyan), var(--violet) 35%, var(--pink) 68%, var(--cyan)); box-shadow: 0 10px 24px -6px rgba(124, 92, 255, .8); }
+html:not(.is-phone) .tile-ic > span { box-shadow: inset 0 2px 3px rgba(255, 255, 255, .28), inset 0 -3px 8px rgba(0, 0, 0, .25); }
+html:not(.is-phone) .tile-ic svg.i { color: #fff; }
+html:not(.is-phone) .in-tile:nth-child(4n + 1) .tile-ic > span { background: linear-gradient(135deg, #22c8ff, #5b6bff); }
+html:not(.is-phone) .in-tile:nth-child(4n + 2) .tile-ic > span { background: linear-gradient(135deg, #8b6bff, #d05cff); }
+html:not(.is-phone) .in-tile:nth-child(4n + 3) .tile-ic > span { background: linear-gradient(135deg, #ffb13d, #ff6a5c); }
+html:not(.is-phone) .in-tile:nth-child(4n + 4) .tile-ic > span { background: linear-gradient(135deg, #ff5fb7, #a45cff); }
+html:not(.is-phone) .in-tile:nth-child(4n + 1) .tile-t b { color: var(--cyan); }
+html:not(.is-phone) .in-tile:nth-child(4n + 2) .tile-t b { color: var(--violet); }
+html:not(.is-phone) .in-tile:nth-child(4n + 3) .tile-t b { color: var(--amber); }
+html:not(.is-phone) .in-tile:nth-child(4n + 4) .tile-t b { color: var(--pink); }
+
+/* ---------------------------------------------------------------- lists on the home page */
+html:not(.is-phone) .nrow.unread > i { background: var(--pink); box-shadow: 0 0 10px rgba(255, 122, 209, .8); }
+html:not(.is-phone) .n-ic { color: var(--violet); background: rgba(139, 123, 255, .16); border-color: rgba(160, 150, 255, .3); }
+html:not(.is-phone) .n-count { color: #14103a; }
+html:not(.is-phone) .mates .on .mate-st, html:not(.is-phone) .mates .busy .mate-st { color: var(--ok); }
+html:not(.is-phone) .ring-track { stroke: rgba(160, 150, 255, .18); }
+html:not(.is-phone) .ring-val { stroke: var(--violet); filter: drop-shadow(0 0 6px rgba(167, 139, 255, .8)); }
+html:not(.is-phone) .day-tabs button.on, html:not(.is-phone) .segx button.on { background: var(--metal-hi); color: #fff; box-shadow: 0 6px 16px -6px rgba(164, 92, 255, .9); }
+html:not(.is-phone) .in-bar i, html:not(.is-phone) .rank-bar i, html:not(.is-phone) .bd-bar i { background: linear-gradient(90deg, var(--cyan), var(--violet), var(--pink)); }
+
+/* ---------------------------------------------------------------- buttons */
+html:not(.is-phone) .btn { background: rgba(139, 123, 255, .14); border-color: rgba(160, 150, 255, .3); }
+html:not(.is-phone) .btn:hover { background: rgba(139, 123, 255, .26); border-color: rgba(190, 180, 255, .55); }
+html:not(.is-phone) .btn.primary, html:not(.is-phone) .btn.primary:hover, html:not(.is-phone) button.primary {
+  background: var(--metal-hi); border-color: transparent; color: #fff; text-shadow: none; box-shadow: 0 8px 22px -8px rgba(164, 92, 255, .9);
+}
+html:not(.is-phone) .btn.primary:hover, html:not(.is-phone) button.primary:hover { filter: brightness(1.12); }
+html:not(.is-phone) .btn.ok { background: rgba(62, 224, 143, .14); border-color: rgba(62, 224, 143, .4); }
+html:not(.is-phone) #ai-fab { background: var(--metal-hi); border-color: transparent; box-shadow: 0 12px 30px -8px rgba(164, 92, 255, .95); color: #fff; }
+html:not(.is-phone) .chp.on, html:not(.is-phone) .hub .chip.active, html:not(.is-phone) .bd-pill.on { background: var(--metal-hi); border-color: transparent; color: #fff; }
+html:not(.is-phone) .hero-car img { mix-blend-mode: screen; }   /* the photo's black background lets the lights through */

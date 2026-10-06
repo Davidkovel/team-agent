@@ -1048,6 +1048,7 @@ class Panel(QWidget):
 class WidgetWindow(QWidget):
     hub_ready = Signal(object)  # (error, url) from the thread that wakes the Hub
     punched = Signal(object)    # the clock-in the Hub confirmed, or the error text
+    away_done = Signal(object)  # the offline/online switch: the new state, or the error text
     news = Signal(object)       # tasks that were sent, from the thread that polls the Hub
     inbox_news = Signal(object)  # the notifications not read yet, for the mini history (same thread)
 
@@ -1067,6 +1068,8 @@ class WidgetWindow(QWidget):
         self._hub_page = None      # where the Hub should open, when something asked for a page
         self.on_status = lambda status: None  # tray hook
         self.notify = lambda title, text: None  # tray hook: a Windows notification
+        self._away = False  # switched offline with the "Ficar offline" button (to try the notifications)
+        self.away_done.connect(self._away_done)
         self._ponto_seen = None  # user -> when they clocked in today, as last seen (None until the first look)
         self._version = -1
         self._opening_hub = False
@@ -1155,6 +1158,14 @@ class WidgetWindow(QWidget):
         self.hub_note = label("O Hub não está a responder.", 8.5, FAINT)
         self.hub_note.hide()
         team.box.addWidget(self.hub_note)
+        # to try the notifications: the others see this person go offline, and get the card when they come back
+        self.btn_away = TextButton("Ficar offline", "Aparecer offline para a equipa (para testar as notificações)", MUTED)
+        self.btn_away.clicked.connect(lambda: self.set_away(not self._away))
+        away_row = QHBoxLayout()
+        away_row.setContentsMargins(0, 4, 0, 4)
+        away_row.addWidget(self.btn_away)
+        away_row.addStretch(1)
+        team.box.addLayout(away_row)
         col.addWidget(team)
 
         # only when there is something to say
@@ -1415,7 +1426,7 @@ class WidgetWindow(QWidget):
                     hub.start_local_server(url)
                 team = hub.get_json(url + "/api/local/team")
                 who = self._identity(team)
-                if who:
+                if who and not self._away:
                     hub.ping_presence(url, who)
                     team = hub.get_json(url + "/api/local/team")  # again, so this person already shows as online
                 self._team = team
@@ -1712,16 +1723,43 @@ class WidgetWindow(QWidget):
         self._ponto_seen = now
 
     def _follow_online(self, team):
-        """Tells this person when a teammate comes online, the way Steam does."""
+        """Tells this person when someone comes online or goes offline, the way Steam does."""
         if not team:  # no answer yet: the first real list is a look, not news
             return
         now = {p["user"]: bool(p.get("online")) for p in team}
-        me = self._identity(team)
         if self._online_seen is not None:
-            for p in team:
-                if now[p["user"]] and not self._online_seen.get(p["user"]) and p["user"] != me:
-                    self.presence.show(p["name"])
+            for p in team:  # everyone, this person too: whoever switches offline/online sees the same card as the others
+                if now[p["user"]] != bool(self._online_seen.get(p["user"])):
+                    self.presence.show(p["name"], now[p["user"]])
         self._online_seen = now
+
+    def set_away(self, away: bool):
+        """The "Ficar offline / Ficar online" button: asked of the Hub off the UI thread."""
+        who = self._identity(self._team or [])
+        if not who:
+            self.notify("Equipa", "O Hub não respondeu. Tenta outra vez daqui a pouco.")
+            return
+        self.btn_away.setEnabled(False)
+
+        def work():
+            try:
+                hub.set_away(hub.hub_url(), who, away)
+                self.away_done.emit(away)
+            except (OSError, ValueError) as e:
+                self.away_done.emit(str(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _away_done(self, result):
+        self.btn_away.setEnabled(True)
+        if isinstance(result, str):
+            self.notify("Equipa", "O Hub não aceitou a mudança. Faz git pull e reinicia o Hub.")
+            return
+        self._away = result
+        if result:
+            self.btn_away.set_text("Ficar online", COLORS["ERROR"])
+        else:
+            self.btn_away.set_text("Ficar offline", MUTED)
 
     def punch_ponto(self):
         who = self._identity(self._team or [])

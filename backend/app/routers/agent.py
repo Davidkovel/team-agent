@@ -13,7 +13,7 @@ from ..db import get_db
 from ..models import UNFINISHED, AgentSession, Approval, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
 from ..security import agent_user, make_jwt
-from ..services import (ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, where, approval_out, deciders, event_out, log_activity, notify,
+from ..services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, where, approval_out, deciders, event_out, log_activity, notify,
                         save_agent_state, task_out, team_view)
 from .work import memory_for_task
 
@@ -99,6 +99,8 @@ async def session(user: User = Depends(agent_user)):
 
 @router.post("/heartbeat")
 async def heartbeat(body: Heartbeat, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+    if user.id in AWAY:  # switched offline in the widget: the agent still gets its commands, but nobody sees them online
+        return {"commands": await rt.store.pop_commands(user.id), "team": await team_view(db, user)}
     before = await rt.store.get_presence(user.id)
     was_online = before is not None and before.get("via") not in SOFT_VIA  # an open Hub/widget is not the agent
     await rt.store.set_presence(user.id, {**body.model_dump(), "where": where(user.id, agent=True), "last_seen": time.time()}, settings.heartbeat_timeout)

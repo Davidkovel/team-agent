@@ -213,6 +213,7 @@ SOFT_TTL = 90                 # a Hub tab pings every ~10 s; browsers may slow a
 WIDGET_SEEN: dict[int, float] = {}  # user id -> when this computer's widget last pinged (per process; the TTL covers the rest)
 ONLINE_VIA: dict[int, str] = {}     # how each online person got online: "agent", "hub" or "widget"
 PENDING_ONLINE: set[int] = set()    # became online through the Hub/widget; the watcher still has to write that down
+AWAY: set[int] = set()              # switched themselves offline in the widget (to try the notifications): nothing makes them online
 
 
 def widget_recent(user_id: int, within: float = 40) -> bool:
@@ -241,6 +242,8 @@ async def _refresh_where(user_id: int, current: dict):
 
 async def hub_seen(user_id: int, via: str = "hub") -> bool:
     """The person's Hub/widget is open, so they are online. Returns True when this made them newly online."""
+    if user_id in AWAY:
+        return False
     current = await rt.store.get_presence(user_id)
     if current is not None and current.get("via") not in SOFT_VIA:
         if not current.get("remote"):
@@ -257,6 +260,20 @@ async def hub_seen(user_id: int, via: str = "hub") -> bool:
         PENDING_ONLINE.add(user_id)
     await rt.publish("presence", user_id, "team")
     return True
+
+
+async def set_away(user_id: int, away: bool):
+    """The widget's "Ficar offline" switch: the person shows offline everywhere (here and, by sync, on the other computers)
+    until they switch back, even with the widget, a Hub window or the agent open. Back online, the others get the card."""
+    if away:
+        AWAY.add(user_id)
+        WIDGET_SEEN.pop(user_id, None)
+        await rt.store.clear_presence(user_id)  # the watcher writes the "saiu" down within a couple of seconds
+        await rt.publish("presence", user_id, "team")
+    else:
+        AWAY.discard(user_id)
+        WIDGET_SEEN[user_id] = time.time()
+        await hub_seen(user_id, "widget")
 
 
 async def hub_gone(user_id: int):

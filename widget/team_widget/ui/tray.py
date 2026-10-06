@@ -57,6 +57,7 @@ def start_tray(window: WidgetWindow):
     item("Abrir o Hub", window._open_dashboard)
     item("Abrir tarefa atual", window._open_task)
     item("Bater o ponto", window.punch_ponto)
+    item("Ficar offline / online (teste)", lambda: window.set_away(not window._away))
     on_top = item("Sempre por cima", lambda: None)
     on_top.setCheckable(True)
     on_top.setChecked(prefs.on_top())

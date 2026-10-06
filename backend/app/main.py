@@ -14,7 +14,7 @@ from .models import User
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, ponto, tasks, team, week, work, ws
 from .security import hash_password
-from .services import (ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
+from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
 
 log = logging.getLogger("team.backend")
@@ -69,7 +69,7 @@ async def offline_watcher():
             for user_id in list(rt.online):
                 if await rt.store.get_presence(user_id) is not None:
                     continue
-                if widget_recent(user_id) or dashboard_open(user_id):
+                if user_id not in AWAY and (widget_recent(user_id) or dashboard_open(user_id)):
                     # the agent went quiet but the Hub/widget is still open: still online, nothing to announce
                     await hub_seen(user_id, "widget" if widget_recent(user_id) else "hub")
                     continue

@@ -3,7 +3,7 @@
     notices = Notices(open_page)            # open_page("#/tarefas/3") is called when a card is clicked
     notices.push([{"title": "...", "body": "...", "href": "#/tarefas/3", "directed": True}])
     presence = Presence()
-    presence.show("Marco")                  # the corner card: somebody came online
+    presence.show("Marco")                  # the corner card: somebody came online (online=False: went offline)
 
 A task card drops from the top of the screen, one after another, and leaves on its own. A task sent to this person
 (`directed`) is amber and rings, with the Windows notification sound; one sent to somebody else is white and silent.
@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QWidget
 from . import badge
 
 TEXT, MUTED = QColor("#f2f3f5"), QColor("#a3a7ae")
-AMBER, WHITE, ONLINE = QColor("#e3bd6b"), QColor("#f2f3f5"), QColor("#4ee07a")
+AMBER, WHITE, ONLINE, OFFLINE = QColor("#e3bd6b"), QColor("#f2f3f5"), QColor("#4ee07a"), QColor("#8a8f98")
 UI = ("Segoe UI Variable Text", "Segoe UI")
 WIDTH, PAD, RADIUS = 460, 18, 16
 ICON = 36                                  # the star at the left of a card
@@ -26,7 +26,7 @@ MARGIN = 18                                # room around the plate for its shado
 TOP = 18                                   # gap between the card and the top of the screen
 SLIDE_IN, HOLD, SLIDE_OUT, GAP = 460, 8000, 300, 250   # ms
 MAX_BATCH = 3                              # more than this at once (a computer that was off, catching up) become a single card
-P_WIDTH, P_HEIGHT, P_EDGE, P_GAP, P_HOLD = 420, 108, 22, 12, 7000
+P_WIDTH, P_HEIGHT, P_EDGE, P_GAP, P_HOLD = 300, 72, 22, 10, 6000
 BEAT, BEATS = 1100, 3                       # ms of one ring beating out of a presence card, and how many
 
 
@@ -228,12 +228,12 @@ class Notices(QObject):
 
 
 class PresenceCard(Card):
-    """Somebody came online: a card in the bottom right corner of the screen, the way Steam says it."""
+    """Somebody came online (green) or went offline (grey): a small card in the bottom right corner, the way Steam says it."""
 
-    def __init__(self, name: str, text: str, slot: int):
-        super().__init__(P_WIDTH, P_HEIGHT, ONLINE, P_HOLD)
-        self._name, self._text = name, text
-        self._f_name, self._f_text = _font(15, QFont.DemiBold), _font(11, QFont.DemiBold)
+    def __init__(self, name: str, text: str, slot: int, colour: QColor = ONLINE):
+        super().__init__(P_WIDTH, P_HEIGHT, colour, P_HOLD)
+        self._name, self._text, self._colour = name, text, colour
+        self._f_name, self._f_text = _font(11, QFont.DemiBold), _font(9, QFont.DemiBold)
         self._beat = 1.0   # how far the ring has gone out; 1 = no ring
         self._pulse = QVariantAnimation(self)
         self._pulse.setStartValue(0.0)
@@ -262,29 +262,30 @@ class PresenceCard(Card):
         p = QPainter(self)
         rect = self._plate(p)
         wash = QLinearGradient(rect.topLeft(), rect.topRight())   # green light from the left, so it does not read as one more dark window
-        wash.setColorAt(0, _tint(ONLINE, 0.28))
-        wash.setColorAt(0.75, _tint(ONLINE, 0.0))
+        wash.setColorAt(0, _tint(self._colour, 0.28))
+        wash.setColorAt(0.75, _tint(self._colour, 0.0))
         p.setPen(Qt.NoPen)
         p.setBrush(wash)
         p.drawRoundedRect(rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS)
         if self._beat < 1.0:   # the ring that beats out of the card: movement is what the eye catches in a corner
-            grow = 2 + 12 * self._beat
-            p.setPen(QPen(_tint(ONLINE, 0.8 * (1 - self._beat)), 2.5))
+            grow = 2 + 9 * self._beat
+            p.setPen(QPen(_tint(self._colour, 0.8 * (1 - self._beat)), 2))
             p.setBrush(Qt.NoBrush)
             p.drawRoundedRect(rect.adjusted(-grow, -grow, grow, grow), RADIUS + grow, RADIUS + grow)
-        av = QRectF(22, (P_HEIGHT - 3) / 2 - 30, 60, 60)
+        av = QRectF(16, (P_HEIGHT - 3) / 2 - 18, 36, 36)
         self._star(p, av)
-        dot = av.bottomRight() - QRectF(0, 0, 8, 8).bottomRight()
-        p.setPen(QPen(QColor(24, 24, 27), 3))
-        p.setBrush(ONLINE)
-        p.drawEllipse(dot, 7.5, 7.5)
-        x, w = 100, P_WIDTH - 100 - PAD
+        dot = av.bottomRight() - QRectF(0, 0, 5, 5).bottomRight()
+        p.setPen(QPen(QColor(24, 24, 27), 2.5))
+        p.setBrush(self._colour)
+        p.drawEllipse(dot, 5, 5)
+        x = av.right() + 14
+        w = P_WIDTH - x - PAD
         p.setFont(self._f_name)
         p.setPen(TEXT)
-        p.drawText(QRectF(x, 22, w, 32), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_name).elidedText(self._name, Qt.ElideRight, w))
+        p.drawText(QRectF(x, P_HEIGHT / 2 - 21, w, 20), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_name).elidedText(self._name, Qt.ElideRight, w))
         p.setFont(self._f_text)
-        p.setPen(ONLINE)
-        p.drawText(QRectF(x, 56, w, 24), Qt.AlignLeft | Qt.AlignVCenter, self._text)
+        p.setPen(self._colour)
+        p.drawText(QRectF(x, P_HEIGHT / 2 - 1, w, 18), Qt.AlignLeft | Qt.AlignVCenter, self._text)
 
 
 class Presence(QObject):
@@ -294,10 +295,11 @@ class Presence(QObject):
         super().__init__(parent)
         self._cards = {}   # slot -> card
 
-    def show(self, name: str, text: str = "está online agora"):
+    def show(self, name: str, online: bool = True):
+        text = "está online agora" if online else "ficou offline"
         if not self._cards:
             ring()   # once for a group of people arriving together, not once each
         slot = next(i for i in range(len(self._cards) + 1) if i not in self._cards)
-        card = self._cards[slot] = PresenceCard(name, text, slot)
+        card = self._cards[slot] = PresenceCard(name, text, slot, ONLINE if online else OFFLINE)
         card.finished.connect(lambda: (self._cards.pop(slot, None), card.close(), card.deleteLater()))
         card.run()

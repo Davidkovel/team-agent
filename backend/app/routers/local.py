@@ -19,7 +19,7 @@ from ..db import get_db
 from ..models import Approval, Notification, User
 from ..realtime import rt
 from ..security import make_jwt, sees_all
-from ..services import WIDGET_SEEN, hub_seen, iso, usage_fields, usage_numbers
+from ..services import WIDGET_SEEN, hub_seen, set_away, iso, usage_fields, usage_numbers
 
 router = APIRouter(prefix="/api/local")
 
@@ -185,6 +185,19 @@ async def local_presence(body: WidgetPing, request: Request, db: AsyncSession = 
     WIDGET_SEEN[user.id] = time.time()
     await hub_seen(user.id, "widget")
     return {"ok": True, "name": user.display_name}
+
+
+class AwayPing(WidgetPing):
+    away: bool
+
+
+@router.post("/away")
+async def local_away(body: AwayPing, request: Request, db: AsyncSession = Depends(get_db),
+                     x_team_widget: str | None = Header(None)):
+    """The widget's "Ficar offline / Ficar online" switch, to try the notifications the others get."""
+    user = await widget_user(body, request, db, x_team_widget)
+    await set_away(user.id, body.away)
+    return {"ok": True, "away": body.away}
 
 
 @router.post("/session")

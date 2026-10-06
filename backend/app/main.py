@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from .config import settings
-from . import limits, migrate, push, selfupdate, sync, webpush
+from . import claude_hooks, limits, migrate, push, selfupdate, sync, webpush
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
@@ -95,6 +95,8 @@ async def lifespan(app: FastAPI):
     async with SessionLocal() as db:
         await purge_trash(db)  # what sat in the task bin past its hours while the Hub was off
     await rt.start()
+    if settings.sync:  # the real Hub of a PC (the widget starts it with SYNC=1), never a test or a second Hub
+        await asyncio.to_thread(claude_hooks.install, None, settings.claude_office)
     watcher = asyncio.create_task(offline_watcher())
     syncing = asyncio.create_task(sync.loop()) if settings.sync else None
     updating = asyncio.create_task(selfupdate.loop())

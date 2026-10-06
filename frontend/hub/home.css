@@ -388,3 +388,13 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .dn-tag { padding: 2px 8px; border-radius: 999px; font: 700 9.5px var(--ui); font-style: normal; letter-spacing: .08em; text-transform: uppercase; }
 .dn-tag.bad { color: var(--bad); background: rgba(239, 111, 94, .14); }
 .dn-tag.warn { color: var(--warn); background: rgba(226, 181, 92, .14); }
+
+/* ---------------------------------------------------------------- the team card: the day of each person under their face,
+   so the card is not three faces with empty space around them */
+#in-team .person { align-content: center; }
+.p-nums { display: grid; gap: 5px; width: 100%; max-width: 150px; margin-top: 12px; }
+.p-nums i { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 5px 10px; border-radius: 8px; background: rgba(255, 255, 255, .04);
+  color: #7d848d; font: 500 11px var(--ui); font-style: normal; }
+.p-nums b { color: #eef1f4; font: 600 13px var(--mono); }
+.p-nums i.on b { color: #5fe08a; }
+.person.off .p-nums { opacity: .6; }

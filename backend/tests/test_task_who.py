@@ -80,6 +80,7 @@ def test_doing_button_shows_the_team_who_is_on_what(client):
     assert client.patch(f"/api/tasks/{a}", headers=mark, json={"doing": True}).json()["doing_since"]
     seen = {m["user"]: m["doing"] for m in client.get("/api/team", headers=owner).json()}
     assert seen["mark"]["id"] == a and seen["owner"] is None
+    assert {g["user"]: g["doing"] for g in client.get("/api/agents", headers=owner).json()}["mark"]["title"] == "logo novo"  # the Equipa page
     client.patch(f"/api/tasks/{b}", headers=mark, json={"doing": True})  # one at a time: b replaces a
     assert client.get(f"/api/tasks/{a}", headers=mark).json()["doing_since"] is None
     client.patch(f"/api/tasks/{b}", headers=mark, json={"status": "COMPLETED"})  # done clears it

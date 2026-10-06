@@ -88,7 +88,7 @@ async def agents_view(db: AsyncSession, viewer: User) -> list[dict]:
             "display_name": user.display_name, "status": entry["status"], "task": entry.get("task", ""),
             "task_id": entry.get("task_id"), "progress": entry.get("progress", 0),
             "current_action": entry.get("current_action") or "", "started_at": entry.get("started_at"),
-            "last_seen": entry.get("last_seen"),
+            "last_seen": entry.get("last_seen"), "doing": entry.get("doing"),  # the task they said "Estou a fazer" on
             "project": (task.project_ref.name if task and task.project_ref else (task.project if task else "")) or "",
             "session": session_out(session) if session else None,
             "subagents": subs.get(session.id, []) if session else [],

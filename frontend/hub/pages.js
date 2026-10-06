@@ -65,7 +65,7 @@ const isFresh = (x) => x.stage !== "done" && Date.now() - new Date(x.created_at)
 // Who is doing a task, for everybody to see: their photo inside a turning chrome-and-green ring, and "a fazer".
 // A task for everybody counts as being done while any one of them is on their part.
 const doingOf = (x) => (x.group ? x.group.find((y) => y.doing_since && y.stage !== "done") : x.doing_since && x.stage !== "done" ? x : null);
-const doingBadge = (y, size = "sm") => `<span class="doer-live" title="${esc(t("{n} está a fazer isto", { n: nameOf(y.assignee) }))}"><span class="dl-ring">${ui.avatar(nameOf(y.assignee), size)}</span><em>${esc(y.assignee === me.username ? t("Tu") : nameOf(y.assignee))} · ${t("a fazer")}</em></span>`;
+const doingBadge = (y, size = "sm") => `<span class="doer-live" title="${esc(t("{n} está a fazer isto", { n: nameOf(y.assignee) }))}"><span class="dl-ring">${ui.avatar(nameOf(y.assignee), size)}</span><em><b>${esc(y.assignee === me.username ? t("Tu") : nameOf(y.assignee))}</b><s> · </s><span>${t("a fazer")}</span></em></span>`;
 function taskCard(x) {
   const late = x.deadline && x.stage !== "done" && new Date(x.deadline) < new Date();
   const mineOf = x.group && x.group.find((y) => y.assignee === me.username);
@@ -371,13 +371,19 @@ function richText(text) {
 }
 
 // "Estou a fazer": the person a task is for says they are on it, and everybody sees it here, on the team and on the rows,
-// so two people never do the same thing. Somebody else's: who and since when. Yours, not started: one big button.
+// so two people never do the same thing. Once somebody is on it: their photo in the turning ring, their name, since when.
+// Yours, not started: one chrome button. A tap changes it at once (doingCard is drawn before the Hub answers).
+const sinceOf = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? fmt.hhmm(iso) : `${fmt.day(iso)} ${fmt.hhmm(iso)}`);
+const doingGo = () => `<button class="tv-doing go" data-act="doing">${icon("play")}<span><b>${t("Estou a fazer isto")}</b><small>${t("A equipa vê que é contigo")}</small></span></button>`;
+const doingCard = (name, since, mine, pop = false) => `<div class="tv-doing on ${pop ? "popin" : ""}"><span class="dl-ring">${ui.avatar(name, "lg")}</span>
+  <div><small>${t("A fazer agora")}</small><b>${esc(name)}</b><span>${t(mine ? "Estás a fazer esta tarefa" : "Está a fazer esta tarefa")} · ${t("desde")} ${sinceOf(since)}</span></div>
+  ${mine ? `<button class="tv-doing-stop" data-act="notdoing">${icon("pause")}${t("Parar")}</button>` : ""}</div>`;
 function doingBanner(x, held) {
   if (x.stage === "done" || held) return "";
   const mine = x.assignee === me.username;
-  if (x.doing_since) return `<div class="tv-doing on"><i class="tv-doing-dot"></i><div><b>${mine ? t("Estás a fazer isto") : t("{n} está a fazer isto", { n: nameOf(x.assignee) })}</b>
-    <span>${t("desde")} ${fmt.day(x.doing_since)} ${fmt.hhmm(x.doing_since)}</span></div>${mine ? `<button class="tv-doing-stop" data-act="notdoing">${icon("pause")}${t("Parar")}</button>` : ""}</div>`;
-  return mine ? `<button class="tv-doing go" data-act="doing">${icon("play")}<span><b>${t("Estou a fazer isto")}</b><small>${t("A equipa vê que é contigo")}</small></span></button>` : "";
+  if (x.doing_since) return doingCard(nameOf(x.assignee), x.doing_since, mine);
+  const other = x.group && x.group.find((y) => y.doing_since && y.stage !== "done" && y.assignee !== x.assignee);
+  return (other ? doingCard(nameOf(other.assignee), other.doing_since, false) : "") + (mine ? doingGo() : "");
 }
 async function openTaskModal(id) {
   let x, all;
@@ -406,7 +412,7 @@ async function openTaskModal(id) {
   openModal(`<div class="tview">
     <header class="tv-head"><h3>${esc(x.title)}</h3>
       ${group ? ui.tag(t("{a} de {b} feito", { a: group.filter((y) => y.stage === "done").length, b: group.length }), group.every((y) => y.stage === "done") ? "ok" : "")
-        : ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></header>
+        : x.doing_since && x.stage !== "done" ? ui.tag(t("A fazer"), "ok") : ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></header>
     <div class="tv-facts">${facts}</div>
     ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
     ${x.current_action && running ? `<div class="now">${esc(x.current_action)}</div>` : ""}
@@ -421,9 +427,12 @@ async function openTaskModal(id) {
       ${x.result ? `<div class="tv-goal ok"><small>${t("Resultado")}</small><div class="tread">${richText(x.result)}</div></div>` : ""}
     </section>
     ${group ? `<section class="tv-box"><small>${t("Quem já fez")} · ${esc(whoLeft(group))}</small>
-      <div class="who-list" style="padding:6px 0 0">${group.map((y) => `<div class="who-line ${y.stage === "done" ? "did" : ""}">${whoFace(y, "")}<div><b>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` <small>${t("tu")}</small>` : ""}</b>
+      <div class="who-list" style="padding:6px 0 0">${group.map((y) => {
+        const on = y.doing_since && y.stage !== "done";
+        return `<div class="who-line ${y.stage === "done" ? "did" : ""} ${on ? "doing" : ""}">${on ? `<span class="dl-ring">${ui.avatar(nameOf(y.assignee), "sm")}</span>` : whoFace(y, "")}<div><b>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` <small>${t("tu")}</small>` : ""}</b>
         <span>${y.stage === "done" ? `${t("Feito")}${y.completed_at ? ` · ${fmt.day(y.completed_at)} ${fmt.hhmm(y.completed_at)}` : ""}${y.completed_by && y.completed_by !== y.assignee ? ` · ${t("por")} ${esc(nameOf(y.completed_by))}` : ""}`
-          : esc(t(STAGE_LABEL[y.stage]))}</span></div></div>`).join("")}</div></section>` : ""}
+          : on ? `<em class="doing-txt">${t("A fazer agora")} · ${t("desde")} ${sinceOf(y.doing_since)}</em>` : esc(t(STAGE_LABEL[y.stage]))}</span></div></div>`;
+      }).join("")}</div></section>` : ""}
     ${x.stage !== "done" ? `<details class="tv-fold tdue ${late ? "late" : ""}" ${x.deadline ? "" : "open"}><summary>${icon("calendar")}${t(x.deadline ? "Mudar o prazo" : "Dar um prazo")}</summary>
       <div class="tdue-in"><input type="datetime-local" id="task-due" value="${x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}" aria-label="${t("Prazo")}">
         <div class="tdue-quick">${[["Hoje 18:00", 0], ["Amanhã 18:00", 1], ...((5 - new Date().getDay() + 7) % 7 > 1 ? [["Sexta 18:00", (5 - new Date().getDay() + 7) % 7]] : []), ["Daqui a 1 semana", 7]]
@@ -460,11 +469,15 @@ async function openTaskModal(id) {
     }
     if (act === "ai") return assignToAI(x);
     if (act === "doing" || act === "notdoing") {
-      e.target.closest("[data-act]").classList.add("press"); navigator.vibrate?.(14);
+      // the change shows under the finger first (dark card, your photo and name), then the Hub is told; if it says no, the
+      // window is drawn again from what the Hub has
+      const el = e.target.closest("[data-act]"), box = el.closest(".tv-doing") || el;
+      el.disabled = true; el.classList.add("press"); navigator.vibrate?.(14);
+      box.outerHTML = act === "doing" ? doingCard(me.display_name, new Date().toISOString(), true, true) : doingGo();
       try {
         await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { doing: act === "doing" } });
-        flash(t(act === "doing" ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); loadBoard(); openTaskModal(x.id);
-      } catch (err) { flash(err.message); }
+        flash(t(act === "doing" ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); loadBoard();
+      } catch (err) { flash(err.message); openTaskModal(x.id); }
       return;
     }
     if (act === "done") {
@@ -729,10 +742,12 @@ HUB_VIEWS.equipa = async function () {
   await loadTeamPage();
 };
 async function loadTeamPage() {
-  await mount($("team-grid"), async () => (await api("/api/agents")).map((a) => `<a class="panel hover agent-card" href="#/agentes/${esc(a.id)}">
-    <div class="rowx">${ui.avatar(a.display_name, "lg")}<div class="grow"><b style="font-size:15px">${esc(a.display_name)}</b>
+  // whoever said "Estou a fazer" on a task: their photo in the turning ring and the task, first thing on their card
+  await mount($("team-grid"), async () => (await api("/api/agents")).map((a) => `<a class="panel hover agent-card ${a.doing ? "doing" : ""}" href="${a.doing ? `#/tarefas/${a.doing.id}` : `#/agentes/${esc(a.id)}`}">
+    <div class="rowx">${a.doing ? `<span class="dl-ring">${ui.avatar(a.display_name, "lg")}</span>` : ui.avatar(a.display_name, "lg")}<div class="grow"><b style="font-size:15px">${esc(a.display_name)}</b>
       <div>${ui.status(a.status === "OFFLINE" ? "OFFLINE" : "ONLINE")}</div></div></div>
-    <dl class="kv" style="margin:0"><dt>${t("A trabalhar em")}</dt><dd>${esc(a.task || "—")}</dd>
+    ${a.doing ? `<div class="ag-doing"><small>${t("A fazer agora")} · ${t("desde")} ${sinceOf(a.doing.since)}</small><b>${esc(a.doing.title)}</b></div>` : ""}
+    <dl class="kv" style="margin:0"><dt>${t("A trabalhar em")}</dt><dd>${esc(a.task || (a.doing ? a.doing.title : "") || "—")}</dd>
       <dt>Claude</dt><dd>${ui.status(a.status)}</dd>
       <dt>${t("Visto")}</dt><dd>${a.status === "OFFLINE" ? fmt.ago(a.last_seen) : t("agora")}</dd></dl></a>`).join(""), 4);
 }

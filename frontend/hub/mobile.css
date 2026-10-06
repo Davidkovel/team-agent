@@ -539,8 +539,8 @@ html.is-phone .m-doing:active, html.is-phone .m-doing.press { transform: transla
 html.is-phone .m-doing.on { gap: 7px; padding: 0 11px 0 3px; border-color: #2c3036; background: linear-gradient(180deg, #1b1e22, #08090b); color: #8af0aa;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 3px 0 #000, 0 0 16px -4px rgba(95, 224, 138, .45); }
 html.is-phone .m-doing.on .dl-ring .av { width: 20px; height: 20px; font-size: 9px; }
-html.is-phone .m-doing.pop { animation: doing-pop .45s cubic-bezier(.3, 1.6, .5, 1); }
-html.is-phone .m-doing.on.pop::after { content: ""; position: absolute; inset: -2px; border-radius: 999px; border: 2px solid #5fe08a; animation: doing-burst .6s ease-out forwards; pointer-events: none; }
+html.is-phone .m-doing.popin { animation: doing-pop .45s cubic-bezier(.3, 1.6, .5, 1); }
+html.is-phone .m-doing.on.popin::after { content: ""; position: absolute; inset: -2px; border-radius: 999px; border: 2px solid #5fe08a; animation: doing-burst .6s ease-out forwards; pointer-events: none; }
 html.is-phone .m-doing { position: relative; }
 html.is-phone .m-task.doing { position: relative; background: linear-gradient(90deg, rgba(95, 224, 138, .10), transparent 75%); box-shadow: inset 3px 0 0 #5fe08a; }
 
@@ -552,4 +552,207 @@ html.is-phone .m-now-row > div { flex: 1; min-width: 0; display: grid; gap: 2px;
 html.is-phone .m-now-row b { font: 600 15.5px/1.25 var(--m-font); }
 html.is-phone .m-now-row span { color: #8af0aa; font: 500 12.5px var(--m-font); }
 html.is-phone .m-now-row > svg.i { width: 15px; height: 15px; color: #6b727b; }
-html.is-phone .m-task .doer-live em { display: none; }
+
+/* =====================================================================
+   The whole phone in the Mercedes-AMG finish (6 out, David: «parecer uma aplicação de uma empresa profissional»).
+   One language on every tab: black lacquer cards with a chrome edge, small spaced capitals for labels and section heads,
+   the serif for titles, chrome for what is selected and for the main button; red only for what is urgent, amber for "alta",
+   green only for "online", "feito" and "a fazer". The iOS blue, yellow and orange leave the phone.
+   Loaded last on purpose: these rules replace the iOS ones above with the same specificity.
+   ===================================================================== */
+html.is-phone {
+  --m-font: var(--ui); --m-card: #101215; --m-line: rgba(255, 255, 255, .07); --m-dim: #868c95;
+  --m-blue: #dfe4ea; --m-green: #5fe08a; --m-orange: #e2b55c; --m-red: #ff453a;
+  --m-glass: rgba(5, 6, 7, .84); --m-sheet: #0d0f12; --m-field: #0f1114; --m-fill: rgba(255, 255, 255, .06);
+  --m-lacquer: linear-gradient(180deg, #15171b, #0b0c0f); --m-edge: inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+html.is-phone body, html.is-phone .hub, html.is-phone .hub > main { background: #000; }
+
+/* the bar on top: black glass, a chrome thread under it, the section in spaced capitals */
+html.is-phone #m-bar { border-bottom: 0; }
+html.is-phone #m-bar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--chrome-line); opacity: .3; pointer-events: none; }
+html.is-phone #m-bar .m-title { color: #eef1f4; font: 600 11.5px/1 var(--ui); letter-spacing: .28em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+html.is-phone #m-bar .m-star { border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, .2), 0 0 14px rgba(238, 245, 255, .12); }
+html.is-phone .m-back { color: #cfd5dc; font: 600 10.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+html.is-phone .m-back svg.i { width: 17px; height: 17px; stroke-width: 2.6; }
+html.is-phone .m-back:active { opacity: .6; }
+html.is-phone .m-btn:active { background: rgba(255, 255, 255, .08); }
+html.is-phone .m-btn .m-count, html.is-phone #m-tabs .badge { font-family: var(--ui); box-shadow: 0 0 0 2px #050607; }
+
+/* the tabs: spaced capitals; the one you are on lit white with a chrome needle above it */
+html.is-phone #m-tabs { border-top: 0; }
+html.is-phone #m-tabs::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--chrome-line); opacity: .28; pointer-events: none; }
+html.is-phone #m-tabs a, html.is-phone #m-tabs button { gap: 5px; color: #646b74; font: 600 8.5px/1 var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+html.is-phone #m-tabs svg.i { width: 23px; height: 23px; }
+html.is-phone #m-tabs .on { color: #fff; }
+html.is-phone #m-tabs .on svg.i { filter: drop-shadow(0 0 6px rgba(238, 245, 255, .4)); }
+html.is-phone #m-tabs .on::before { content: ""; position: absolute; top: -6px; left: 50%; width: 28px; height: 2px; margin-left: -14px; border-radius: 0 0 2px 2px;
+  background: var(--chrome); box-shadow: 0 0 10px rgba(238, 245, 255, .55); }
+
+/* big titles: the eyebrow in spaced capitals with the chrome stripes, the title in the serif */
+html.is-phone .m-large > span { color: #8e939a; font: 600 10.5px var(--ui); letter-spacing: .24em; text-transform: uppercase; }
+html.is-phone .m-large > span:first-child { display: flex; align-items: center; gap: 10px; }
+html.is-phone .m-large > span:first-child::before { content: ""; flex: none; width: 22px; height: 9px; background: repeating-linear-gradient(115deg, #eef1f4 0 2px, transparent 2px 5px); }
+html.is-phone .m-large h1 { margin-top: 6px; color: #f4f6f8; font: 500 40px/1.02 var(--serif); letter-spacing: 0; }
+html.is-phone .m-large h1 em { font-style: italic; color: #cfd5dc; }
+html.is-phone .ph h1 { font: 500 36px/1.05 var(--serif); letter-spacing: 0; }
+
+/* section heads everywhere: spaced capitals and a chrome thread, the count in mono at the end */
+html.is-phone .m-sec header { align-items: center; gap: 12px; margin: 0 2px 10px; }
+html.is-phone .m-sec header b { flex: 1; display: flex; align-items: center; gap: 12px; color: #cfd5dc; font: 600 11px var(--ui); letter-spacing: .26em; text-transform: uppercase; }
+html.is-phone .m-sec header b::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(238, 241, 244, .22), transparent); }
+html.is-phone .m-sec header a, html.is-phone .m-online { color: #8e939a; font: 600 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; text-decoration: none; }
+html.is-phone .m-online i { background: var(--m-green); box-shadow: 0 0 8px rgba(95, 224, 138, .7); }
+html.is-phone .m-grp { gap: 10px; margin: 0 2px 10px; color: #cfd5dc; font: 600 11px var(--ui); letter-spacing: .24em; text-transform: uppercase; }
+html.is-phone .m-grp::after { content: ""; order: 2; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(238, 241, 244, .2), transparent); }
+html.is-phone .m-grp span { order: 3; margin-left: 0; color: #8e939a; font: 600 11px var(--mono); letter-spacing: 0; }
+html.is-phone .m-grp i { width: 7px; height: 7px; background: #4a5058; }
+html.is-phone .m-grp.late { color: #ff6961; }
+html.is-phone .m-grp.late i { background: var(--m-red); box-shadow: 0 0 8px var(--m-red); }
+html.is-phone .m-grp.today i { background: #eef1f4; box-shadow: 0 0 8px rgba(238, 245, 255, .6); }
+html.is-phone .m-grp.ok i { background: var(--m-green); box-shadow: 0 0 8px rgba(95, 224, 138, .6); }
+html.is-phone #m-av .nl-group h4, html.is-phone #m-sheet h3 { display: flex; align-items: center; gap: 12px; padding: 0 2px 10px; margin: 0; color: #8e939a;
+  font: 600 10.5px var(--ui); letter-spacing: .24em; text-transform: uppercase; }
+html.is-phone #m-av .nl-group h4::after, html.is-phone #m-sheet h3::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(238, 241, 244, .18), transparent); }
+
+/* cards: black lacquer, a hairline border, a chrome edge on top */
+html.is-phone .m-list, html.is-phone .m-empty, html.is-phone #m-av .nl-card, html.is-phone .m-people, html.is-phone #m-sheet .m-list {
+  border: 1px solid rgba(255, 255, 255, .07); border-radius: 14px; background: var(--m-lacquer); box-shadow: var(--m-edge); }
+html.is-phone .m-co { border-radius: 16px; border: 1px solid rgba(255, 255, 255, .08); background: linear-gradient(160deg, #1b1e23, #0b0c0f 70%);
+  box-shadow: var(--m-edge), 0 18px 36px -24px #000; }
+html.is-phone .m-co-t b { font: 500 26px/1.05 var(--serif); letter-spacing: 0; }
+html.is-phone .m-co-facts span { border: 1px solid rgba(255, 255, 255, .07); background: rgba(255, 255, 255, .04); color: #c4c9d1; font: 600 10.5px var(--ui); letter-spacing: .1em; text-transform: uppercase; }
+html.is-phone .m-co-facts .ok { color: var(--m-green); border-color: rgba(95, 224, 138, .3); background: rgba(95, 224, 138, .08); }
+html.is-phone .m-co-facts .warn { color: var(--m-orange); border-color: rgba(226, 181, 92, .3); background: rgba(226, 181, 92, .08); }
+
+/* rows and their icons: brushed-metal discs, the icon in chrome (the tone only colours the icon) */
+html.is-phone .m-row2 b, html.is-phone .m-nrow b { font: 500 15.5px/1.25 var(--ui); }
+html.is-phone .m-row2 span, html.is-phone .m-nrow span { font-family: var(--ui); }
+html.is-phone .m-ico, html.is-phone .m-row2 .m-ico, html.is-phone .m-ico.blue, html.is-phone .m-ico.green, html.is-phone .m-ico.orange {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--metal); color: #dfe4ea; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 0 0 1px rgba(255, 255, 255, .07); }
+html.is-phone .m-ico.green { color: var(--m-green); }
+html.is-phone .m-ico.orange { color: var(--m-orange); }
+html.is-phone .m-list > .m-row2 + .m-row2::before { left: 62px; }
+html.is-phone .m-empty { color: #8e939a; font: 400 14.5px var(--ui); }
+html.is-phone .m-empty svg.i { color: #cfd5dc; }
+html.is-phone .m-empty.big svg.i { color: #4a5058; }
+html.is-phone .m-empty.big b { font: 500 24px/1.1 var(--serif); }
+html.is-phone .m-count2 { font: 600 13px var(--mono); }
+
+/* the tasks */
+html.is-phone .m-task b { font: 500 16px/1.3 var(--ui); letter-spacing: 0; }
+html.is-phone .m-task .sub { font: 400 13px/1.3 var(--ui); }
+html.is-phone .m-task .today { color: #eef1f4; font-weight: 600; }
+html.is-phone .m-task .ai { color: #cfd5dc; }
+html.is-phone .m-check { border-color: #4a5058; }
+html.is-phone .m-task.done .m-check, html.is-phone .m-task.finishing .m-check { border-color: var(--m-green); background: var(--m-green); color: #04230d; }
+html.is-phone .m-bang { font-family: var(--ui); }
+html.is-phone .m-co-tag { background: rgba(255, 255, 255, .07); color: #dfe4ea; font: 700 9.5px/18px var(--ui); letter-spacing: .1em; text-transform: uppercase; }
+html.is-phone .m-pill.ai { background: rgba(255, 255, 255, .08); color: #dfe4ea; }
+html.is-phone .m-pill.high { background: rgba(226, 181, 92, .14); color: var(--m-orange); }
+
+/* segmented controls (Hoje / Próximas / Feitas, Minhas / Equipa, the pages' own tabs): a dark slot, the chosen one in chrome */
+html.is-phone .m-seg, html.is-phone .m-scope, html.is-phone .subtabs, html.is-phone .segx { padding: 3px; gap: 2px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .08);
+  background: #0a0b0d; box-shadow: inset 0 1px 3px rgba(0, 0, 0, .7); }
+html.is-phone .m-seg button, html.is-phone .m-scope button, html.is-phone .subtabs a, html.is-phone .segx button { border-radius: 999px; color: #9aa1aa;
+  font: 600 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; transition: background .2s, color .2s; }
+html.is-phone .m-seg button.on, html.is-phone .m-scope button.on, html.is-phone .subtabs a.on, html.is-phone .segx button.on { background: var(--chrome); color: #0b0c0e;
+  font-weight: 700; text-shadow: 0 1px 0 rgba(255, 255, 255, .5); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 2px 8px rgba(0, 0, 0, .55); }
+html.is-phone .m-seg button i { background: rgba(255, 255, 255, .1); color: inherit; font: 700 10px/18px var(--mono); letter-spacing: 0; text-shadow: none; }
+html.is-phone .m-seg button.on i { background: #0b0c0e; color: #fff; }
+html.is-phone .m-seg button i.hot { background: var(--m-red); color: #fff; }
+html.is-phone .subtabs { background: rgba(10, 11, 13, .92); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+
+/* filters: dark pills with a hairline, the chosen one in chrome */
+html.is-phone .m-filter button, html.is-phone .chp { height: 32px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 999px; background: #0f1114; color: #c4c9d1;
+  font: 600 10.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+html.is-phone .m-filter button.on, html.is-phone .chp.on, html.is-phone .chip.active, html.is-phone .bd-pill.on { background: var(--chrome) !important; border-color: #eef1f4 !important;
+  color: #0b0c0e !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7) !important; }
+
+/* buttons: brushed metal, spaced capitals; the main one in chrome; pressing sinks them */
+html.is-phone .btn { border: 1px solid rgba(255, 255, 255, .1); border-radius: 12px; background: var(--metal); color: #eef1f4; font: 600 11.5px var(--ui);
+  letter-spacing: .14em; text-transform: uppercase; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); transition: transform .12s var(--ease), filter .12s; }
+html.is-phone .btn:active { opacity: 1; transform: translateY(1px) scale(.98); filter: brightness(.82); }
+html.is-phone .btn.primary, html.is-phone .btn.amg { background: var(--chrome); border-color: #eef1f4; color: #0b0c0e; text-shadow: 0 1px 0 rgba(255, 255, 255, .6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 8px 18px -10px rgba(238, 245, 255, .4); }
+html.is-phone .btn.ok { background: linear-gradient(180deg, rgba(95, 224, 138, .18), rgba(95, 224, 138, .07)); border-color: rgba(95, 224, 138, .4); color: #8af0aa; }
+html.is-phone .btn.danger { background: linear-gradient(180deg, rgba(255, 69, 58, .2), rgba(255, 69, 58, .08)); border-color: rgba(255, 69, 58, .45); color: #ff8a82; }
+html.is-phone .btn.quiet { background: transparent; border-color: rgba(255, 255, 255, .12); }
+html.is-phone .btn.sm { font-size: 10.5px; }
+html.is-phone .m-plus { background: var(--chrome); color: #0b0c0e; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 3px 0 #6b727b, 0 10px 20px -10px rgba(238, 245, 255, .5);
+  transition: transform .12s var(--ease), box-shadow .12s; }
+html.is-phone .m-plus:active { opacity: 1; transform: translateY(3px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 0 0 #6b727b; }
+html.is-phone .m-approve { border-radius: 14px; border: 1px solid rgba(226, 181, 92, .4); background: linear-gradient(180deg, rgba(226, 181, 92, .14), rgba(226, 181, 92, .04));
+  color: var(--m-orange); font: 600 11.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+
+/* unread: a chrome dot that glows, not the iOS blue */
+html.is-phone .m-nrow.unread::before, html.is-phone #m-av .nl-dot { background: #eef1f4; box-shadow: 0 0 8px rgba(238, 245, 255, .8); }
+html.is-phone #m-av .nl-ios button { color: #cfd5dc; font: 600 10.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+html.is-phone #m-av .nl-card { border-radius: 14px; }
+html.is-phone #m-av .nl-top b, html.is-phone .m-ntop b { font-family: var(--ui) !important; }
+
+/* sheets and windows: dark metal rising from the bottom, a chrome grab and edge */
+html.is-phone #m-sheet .m-box, html.is-phone .modal-box:not(.player-box), html.is-phone .modal-box.wide:not(.player-box), html.is-phone #notif-panel, html.is-phone #ai-panel {
+  background: linear-gradient(180deg, #121418, #07080a 40%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 -24px 60px rgba(0, 0, 0, .7); }
+html.is-phone #m-sheet .m-grab, html.is-phone .modal-box:not(.player-box)::before { background: var(--chrome); opacity: .45; }
+html.is-phone #m-sheet .m-bg, html.is-phone .modal { background: rgba(0, 0, 0, .65); }
+html.is-phone #m-sheet .m-row { min-height: 54px; font: 500 15.5px var(--ui); border-top-color: rgba(255, 255, 255, .07); }
+html.is-phone #m-sheet .m-row > span { flex: 1; }
+html.is-phone #m-sheet .m-row svg.i:last-child { width: 16px; height: 16px; color: #5b6169; }
+html.is-phone #m-sheet h3 { margin-top: 4px; }
+
+/* "Mais": who you are, then the Hub as a grid of chrome keys */
+html.is-phone .m-me { display: flex; align-items: center; gap: 14px; margin: 0 2px 16px; padding: 4px 2px 16px; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+html.is-phone .m-me .av { flex: none; width: 54px; height: 54px; font-size: 21px; box-shadow: 0 0 0 2px #0b0c0e, 0 0 0 3.5px #cfd5dc, 0 0 18px rgba(238, 245, 255, .2); }
+html.is-phone .m-me > div { flex: 1; min-width: 0; display: grid; gap: 4px; }
+html.is-phone .m-me b { color: #f4f6f8; font: 500 28px/1 var(--serif); }
+html.is-phone .m-me span { color: #8e939a; font: 600 10px var(--ui); letter-spacing: .18em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-phone .m-me-star { flex: none; width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, .2), 0 0 16px rgba(238, 245, 255, .15); }
+html.is-phone .m-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+html.is-phone .m-key { display: grid; justify-items: center; gap: 10px; padding: 16px 4px 13px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .07);
+  background: var(--m-lacquer); box-shadow: var(--m-edge); color: #dfe4ea; font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; text-decoration: none;
+  transition: transform .12s var(--ease), border-color .15s; }
+html.is-phone .m-key > span { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--metal);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 0 0 1px rgba(255, 255, 255, .08), 0 8px 16px -8px #000; }
+html.is-phone .m-key svg.i { width: 20px; height: 20px; }
+html.is-phone .m-key:active { transform: scale(.95); }
+html.is-phone .m-key.on { border-color: rgba(238, 241, 244, .35); }
+html.is-phone .m-key.on > span { background: var(--chrome); color: #0b0c0e; }
+
+/* fields */
+html.is-phone .field input, html.is-phone .field select, html.is-phone .field textarea, html.is-phone .inp, html.is-phone .modal-box input,
+html.is-phone .modal-box select, html.is-phone .modal-box textarea { border: 1px solid rgba(255, 255, 255, .1); background-color: var(--m-field); }
+html.is-phone .field input:focus, html.is-phone .field select:focus, html.is-phone .field textarea:focus, html.is-phone .modal-box input:focus,
+html.is-phone .modal-box textarea:focus { border-color: #cfd5dc; box-shadow: 0 0 0 3px rgba(238, 245, 255, .1); }
+html.is-phone .field > span:first-child { color: #8e939a; font: 600 10.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+html.is-phone .field small { color: #6b727b; font: 400 12.5px/1.35 var(--ui); }
+html.is-phone .form-foot { background: #07080a; border-top: 1px solid rgba(255, 255, 255, .07); }
+
+/* banners */
+html.is-phone .toast { border: 1px solid rgba(255, 255, 255, .12); background: linear-gradient(180deg, rgba(30, 33, 38, .96), rgba(14, 15, 18, .96)); color: #eef1f4;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 14px 34px rgba(0, 0, 0, .6); font: 500 14.5px var(--ui); }
+
+/* the team strip, on every screen: chrome rings, the green only on the "online" dot and on whoever is doing a task */
+html.is-phone .m-ring .av { border-color: #121418; }
+html.is-phone .m-person .m-place, html.is-phone .m-place { box-shadow: 0 0 0 3px #121418; }
+html.is-phone .m-person.on .m-ring { background: conic-gradient(from 200deg, #ffffff, #8f98a2, #eef1f4, #8f98a2, #ffffff); box-shadow: 0 0 16px rgba(238, 245, 255, .14); }
+html.is-phone .m-person.work .m-ring { background: conic-gradient(from var(--dl-a), #5fe08a, #eef1f4 25%, rgba(95, 224, 138, .15) 55%, #5fe08a); animation: dl-spin 2.4s linear infinite;
+  box-shadow: 0 0 20px rgba(95, 224, 138, .35); }
+html.is-phone .m-person.work .m-place, html.is-phone .m-mate.work .m-place { background: var(--chrome); color: #0b0c0e; }
+html.is-phone .m-person.on > span { color: #cfeedd; }
+html.is-phone .m-person.work > span { color: #8af0aa; }
+html.is-phone .m-person b { font-family: var(--ui); }
+
+/* who is doing a task, on the rows: the photo in the turning ring, the name and "a fazer" beside it */
+html.is-phone .m-task .doer-live { flex-direction: row; gap: 7px; }
+html.is-phone .m-task .doer-live .av { width: 26px; height: 26px; font-size: 11px; }
+html.is-phone .m-task .doer-live em { display: grid; gap: 1px; max-width: 76px; color: #8af0aa; font: 700 9px/1.15 var(--ui); letter-spacing: .1em; text-transform: uppercase; }
+html.is-phone .m-task .doer-live em b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; font: 700 10px/1.15 var(--ui); letter-spacing: .06em; }
+html.is-phone .m-task .doer-live em s { display: none; }
+html.is-phone .m-task .sub .doing-txt { color: #8af0aa; font-weight: 600; }
+
+/* a screen is never wider than the phone: its one column may shrink (a long head used to widen every card under it) */
+html.is-phone .m-screen { grid-template-columns: minmax(0, 1fr); }
+html.is-phone .m-headrow .m-large { flex: 1 1 auto; min-width: 0; }
+html.is-phone .m-head-act { flex: none; }
+html.is-phone .m-scope button { padding: 0 10px; font-size: 10px; letter-spacing: .1em; }

@@ -57,13 +57,16 @@
     if (r.tab === "projetos") return r.company ? ["#/projetos", "Projetos"] : ["#/empresas", "Trabalho"];
     if (r.tab === "codigo" || r.tab === "entregas") return ["#/empresas", "Trabalho"];
     if (r.tab === "aprovacoes" || r.tab === "semana") return ["#/tarefas", "Tarefas"];
+    if (r.tab === "agentes" && r.company) return ["#/equipa", "Equipa"];
+    if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
     return null;
   };
+  const MORE_PAGES = ["escritorio", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
   const titleOf = (r, fallback) => {
     if (r.tab === "baredesk") return r.company ? companies.find((c) => c.id === "baredesk")?.sections.find((x) => x.id === r.company)?.label || (r.company === "loja" ? "Loja" : "BareDesk") : "BareDesk";
     if (r.tab === "empresas" && r.company) return r.section ? companies.find((c) => c.id === r.company)?.sections.find((x) => x.id === r.section)?.label || coName(r.company) : coName(r.company);
     const page = TABS_ALL.find(([id]) => id === r.tab);
-    return backOf(r) && page ? page[1] : fallback;
+    return (backOf(r) || MORE_PAGES.includes(r.tab)) && page ? page[1] : fallback; // the page's own name, never its section's ("Sistema")
   };
   const TABS_ALL = NAV.flatMap(([, , pages]) => pages);
   const sync = () => {
@@ -80,6 +83,10 @@
     document.documentElement.dataset.page = r.tab;
   };
   window.addEventListener("hashchange", () => { sheet.hidden = true; sync(); });
+  $("m-back").addEventListener("click", (e) => {
+    if ($("m-back").getAttribute("href") !== "#more") return;
+    e.preventDefault(); e.stopPropagation(); openMore();
+  });
   new MutationObserver(sync).observe($("view"), { childList: true });
   sync();
 
@@ -95,11 +102,18 @@
   $("m-bell").onclick = (e) => { e.stopPropagation(); sheet.hidden = true; location.hash = "#/avisos"; };
   $("m-search").onclick = (e) => { e.stopPropagation(); sheet.hidden = true; $("open-palette").click(); };
 
+  // "Mais": who you are on top, the rest of the Hub as a grid of chrome keys, then the phone's own settings
   function openMore() {
-    const rows = [["bot", "Escritório", "#/escritorio"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"], ["layers", "Memória", "#/memoria"], ["pulse", "Saúde", "#/saude"], ["gear", "Definições", "#/definicoes"]];
-    sheet.querySelector(".m-box").innerHTML = `<i class="m-grab"></i><h3>${t("Mais")}</h3><div class="m-list">
-      ${rows.map(([ic, label, href]) => `<a class="m-row" href="${href}">${icon(ic)}${t(label)}</a>`).join("")}
-      <button class="m-row" data-act="phone">${icon("bell")}${t("Receber as notificações no telemóvel")}</button></div>`;
+    const keys = [["bot", "Escritório", "#/escritorio"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"],
+      ["layers", "Memória", "#/memoria"], ["pulse", "Saúde", "#/saude"], ["gear", "Definições", "#/definicoes"]];
+    const here = location.hash;
+    sheet.querySelector(".m-box").innerHTML = `<i class="m-grab"></i>
+      <div class="m-me">${ui.avatar(me.display_name, "lg")}<div><b>${esc(me.display_name)}</b><span>${esc(me.username)} · ${t(me.lead ? "Dirige a equipa" : "Equipa")}</span></div>
+        <img class="m-me-star" src="assets/icon-192.png" alt=""></div>
+      <h3>${t("Agente AMG")}</h3>
+      <div class="m-keys">${keys.map(([ic, label, href]) => `<a class="m-key ${here.startsWith(href) ? "on" : ""}" href="${href}"><span>${icon(ic)}</span>${t(label)}</a>`).join("")}</div>
+      <h3>${t("Neste telemóvel")}</h3>
+      <div class="m-list"><button class="m-row" data-act="phone">${icon("bell")}<span>${t("Receber as notificações no telemóvel")}</span>${icon("chev")}</button></div>`;
     sheet.hidden = false;
   }
   tabs.querySelector('[data-tab="more"]').onclick = (e) => { e.stopPropagation(); sheet.hidden ? openMore() : (sheet.hidden = true); };
@@ -120,18 +134,31 @@
     if (reload && !busy() && ($("m-home") || $("m-av") || $("m-tasks"))) reload().catch(() => {});
   });
   // "Fazer" / "A fazer" on a row: says to the team that you are on it (or not any more), without opening the task.
-  // It sinks under the finger, the phone ticks, and the new button arrives with a pop (popId) so the click feels done.
-  let popId = null;
+  // It sinks under the finger, the phone ticks, and the new button arrives with a pop, so the click feels done.
+  const doingBtn = (id, on, pop = "") => (on
+    ? `<button class="m-doing on ${pop}" data-doing="0" data-tid="${id}" title="${t("Parar")}"><span class="dl-ring">${ui.avatar(me.display_name, "sm")}</span>${t("A fazer")}</button>`
+    : `<button class="m-doing ${pop}" data-doing="1" data-tid="${id}">${icon("play")}${t("Fazer")}</button>`);
   document.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-doing]");
     if (!b) return;
-    e.preventDefault(); e.stopPropagation(); b.disabled = true; b.classList.add("press"); navigator.vibrate?.(14);
-    const on = b.dataset.doing === "1";
-    try { await api(`/api/tasks/${b.dataset.tid}`, { method: "PATCH", body: { doing: on } }); popId = Number(b.dataset.tid); flash(t(on ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); }
+    e.preventDefault(); e.stopPropagation();
+    if (b.disabled) return;
+    b.disabled = true; b.classList.add("press"); navigator.vibrate?.(14);
+    const on = b.dataset.doing === "1", id = Number(b.dataset.tid), row = b.closest(".m-task");
+    // the row changes at once (dark button, your photo, the green glow); the list is drawn again from the Hub afterwards
+    setTimeout(() => {
+      if (!b.isConnected) return;
+      b.outerHTML = doingBtn(id, on, "popin");
+      row?.classList.toggle("doing", on);
+    }, 110);
+    try { await api(`/api/tasks/${id}`, { method: "PATCH", body: { doing: on } }); flash(t(on ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); }
     catch (err) { flash(err.message); }
     if (reload) await reload().catch(() => {});
-    setTimeout(() => { popId = null; }, 800);
   }, true);
+  // a task's window closed (done, edited, started): the screen under it shows what changed
+  const phoneScreen = () => $("m-home") || $("m-av") || $("m-tasks") || $("m-work") || $("m-co");
+  new MutationObserver(() => { if ($("modal").hidden && reload && sheet.hidden && phoneScreen()) reload().catch(() => {}); })
+    .observe($("modal"), { attributes: true, attributeFilter: ["hidden"] });
 
   const KIND_ICON = { task_new: "tasks", task: "check", approval_required: "alert", approval_decided: "check", agent_failed: "alert", agent_waiting: "clock" };
   // a notice on Início: the face of who sent it, what it is, the task, the time (the same reading as Avisos)
@@ -189,12 +216,11 @@
       esc(x.project_name || ""), x.stage === "done" ? "" : deadlineLabel(x),
       x.stage === "in_progress" ? `<span class="ai">${t("Em curso")}</span>` : x.stage === "blocked" ? `<span class="late">${t("Bloqueada")}</span>` : ""].filter(Boolean);
     const open = x.stage !== "done" && !["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status);
-    const doer = open && doingOf(x), pop = popId === x.id ? "pop" : "";
-    // yours: "Fazer" (chrome) turns into a dark "A fazer" with your photo in the ring; somebody else's: their photo, for all to see
-    const doing = open && x.assignee === me.username ? (x.doing_since
-      ? `<button class="m-doing on ${pop}" data-doing="0" data-tid="${x.id}" title="${t("Parar")}"><span class="dl-ring">${ui.avatar(me.display_name, "sm")}</span>${t("A fazer")}</button>`
-      : `<button class="m-doing ${pop}" data-doing="1" data-tid="${x.id}">${icon("play")}${t("Fazer")}</button>`)
-      : doer ? doingBadge(doer) : "";
+    const doer = open && doingOf(x), mine = open && x.assignee === me.username;
+    // yours: "Fazer" (chrome) turns into a dark "A fazer" with your photo in the ring; somebody else's: their photo and name, for all
+    // to see. In a task for everybody your own button stays, and who else is on their part is said in the line under the title.
+    const doing = mine ? doingBtn(x.id, !!x.doing_since) : doer ? doingBadge(doer) : "";
+    if (mine && doer && doer.assignee !== me.username && !x.doing_since) meta.unshift(`<span class="doing-txt">${esc(nameOf(doer.assignee))} ${t("a fazer")}</span>`);
     return `<div class="m-task ${tone} ${doer ? "doing" : ""}" data-id="${x.id}">
       <button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}">${x.stage === "done" ? icon("tick") : ""}</button>
       <div><b>${tone === "urgent" ? '<i class="m-bang">!!</i>' : tone === "high" ? '<i class="m-bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span class="sub">${meta.join(" · ")}</span>` : ""}</div>

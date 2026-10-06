@@ -108,15 +108,29 @@ const noticeRow = (n) => `<button class="nrow ${n.read ? "" : "unread"}" data-n=
   <span class="n-ic">${icon(NOTE_ICON[n.kind] || "bell")}</span>
   <span class="n-t"><b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ""}</span><time>${fmt.ago(n.created_at)}</time></button>`;
 
-async function newsCard() {
-  const inbox = await api("/api/notifications?limit=4");
+// The notifications are one line at the top of the page: how many are unread, the newest one, and the way to all of them.
+// They used to be a whole card, which pushed the work down the page.
+async function newsBar() {
+  const inbox = await api("/api/notifications?limit=1");
   const badge = $("in-unread");
   if (badge) { badge.textContent = inbox.unread; badge.hidden = !inbox.unread; }
-  return `${cardHead("bell", "Notificações", inbox.unread ? "" : t("Tudo lido"),
-      `${inbox.unread ? `<span class="n-count">${inbox.unread} ${t("por ler")}</span>` : ""}
-      <button class="ch-link" data-act="alerts">${t("Histórico")}${icon("chevron")}</button>`)}
-    ${inbox.items.length ? `<div class="news">${inbox.items.map(noticeRow).join("")}</div>`
-      : `<p class="in-empty">${t("Ainda não há notificações. Aparecem aqui as tarefas novas, as aprovações e o que precisa de ti.")}</p>`}`;
+  const last = inbox.items[0];
+  return `<button class="nb-count ${inbox.unread ? "on" : ""}" data-act="alerts" title="${t("Notificações")}">${icon("bell")}<b>${inbox.unread}</b><span>${t("por ler")}</span></button>
+    ${last ? `<button class="nb-last ${last.read ? "" : "unread"}" data-n="${last.id}" data-href="${esc(last.href || "")}" title="${esc(last.title)}"><span>${esc(last.title)}</span><time>${fmt.ago(last.created_at)}</time></button>`
+      : `<span class="nb-last none"><span>${t("Sem notificações")}</span></span>`}
+    <button class="nb-all" data-act="alerts">${t("Ver todas")}${icon("chevron")}</button>`;
+}
+
+// "Feitas": the last tasks somebody finished, where the notifications card used to be. A fixed number of rows, so it never scrolls.
+const DONE_ROWS = 5;
+async function finishedCard() {
+  const done = (await api("/api/tasks")).filter((x) => x.stage === "done" && x.completed_at).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+  const today = done.filter((x) => new Date(x.completed_at) >= startOfDay(new Date())).length;
+  return `${cardHead("check", "Feitas", today ? t(today === 1 ? "1 hoje" : "{n} hoje", { n: today }) : "", seeAll("Ver todas", "#/tarefas"))}
+    ${done.length ? `<div class="news">${done.slice(0, DONE_ROWS).map((x) => `<button class="nrow" data-go="#/tarefas/${x.id}"><i></i>
+      <span class="n-ic ok">${icon("check")}</span>
+      <span class="n-t"><b>${esc(x.title)}</b><span>${esc(nameOf(x.completed_by || x.assignee))}</span></span><time>${fmt.ago(x.completed_at)}</time></button>`).join("")}</div>`
+      : `<p class="in-empty">${t("Ainda nada concluído. As tarefas feitas aparecem aqui.")}</p>`}`;
 }
 
 async function openNotices() {
@@ -343,7 +357,8 @@ async function loadHome(parts = ["team", "news", "plan", "act"]) {
   if (!$("in-team")) return;
   const jobs = [];
   if (parts.includes("team")) jobs.push(mount($("in-team"), teamCard, 3));
-  if (parts.includes("news")) jobs.push(mount($("in-news"), newsCard, 3));
+  if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
+  if (parts.includes("plan")) jobs.push(mount($("in-done"), finishedCard, 3));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan")) jobs.push(mount($("in-prog"), progressBody, 5), mount($("in-tasks"), tasksBody, 5), mount($("in-cal"), calendarBody, 3));
   if (parts.includes("act")) jobs.push(mount($("in-act"), activityBody, 3));
@@ -353,9 +368,9 @@ async function loadHome(parts = ["team", "news", "plan", "act"]) {
 HUB_VIEWS.home = async function viewHome() {
   let ignite = false; // the car comes out of the dark once per session; after that it is simply there
   try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: no start-up */ }
-  $("view").innerHTML = `<div class="page inicio">${heroHtml(new Date(), ignite)}
+  $("view").innerHTML = `<div class="page inicio"><div id="in-newsbar" class="in-newsbar"></div>${heroHtml(new Date(), ignite)}
     <div id="in-alert" class="in-alert"></div>
-    <div class="in-top"><section class="in-card" id="in-team"></section><section class="in-card" id="in-news"></section></div>
+    <div class="in-top"><section class="in-card" id="in-team"></section><section class="in-card" id="in-done"></section></div>
     <div class="in-grid">
       <section class="in-card in-tasks">${cardHead("tasks", "A seguir", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
       <section class="in-card in-prog">${cardHead("target", "Progresso da equipa", "", seeAll("Visão geral", "#/analise"))}<div id="in-prog"></div></section>

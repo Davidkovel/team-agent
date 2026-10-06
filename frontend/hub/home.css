@@ -346,3 +346,26 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 }
 #in-team { display: flex; flex-direction: column; }
 #in-team .people { flex: 1; align-items: center; }
+
+/* ---------------------------------------------------------------- notifications: one line over the top right of the page */
+.page.inicio { position: relative; }
+.in-newsbar { position: absolute; z-index: 4; top: 0; right: 0; display: flex; align-items: center; gap: 4px; max-width: min(52%, 640px); height: 38px; padding: 0 6px;
+  border-radius: 999px; border: 1px solid rgba(255, 255, 255, .1); background: rgba(10, 11, 13, .72); backdrop-filter: blur(14px); }
+.in-newsbar:empty { display: none; }
+.in-newsbar button { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border: 0; border-radius: 999px; background: none; color: var(--muted);
+  font: 600 11.5px var(--ui); cursor: pointer; white-space: nowrap; }
+.in-newsbar button:hover { background: rgba(255, 255, 255, .08); color: var(--text); }
+.in-newsbar svg.i { width: 14px; height: 14px; flex: none; stroke-width: 1.8; }
+.nb-count b { font: 700 12px var(--mono); color: var(--text); }
+.nb-count.on { background: var(--chrome); color: #0b0c0e; }
+.nb-count.on b { color: #0b0c0e; }
+.in-newsbar .nb-count.on:hover { background: var(--chrome); color: #0b0c0e; filter: brightness(1.08); }
+.in-newsbar .nb-last { flex: 1; min-width: 0; justify-content: flex-start; color: var(--muted); font-weight: 500; }
+.nb-last.none { display: inline-flex; align-items: center; padding: 0 10px; font-size: 11.5px; color: var(--faint); }
+.nb-last > span { overflow: hidden; text-overflow: ellipsis; }
+.nb-last.unread > span { color: var(--text); font-weight: 600; }
+.nb-last time { flex: none; color: var(--faint); font-weight: 500; }
+.n-ic.ok { color: #5fe08a; }
+@media (max-width: 1150px) {
+  .in-newsbar { position: static; max-width: none; order: -1; }
+}

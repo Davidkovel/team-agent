@@ -1313,13 +1313,13 @@ function connect() {
   };
 }
 function wakeUp() {
+  if (window.hubCheckVersion) hubCheckVersion(); // first: a new version reloads the page, whatever state the socket is in
   if (!token || !liveSocket) return;
   const old = liveSocket;
   if (old.readyState !== 1 || Date.now() - hiddenAt > 5000) { liveSocket = null; try { old.close(); } catch { /* already gone */ } connect(); }
   Object.keys(loaders).forEach(refresh);
   refresh("tick");
   if (window.hubNews) hubNews().catch(() => {});
-  if (window.hubCheckVersion) hubCheckVersion();
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = Date.now(); else wakeUp(); });
 window.addEventListener("pageshow", (e) => { if (e.persisted) { hiddenAt = 0; wakeUp(); } });

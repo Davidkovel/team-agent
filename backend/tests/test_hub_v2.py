@@ -231,3 +231,17 @@ def test_notifications_are_deleted_one_by_one_the_read_ones_or_all_and_only_ones
 def test_the_hub_pages_are_always_revalidated(client):
     assert client.get("/").headers.get("cache-control") == "no-cache"
     assert "cache-control" not in {k.lower() for k in client.get("/api/version").headers}
+
+
+def test_the_version_changes_when_the_page_changes_even_before_a_commit(client, tmp_path, monkeypatch):
+    """The phone app reloads when /api/version changes: a new commit or a new index.html (every frontend change bumps its ?v=)."""
+    from app import selfupdate
+    page = tmp_path / "index.html"
+    page.write_text("v1")
+    monkeypatch.setattr(selfupdate.settings, "frontend_dir", str(tmp_path))
+    selfupdate.CACHE.clear()
+    first = client.get("/api/version").json()["head"]
+    import os, time
+    os.utime(page, (time.time() + 5, time.time() + 5))
+    selfupdate.CACHE.clear()
+    assert client.get("/api/version").json()["head"] != first

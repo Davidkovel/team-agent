@@ -352,4 +352,5 @@ window.hubCheckVersion = async () => {
   } catch { /* the Hub is restarting: ask again next minute */ }
 };
 hubCheckVersion();
-setInterval(hubCheckVersion, 60000);
+setInterval(hubCheckVersion, 15000); // a change on this PC shows on the phone within seconds
+window.addEventListener("focus", () => hubCheckVersion());

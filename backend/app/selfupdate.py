@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 import subprocess
+import time
 from pathlib import Path
 
 from fastapi import APIRouter
@@ -29,11 +30,26 @@ def git(*args: str) -> str:
 
 
 VERSION = {"head": ""}
+CACHE: dict = {}  # the answer of the last few seconds: every open page asks often
+
+
+def current() -> str:
+    """What this PC serves now: the commit checked out, and when index.html last changed (every frontend change bumps the ?v=
+    in it). Read live, not from the last pull, so a change committed or saved on this PC reaches the open pages too."""
+    head = git("rev-parse", "--short=7", "HEAD") or VERSION["head"]
+    try:
+        stamp = int((Path(settings.frontend_dir) / "index.html").stat().st_mtime)
+    except OSError:
+        stamp = 0
+    return f"{head}-{stamp}"
 
 
 @router.get("/version")
 async def version():
-    return {"head": VERSION["head"]}
+    now = time.monotonic()
+    if CACHE.get("at", -10) < now - 5:
+        CACHE.update(at=now, head=await asyncio.to_thread(current))
+    return {"head": CACHE["head"]}
 
 
 def pull_once() -> bool:

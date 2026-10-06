@@ -94,3 +94,34 @@ def test_the_widget_restarts_only_when_a_new_commit_touched_it(monkeypatch):
     assert selfupdate.widget_changed("", "bbb") is False      # git did not answer when the widget started
     touched["files"] = ""                                     # the pull only changed the Hub
     assert selfupdate.widget_changed("aaa", "bbb") is False
+
+
+def test_the_hub_is_started_only_once_however_many_ask(monkeypatch, tmp_path):
+    import threading
+    from team_widget import hub
+    started, up = [], {"is": False}
+    monkeypatch.setattr(hub, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(hub, "REPO", tmp_path)
+    (tmp_path / "backend" / "app").mkdir(parents=True)
+    (tmp_path / "backend" / "app" / "main.py").write_text("")
+    (tmp_path / ".venv" / "Scripts").mkdir(parents=True)
+    (tmp_path / ".venv" / "Scripts" / "python.exe").write_text("")
+    monkeypatch.setattr(hub, "is_up", lambda url: up["is"])
+    monkeypatch.setattr(hub.time, "sleep", lambda s: None)
+
+    def popen(*args, **kwargs):
+        started.append(1)
+        up["is"] = True   # the server answers from now on
+
+    monkeypatch.setattr(hub.subprocess, "Popen", popen)
+    asked = [threading.Thread(target=hub.start_local_server, args=("http://127.0.0.1:8000",)) for _ in range(5)]
+    for a in asked:
+        a.start()
+    for a in asked:
+        a.join()
+    assert started == [1]
+
+    up["is"] = False            # the Hub went down, and another widget process left its mark a moment ago
+    started.clear()
+    monkeypatch.setattr(hub, "STARTING_FOR", 1)
+    assert hub.start_local_server("http://127.0.0.1:8000") is False and started == []   # it waits for that one, it does not start a second

@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import subprocess
+import threading
 import sys
 import time
 import urllib.error
@@ -131,12 +132,44 @@ def is_local(url: str) -> bool:
     return urlparse(url).hostname in ("127.0.0.1", "localhost", "::1")
 
 
+_starting = threading.Lock()   # one start at a time in this widget: the poll thread and "open the Hub" can ask in the same second
+STARTING_FOR = 40              # seconds a start is given before somebody else may try (the mark another widget process left)
+
+
+def _wait_up(url: str, seconds: float) -> bool:
+    for _ in range(int(seconds * 2)):
+        if is_up(url):
+            return True
+        time.sleep(0.5)
+    return is_up(url)
+
+
 def start_local_server(url: str) -> bool:
+    """Starts this computer's Hub, and only ever one. Two started in the same second (6 Oct: the Hub had just restarted
+    itself and both the poll and a click asked for it): the second could not take the port, stayed alive and held the
+    database, and every page that reads it failed until somebody stopped it by hand."""
+    with _starting:
+        return _start_local_server(url)
+
+
+def _start_local_server(url: str) -> bool:
     backend = REPO / "backend"
     python = REPO / ".venv" / "Scripts" / "python.exe"
     if not (backend / "app" / "main.py").exists() or not python.exists():
         return False
     DATA_DIR.mkdir(exist_ok=True)
+    if is_up(url):   # somebody started it while this call waited its turn
+        return True
+    mark = DATA_DIR / "hub.starting"
+    try:
+        if time.time() - mark.stat().st_mtime < STARTING_FOR:   # another widget process is starting it right now
+            return _wait_up(url, STARTING_FOR)
+    except OSError:
+        pass
+    try:
+        mark.write_text(str(os.getpid()))
+    except OSError:
+        pass
     secret_file = DATA_DIR / "hub.secret"
     if not secret_file.exists():
         secret_file.write_text(secrets.token_urlsafe(48))

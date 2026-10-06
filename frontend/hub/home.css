@@ -417,13 +417,13 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 /* Kovel, 6 Oct, last word: less empty card, larger photos. The faces fill the card's height and stand close together. */
 #in-team .people { gap: 4px; padding: 0 0 4px; }
 #in-team .person { flex: 0 1 150px; gap: 2px; padding: 4px 2px; }
-#in-team .p-ring { width: 116px; height: 116px; margin-bottom: 8px; padding: 3px; }
-#in-team .p-ring .av { width: 110px; height: 110px; font-size: 38px; border-width: 3px; }
-#in-team .p-place { width: 30px; height: 30px; right: 2px; bottom: 3px; }
+#in-team .p-ring { width: 96px; height: 96px; margin-bottom: 8px; padding: 3px; }
+#in-team .p-ring .av { width: 90px; height: 90px; font-size: 32px; border-width: 3px; }
+#in-team .p-place { width: 26px; height: 26px; right: 1px; bottom: 2px; }
 #in-team .p-place svg.i { width: 15px; height: 15px; }
 #in-team .person b { font-size: 15px; }
 @media (max-width: 1400px) {
-  #in-team .p-ring { width: 92px; height: 92px; }
-  #in-team .p-ring .av { width: 86px; height: 86px; font-size: 30px; }
+  #in-team .p-ring { width: 80px; height: 80px; }
+  #in-team .p-ring .av { width: 74px; height: 74px; font-size: 26px; }
 }
 #in-team .people { padding: 2px 0 6px; }

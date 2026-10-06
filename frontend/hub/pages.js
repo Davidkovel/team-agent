@@ -125,8 +125,24 @@ function tlRow(x) {
     <div class="tl-t"><b>${tone === "urgent" ? '<i class="bang">!!</i>' : tone === "high" ? '<i class="bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span>${meta.join(" · ")}</span>` : ""}</div>
     ${x.group ? whoFaces(x.group) : ui.avatar(nameOf(done && x.completed_by ? x.completed_by : x.assignee), "sm")}</div>`;
 }
-const tlBlock = (title, list, tone = "", sort = true) => (list.length ? `<div class="tl-block"><h4 class="${tone}"><i></i>${t(title)}<span>${list.length}</span></h4>
-  <div class="tl-list">${(sort ? [...list].sort(tlOrder) : list).map(tlRow).join("")}</div></div>` : "");
+// A block with many tasks of several people is not one long list: it is one short list per person, the first few of each
+// showing and the rest one click away. Fourteen tasks of one person used to bury everybody else's.
+const TL_MANY = 6, TL_FEW = 3;
+const tlOpen = new Set(); // "block|person" unfolded
+function tlBlock(title, list, tone = "", sort = true) {
+  if (!list.length) return "";
+  const rows = sort ? [...list].sort(tlOrder) : list;
+  const head = `<h4 class="${tone}"><i></i>${t(title)}<span>${list.length}</span></h4>`;
+  const owner = (x) => (x.group ? "" : x.stage === "done" && x.completed_by ? x.completed_by : x.assignee);
+  const owners = [...new Set(rows.map(owner))];
+  if (rows.length <= TL_MANY || taskFilter || !sort) return `<div class="tl-block">${head}<div class="tl-list">${rows.map(tlRow).join("")}</div></div>`;
+  return `<div class="tl-block">${head}${owners.map((u) => {
+    const mine = rows.filter((x) => owner(x) === u), key = `${title}|${u}`, open = tlOpen.has(key) || mine.length <= TL_FEW + 1;
+    return `<div class="tl-who">${u ? ui.avatar(nameOf(u), "sm") : icon("users")}<b>${esc(u ? nameOf(u) : t("Para todos"))}</b><span>${mine.length}</span></div>
+      <div class="tl-list">${(open ? mine : mine.slice(0, TL_FEW)).map(tlRow).join("")}</div>
+      ${mine.length > TL_FEW + 1 ? `<button class="tl-more" data-tl-open="${esc(key)}">${open ? t("Mostrar menos") : t("Ver mais {n} de {quem}", { n: mine.length - TL_FEW, quem: u ? nameOf(u) : t("todos") })}</button>` : ""}`;
+  }).join("")}</div>`;
+}
 let showOlderFeitas = false;
 
 async function loadLists(board) {
@@ -328,11 +344,17 @@ async function openTaskModal(id) {
           <span>${y.stage === "done" ? `${t("Feito")}${y.completed_at ? ` · ${fmt.day(y.completed_at)} ${fmt.hhmm(y.completed_at)}` : ""}${y.completed_by && y.completed_by !== y.assignee ? ` · ${t("por")} ${esc(nameOf(y.completed_by))}` : ""}`
             : esc(t(STAGE_LABEL[y.stage]))}</span></div></div>`).join("")}</div>
         <p class="faint" style="margin:0;padding:4px var(--pad) 12px;font-size:12px">${esc(whoLeft(group))}</p></div>` : ""}
+      <div class="panel tnotes">${ui.sec("Notas").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
+        ${x.events.some((e) => e.kind === "note") ? `<div class="tnote-list">${x.events.filter((e) => e.kind === "note").map((e) => `<div class="tnote">${ui.avatar(e.data?.name || "?", "sm")}
+          <div><b>${esc(e.data?.name || t("Agente"))}</b><time>${fmt.day(e.created_at)} ${fmt.hhmm(e.created_at)}</time><p>${esc(e.message)}</p></div></div>`).join("")}</div>`
+          : `<p class="faint" style="margin:0;padding:2px var(--pad) 10px">${t("Ainda sem notas. Escreve aqui o que ficou decidido, um link, até onde chegou ou porque está à espera.")}</p>`}
+        <form class="tnote-new" id="task-note"><textarea name="text" rows="2" placeholder="${t("Escrever uma nota…")}" required></textarea>
+          <button class="btn sm primary" type="submit">${t("Guardar nota")}</button></form></div>
       <div class="panel">${ui.sec("Histórico").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
         <div class="hist">${(x.log || []).map((e) => `<div class="hist-row">${ui.avatar(e.name, "sm")}<div><b>${esc(e.name)}</b> ${esc(group && e.kind === "task_created" ? t("criou a tarefa para todos") : e.message)}
           <time>${fmt.day(e.at)} ${fmt.hhmm(e.at)}</time></div></div>`).join("") || `<p class="faint" style="margin:0">${t("Sem registo.")}</p>`}</div></div>
       <div class="panel">${ui.sec("Atividade").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
-        ${x.events.length ? `<div class="tl" style="padding-bottom:8px">${ui.feed(x.events.slice(-30).map((e) => ({ at: e.created_at, text: e.message,
+        ${x.events.some((e) => e.kind !== "note") ? `<div class="tl" style="padding-bottom:8px">${ui.feed(x.events.filter((e) => e.kind !== "note").slice(-30).map((e) => ({ at: e.created_at, text: e.message,
           tone: e.kind === "error" ? "bad" : e.kind === "decision" ? "warn" : e.kind === "result" ? "ok" : "ai" })))}</div>`
           : `<p class="faint" style="margin:0;padding:6px var(--pad) 14px">${t("Ainda sem atividade.")}</p>`}</div>
     </div><div class="stack">
@@ -350,6 +372,15 @@ async function openTaskModal(id) {
         <span>${t({ PENDING: "pendente", APPROVED: "aprovado", REJECTED: "recusado" }[a.status])}</span></div></a>`).join("")}</div>` : ""}
     </div></div>`);
   $("modal-box").classList.add("wide");
+  $("task-note").onsubmit = async (e) => {
+    e.preventDefault();
+    const text = e.target.text.value.trim();
+    if (!text) return;
+    e.target.querySelector("button").disabled = true;
+    try { await api(`/api/tasks/${x.id}/notes`, { method: "POST", body: { text } }); flash(t("Nota guardada.")); openTaskModal(x.id); }
+    catch (err) { flash(err.message); e.target.querySelector("button").disabled = false; }
+  };
+  $("task-note").text.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("task-note").requestSubmit(); };   // Ctrl+Enter saves
   $("modal-box").onclick = async (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
@@ -402,6 +433,8 @@ HUB_VIEWS.tarefas = async function (r) {
       return loadBoard();
     }
     if (e.target.closest("[data-older-feitas]")) { showOlderFeitas = !showOlderFeitas; return loadBoard(); }
+    const fold = e.target.closest("[data-tl-open]");
+    if (fold) { tlOpen.has(fold.dataset.tlOpen) ? tlOpen.delete(fold.dataset.tlOpen) : tlOpen.add(fold.dataset.tlOpen); $("board")._html = null; return loadBoard(); }
     const tick = e.target.closest(".tl-row [data-done]");
     if (tick) {
       tick.disabled = true; tick.closest(".tl-row").classList.add("finishing");

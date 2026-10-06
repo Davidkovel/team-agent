@@ -166,3 +166,19 @@ def test_a_task_for_some_people_is_one_each_and_the_rest_only_read_it(client):
         assert [(n["title"], n["directed"]) for n in items] == [("Owner deu-te uma tarefa: Para dois", True)]
     assert send(client, owner, "mark,ninguem", "Não existe").status_code == 404
     assert send(client, owner, " , ", "Para ninguém").status_code == 422
+
+
+def test_a_note_stays_on_the_task_with_who_wrote_it_and_the_others_are_told(client):
+    owner, mark = login(client, "owner"), login(client, "mark")
+    task = send(client, owner, "mark", "Com notas").json()
+    after = mark_point(client)
+    assert client.post(f"/api/tasks/{task['id']}/notes", headers=owner, json={"text": "   "}).status_code == 422
+    note = client.post(f"/api/tasks/{task['id']}/notes", headers=owner, json={"text": "O cliente quer a entrega na sexta."})
+    assert note.status_code == 200 and note.json()["kind"] == "note" and note.json()["data"]["user"] == "owner"
+
+    events = client.get(f"/api/tasks/{task['id']}", headers=mark).json()["events"]
+    assert [(e["kind"], e["message"], e["data"]["name"]) for e in events if e["kind"] == "note"] == [("note", "O cliente quer a entrega na sexta.", "Owner")]
+    told = lambda who: [n["title"] for n in client.get("/api/notifications?limit=10", headers=who).json()["items"]]
+    assert "Owner escreveu numa tarefa: Com notas" in told(mark)       # in the bell of whoever has the task
+    assert "Owner escreveu numa tarefa: Com notas" not in told(owner)  # whoever wrote it is not told
+    assert notices(client, "mark", after["mark"])["items"] == []       # and the widget does not ring for a note

@@ -334,6 +334,29 @@ async def assign_ai(task_id: int, body: AssignAI, user: User = Depends(current_u
     return task_out(task)
 
 
+class Note(BaseModel):
+    text: str
+
+
+@router.post("/{task_id}/notes")
+async def add_note(task_id: int, body: Note, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Something a person wants to leave written on a task: what was decided, a link, how far it got, why it waits.
+    It stays in the task with who wrote it and when; whoever has the task and whoever asked for it are told."""
+    task = await get_task(task_id, user, db)
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(422, "Write something first")
+    event = TaskEvent(task_id=task.id, kind="note", message=text[:4000], data={"user": user.username, "name": user.display_name})
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    others = {task.assignee_id, task.created_by} - {user.id}
+    if others:
+        await notify(db, list(others), "task", "info", f"{user.display_name} escreveu numa tarefa: {task.title}", text[:300], f"#/tarefas/{task.id}")
+    await rt.publish("task", task.assignee_id)
+    return event_out(event)
+
+
 @router.post("/{task_id}/control")
 async def control(task_id: int, body: Control, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     task = await get_task(task_id, user, db)

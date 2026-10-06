@@ -562,3 +562,17 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 
 /* a task's description stretches with its text */
 #modal textarea[name="description"] { min-height: 130px; max-height: 55vh; resize: vertical; overflow-y: auto; }
+
+/* a task's text, set to be read: wider lines of type, air between paragraphs, real lists, links that look like links */
+.tread { max-width: 72ch; font-size: 14.5px; line-height: 1.62; color: #e6e9ed; overflow-wrap: anywhere; }
+.tread.small { font-size: 13.5px; line-height: 1.5; margin-top: 3px; }
+.tread > * { margin: 0; }
+.tread > * + * { margin-top: 12px; }
+.tread h5 { margin-top: 20px; color: #fff; font: 600 13px var(--ui); letter-spacing: .02em; }
+.tread > h5:first-child { margin-top: 0; }
+.tread h5 + ol, .tread h5 + ul { margin-top: 6px; }
+.tread ol, .tread ul { padding-left: 24px; display: grid; gap: 5px; }
+.tread li::marker { color: var(--faint); font: 600 12px var(--mono); }
+.tread ul li::marker { font-size: 14px; }
+.tread a { color: #a9c6ff; text-decoration: underline; text-decoration-color: rgba(169, 198, 255, .4); text-underline-offset: 3px; }
+.tread a:hover { color: #fff; text-decoration-color: #fff; }

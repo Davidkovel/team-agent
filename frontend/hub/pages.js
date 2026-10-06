@@ -348,6 +348,23 @@ function assignToAI(x) {
   }, { submit: "Entregar" });
 }
 
+// A task's text, made to be read: what people type as plain lines becomes paragraphs, numbered and dotted lists, small
+// headings over a list, and links one can click. Everything is escaped first; only these few tags are added here.
+function richText(text) {
+  const line = (s) => esc(s).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]]/g, (url) => `<a href="${url}" target="_blank" rel="noopener">${url.replace(/^https?:\/\/(www\.)?/, "")}</a>`);
+  const numbered = /^\s*\d+[.)]\s+/, dotted = /^\s*[-•*–]\s+/;
+  const list = (lines) => (lines.every((l) => numbered.test(l)) ? `<ol>${lines.map((l) => `<li value="${parseInt(l, 10)}">${line(l.replace(numbered, ""))}</li>`).join("")}</ol>`   // each keeps the number it was written with: people refer to them
+    : lines.every((l) => dotted.test(l)) ? `<ul>${lines.map((l) => `<li>${line(l.replace(dotted, ""))}</li>`).join("")}</ul>` : "");
+  return String(text || "").replace(/\r/g, "").split(/\n\s*\n/).map((block) => {
+    const lines = block.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim());
+    if (!lines.length) return "";
+    if (list(lines)) return list(lines);
+    const [first, ...rest] = lines;   // a short line over a list is that list's heading
+    if (rest.length && list(rest) && first.length <= 70) return `<h5>${line(first.replace(/:$/, ""))}</h5>${list(rest)}`;
+    return `<p>${lines.map(line).join("<br>")}</p>`;
+  }).join("");
+}
+
 async function openTaskModal(id) {
   let x, all;
   try { [x, all] = await Promise.all([request_(`/api/tasks/${id}`), request_("/api/tasks")]); } catch (e) { flash(e.message); return; }
@@ -374,10 +391,10 @@ async function openTaskModal(id) {
     ${x.current_action && running ? `<div class="now" style="margin-bottom:12px">${esc(x.current_action)}</div>` : ""}
     ${x.blocked_reason ? `<p class="msg note" style="margin:0 0 12px">${esc(x.blocked_reason)}</p>` : ""}
     <div class="detail"><div class="stack">
-      ${x.description ? `<p style="margin:0;white-space:pre-wrap">${esc(x.description)}</p>` : ""}
+      ${x.description ? `<div class="tread">${richText(x.description)}</div>` : ""}
       ${x.goal ? `<p style="margin:0" class="dim"><b>${t("Objetivo")}:</b> ${esc(x.goal)}</p>` : ""}
       ${x.requirements?.length ? `<ul style="margin:0;padding-left:18px" class="dim">${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
-      ${x.result ? `<div class="panel pad"><div class="ph-eyebrow">${t("Resultado")}</div><p style="margin:0;white-space:pre-wrap">${esc(x.result)}</p></div>` : ""}
+      ${x.result ? `<div class="panel pad"><div class="ph-eyebrow">${t("Resultado")}</div><div class="tread">${richText(x.result)}</div></div>` : ""}
       ${group ? `<div class="panel">${ui.sec("Quem já fez").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
         <div class="who-list">${group.map((y) => `<div class="who-line ${y.stage === "done" ? "did" : ""}">${whoFace(y, "")}<div><b>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` <small>${t("tu")}</small>` : ""}</b>
           <span>${y.stage === "done" ? `${t("Feito")}${y.completed_at ? ` · ${fmt.day(y.completed_at)} ${fmt.hhmm(y.completed_at)}` : ""}${y.completed_by && y.completed_by !== y.assignee ? ` · ${t("por")} ${esc(nameOf(y.completed_by))}` : ""}`
@@ -385,7 +402,7 @@ async function openTaskModal(id) {
         <p class="faint" style="margin:0;padding:4px var(--pad) 12px;font-size:12px">${esc(whoLeft(group))}</p></div>` : ""}
       <div class="panel tnotes">${ui.sec("Notas").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
         ${x.events.some((e) => e.kind === "note") ? `<div class="tnote-list">${x.events.filter((e) => e.kind === "note").map((e) => `<div class="tnote">${ui.avatar(e.data?.name || "?", "sm")}
-          <div><b>${esc(e.data?.name || t("Agente"))}</b><time>${fmt.day(e.created_at)} ${fmt.hhmm(e.created_at)}</time><p>${esc(e.message)}</p></div></div>`).join("")}</div>`
+          <div><b>${esc(e.data?.name || t("Agente"))}</b><time>${fmt.day(e.created_at)} ${fmt.hhmm(e.created_at)}</time><div class="tread small">${richText(e.message)}</div></div></div>`).join("")}</div>`
           : `<p class="faint" style="margin:0;padding:2px var(--pad) 10px">${t("Ainda sem notas. Escreve aqui o que ficou decidido, um link, até onde chegou ou porque está à espera.")}</p>`}
         <form class="tnote-new" id="task-note"><textarea name="text" rows="2" placeholder="${t("Escrever uma nota…")}" required></textarea>
           <button class="btn sm primary" type="submit">${t("Guardar nota")}</button></form></div>

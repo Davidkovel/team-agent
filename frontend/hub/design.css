@@ -516,3 +516,13 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .pver { display: grid; gap: 3px; margin: 0; padding: 4px 6px 0; color: var(--faint); font-size: 11px; }
 .pver b { color: var(--muted); font: 600 11px var(--mono); }
 .pver em { font-style: normal; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+.pmate-lim { grid-column: 2; display: grid; gap: 5px; margin-top: 5px; }
+.pl { display: grid; grid-template-columns: 62px minmax(0, 1fr) 34px; align-items: center; gap: 8px; color: var(--faint); font-size: 11px; cursor: default; }
+.pl em { font-style: normal; }
+.pl i { height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.pl u { display: block; height: 100%; border-radius: 999px; background: #cfd5dc; text-decoration: none; }
+.pl b { text-align: right; color: var(--text); font-weight: 600; }
+.pl.warn u { background: var(--warn); } .pl.warn b { color: var(--warn); }
+.pl.bad u { background: var(--bad); } .pl.bad b { color: var(--bad); }
+.pl.none b { color: var(--faint); }

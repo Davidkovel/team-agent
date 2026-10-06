@@ -144,6 +144,7 @@ class Meter(Base):
     service: Mapped[str] = mapped_column(String(30), primary_key=True)
     pct: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+    resets_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # a Claude window: when it starts again from 0
 
 
 class AgentState(Base):

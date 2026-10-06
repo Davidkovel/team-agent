@@ -248,6 +248,12 @@ async def my_limits(user: User = Depends(current_user)):
     return {"claude": await asyncio.to_thread(limits.plan) if limits.is_owner(user.username) else None}
 
 
+@router.get("/limits/team")
+async def team_limits(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Everybody's Claude windows, as each person's own computer last wrote them (they travel by sync)."""
+    return await limits.team(db)
+
+
 @router.put("/meters/{service}")
 async def set_meter(service: str, body: MeterBody, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """Each person sets their own % for services we cannot read automatically."""

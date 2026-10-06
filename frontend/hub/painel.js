@@ -16,19 +16,26 @@ function panelMeter(label, pct, note) {
     <div class="pm-bar"><i style="width:${known ? Math.min(100, Math.max(2, pct)) : 0}%"></i></div>${note ? `<small>${esc(note)}</small>` : ""}</div>`;
 }
 
-function panelMate(m) {
+// One window of somebody's plan in their row: how much is used, and on hover how much is left and when it starts again.
+function panelLimit(label, pct, reset, week) {
+  if (pct == null) return `<span class="pl none" title="${t("O computador desta pessoa ainda não disse.")}"><em>${esc(t(label))}</em><i></i><b>—</b></span>`;
+  const when = reset ? ` · ${t("renova")} ${week ? `${panelDay(reset)} ` : ""}${t("às")} ${panelClock(reset)}` : "";
+  return `<span class="pl ${panelTone(pct)}" title="${t("Restam")} ${100 - pct}%${when}"><em>${esc(t(label))}</em><i><u style="width:${Math.min(100, Math.max(2, pct))}%"></u></i><b>${pct}%</b></span>`;
+}
+
+function panelMate(m, lim) {
   const [label, tone] = PANEL_STATUS[m.status] || PANEL_STATUS.ONLINE;
   const line = m.status === "OFFLINE" ? (m.last_seen ? `${t("visto")} ${fmt.ago(m.last_seen)}` : t("Offline")) : m.task ? `${t(label)}: ${m.task}` : t(label);
-  const small = (name, pct) => `<span class="pmate-n ${pct == null ? "none" : panelTone(pct)}" title="${esc(name)}">${esc(name)} <b>${pct == null ? "—" : `${pct}%`}</b></span>`;
   return `<div class="pmate ${tone}"><span class="pmate-av">${ui.avatar(m.display_name, "sm")}<i></i></span>
     <div><b>${esc(m.display_name)}</b><span title="${esc(line)}">${esc(line)}</span></div>
-    <div class="pmate-nums">${small("Claude", m.week_pct)}${small("Higgsfield", m.higgsfield_pct)}</div></div>`;
+    <div class="pmate-lim">${panelLimit("5 horas", lim?.five, lim?.five_reset)}${panelLimit("Semana", lim?.week, lim?.week_reset, true)}${panelLimit("Higgsfield", m.higgsfield_pct)}</div></div>`;
 }
 
 async function drawPanel() {
   if (!panelOpen() || !me?.username || panelHiggs) return;
   const [limits, team, board] = await Promise.all([api("/api/limits").catch(() => null), api("/api/team"), api("/api/ponto").catch(() => null)]);
   const version = await fetch("/api/version", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+  const teamLimits = await api("/api/limits/team").catch(() => ({}));
   const clock = board?.people.find((p) => p.user === me.username);
   const mine = team.find((m) => m.user === me.username) || {}, plan = limits?.claude;
   const claude = plan
@@ -46,7 +53,8 @@ async function drawPanel() {
     <section><h4>${icon("videos")}Higgsfield</h4>${panelMeter("Créditos usados", higgs, higgs == null ? t("Por definir: arrasta para dizer quanto já gastaste.") : "")}
       <input id="hpanel-higgs" type="range" min="0" max="100" value="${higgs ?? 0}" aria-label="Higgsfield"></section>
     <section><h4>${icon("users")}${t("Equipa")}<em>${team.filter((m) => m.status !== "OFFLINE").length} ${t("de")} ${team.length} online</em></h4>
-      <div class="pmates">${team.map(panelMate).join("")}</div></section>
+      <div class="pmates">${team.map((m) => panelMate(m, teamLimits[m.user])).join("")}</div>
+      <small class="pclock-n">${t("Claude usado por cada um. Passa o rato para ver quanto resta.")}</small></section>
     ${version?.head ? `<p class="pver" title="${esc(version.subject || "")}"><span>${t("Versão")} <b>${esc(version.head.split("-")[0])}</b>${version.when ? ` · ${fmt.ago(version.when)}` : ""}</span>
       ${version.subject ? `<em>${esc(version.subject)}</em>` : ""}<small>${t("Atualiza-se sozinho quando alguém faz push.")}</small></p>` : ""}`;
   if ($("hpanel-ponto")) $("hpanel-ponto").onclick = async (e) => {

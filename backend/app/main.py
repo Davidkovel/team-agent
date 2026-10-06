@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from .config import settings
-from . import migrate, push, selfupdate, sync, webpush
+from . import limits, migrate, push, selfupdate, sync, webpush
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
@@ -99,7 +99,9 @@ async def lifespan(app: FastAPI):
     syncing = asyncio.create_task(sync.loop()) if settings.sync else None
     updating = asyncio.create_task(selfupdate.loop())
     pushing = asyncio.create_task(webpush.loop())
+    limiting = asyncio.create_task(limits.loop())
     yield
+    limiting.cancel()
     updating.cancel()
     pushing.cancel()
     watcher.cancel()

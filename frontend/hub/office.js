@@ -32,6 +32,56 @@
       <em>${end}${a.tokens ? `<small>${esc(tokens(a.tokens))}</small>` : ""}</em></div>`;
   }
 
+  // ---- the agents' own board. Under each desk they are small lines; here they are the subject: who is running now,
+  // for whom and on what, the team's agents and whether each is free, who used what today, and what already finished.
+  const ROSTER = [["pesquisador", "Procura informação na web e nos documentos."], ["explorador", "Lê o código e encontra onde está cada coisa."],
+    ["revisor-hub", "Revê as mudanças antes de irem para todos."], ["designer-hub", "Desenha as páginas do Hub."], ["marketing", "Textos e ideias para a BareDesk e as escolas."]];
+  const owned = (sessions) => sessions.flatMap((s) => s.agents.map((a) => ({ ...a, who: s.name, project: s.project })));
+  const byNewest = (a, b) => String(b.finished_at || b.started_at).localeCompare(String(a.finished_at || a.started_at));
+
+  function runCard(a) {
+    const dept = deptOf(a.kind);
+    return `<article class="of-run"><header><span class="of-run-ic">${icon(deptIcon(dept))}<i></i></span>
+        <div><b>${esc(a.kind)}</b><span>${esc(t(dept))}${a.model ? ` · ${esc(model(a.model))}` : ""}</span></div><em>${t("a trabalhar")}</em></header>
+      ${a.description ? `<p class="of-run-ask"><small>${t("Pedido")}</small>${esc(a.description)}</p>` : ""}
+      <p class="of-run-now"><small>${t("Agora")}</small><span>${esc(a.action || t("a começar…"))}</span></p>
+      <footer>${ui.avatar(a.who, "sm")}<span>${t("para")} <b>${esc(a.who)}</b> · ${esc(a.project)}</span><time title="${esc(fmt.hhmm(a.started_at))}">${esc(fmt.ago(a.started_at))}</time></footer></article>`;
+  }
+
+  function rosterTile([kind, what], all) {
+    const mine = all.filter((a) => a.kind === kind), busy = mine.filter((a) => a.state === "working"), last = [...mine].sort(byNewest)[0];
+    const dept = deptOf(kind);
+    return `<div class="of-rt ${busy.length ? "busy" : mine.length ? "used" : ""}"><span class="of-rt-ic">${icon(deptIcon(dept))}</span>
+      <div><b>${esc(kind)}</b><span>${esc(t(what))}</span>
+        <em>${busy.length ? `${t("A trabalhar para")} ${esc([...new Set(busy.map((a) => a.who))].join(", "))}` : t("Livre")}${mine.length
+          ? ` · ${t(mine.length === 1 ? "usado 1 vez hoje" : "usado {n} vezes hoje", { n: mine.length })}${last && !busy.length ? ` · ${esc(last.who)} ${esc(fmt.ago(last.finished_at || last.started_at))}` : ""}` : ` · ${t("ainda não usado hoje")}`}</em></div></div>`;
+  }
+
+  function doneRow(a) {
+    const dept = deptOf(a.kind), bad = a.state === "failed" || a.state === "lost";
+    return `<div class="of-dn ${bad ? "bad" : ""}"><span class="of-ag-ic" title="${esc(t(dept))}">${icon(deptIcon(dept))}</span>
+      <div><b>${esc(a.kind)}</b>${a.description ? `<span>${esc(a.description)}</span>` : ""}${a.result ? `<p>${esc(a.result)}</p>` : ""}</div>
+      <em>${ui.avatar(a.who, "sm")}<small>${esc(a.who)}</small><small>${bad ? t(a.state === "failed" ? "falhou" : "sem notícias") : esc(fmt.span(a.started_at, a.finished_at))}${a.tokens ? ` · ${esc(tokens(a.tokens))}` : ""}</small></em></div>`;
+  }
+
+  function boardHtml(sessions) {
+    const all = owned(sessions), running = all.filter((a) => a.state === "working").sort(byNewest), over = all.filter((a) => a.state !== "working").sort(byNewest);
+    const roster = [...ROSTER, ...[...new Set(all.map((a) => a.kind))].filter((k) => !ROSTER.some(([r]) => r === k)).map((k) => [k, "Agente do Claude Code."])];
+    const people = [...new Set(all.map((a) => a.who))].map((who) => {
+      const mine = all.filter((a) => a.who === who), kinds = [...new Set(mine.map((a) => a.kind))].map((k) => [k, mine.filter((a) => a.kind === k).length]).sort((x, y) => y[1] - x[1]);
+      return `<div class="of-use">${ui.avatar(who)}<div><b>${esc(who)}</b><span>${t(mine.length === 1 ? "1 agente lançado" : "{n} agentes lançados", { n: mine.length })}${mine.some((a) => a.state === "working")
+        ? ` · ${mine.filter((a) => a.state === "working").length} ${t("a trabalhar")}` : ""}${mine.reduce((n, a) => n + (a.tokens || 0), 0) ? ` · ${esc(tokens(mine.reduce((n, a) => n + (a.tokens || 0), 0)))}` : ""}</span>
+        <p>${kinds.map(([k, n]) => `<i title="${esc(t(deptOf(k)))}">${icon(deptIcon(deptOf(k)))}${esc(k)}<b>${n}</b></i>`).join("")}</p></div></div>`;
+    });
+    return `<header class="of-bh">${icon("bot")}<b>${t("Agentes")}</b><span>${running.length ? `${running.length} ${t("a trabalhar")}` : t("nenhum a trabalhar agora")}${over.length ? ` · ${over.length} ${t(over.length === 1 ? "acabou hoje" : "acabaram hoje")}` : ""}</span></header>
+      ${running.length ? `<div class="of-runs">${running.map(runCard).join("")}</div>`
+        : `<p class="of-quiet">${t("Nenhum agente a trabalhar neste momento. Quando um Claude lançar um, aparece aqui em grande: qual é, para quem, o que lhe foi pedido e o que está a fazer.")}</p>`}
+      <div class="of-sub">${t("A equipa de agentes")}</div><div class="of-roster">${roster.map((r) => rosterTile(r, all)).join("")}</div>
+      ${people.length ? `<div class="of-sub">${t("Quem usou o quê hoje")}</div><div class="of-uses">${people.join("")}</div>` : ""}
+      ${over.length ? `<details class="of-over" ${over.length <= 4 ? "open" : ""}><summary>${t(over.length === 1 ? "1 agente acabou hoje" : "{n} agentes acabaram hoje", { n: over.length })}</summary>
+        <div class="of-dns">${over.slice(0, 12).map(doneRow).join("")}</div></details>` : ""}`;
+  }
+
   function desk(s) {
     const [label, cls] = STATE[s.state] || STATE.idle;
     const line = `${s.state}|${s.action}|${s.agents.map((a) => a.state + a.action).join()}`;
@@ -75,6 +125,7 @@
       const here = agents.filter((a) => deptOf(a.kind) === dept), busy = here.filter((a) => a.state === "working").length;
       return `<div class="of-dept ${busy ? "busy" : here.length ? "used" : ""}" title="${esc(t(dept))}">${icon(ic)}<b>${esc(t(dept))}</b><i>${busy || here.length || ""}</i></div>`;
     }).join(""));
+    paint($("of-board"), boardHtml(d.sessions));
     paint(el, live.length ? live.map(desk).join("")
       : ui.empty("bot", "Ninguém a trabalhar agora", "Quando um Claude abrir num dos três PCs, aparece aqui com o que está a fazer e os agentes que lançar."));
     paint($("of-closed"), closed.length ? `<details><summary>${t(closed.length === 1 ? "1 janela fechada hoje" : "{n} janelas fechadas hoje", { n: closed.length })}</summary>
@@ -86,6 +137,8 @@
     page(`${ui.head("Visão de Deus", t("Escritório"), t("Todos os Claudes dos três PCs, os agentes que eles lançaram e o que cada um está a fazer, ao vivo."))}
       <div class="of-stats" id="of-stats"></div>
       <div class="of-depts" id="of-depts"></div>
+      <section class="of-board" id="of-board"></section>
+      <div class="of-sub of-sub-top">${t("Janelas do Claude")}</div>
       <div class="of-grid">
         <section><div class="of-desks" id="of-desks">${ui.skeleton(5)}</div><div id="of-closed"></div></section>
         <aside class="of-film"><header>${icon("clock")}<b>${t("Filme do dia")}</b></header><div id="of-film"></div></aside>

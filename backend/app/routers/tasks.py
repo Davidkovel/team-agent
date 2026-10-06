@@ -97,7 +97,10 @@ async def _create(db: AsyncSession, body: TaskCreate, assignee: User, creator: U
 
 async def _announce(db: AsyncSession, sender: User, tasks: list[Task], everybody: bool):
     """Everyone but the sender hears about a new task, so all the screens stay current. It is `directed` at whoever the task
-    is for (the widget rings for them) and only shown to the others. Sent to everybody, it is directed at all of them."""
+    is for (the widget rings for them) and only shown to the others. Sent to everybody, it is directed at all of them.
+    Sent to some, each of them hears it as theirs and the rest read who it went to."""
+    names = [t.assignee.display_name for t in tasks]
+    whom = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} e {names[-1]}"
     for person in (await db.execute(select(User).where(User.id != sender.id))).scalars():
         task = next((t for t in tasks if t.assignee_id == person.id), tasks[0])
         if everybody:
@@ -105,7 +108,7 @@ async def _announce(db: AsyncSession, sender: User, tasks: list[Task], everybody
         elif task.assignee_id == person.id:
             title, directed = f"{sender.display_name} deu-te uma tarefa: {task.title}", True
         else:
-            title, directed = f"{sender.display_name} mandou uma tarefa a {task.assignee.display_name}: {task.title}", False
+            title, directed = f"{sender.display_name} mandou uma tarefa a {whom}: {task.title}", False
         await notify(db, [person.id], "task_new", "info", title, task.description, f"#/tarefas/{task.id}", directed)
     mine = next((t for t in tasks if t.assignee_id == sender.id), None)
     if mine:  # whoever sends it knows: no bell and no widget ring for them, but their phone still gets it, as the proof it went in
@@ -114,19 +117,23 @@ async def _announce(db: AsyncSession, sender: User, tasks: list[Task], everybody
 
 @router.post("")
 async def create_task(body: TaskCreate, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    """`assignee` is a login, or EVERYBODY: one task for each person, each finished on its own."""
+    """`assignee` is a login, several logins separated by commas, or EVERYBODY: one task for each person, each finished on its own."""
     everybody = body.assignee == EVERYBODY
     if everybody:
         if not sees_all(user):
             raise HTTPException(403, "Only someone who directs work can send a task to everybody")
         assignees = list((await db.execute(select(User).order_by(User.id))).scalars())
     else:
-        assignee = (await db.execute(select(User).where(User.username == body.assignee))).scalar_one_or_none()
-        if not assignee:
-            raise HTTPException(404, "Assignee not found")
-        if not sees_all(user) and assignee.id != user.id:
-            raise HTTPException(403, "Members can only create tasks for themselves")
-        assignees = [assignee]
+        assignees = []
+        for login in dict.fromkeys(a.strip() for a in body.assignee.split(",") if a.strip()):   # each person once, in the order given
+            assignee = (await db.execute(select(User).where(User.username == login))).scalar_one_or_none()
+            if not assignee:
+                raise HTTPException(404, "Assignee not found")
+            if not sees_all(user) and assignee.id != user.id:
+                raise HTTPException(403, "Members can only create tasks for themselves")
+            assignees.append(assignee)
+        if not assignees:
+            raise HTTPException(422, "Choose who the task is for")
     await _check_links(db, body.company, body.project_id)
     tasks = [await _create(db, body, person, user) for person in assignees]
     await _announce(db, user, tasks, everybody)

@@ -151,3 +151,18 @@ def test_who_sends_a_task_to_themselves_gets_it_on_the_phone_but_not_in_the_bell
     assert sent == [(topic, "Nova tarefa: Para mim no telemóvel")]
     assert notices(client, "mark", after["mark"])["items"] == []  # the bell and the widget stay quiet for who sends it
     client.delete("/api/phone", headers=mark)
+
+
+def test_a_task_for_some_people_is_one_each_and_the_rest_only_read_it(client):
+    owner = login(client, "owner")
+    after = mark_point(client)
+    r = send(client, owner, "mark, david,mark", "Para dois")
+    assert r.status_code == 200
+
+    mine = [t for t in client.get("/api/tasks", headers=owner).json() if t["title"] == "Para dois"]
+    assert sorted(t["assignee"] for t in mine) == ["david", "mark"]   # one each, and nobody twice
+    for who in ("mark", "david"):
+        items = notices(client, who, after[who])["items"]
+        assert [(n["title"], n["directed"]) for n in items] == [("Owner deu-te uma tarefa: Para dois", True)]
+    assert send(client, owner, "mark,ninguem", "Não existe").status_code == 404
+    assert send(client, owner, " , ", "Para ninguém").status_code == 422

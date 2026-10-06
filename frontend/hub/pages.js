@@ -66,7 +66,7 @@ function taskCard(x) {
   const late = x.deadline && x.stage !== "done" && new Date(x.deadline) < new Date();
   const mineOf = x.group && x.group.find((y) => y.assignee === me.username);
   const stack = x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.assignee), "sm");
-  const top = [x.priority === "urgent" ? ui.tag(t("Urgente"), "bad") : x.priority === "high" ? ui.tag(t("Alta"), "warn") : "", x.group ? ui.tag(t("Para todos"), "ai") : "", isFresh(x) ? ui.tag(t("Nova"), "ok") : ""].join("");
+  const top = [x.priority === "urgent" ? ui.tag(t("Urgente"), "bad") : x.priority === "high" ? ui.tag(t("Alta"), "warn") : "", x.group ? ui.tag(groupLabel(x.group), "ai") : "", isFresh(x) ? ui.tag(t("Nova"), "ok") : ""].join("");
   return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
     ${top ? `<div class="tk-top">${top}</div>` : ""}
     <b>${esc(x.title)}</b>
@@ -237,13 +237,28 @@ async function openBin() {
   };
 }
 
-// "Para quem?": one button for each person and one for everybody ("all": a task for each of them). Someone who cannot direct
-// work only sends to themselves, so there is nothing to choose.
+// "Para quem?": one button for each person, any number of them pressed, and one for everybody. Each person chosen gets a task
+// of their own; the form sends their logins separated by commas, or "all". Someone who cannot direct work only sends to
+// themselves, so there is nothing to choose.
 function whoPicker(users, selected) {
   if (!me.lead) return `<input type="hidden" name="assignee" value="${esc(me.username)}">`;
-  return `<div class="field wide"><span>${t("Para quem?")}</span><div class="who">${[...users.map((u) => [u.username, u.display_name]), ["all", t("Todos")]]
-    .map(([value, label]) => `<label class="who-opt"><input type="radio" name="assignee" value="${esc(value)}" ${value === selected ? "checked" : ""}><span>${esc(label)}</span></label>`).join("")}</div></div>`;
+  const on = new Set(String(selected).split(",")), all = on.has("all");
+  return `<div class="field wide"><span>${t("Para quem?")}</span><div class="who" data-who><input type="hidden" name="assignee" value="${esc(selected)}">${users.map((u) =>
+    `<label class="who-opt"><input type="checkbox" value="${esc(u.username)}" ${all || on.has(u.username) ? "checked" : ""}><span>${esc(u.display_name)}</span></label>`).join("")}
+    <label class="who-opt"><input type="checkbox" value="all" ${all ? "checked" : ""}><span>${t("Todos")}</span></label></div>
+    <small class="muted">${t("Escolhe uma ou mais pessoas: cada uma recebe a sua tarefa.")}</small></div>`;
 }
+document.addEventListener("change", (e) => {
+  const box = e.target.closest?.("[data-who]");
+  if (!box) return;
+  const people = [...box.querySelectorAll('input[type="checkbox"]:not([value="all"])')], all = box.querySelector('input[value="all"]');
+  if (e.target === all) people.forEach((p) => { p.checked = all.checked; });
+  const picked = people.filter((p) => p.checked);
+  all.checked = picked.length === people.length;
+  box.querySelector('input[name="assignee"]').value = all.checked ? "all" : picked.map((p) => p.value).join(",");
+});
+// The tag of a task made for several people: "Para todos", or their names when it was only for some.
+const groupLabel = (group) => (group.length >= Object.keys(teamNames).length ? t("Para todos") : `${t("Para")} ${group.map((y) => nameOf(y.assignee)).join(", ")}`);
 
 function taskFields(x = {}, users = [], projects = [], sending = false) {
   const deadline = x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
@@ -266,8 +281,9 @@ async function newTask(preset = {}) {
   formModal("Nova tarefa", taskFields(preset, users, projects, true)
     + field("Quem a faz", `<select name="for_ai">${options([["", t("Uma pessoa (fica em Por fazer)")], ...Object.entries(ROLES).filter(([k]) => k !== "custom").map(([k, v]) => [k, `${t("IA")}: ${t(v)}`])], preset.for_ai || "")}</select>`, true),
   async (v) => {
+    if (!v.assignee) throw new Error(t("Escolhe pelo menos uma pessoa."));
     const created = await api("/api/tasks", { method: "POST", body: { ...taskBody(v), for_ai: !!v.for_ai, agent_role: v.for_ai || "" } });
-    flash(t(v.assignee === "all" ? "Tarefa enviada a todos." : "Tarefa criada."));
+    flash(v.assignee === "all" ? t("Tarefa enviada a todos.") : v.assignee.includes(",") ? t("Tarefa enviada a {n} pessoas.", { n: v.assignee.split(",").length }) : t("Tarefa criada."));
     loadBoard();
     return created;
   }, { submit: "Criar tarefa", wide: true });

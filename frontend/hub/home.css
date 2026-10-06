@@ -414,8 +414,9 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .mate-sum .av { flex: none; width: 26px; height: 26px; font-size: 11px; }
 
 /* the team card is as tall as the three finished tasks beside it; the faces are small (Kovel, 6 Oct: the photos were too big) */
-#in-team .p-ring { width: 60px; height: 60px; margin-bottom: 6px; }
-#in-team .p-ring .av { width: 54px; height: 54px; font-size: 20px; }
-#in-team .p-place { width: 20px; height: 20px; }
-#in-team .p-place svg.i { width: 11px; height: 11px; }
+#in-team .p-ring { width: 46px; height: 46px; margin-bottom: 5px; padding: 2px; }
+#in-team .p-ring .av { width: 42px; height: 42px; font-size: 16px; border-width: 2px; }
+#in-team .p-place { width: 17px; height: 17px; right: -3px; bottom: -2px; }
+#in-team .p-place svg.i { width: 10px; height: 10px; }
+#in-team .person.on .p-place::after { width: 6px; height: 6px; }
 #in-team .people { padding: 2px 0 6px; }

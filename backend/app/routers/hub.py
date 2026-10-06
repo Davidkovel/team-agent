@@ -248,6 +248,12 @@ async def my_limits(user: User = Depends(current_user)):
     return {"claude": await asyncio.to_thread(limits.plan) if limits.is_owner(user.username) else None}
 
 
+@router.post("/limits/refresh")
+async def refresh_limits(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """"Verificar agora": this computer and the others that answer read their Claude windows again."""
+    return await limits.refresh_team(db)
+
+
 @router.get("/limits/team")
 async def team_limits(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """Everybody's Claude windows, as each person's own computer last wrote them (they travel by sync)."""

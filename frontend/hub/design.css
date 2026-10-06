@@ -526,3 +526,8 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .pl.warn u { background: var(--warn); } .pl.warn b { color: var(--warn); }
 .pl.bad u { background: var(--bad); } .pl.bad b { color: var(--bad); }
 .pl.none b { color: var(--faint); }
+
+#hpanel h4 em + .btn { margin-left: 8px; }
+#hpanel-check { height: 24px; padding: 0 9px; font-size: 10.5px; }
+.pl-seen { color: var(--faint); font-size: 10.5px; }
+.pl-seen.old { color: var(--warn); }

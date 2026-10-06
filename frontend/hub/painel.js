@@ -23,12 +23,15 @@ function panelLimit(label, pct, reset, week) {
   return `<span class="pl ${panelTone(pct)}" title="${t("Restam")} ${100 - pct}%${when}"><em>${esc(t(label))}</em><i><u style="width:${Math.min(100, Math.max(2, pct))}%"></u></i><b>${pct}%</b></span>`;
 }
 
+// How old somebody's figures are: their computer writes them, so a computer that is off leaves old ones here.
+const panelSeen = (lim) => (lim?.seen ? `<small class="pl-seen ${Date.now() - new Date(lim.seen) > 15 * 60000 ? "old" : ""}">${t("lido")} ${fmt.ago(lim.seen)}</small>` : "");
+
 function panelMate(m, lim) {
   const [label, tone] = PANEL_STATUS[m.status] || PANEL_STATUS.ONLINE;
   const line = m.status === "OFFLINE" ? (m.last_seen ? `${t("visto")} ${fmt.ago(m.last_seen)}` : t("Offline")) : m.task ? `${t(label)}: ${m.task}` : t(label);
   return `<div class="pmate ${tone}"><span class="pmate-av">${ui.avatar(m.display_name, "sm")}<i></i></span>
     <div><b>${esc(m.display_name)}</b><span title="${esc(line)}">${esc(line)}</span></div>
-    <div class="pmate-lim">${panelLimit("5 horas", lim?.five, lim?.five_reset)}${panelLimit("Semana", lim?.week, lim?.week_reset, true)}${panelLimit("Higgsfield", m.higgsfield_pct)}</div></div>`;
+    <div class="pmate-lim">${panelLimit("5 horas", lim?.five, lim?.five_reset)}${panelLimit("Semana", lim?.week, lim?.week_reset, true)}${panelLimit("Higgsfield", m.higgsfield_pct)}${panelSeen(lim)}</div></div>`;
 }
 
 async function drawPanel() {
@@ -52,7 +55,8 @@ async function drawPanel() {
     <section><h4>${icon("spark")}Claude</h4>${claude}</section>
     <section><h4>${icon("videos")}Higgsfield</h4>${panelMeter("Créditos usados", higgs, higgs == null ? t("Por definir: arrasta para dizer quanto já gastaste.") : "")}
       <input id="hpanel-higgs" type="range" min="0" max="100" value="${higgs ?? 0}" aria-label="Higgsfield"></section>
-    <section><h4>${icon("users")}${t("Equipa")}<em>${team.filter((m) => m.status !== "OFFLINE").length} ${t("de")} ${team.length} online</em></h4>
+    <section><h4>${icon("users")}${t("Equipa")}<em>${team.filter((m) => m.status !== "OFFLINE").length} ${t("de")} ${team.length} online</em>
+      <button class="btn sm quiet" id="hpanel-check" title="${t("Cada computador ligado volta a ler os limites do Claude agora")}">${t("Verificar agora")}</button></h4>
       <div class="pmates">${team.map((m) => panelMate(m, teamLimits[m.user])).join("")}</div>
       <small class="pclock-n">${t("Claude usado por cada um. Passa o rato para ver quanto resta.")}</small></section>
     ${version?.head ? `<p class="pver" title="${esc(version.subject || "")}"><span>${t("Versão")} <b>${esc(version.head.split("-")[0])}</b>${version.when ? ` · ${fmt.ago(version.when)}` : ""}</span>
@@ -61,6 +65,18 @@ async function drawPanel() {
     const stop = !!e.currentTarget.dataset.stop;
     await api(stop ? "/api/ponto/stop" : "/api/ponto", { method: "POST" });
     flash(t(stop ? "Ponto parado: as horas deixaram de contar." : "Ponto a contar."));
+    drawPanel().catch(() => {});
+  };
+  $("hpanel-check").onclick = async (e) => {
+    const button = e.currentTarget;
+    button.disabled = true;
+    button.textContent = t("A verificar…");
+    try {
+      const r = await api("/api/limits/refresh", { method: "POST" });
+      const off = Object.entries(r.peers || {}).filter(([, ok]) => !ok).map(([login]) => nameOf(login));
+      flash(off.length ? `${t("Verificado. Não responderam")}: ${off.join(", ")}.` : t("Verificado: todos os computadores responderam."));
+    } catch (err) { flash(err.message); }
+    setTimeout(() => drawPanel().catch(() => {}), 7000);   // what the others wrote arrives by sync a few seconds later
     drawPanel().catch(() => {});
   };
   const range = $("hpanel-higgs");

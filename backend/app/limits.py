@@ -10,10 +10,12 @@ to the other PCs: that is how one person sees how much of the plan the others st
 import asyncio
 import json
 import logging
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 from sqlalchemy import select
 
 from . import sync
@@ -134,3 +136,56 @@ async def loop():
         except Exception:  # the file is being written, the database is busy...: next minute
             log.exception("could not publish the Claude limits")
         await asyncio.sleep(PUBLISH_EVERY)
+
+
+# ---------------------------------------------------------------- "check now": when somebody asks, not only every few minutes
+REFRESH_GAP = 20   # seconds: the Claude account is not asked more often than this, however many times the button is pressed
+_asked_at = 0.0
+
+
+def refresh_account() -> bool:
+    """Asks the Claude account for this computer's figures now, with the widget's own code (it only reads the short-lived
+    access token Claude Code keeps here, and only api.anthropic.com sees it). True when new figures were saved."""
+    global _asked_at
+    if time.time() - _asked_at < REFRESH_GAP:
+        return False
+    _asked_at = time.time()
+    try:
+        widget = str(Path(__file__).resolve().parents[2] / "widget")
+        if widget not in sys.path:
+            sys.path.insert(0, widget)
+        from team_widget import limits as widget_limits
+        return bool(widget_limits.refresh_from_account())
+    except Exception:
+        log.exception("could not ask the Claude account")
+        return False
+
+
+async def refresh_here(db=None) -> dict:
+    """This computer reads its person's windows again and writes them for the team. `db` is the request's own session when
+    it has one: a second one would wait for the first, which holds the database while the request runs."""
+    fresh = await asyncio.to_thread(refresh_account)
+    if db is not None:
+        wrote = await publish(db)
+        await db.commit()   # lets go of the database before the other computers are asked, which takes seconds
+        return {"fresh": fresh, "wrote": wrote}
+    async with SessionLocal() as own:
+        return {"fresh": fresh, "wrote": await publish(own)}
+
+
+async def refresh_team(db=None) -> dict:
+    """This computer and every other one of the team that answers read their windows again; sync brings theirs here."""
+    here = await refresh_here(db)
+
+    async def ask(client, ip):
+        try:
+            res = await client.post(f"http://{ip if ':' in ip else f'{ip}:{settings.sync_port}'}/api/sync/limits", headers={"X-Team-Key": settings.team_key})
+            return res.status_code == 200
+        except (httpx.HTTPError, OSError):
+            return False
+
+    names = dict(sync.team_ips())
+    async with httpx.AsyncClient(timeout=httpx.Timeout(14, connect=3)) as client:
+        peers = sync.peers()
+        answered = await asyncio.gather(*(ask(client, ip) for ip in peers))
+    return {**here, "peers": {names.get(ip, ip): ok for ip, ok in zip(peers, answered)}}

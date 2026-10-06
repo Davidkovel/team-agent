@@ -374,3 +374,16 @@ async def notices(db, model, mine: tuple, after: int | None) -> tuple[int, list]
     rows = await db.execute(select(LOG.c.seq, model).join(model, here)
                             .where(*mine, LOG.c.seq > after, model.read_at.is_(None), model.created_at >= recent).order_by(LOG.c.seq))
     return latest, [(seq, n) for seq, n in rows.all()]
+
+
+@router.post("/limits")
+async def refresh_limits(request: Request):
+    """Another computer of the team asks this one to read its person's Claude windows again and write them for everybody."""
+    if not ACTIVE:
+        raise HTTPException(404, "Sync is off")
+    host = request.client.host if request.client else ""
+    key = request.headers.get("x-team-key", "")
+    if host not in [ip for ip, _ in team_ips()] and not (settings.team_key and hmac.compare_digest(key.encode(), settings.team_key.encode())):
+        raise HTTPException(403, "Only the team's computers")
+    from . import limits   # here, not on top: limits imports this module
+    return await limits.refresh_here()

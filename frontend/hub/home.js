@@ -273,9 +273,12 @@ function splitActivity(a) {
 }
 
 async function activityBody() {
-  const [items, team] = await Promise.all([api("/api/history?limit=40"), api("/api/team")]);
+  const [items, team] = await Promise.all([api("/api/history?limit=300"), api("/api/team")]);
   const online = new Set(team.filter((m) => m.status !== "OFFLINE").map((m) => m.user));
-  const shown = items.filter((a) => !NOISE.includes(a.kind)).slice(0, 3);
+  // the last thing each person did, so the card is the whole team and not only whoever moved last; then what else is recent
+  const real = items.filter((a) => !NOISE.includes(a.kind));
+  const last = team.map((m) => real.find((a) => a.user === m.user)).filter(Boolean);
+  const shown = [...last, ...real.filter((a) => !last.includes(a))].slice(0, Math.max(4, last.length)).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
   if (!shown.length) return `<p class="in-empty">${t("Ainda não aconteceu nada.")}</p>`;
   return `<div class="arows">${shown.map((a) => {
     const [what, detail] = splitActivity(a);

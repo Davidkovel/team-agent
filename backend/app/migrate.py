@@ -23,7 +23,8 @@ log = logging.getLogger("team.backend")
 # 4: notifications say whether they were sent to that person (directed), for the widget's sound.
 # 5: sync_log and sync_meta, for the Hubs of the team's computers to trade changes (sync.py).
 # 6: users.phone_topic, for notifications on the phone (push.py).
-SCHEMA_VERSION = 11
+# 12: tasks.doing_since, the "Estou a fazer" button.
+SCHEMA_VERSION = 12
 
 
 def current_version(conn) -> int:

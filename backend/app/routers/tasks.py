@@ -51,6 +51,7 @@ class TaskEdit(BaseModel):
     blocked_reason: str | None = None
     assignee: str | None = None
     status: Literal["TODO", "BLOCKED", "REVIEW", "COMPLETED"] | None = None
+    doing: bool | None = None  # "Estou a fazer" / "Parar": the team sees who is on what, so two people don't do the same thing
 
 
 class AssignAI(BaseModel):
@@ -232,6 +233,7 @@ async def edit_task(task_id: int, body: TaskEdit, user: User = Depends(current_u
     changes = body.model_dump(exclude_unset=True)
     await _check_links(db, changes.get("company"), changes.get("project_id"))
     old_status = task.status
+    doing = changes.pop("doing", None)
     said = await _what_changed(db, task, changes)
     if "status" in changes or "assignee" in changes:
         if task.status in HELD_BY_AGENT:
@@ -249,8 +251,20 @@ async def edit_task(task_id: int, body: TaskEdit, user: User = Depends(current_u
         task.progress, task.completed_at = 100, datetime.now(timezone.utc)
     if task.status != "BLOCKED" and "blocked_reason" not in changes:
         task.blocked_reason = ""
+    started = doing and task.status != "COMPLETED" and not task.doing_since
+    if doing and task.status != "COMPLETED":
+        if task.assignee_id != user.id:
+            raise HTTPException(403, "Only the person this task is for can say they are doing it")
+        others = (await db.execute(select(Task).where(Task.assignee_id == user.id, Task.id != task.id, Task.doing_since.is_not(None)))).unique().scalars()
+        for other in others:  # one thing at a time: starting this one stops the last
+            other.doing_since = None
+        task.doing_since = task.doing_since or datetime.now(timezone.utc)
+    if doing is False or task.status == "COMPLETED":
+        task.doing_since = None
     await db.commit()
     await db.refresh(task)
+    if started:
+        await log_activity(db, user, "task_doing", f"está a fazer: {task.title}", task.id)
     if said:
         await log_activity(db, user, "task_edit", f"{' e '.join(said)}: {task.title}", task.id)
     if task.status != old_status:

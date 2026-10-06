@@ -614,3 +614,23 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .tdue-in { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .tdue-in input { flex: 0 1 220px; width: auto; }
 .tv-fold .tdue-now { margin: 8px 0 0; }
+
+/* "Estou a fazer" in a task's window: a big chrome button when it is yours; who is on it, pulsing, once somebody is */
+@keyframes doing-pulse { 0% { box-shadow: 0 0 0 0 rgba(95, 224, 138, .7); } 70% { box-shadow: 0 0 0 9px rgba(95, 224, 138, 0); } 100% { box-shadow: 0 0 0 0 rgba(95, 224, 138, 0); } }
+.tv-doing { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 18px; border-radius: 12px; text-align: left; }
+.tv-doing.go { border: 1px solid #eef1f4; background: var(--chrome); color: #0b0c0e; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 14px 30px -14px rgba(238, 245, 255, .45);
+  transition: transform .15s var(--ease), filter .15s; }
+.tv-doing.go:hover { transform: translateY(-1px); filter: brightness(1.06); }
+.tv-doing.go:active { transform: scale(.98); }
+.tv-doing.go svg.i { flex: none; width: 34px; height: 34px; padding: 9px; border-radius: 50%; background: #0b0c0e; color: #fff; stroke-width: 2.4; }
+.tv-doing.go span { display: grid; gap: 2px; }
+.tv-doing.go b { font: 700 13px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+.tv-doing.go small { color: #3b4047; font: 500 12.5px var(--ui); }
+.tv-doing.on { border: 1px solid rgba(95, 224, 138, .45); background: linear-gradient(180deg, rgba(95, 224, 138, .12), rgba(95, 224, 138, .04)); }
+.tv-doing-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: #5fe08a; animation: doing-pulse 1.8s ease-out infinite; }
+.tv-doing.on > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tv-doing.on b { color: #fff; font: 600 15px var(--ui); }
+.tv-doing.on span { color: #a9d9b8; font-size: 12.5px; }
+.tv-doing-stop { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .16);
+  background: rgba(255, 255, 255, .06); color: #eef1f4; font: 600 11px var(--ui); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+.tv-doing-stop svg.i { width: 13px; height: 13px; }

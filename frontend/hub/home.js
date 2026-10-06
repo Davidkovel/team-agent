@@ -83,6 +83,7 @@ const seeAll = (label, href) => `<a class="ch-link" href="${href}">${esc(t(label
 
 const PLACE = { pc: ["monitor", "No computador"], phone: ["phone", "No telemóvel"] };
 function personHtml(m) {
+  if (m.doing) m = { ...m, status: "WORKING", task: m.doing.title }; // said "Estou a fazer" on a task
   const on = m.status !== "OFFLINE", where = (m.where || []).filter((w) => PLACE[w]);
   const working = m.status === "WORKING" && m.task;
   const state = working ? "work" : m.status === "WAITING" || m.status === "PAUSED" ? "wait" : m.status === "ERROR" ? "bad" : on ? "on" : "off";
@@ -90,7 +91,7 @@ function personHtml(m) {
   const badge = on ? icon(working ? "bolt" : where.includes("phone") && !where.includes("pc") ? "phone" : "monitor") : "";
   const line = working ? t("A trabalhar") : !on ? (m.last_seen ? fmt.ago(m.last_seen) : t("Offline"))
     : both ? t("PC e telemóvel") : where.includes("phone") ? t("No telemóvel") : t("No computador");
-  return `<a class="person ${state}" href="#/equipa" title="${esc(working ? `${t("A trabalhar")}: ${m.task}` : line)}">
+  return `<a class="person ${state}" href="${m.doing ? `#/tarefas/${m.doing.id}` : "#/equipa"}" title="${esc(working ? `${t("A trabalhar")}: ${m.task}` : line)}">
     <span class="p-ring">${ui.avatar(m.display_name)}${on ? `<i class="p-place">${badge}</i>` : ""}</span>
     <b>${esc(m.user === me.username ? t("Tu") : m.display_name)}</b><span>${esc(line)}</span>${working ? `<em>${esc(m.task)}</em>` : ""}</a>`;
 }

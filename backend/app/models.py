@@ -67,6 +67,8 @@ class Task(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Since when the person it is for said "Estou a fazer" (None: nobody is on it). One at a time per person; done clears it.
+    doing_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The bin: trashed_at is None for a task on the board. "done" keeps it COMPLETED, "mistake" hides it everywhere.
     # What it was before is kept so that restoring puts it back where it was.
     trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

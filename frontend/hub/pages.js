@@ -365,6 +365,15 @@ function richText(text) {
   }).join("");
 }
 
+// "Estou a fazer": the person a task is for says they are on it, and everybody sees it here, on the team and on the rows,
+// so two people never do the same thing. Somebody else's: who and since when. Yours, not started: one big button.
+function doingBanner(x, held) {
+  if (x.stage === "done" || held) return "";
+  const mine = x.assignee === me.username;
+  if (x.doing_since) return `<div class="tv-doing on"><i class="tv-doing-dot"></i><div><b>${mine ? t("Estás a fazer isto") : t("{n} está a fazer isto", { n: nameOf(x.assignee) })}</b>
+    <span>${t("desde")} ${fmt.day(x.doing_since)} ${fmt.hhmm(x.doing_since)}</span></div>${mine ? `<button class="tv-doing-stop" data-act="notdoing">${icon("pause")}${t("Parar")}</button>` : ""}</div>`;
+  return mine ? `<button class="tv-doing go" data-act="doing">${icon("play")}<span><b>${t("Estou a fazer isto")}</b><small>${t("A equipa vê que é contigo")}</small></span></button>` : "";
+}
 async function openTaskModal(id) {
   let x, all;
   try { [x, all] = await Promise.all([request_(`/api/tasks/${id}`), request_("/api/tasks")]); } catch (e) { flash(e.message); return; }
@@ -397,6 +406,7 @@ async function openTaskModal(id) {
     ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
     ${x.current_action && running ? `<div class="now">${esc(x.current_action)}</div>` : ""}
     ${x.blocked_reason ? `<p class="msg note" style="margin:0">${esc(x.blocked_reason)}</p>` : ""}
+    ${doingBanner(x, held)}
     <div class="tv-acts">${buttons}
       ${held ? "" : `<label class="tv-state">${t("Estado")}<select id="task-status">${options([["", t("mudar…")], ["TODO", t("Por fazer")], ["BLOCKED", t("Bloqueada")], ["REVIEW", t("Em revisão")], ["COMPLETED", t("Concluída")]], "")}</select></label>`}</div>
     <section class="tv-text">
@@ -444,6 +454,13 @@ async function openTaskModal(id) {
       return;
     }
     if (act === "ai") return assignToAI(x);
+    if (act === "doing" || act === "notdoing") {
+      try {
+        await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { doing: act === "doing" } });
+        flash(t(act === "doing" ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); loadBoard(); openTaskModal(x.id);
+      } catch (err) { flash(err.message); }
+      return;
+    }
     if (act === "done") {
       try { await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); loadBoard(); openTaskModal(x.id); }
       catch (err) { flash(err.message); }

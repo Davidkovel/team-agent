@@ -119,6 +119,16 @@
   onLive(["task", "notification", "presence", "approval", "activity", "tick"], () => {
     if (reload && !busy() && ($("m-home") || $("m-av") || $("m-tasks"))) reload().catch(() => {});
   });
+  // "Fazer" / "A fazer" on a row: says to the team that you are on it (or not any more), without opening the task
+  document.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-doing]");
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation(); b.disabled = true;
+    const on = b.dataset.doing === "1";
+    try { await api(`/api/tasks/${b.dataset.tid}`, { method: "PATCH", body: { doing: on } }); flash(t(on ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); }
+    catch (err) { flash(err.message); }
+    if (reload) reload().catch(() => {});
+  }, true);
 
   const KIND_ICON = { task_new: "tasks", task: "check", approval_required: "alert", approval_decided: "check", agent_failed: "alert", agent_waiting: "clock" };
   // a notice on Início: the face of who sent it, what it is, the task, the time (the same reading as Avisos)
@@ -175,10 +185,13 @@
     const meta = [coLabel ? `<span class="m-co-tag">${esc(coLabel)}</span>` : "", x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : x.stage === "done" && x.completed_by ? `<span class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</span>` : "",
       esc(x.project_name || ""), x.stage === "done" ? "" : deadlineLabel(x),
       x.stage === "in_progress" ? `<span class="ai">${t("Em curso")}</span>` : x.stage === "blocked" ? `<span class="late">${t("Bloqueada")}</span>` : ""].filter(Boolean);
-    return `<div class="m-task ${tone}" data-id="${x.id}">
+    const open = x.stage !== "done" && !["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status);
+    const doing = open && x.assignee === me.username ? `<button class="m-doing ${x.doing_since ? "on" : ""}" data-doing="${x.doing_since ? 0 : 1}" data-tid="${x.id}">${x.doing_since ? `<i></i>${t("A fazer")}` : `${icon("play")}${t("Fazer")}`}</button>`
+      : open && x.doing_since ? `<span class="m-doing on other"><i></i>${esc(nameOf(x.assignee))}</span>` : "";
+    return `<div class="m-task ${tone} ${x.doing_since && open ? "doing" : ""}" data-id="${x.id}">
       <button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}">${x.stage === "done" ? icon("tick") : ""}</button>
       <div><b>${tone === "urgent" ? '<i class="m-bang">!!</i>' : tone === "high" ? '<i class="m-bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span class="sub">${meta.join(" · ")}</span>` : ""}</div>
-      ${x.group ? whoFaces(x.group) : team ? faces([x]) : ""}</div>`;
+      ${doing || (x.group ? whoFaces(x.group) : team ? faces([x]) : "")}</div>`;
   };
   const block = (title, list, tone, team, sort = true) => (list.length ? `<section class="m-sec"><h3 class="m-grp ${tone}"><i></i>${t(title)}<span>${list.length}</span></h3>
     <div class="m-list">${(sort ? [...list].sort(byImportance) : list).map((x) => taskRow(x, team)).join("")}</div></section>` : "");
@@ -190,6 +203,7 @@
   // One person, side by side with the others like the people row of iOS: the face in a ring (green online, blue working),
   // where they are on a badge, and one short line.
   function mateTile(m) {
+    if (m.doing) m = { ...m, status: "WORKING", task: m.doing.title }; // "Estou a fazer" on a task
     const on = m.status !== "OFFLINE", where = (m.where || []).filter((w) => PLACE[w]);
     const working = m.status === "WORKING" && m.task;
     const state = working ? "work" : m.status === "WAITING" || m.status === "PAUSED" ? "wait" : m.status === "ERROR" ? "bad" : on ? "on" : "off";
@@ -197,7 +211,7 @@
     const badge = on ? icon(working ? "bolt" : where.includes("phone") && !where.includes("pc") ? "phone" : "monitor") : "";
     const line = working ? t("A trabalhar") : !on ? (m.last_seen ? fmt.ago(m.last_seen) : t("Offline"))
       : both ? t("PC e telemóvel") : where.includes("phone") ? t("No telemóvel") : t("No computador");
-    return `<a class="m-person ${state}" href="#/equipa" title="${esc(working ? `${t("A trabalhar")}: ${m.task}` : line)}">
+    return `<a class="m-person ${state}" href="${m.doing ? `#/tarefas/${m.doing.id}` : "#/equipa"}" title="${esc(working ? `${t("A trabalhar")}: ${m.task}` : line)}">
       <span class="m-ring">${ui.avatar(m.display_name)}${on ? `<i class="m-place">${badge}</i>` : ""}</span>
       <b>${esc(m.user === me.username ? t("Tu") : m.display_name)}</b><span>${esc(line)}</span>${working ? `<em>${esc(m.task)}</em>` : ""}</a>`;
   }

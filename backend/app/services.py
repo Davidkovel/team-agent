@@ -27,7 +27,7 @@ def task_out(t: Task, completed_by: str | None = None) -> dict:
         "current_action": t.current_action, "last_action": t.last_action,
         "next_action": t.next_action, "result": t.result, "session_id": t.session_id,
         "created_at": iso(t.created_at), "updated_at": iso(t.updated_at),
-        "started_at": iso(t.started_at), "completed_at": iso(t.completed_at),
+        "started_at": iso(t.started_at), "completed_at": iso(t.completed_at), "doing_since": iso(t.doing_since),
         "stage": TASK_STAGE.get(t.status, "todo"), "priority": t.priority or "normal", "deadline": iso(t.deadline),
         "company": t.company or (t.project if t.project in hub.companies() else None),
         "project_id": t.project_id, "project_name": t.project_ref.name if t.project_ref else "",
@@ -173,6 +173,8 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
     users = (await db.execute(select(User).order_by(User.id))).scalars().all()
     states = {s.user_id: s for s in (await db.execute(select(AgentState))).scalars()}
     week_cost, meters, budget = await usage_numbers(db)
+    doing = {t.assignee_id: {"id": t.id, "title": t.title, "since": iso(t.doing_since)} for t in (await db.execute(
+        select(Task).where(Task.doing_since.is_not(None), Task.status != "COMPLETED", Task.trashed_at.is_(None)))).unique().scalars()}
     out = []
     for u in users:
         presence = await rt.store.get_presence(u.id)
@@ -184,6 +186,7 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
             "progress": presence.get("progress", 0) if presence else 0,
             "where": (presence.get("where") or ["pc"]) if presence else [],  # an agent or an older Hub elsewhere: a computer
             "last_seen": iso(saved.last_seen) if saved else None,
+            "doing": doing.get(u.id),  # the task they said "Estou a fazer" on, for everyone to see
             **usage_fields(u.id, week_cost, meters, budget),
         }
         if presence and (sees_all(viewer) or viewer.id == u.id):

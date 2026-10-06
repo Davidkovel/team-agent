@@ -528,3 +528,13 @@ html.is-phone #m-home .m-person.work .m-ring { background: conic-gradient(from 0
 html.is-phone #m-home .m-person.work .m-place { background: var(--chrome); color: #0b0c0e; }
 html.is-phone #m-home .m-person.on > span { color: #cfeedd; }
 html.is-phone #m-home .m-person.work > span { color: #fff; }
+
+/* "Fazer" on each of your rows (a chrome pill, easy to hit); "A fazer" glows green; somebody else's shows their name */
+html.is-phone .m-doing { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid #eef1f4;
+  background: var(--chrome); color: #0b0c0e; font: 700 11px var(--ui); letter-spacing: .12em; text-transform: uppercase; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6); }
+html.is-phone .m-doing svg.i { width: 12px; height: 12px; stroke-width: 2.6; }
+html.is-phone .m-doing:active { transform: scale(.96); }
+html.is-phone .m-doing.on { border-color: rgba(95, 224, 138, .5); background: rgba(95, 224, 138, .14); color: #8af0aa; box-shadow: none; }
+html.is-phone .m-doing.on i { width: 8px; height: 8px; border-radius: 50%; background: #5fe08a; animation: doing-pulse 1.8s ease-out infinite; }
+html.is-phone .m-doing.other { padding: 0 12px; letter-spacing: .04em; text-transform: none; font-size: 12px; }
+html.is-phone .m-task.doing { box-shadow: inset 3px 0 0 #5fe08a; }

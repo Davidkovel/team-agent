@@ -70,3 +70,17 @@ def test_an_edit_that_changes_nothing_is_not_written_down(client):
     task = send(client, owner, "mark", "Igual")
     client.patch(f"/api/tasks/{task['id']}", headers=owner, json={"title": "Igual", "priority": "normal"})
     assert [e["message"] for e in client.get(f"/api/tasks/{task['id']}", headers=owner).json()["log"]] == ["criou a tarefa para Mark"]
+
+
+def test_doing_button_shows_the_team_who_is_on_what(client):
+    owner, mark = login(client, "owner"), login(client, "mark")
+    a = client.post("/api/tasks", headers=owner, json={"title": "logo novo", "assignee": "mark"}).json()["id"]
+    b = client.post("/api/tasks", headers=owner, json={"title": "fotos", "assignee": "mark"}).json()["id"]
+    assert client.patch(f"/api/tasks/{a}", headers=owner, json={"doing": True}).status_code == 403  # only the person it is for
+    assert client.patch(f"/api/tasks/{a}", headers=mark, json={"doing": True}).json()["doing_since"]
+    seen = {m["user"]: m["doing"] for m in client.get("/api/team", headers=owner).json()}
+    assert seen["mark"]["id"] == a and seen["owner"] is None
+    client.patch(f"/api/tasks/{b}", headers=mark, json={"doing": True})  # one at a time: b replaces a
+    assert client.get(f"/api/tasks/{a}", headers=mark).json()["doing_since"] is None
+    client.patch(f"/api/tasks/{b}", headers=mark, json={"status": "COMPLETED"})  # done clears it
+    assert next(m for m in client.get("/api/team", headers=owner).json() if m["user"] == "mark")["doing"] is None

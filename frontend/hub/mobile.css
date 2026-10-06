@@ -529,12 +529,27 @@ html.is-phone #m-home .m-person.work .m-place { background: var(--chrome); color
 html.is-phone #m-home .m-person.on > span { color: #cfeedd; }
 html.is-phone #m-home .m-person.work > span { color: #fff; }
 
-/* "Fazer" on each of your rows (a chrome pill, easy to hit); "A fazer" glows green; somebody else's shows their name */
-html.is-phone .m-doing { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid #eef1f4;
-  background: var(--chrome); color: #0b0c0e; font: 700 11px var(--ui); letter-spacing: .12em; text-transform: uppercase; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6); }
-html.is-phone .m-doing svg.i { width: 12px; height: 12px; stroke-width: 2.6; }
-html.is-phone .m-doing:active { transform: scale(.96); }
-html.is-phone .m-doing.on { border-color: rgba(95, 224, 138, .5); background: rgba(95, 224, 138, .14); color: #8af0aa; box-shadow: none; }
-html.is-phone .m-doing.on i { width: 8px; height: 8px; border-radius: 50%; background: #5fe08a; animation: doing-pulse 1.8s ease-out infinite; }
-html.is-phone .m-doing.other { padding: 0 12px; letter-spacing: .04em; text-transform: none; font-size: 12px; }
-html.is-phone .m-task.doing { box-shadow: inset 3px 0 0 #5fe08a; }
+/* "Fazer" on each of your rows: a small chrome pill. Pressed, it sinks and the phone ticks; it comes back dark ("A fazer")
+   with your photo in the turning ring, with a pop. A row somebody is on glows green and shows that person's photo. */
+html.is-phone .m-doing { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid #eef1f4;
+  background: var(--chrome); color: #0b0c0e; font: 700 10px var(--ui); letter-spacing: .12em; text-transform: uppercase; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 3px 0 #6b727b, 0 6px 14px -6px rgba(0, 0, 0, .8); transition: transform .12s var(--ease), box-shadow .12s, filter .12s; }
+html.is-phone .m-doing svg.i { width: 10px; height: 10px; stroke-width: 2.8; }
+html.is-phone .m-doing:active, html.is-phone .m-doing.press { transform: translateY(3px) scale(.94); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 0 0 #6b727b; filter: brightness(.7); }
+html.is-phone .m-doing.on { gap: 7px; padding: 0 11px 0 3px; border-color: #2c3036; background: linear-gradient(180deg, #1b1e22, #08090b); color: #8af0aa;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 3px 0 #000, 0 0 16px -4px rgba(95, 224, 138, .45); }
+html.is-phone .m-doing.on .dl-ring .av { width: 20px; height: 20px; font-size: 9px; }
+html.is-phone .m-doing.pop { animation: doing-pop .45s cubic-bezier(.3, 1.6, .5, 1); }
+html.is-phone .m-doing.on.pop::after { content: ""; position: absolute; inset: -2px; border-radius: 999px; border: 2px solid #5fe08a; animation: doing-burst .6s ease-out forwards; pointer-events: none; }
+html.is-phone .m-doing { position: relative; }
+html.is-phone .m-task.doing { position: relative; background: linear-gradient(90deg, rgba(95, 224, 138, .10), transparent 75%); box-shadow: inset 3px 0 0 #5fe08a; }
+
+/* "A fazer agora" on the Início: everybody who is on something, with their photo in the ring */
+html.is-phone .m-now-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; color: #fff; text-decoration: none; }
+html.is-phone .m-now-row + .m-now-row { border-top: .5px solid rgba(255, 255, 255, .07); }
+html.is-phone .m-now-row .dl-ring .av { width: 40px; height: 40px; font-size: 16px; }
+html.is-phone .m-now-row > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+html.is-phone .m-now-row b { font: 600 15.5px/1.25 var(--m-font); }
+html.is-phone .m-now-row span { color: #8af0aa; font: 500 12.5px var(--m-font); }
+html.is-phone .m-now-row > svg.i { width: 15px; height: 15px; color: #6b727b; }
+html.is-phone .m-task .doer-live em { display: none; }

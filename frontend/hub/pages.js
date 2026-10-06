@@ -62,12 +62,17 @@ const doneBy = (x) => (x.completed_by ? `${t("por")} ${nameOf(x.completed_by)}${
 const importance = (x) => (x.priority === "urgent" ? 0 : x.priority === "high" ? 1 : 2);
 const isFresh = (x) => x.stage !== "done" && Date.now() - new Date(x.created_at) < 15 * 60000;
 
+// Who is doing a task, for everybody to see: their photo inside a turning chrome-and-green ring, and "a fazer".
+// A task for everybody counts as being done while any one of them is on their part.
+const doingOf = (x) => (x.group ? x.group.find((y) => y.doing_since && y.stage !== "done") : x.doing_since && x.stage !== "done" ? x : null);
+const doingBadge = (y, size = "sm") => `<span class="doer-live" title="${esc(t("{n} está a fazer isto", { n: nameOf(y.assignee) }))}"><span class="dl-ring">${ui.avatar(nameOf(y.assignee), size)}</span><em>${esc(y.assignee === me.username ? t("Tu") : nameOf(y.assignee))} · ${t("a fazer")}</em></span>`;
 function taskCard(x) {
   const late = x.deadline && x.stage !== "done" && new Date(x.deadline) < new Date();
   const mineOf = x.group && x.group.find((y) => y.assignee === me.username);
-  const stack = x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.assignee), "sm");
+  const doer = doingOf(x);
+  const stack = doer ? doingBadge(doer) : x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.assignee), "sm");
   const top = [x.priority === "urgent" ? ui.tag(t("Urgente"), "bad") : x.priority === "high" ? ui.tag(t("Alta"), "warn") : "", x.group ? ui.tag(groupLabel(x.group), "ai") : "", isFresh(x) ? ui.tag(t("Nova"), "ok") : ""].join("");
-  return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
+  return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""} ${doer ? "doing" : ""}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
     ${top ? `<div class="tk-top">${top}</div>` : ""}
     <b>${esc(x.title)}</b>
     ${x.stage === "in_progress" || (x.progress > 0 && x.stage !== "done") ? ui.progress(x.progress, "ai") : ""}
@@ -455,6 +460,7 @@ async function openTaskModal(id) {
     }
     if (act === "ai") return assignToAI(x);
     if (act === "doing" || act === "notdoing") {
+      e.target.closest("[data-act]").classList.add("press"); navigator.vibrate?.(14);
       try {
         await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { doing: act === "doing" } });
         flash(t(act === "doing" ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); loadBoard(); openTaskModal(x.id);

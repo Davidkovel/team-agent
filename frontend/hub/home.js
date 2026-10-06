@@ -230,8 +230,9 @@ function taskRow(x, done) {
     : own ? `<button class="tcheck" data-done="${own.id}" title="${t("Concluir")}" aria-label="${t("Concluir")}"></button>`
     : `<button class="tcheck" data-task="${x.id}" title="${t("Abrir")}" aria-label="${t("Abrir")}"></button>`;
   const prio = !done && x.priority === "urgent" ? "urgent" : !done && x.priority === "high" ? "high" : "";
-  return `<div class="trow ${done ? "done" : ""} ${prio}">${check}<button class="ttitle" data-task="${(own || x).id}">${esc(x.title)}</button>
-    <span class="twhen ${late}">${esc(when)}</span>${x.group ? `<span class="ttag all" title="${esc(whoLeft(x.group))}">${whoFaces(x.group)}<b>${x.group.filter((y) => y.stage === "done").length}/${x.group.length}</b></span>`
+  const doer = !done && doingOf(x);
+  return `<div class="trow ${done ? "done" : ""} ${prio} ${doer ? "doing" : ""}">${check}<button class="ttitle" data-task="${(own || x).id}">${esc(x.title)}</button>
+    <span class="twhen ${late}">${esc(when)}</span>${doer ? doingBadge(doer) : ""}${x.group ? `<span class="ttag all" title="${esc(whoLeft(x.group))}">${whoFaces(x.group)}<b>${x.group.filter((y) => y.stage === "done").length}/${x.group.length}</b></span>`
       : `<span class="ttag ${done && x.completed_by && x.completed_by !== x.assignee ? "other" : ""}" title="${esc(done ? doneBy(x) : "")}">${esc(done && x.completed_by ? nameOf(x.completed_by) : tagOf(x))}</span>`}</div>`;
 }
 

@@ -119,15 +119,18 @@
   onLive(["task", "notification", "presence", "approval", "activity", "tick"], () => {
     if (reload && !busy() && ($("m-home") || $("m-av") || $("m-tasks"))) reload().catch(() => {});
   });
-  // "Fazer" / "A fazer" on a row: says to the team that you are on it (or not any more), without opening the task
+  // "Fazer" / "A fazer" on a row: says to the team that you are on it (or not any more), without opening the task.
+  // It sinks under the finger, the phone ticks, and the new button arrives with a pop (popId) so the click feels done.
+  let popId = null;
   document.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-doing]");
     if (!b) return;
-    e.preventDefault(); e.stopPropagation(); b.disabled = true;
+    e.preventDefault(); e.stopPropagation(); b.disabled = true; b.classList.add("press"); navigator.vibrate?.(14);
     const on = b.dataset.doing === "1";
-    try { await api(`/api/tasks/${b.dataset.tid}`, { method: "PATCH", body: { doing: on } }); flash(t(on ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); }
+    try { await api(`/api/tasks/${b.dataset.tid}`, { method: "PATCH", body: { doing: on } }); popId = Number(b.dataset.tid); flash(t(on ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.")); }
     catch (err) { flash(err.message); }
-    if (reload) reload().catch(() => {});
+    if (reload) await reload().catch(() => {});
+    setTimeout(() => { popId = null; }, 800);
   }, true);
 
   const KIND_ICON = { task_new: "tasks", task: "check", approval_required: "alert", approval_decided: "check", agent_failed: "alert", agent_waiting: "clock" };
@@ -186,9 +189,13 @@
       esc(x.project_name || ""), x.stage === "done" ? "" : deadlineLabel(x),
       x.stage === "in_progress" ? `<span class="ai">${t("Em curso")}</span>` : x.stage === "blocked" ? `<span class="late">${t("Bloqueada")}</span>` : ""].filter(Boolean);
     const open = x.stage !== "done" && !["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status);
-    const doing = open && x.assignee === me.username ? `<button class="m-doing ${x.doing_since ? "on" : ""}" data-doing="${x.doing_since ? 0 : 1}" data-tid="${x.id}">${x.doing_since ? `<i></i>${t("A fazer")}` : `${icon("play")}${t("Fazer")}`}</button>`
-      : open && x.doing_since ? `<span class="m-doing on other"><i></i>${esc(nameOf(x.assignee))}</span>` : "";
-    return `<div class="m-task ${tone} ${x.doing_since && open ? "doing" : ""}" data-id="${x.id}">
+    const doer = open && doingOf(x), pop = popId === x.id ? "pop" : "";
+    // yours: "Fazer" (chrome) turns into a dark "A fazer" with your photo in the ring; somebody else's: their photo, for all to see
+    const doing = open && x.assignee === me.username ? (x.doing_since
+      ? `<button class="m-doing on ${pop}" data-doing="0" data-tid="${x.id}" title="${t("Parar")}"><span class="dl-ring">${ui.avatar(me.display_name, "sm")}</span>${t("A fazer")}</button>`
+      : `<button class="m-doing ${pop}" data-doing="1" data-tid="${x.id}">${icon("play")}${t("Fazer")}</button>`)
+      : doer ? doingBadge(doer) : "";
+    return `<div class="m-task ${tone} ${doer ? "doing" : ""}" data-id="${x.id}">
       <button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}">${x.stage === "done" ? icon("tick") : ""}</button>
       <div><b>${tone === "urgent" ? '<i class="m-bang">!!</i>' : tone === "high" ? '<i class="m-bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span class="sub">${meta.join(" · ")}</span>` : ""}</div>
       ${doing || (x.group ? whoFaces(x.group) : team ? faces([x]) : "")}</div>`;
@@ -229,7 +236,7 @@
     page(`<div class="m-screen" id="m-home">
       <header class="m-large m-amg"><span class="m-eyebrow">${t("Centro de comando")}</span><h1>${esc(t(greeting))}, <em>${esc(me.display_name)}</em></h1>
         <span>${esc(date[0].toUpperCase() + date.slice(1))}</span><div class="m-amg-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" alt="" decoding="async"></div></header>
-      <div id="m-alert"></div><div class="m-stats" id="m-stats">${ui.skeleton(1)}</div><div id="m-todo"></div><div id="m-team"></div><div id="m-last"></div></div>`);
+      <div id="m-alert"></div><div class="m-stats" id="m-stats">${ui.skeleton(1)}</div><div id="m-now"></div><div id="m-todo"></div><div id="m-team"></div><div id="m-last"></div></div>`);
     const load = async () => {
       const [tasks, team, inbox] = await Promise.all([api("/api/tasks"), api("/api/team"), request("/api/notifications?limit=6")]);
       if (!$("m-home")) return;
@@ -239,6 +246,9 @@
       const stat = (tab, n, label, tone, ic) => `<a class="m-stat ${n ? `${tone} lit` : ""}" href="${tab ? "#/tarefas" : "#/avisos"}" ${tab ? `data-goto="${tab}"` : ""}>
         <span class="m-stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></a>`;
       paint($("m-stats"), stat("hoje", p.nHoje, "Para hoje", "today", "calendar") + stat("hoje", p.nHot, "Urgentes", "hot", "flag") + stat("", inbox.unread, "Por ler", "blue", "bell"));
+      const busy = team.filter((m) => m.doing);
+      paint($("m-now"), busy.length ? `<section class="m-sec"><header><b>${t("A fazer agora")}</b></header><div class="m-list m-now">${busy.map((m) => `<a class="m-now-row" href="#/tarefas/${m.doing.id}">
+        <span class="dl-ring">${ui.avatar(m.display_name)}</span><div><b>${esc(m.doing.title)}</b><span>${esc(m.user === me.username ? t("Tu") : m.display_name)} · ${t("desde")} ${fmt.hhmm(m.doing.since)}</span></div>${icon("chev")}</a>`).join("")}</div></section>` : "");
       const online = team.filter((m) => m.status !== "OFFLINE").length;
       const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
       paint($("m-team"), `<section class="m-sec"><header><b>${t("Equipa")}</b><span class="m-online"><i></i>${online} ${t("de")} ${team.length} ${t("online")}</span></header>

@@ -93,7 +93,8 @@ html, body { background: var(--bg); }
 .rank-n { display: flex; flex-direction: column; align-items: flex-end; flex: none; min-width: 58px; }
 .rank-n b { font: 600 24px/1 var(--mono); }
 .rank-n small { color: var(--faint); font: 600 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; margin-top: 3px; }
-@media (max-width: 900px) { .rank-grid { grid-template-columns: 1fr; } }
+/* minmax(0,…): a plain 1fr lets the rows' nowrap text push the cards past a phone's edge */
+@media (max-width: 900px) { .rank-grid { grid-template-columns: minmax(0, 1fr); } .rank-row .rw-main span { white-space: normal; } }
 
 /* the commit feed (the older code page) in the Hub's own look: lacquered rows, chrome edge, serif day headers */
 .hub .commit, .hub #who-summary .card { background: var(--surface); border: 1px solid rgba(255, 255, 255, .055); border-radius: 10px; }

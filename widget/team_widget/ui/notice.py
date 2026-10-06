@@ -12,17 +12,13 @@ Every card is a lit plate with a shadow, a coloured edge and a line that runs ou
 from collections import deque
 
 from PySide6.QtCore import QEasingCurve, QObject, QRectF, QTimer, Qt, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
 from . import badge
 
-TEXT, MUTED = QColor("#ffffff"), QColor(255, 255, 255, 220)
-# the colours of each kind of card, from its top left corner to its bottom right one
-FOR_YOU = (QColor("#ff9d2e"), QColor("#ff4d7d"), QColor("#9b3dff"))    # a task sent to you
-FOR_TEAM = (QColor("#2f8cff"), QColor("#5b5bff"), QColor("#a44dff"))   # any other task
-ONLINE = (QColor("#12d67a"), QColor("#00b8a9"), QColor("#2f6bff"))     # somebody came online
-LIT = QColor("#3dff8f")                                              # the dot that says online
+TEXT, MUTED = QColor("#f2f3f5"), QColor("#a3a7ae")
+AMBER, WHITE, ONLINE = QColor("#e3bd6b"), QColor("#f2f3f5"), QColor("#4ee07a")
 UI = ("Segoe UI Variable Text", "Segoe UI")
 WIDTH, PAD, RADIUS = 460, 18, 16
 ICON = 36                                  # the star at the left of a card
@@ -65,7 +61,7 @@ class Card(QWidget):
     clicked = Signal()
     finished = Signal()    # it has slid out
 
-    def __init__(self, width: int, height: int, accent: tuple, hold: int):
+    def __init__(self, width: int, height: int, accent: QColor, hold: int):
         super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)   # it must never take the keyboard from what somebody is typing
@@ -116,38 +112,33 @@ class Card(QWidget):
         self.leave()
 
     def _plate(self, p: QPainter) -> QRectF:
-        """The glow, the coloured plate and the line of time left. Leaves the painter at the plate's corner."""
+        """The shadow, the lit plate with its coloured edge and the line of time left. Leaves the painter at the plate's corner."""
         p.setRenderHint(QPainter.Antialiasing)
         p.translate(MARGIN, MARGIN)
         rect = QRectF(0, 0, self._w, self._h)
         p.setPen(Qt.NoPen)
-        first, middle, last = self._accent
-        for i in range(16, 0, -2):   # a glow of its own colour, so the card stands off whatever is behind it
-            p.setBrush(_tint(middle, 0.055))
+        for i in range(16, 0, -2):   # a soft shadow, so the card stands off whatever is behind it
+            p.setBrush(QColor(0, 0, 0, 9))
             p.drawRoundedRect(rect.adjusted(-i, -i + 2, i, i + 2), RADIUS + i, RADIUS + i)
         path = QPainterPath()
         path.addRoundedRect(rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS)
-        body = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        body.setColorAt(0, first)
-        body.setColorAt(0.55, middle)
-        body.setColorAt(1, last)
+        body = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        body.setColorAt(0, QColor(38, 38, 43))
+        body.setColorAt(1, QColor(18, 18, 21))
         p.fillPath(path, body)
         p.save()
         p.setClipPath(path)
-        shine = QRadialGradient(rect.topLeft(), self._w * 0.6)   # light falling on the top left corner
-        shine.setColorAt(0, QColor(255, 255, 255, 80))
-        shine.setColorAt(1, QColor(255, 255, 255, 0))
-        p.fillRect(rect, shine)
-        p.fillRect(QRectF(0, self._h - 4, self._w, 4), QColor(0, 0, 0, 45))
-        p.fillRect(QRectF(0, self._h - 4, self._w * self._left, 4), QColor(255, 255, 255, 235))  # time left
+        p.fillRect(QRectF(0, 0, 4, self._h), self._accent)                                      # the coloured edge
+        p.fillRect(QRectF(0, self._h - 3, self._w, 3), QColor(255, 255, 255, 14))
+        p.fillRect(QRectF(0, self._h - 3, self._w * self._left, 3), _tint(self._accent, 0.85))  # time left
         p.restore()
-        p.setPen(QPen(QColor(255, 255, 255, 120), 1.2))
+        p.setPen(QPen(_tint(self._accent, 0.5), 1.2))
         p.setBrush(Qt.NoBrush)
         p.drawPath(path)
         return rect
 
     def _star(self, p: QPainter, av: QRectF):
-        p.setPen(QPen(QColor(255, 255, 255, 235), 2))
+        p.setPen(QPen(self._accent, 1.4))
         p.setBrush(QColor(0, 0, 0))
         p.drawEllipse(av)
         inset = av.width() * 0.13
@@ -168,7 +159,7 @@ class NoticeCard(Card):
         self._body_h = self._measure(self._f_body, self._body, self._inner, 2) if self._body else 0
         self._caption_h = QFontMetricsF(self._f_caption).height()
         height = PAD + self._caption_h + 7 + self._title_h + (6 + self._body_h if self._body else 0) + PAD + 3
-        super().__init__(WIDTH, round(max(height, PAD + ICON + PAD + 3)), FOR_YOU if directed else FOR_TEAM, hold)
+        super().__init__(WIDTH, round(max(height, PAD + ICON + PAD + 3)), AMBER if directed else WHITE, hold)
         self._x = self._rest = self._off = 0
 
     @staticmethod
@@ -192,7 +183,7 @@ class NoticeCard(Card):
         self._star(p, QRectF(PAD, PAD, ICON, ICON))
         x, y = self._text_x, float(PAD)
         p.setFont(self._f_caption)
-        p.setPen(MUTED)
+        p.setPen(self._accent)
         p.drawText(QRectF(x, y, self._inner, self._caption_h), Qt.AlignLeft | Qt.AlignVCenter, self._caption)
         y += self._caption_h + 7
         p.setFont(self._f_title)
@@ -270,23 +261,29 @@ class PresenceCard(Card):
     def paintEvent(self, _):
         p = QPainter(self)
         rect = self._plate(p)
+        wash = QLinearGradient(rect.topLeft(), rect.topRight())   # green light from the left, so it does not read as one more dark window
+        wash.setColorAt(0, _tint(ONLINE, 0.28))
+        wash.setColorAt(0.75, _tint(ONLINE, 0.0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(wash)
+        p.drawRoundedRect(rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS)
         if self._beat < 1.0:   # the ring that beats out of the card: movement is what the eye catches in a corner
             grow = 2 + 12 * self._beat
-            p.setPen(QPen(_tint(LIT, 0.9 * (1 - self._beat)), 3))
+            p.setPen(QPen(_tint(ONLINE, 0.8 * (1 - self._beat)), 2.5))
             p.setBrush(Qt.NoBrush)
             p.drawRoundedRect(rect.adjusted(-grow, -grow, grow, grow), RADIUS + grow, RADIUS + grow)
         av = QRectF(22, (P_HEIGHT - 3) / 2 - 30, 60, 60)
         self._star(p, av)
         dot = av.bottomRight() - QRectF(0, 0, 8, 8).bottomRight()
-        p.setPen(QPen(QColor(255, 255, 255), 3))
-        p.setBrush(LIT)
+        p.setPen(QPen(QColor(24, 24, 27), 3))
+        p.setBrush(ONLINE)
         p.drawEllipse(dot, 7.5, 7.5)
         x, w = 100, P_WIDTH - 100 - PAD
         p.setFont(self._f_name)
         p.setPen(TEXT)
         p.drawText(QRectF(x, 22, w, 32), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_name).elidedText(self._name, Qt.ElideRight, w))
         p.setFont(self._f_text)
-        p.setPen(MUTED)
+        p.setPen(ONLINE)
         p.drawText(QRectF(x, 56, w, 24), Qt.AlignLeft | Qt.AlignVCenter, self._text)
 
 

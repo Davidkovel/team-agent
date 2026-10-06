@@ -57,3 +57,31 @@ melhor possível. Três camadas, cada uma com o seu limite:
 Com agentes a trabalhar 24 horas, muito histórico e 3D pesado, a sede passa para **um computador sempre ligado**
 (um mini-PC ou um servidor na nuvem, ligado pelo Tailscale como o iPhone), que faz o trabalho pesado; os PCs ficam só
 com o ecrã. A arquitetura acima (um registo, secções independentes) deixa fazer essa mudança sem refazer nada.
+
+## O que já existe (6 out 2026)
+
+- **Escritório** (menu do PC, a seguir ao Início; telemóvel em Mais): uma mesa por cada Claude aberto nos 3 PCs, os subagentes
+  de cada um, os departamentos acesos e o filme do dia. Dados: `scripts/claude_hook.py` (hook async do Claude Code, só nomes e ids)
+  → `POST /api/local/claude` → tabelas `claude_sessions` e `claude_agents` (estado, nunca cada passo) → sync → `GET /api/office`.
+  O Hub instala os hooks sozinho em `~/.claude/settings.json` ao arrancar (`backend/app/claude_hooks.py`; `CLAUDE_OFFICE=0` tira-os).
+- **Saúde** (Sistema; telemóvel em Mais): cada Hub mede-se de minuto a minuto (Hub, widget, janela grande) com as contas do
+  Windows (`backend/app/health.py`), tabela `pc_health` sincronizada.
+- **Secções carregadas só ao abrir**: `lazyView(id, ficheiro.js, ficheiro.css)` em `frontend/hub/ui.js`.
+- **5 agentes partilhados** em `.claude/agents/` e as regras de modelos e budget no `CLAUDE.md`.
+
+## Próximos passos (com o que a pesquisa de 6 out ensinou)
+
+- **Quanto gasta cada Claude e cada subagente:** os ficheiros de conversa do Claude Code têm `message.model` e `message.usage`
+  por mensagem (`~/.claude/projects/<pasta>/<sessão>.jsonl`; subagentes em `<sessão>/subagents/agent-<id>.jsonl` + `.meta.json`).
+  Ler só o que é novo (guardar o offset), uma vez por turno (`Stop` / `SubagentStop`), e contar cada `message.id` uma vez só
+  (as linhas repetem-se e a primeira pode ter os tokens a meio). Ler os últimos 256 KB de 23 MB custou ~3 ms.
+- **Janelas fantasma:** o `SessionEnd` perde-se se o Hub estiver em baixo ou com um Esc; usar também a data do ficheiro de
+  conversa (sem mudar há 2 min → à espera; há 3 h → abandonada).
+- **Para o 3D (e um 2D com personagens antes):** inspiração em projetos MIT: [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents)
+  (personagem por sessão, balões de espera/permissão, subagentes ligados ao pai), [claude-office](https://github.com/paulrobello/claude-office)
+  (FastAPI + PixiJS, chefe = sessão, empregados = subagentes), [pixtuoid](https://github.com/IvanWng97/pixtuoid) (uma cena em JSON,
+  vários desenhadores) e, em 3D, [Vibecraft](https://github.com/nearcyan/vibecraft) (uma estação por tipo de ferramenta: ler →
+  estante, comandos → terminal, subagentes → portal). Regra: **desenhar só quando algo muda** (PixiJS `ticker.stop()`,
+  React Three Fiber `frameloop="demand"`); o Pixel Agents desenha sem parar e é o exemplo a não seguir.
+- **Privacidade:** vários projetos nem guardam o pedido. Nós mostramos só o início (decisão do Marco); se um sócio preferir,
+  passa a mostrar só o tipo de trabalho.

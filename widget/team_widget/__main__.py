@@ -73,7 +73,8 @@ def main():
     client = AgentClient(port, data_dir / "local_api.token", store)
     client.start()
     window = WidgetWindow(store, client)
-    window.quit = app.quit
+    # exit, not quit: in Qt 6 quit() asks the windows first, and the widget refuses to close (it hides to the tray)
+    window.quit = lambda: app.exit(0)
     tray = start_tray(window)
     server = listen_for_second_copy(name, window)  # noqa: F841 - kept alive while the widget runs
     window.show_panel()

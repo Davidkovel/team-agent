@@ -143,8 +143,19 @@ const tilesHtml = () => `<nav class="in-tiles">${TILES.map(([act, ic, title, sub
   <span class="tile-ic"><span>${icon(ic)}</span></span>${act === "alerts" ? '<i class="badge-n" id="in-unread" hidden></i>' : ""}
   <span class="tile-t"><b>${esc(t(title))}</b><span>${esc(t(sub))}</span></span>${icon("chevron")}</button>`).join("")}</nav>`;
 
+// For the figures, a task sent to everybody counts once: it is done when everybody has done it, until then it is still open.
+function countOnce(tasks) {
+  return groupAll(tasks.filter((x) => !x.trashed_at)).map((x) => {
+    if (!x.group) return x;
+    const left = x.group.filter((y) => y.stage !== "done");
+    if (left.length) return { ...left.find((y) => y.stage === "in_progress") || left[0], group: x.group };
+    const last = x.group.reduce((a, b) => (new Date(b.completed_at || 0) > new Date(a.completed_at || 0) ? b : a));
+    return { ...last, group: x.group };
+  });
+}
+
 async function progressBody() {
-  const p = planOf(await api("/api/tasks"));
+  const p = planOf(countOnce(await api("/api/tasks")));
   const doneN = p.doneToday.length, total = doneN + p.today.length;
   const weekDone = p.doneWeek.length, weekTotal = weekDone + p.open.length;
   const pct = weekTotal ? Math.round((weekDone / weekTotal) * 100) : 0;

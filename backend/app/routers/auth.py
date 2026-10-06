@@ -46,11 +46,23 @@ def ip_map() -> dict[str, str]:
     return out
 
 
+def own_ips() -> set[str]:
+    import socket
+    try:
+        return {a[4][0] for a in socket.getaddrinfo(socket.gethostname(), None)}
+    except OSError:
+        return set()
+
+
 @router.post("/auth/auto")
 async def auto_login(request: Request, db: AsyncSession = Depends(get_db)):
     """No password: each computer's IP belongs to one person (IP_USERS)."""
     ip = request.client.host if request.client else ""
     username = ip_map().get(ip)
+    if not username and ip in own_ips():
+        # the phone through `tailscale serve`: the proxy runs on this PC but connects from its Tailscale address (100.x),
+        # not 127.0.0.1. Only something on this computer can come from its own address, so it is this computer's person.
+        username = ip_map().get("127.0.0.1")
     user = username and (await db.execute(select(User).where(User.username == username))).scalar_one_or_none()
     if not user:
         raise HTTPException(404, {"ip": ip})

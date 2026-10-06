@@ -763,52 +763,14 @@ async function loadRanking() {
 }
 onLive(["activity", "task"], async () => { if ($("ranking")) await loadRanking(); });
 
-// A number with a line under it that says what it means: who, how much of what, compared with what.
-const statNote = (label, value, note = "") => `<div class="panel statc"><span>${t(label)}</span>${ui.num(value)}${note ? `<small class="statc-n">${esc(note)}</small>` : ""}</div>`;
-// The folders of the repository in the team's words: nobody here says "backend".
-const CODE_AREA = { frontend: "Páginas do Hub", backend: "Motor do Hub", widget: "Widget", agent: "Agente de IA", library: "Biblioteca", scripts: "Instalação", docs: "Documentação" };
-const CODE_KIND = [["design", "Design"], ["photo", "Fotos"], ["text", "Textos"], ["code", "Código"]];
-
-// "Código" for people who do not read code: how many changes went out, the last one, where they landed and of what kind.
-function codeHtml(commits, days, source) {
-  if (!commits) return `${ui.sec("Alterações ao Hub e ao widget", ui.src("not_connected"))}<p class="faint">${t("Sem acesso ao repositório neste computador.")}</p>`;
-  const since = Date.now() - days * 864e5, list = commits.filter((c) => new Date(c.date) >= since);
-  const areas = {}, kinds = {}, authors = {};
-  for (const c of list) {
-    authors[c.author] = (authors[c.author] || 0) + 1;
-    for (const a of c.areas || []) areas[CODE_AREA[a.name] || "Outros"] = (areas[CODE_AREA[a.name] || "Outros"] || 0) + a.files;
-    for (const [k, v] of Object.entries(c.kinds || {})) kinds[k] = (kinds[k] || 0) + v.files;
-  }
-  const files = Object.values(areas).reduce((n, v) => n + v, 0), last = list[0];
-  const bars = (rows) => { const top = Math.max(1, ...rows.map((r) => r[1])); return rows.length ? `<div class="cd-bars">${rows.map(([name, n]) =>
-    `<div><span>${esc(t(name))}</span><i><u style="width:${n / top * 100}%"></u></i><b>${n}</b></div>`).join("")}</div>` : `<p class="faint" style="margin:0">${t("Sem alterações neste período.")}</p>`; };
-  const who = Object.entries(authors).sort((a, b) => b[1] - a[1]).map(([name, n]) => `${name.split(" ")[0]} ${n}`).join(" · ");
-  return `${ui.sec("Alterações ao Hub e ao widget", `<a class="ch-link" href="#/entregas">${t("Ver cada uma")}${icon("chevron")}</a>`)}
-    <div class="stats">${statNote("Alterações enviadas", list.length, who || t("ninguém enviou nada"))}
-      ${statNote("Por dia", list.length ? (list.length / days).toFixed(1).replace(".", ",") : 0, t("em média, nos últimos {n} dias", { n: days }))}
-      ${statNote("Ficheiros mexidos", files, t("somando todas as alterações"))}</div>
-    ${last ? `<a class="panel cd-last" href="#/entregas"><span>${t("Última alteração")}</span><b>${esc(last.message)}</b><em>${esc(last.author)} · ${fmt.ago(last.date)}</em></a>` : ""}
-    <div class="cd-two"><div class="panel pad"><div class="ph-eyebrow">${t("Onde se mexeu")}</div>${bars(Object.entries(areas).sort((a, b) => b[1] - a[1]))}</div>
-      <div class="panel pad"><div class="ph-eyebrow">${t("De que tipo")}</div>${bars(CODE_KIND.filter(([k]) => kinds[k]).map(([k, label]) => [label, kinds[k]]))}</div></div>
-    ${commits.length >= 100 && list.length === commits.length ? `<p class="faint" style="margin-top:10px">${t("Só se veem as 100 alterações mais recentes: num período longo há mais do que estas.")}</p>` : ""}`;
-}
-
 async function loadAnalytics() {
   await mount($("analytics"), async () => {
-    const [a, team, tasks, commits] = await Promise.all([api(`/api/analytics?days=${analyticsDays}`), api("/api/team").catch(() => []), api("/api/tasks").catch(() => []),
-      api("/api/commits?limit=100").catch(() => null)]);
-    const online = team.filter((m) => m.status !== "OFFLINE").map((m) => m.display_name);
-    const open = tasks.filter((x) => x.stage !== "done"), urgent = open.filter((x) => x.priority === "urgent").length;
-    const carrying = team.map((m) => [m.display_name, open.filter((x) => x.assignee === m.user).length]).filter(([, n]) => n).sort((x, y) => y[1] - x[1]).map(([name, n]) => `${name} ${n}`).join(" · ");
-    const period = t("nos últimos {n} dias", { n: analyticsDays });
+    const a = await api(`/api/analytics?days=${analyticsDays}`);
     const hours = a.ai.ai_seconds ? (a.ai.ai_seconds / 3600).toFixed(1) + " h" : null;
     return `${ui.sec("Equipa", ui.src(a.team.source))}<div class="stats">
-        ${statNote("Pessoas online", `${a.team.active_users}/${a.team.people}`, online.length ? online.join(", ") : t("ninguém agora"))}
-        ${statNote("Tarefas criadas", a.team.tasks_created, period)}
-        ${statNote("Tarefas concluídas", a.team.tasks_completed, a.team.tasks_created ? t("{n}% das criadas no período", { n: Math.round(a.team.tasks_completed / a.team.tasks_created * 100) }) : period)}
-        ${statNote("Tarefas por fazer", a.team.tasks_open, `${carrying || t("nenhuma")}${urgent ? ` · ${t(urgent === 1 ? "1 urgente" : "{n} urgentes", { n: urgent })}` : ""}`)}
-        ${a.team.active_sessions ? statNote("IA a trabalhar agora", a.team.active_sessions, t("sessões abertas")) : ""}
-        ${a.team.approvals ? statNote("À espera de aprovação", a.team.approvals, t("pedidos da IA por decidir")) : ""}</div>
+        ${statCard("Pessoas online", `${a.team.active_users}/${a.team.people}`)}${statCard("Sessões de IA ativas", a.team.active_sessions)}
+        ${statCard("Tarefas criadas", a.team.tasks_created)}${statCard("Tarefas concluídas", a.team.tasks_completed)}
+        ${statCard("Tarefas abertas", a.team.tasks_open)}${statCard("Pedidos de aprovação", a.team.approvals)}</div>
       ${a.ai.sessions || a.ai.runs ? `${ui.sec("Uso de IA", ui.src(a.ai.source))}<div class="stats">
         ${statCard("Sessões", a.ai.sessions || null)}${statCard("Tokens de entrada", a.ai.runs ? fmt.tokens(a.ai.tokens.input) : null)}
         ${statCard("Tokens de saída", a.ai.runs ? fmt.tokens(a.ai.tokens.output) : null)}${statCard("Agentes", a.ai.agents || null)}
@@ -821,166 +783,25 @@ async function loadAnalytics() {
         <div class="panel pad"><div class="ph-eyebrow">${t("Por tarefa")}</div>${barRows(a.cost.per_task, a.cost.total_usd)}</div></div>
         <div class="stack">${statCard("Custo total de IA", a.cost.total_usd == null ? null : fmt.usd(a.cost.total_usd))}
         <div class="panel pad"><div class="ph-eyebrow">${t("Por projeto")}</div>${barRows(a.cost.per_project, a.cost.total_usd)}</div></div></div>` : ""}
-      ${codeHtml(commits, analyticsDays)}
+      ${ui.sec("Código", ui.src(a.code.source))}<div class="stats">
+        ${statCard("Commits", a.code.source === "live" ? a.code.commits : null)}
+</div>
       ${a.value.cost_per_task.usd != null || a.value.cost_per_commit.usd != null ? `${ui.sec("Valor")}<div class="stats">
         ${statCard("Custo por tarefa concluída", a.value.cost_per_task.usd == null ? null : fmt.usd(a.value.cost_per_task.usd), a.value.cost_per_task.source)}
         ${statCard("Custo por commit", a.value.cost_per_commit.usd == null ? null : fmt.usd(a.value.cost_per_commit.usd), a.value.cost_per_commit.source)}</div>
       <p class="faint" style="margin-top:14px">${t("O custo é a estimativa que o SDK do Claude dá em cada sessão; não é uma fatura.")}</p>` : ""}`;
   }, 8);
 }
-/* ---------- Análise: what asks for attention, who carries what, and whether we close more than we open.
-   The page used to be counters (commits, lines, people online) that nobody could act on. Those are still there, folded
-   at the bottom; on top is what a person, or a Claude given the summary, can do something about. ---------- */
-const AN_DAY = 864e5;
-const anSpan = (ms) => (ms < 36e5 ? `${Math.max(1, Math.round(ms / 6e4))} min` : ms < AN_DAY ? `${Math.round(ms / 36e5)} h` : `${Math.round(ms / AN_DAY)} ${Math.round(ms / AN_DAY) === 1 ? "dia" : "dias"}`);
-const anClock = (epoch) => new Date(epoch * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-const anList = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`);
-
-function analysisOf(tasks, team, limits, clocks, commits, days, now = new Date()) {
-  const since = new Date(now - days * AN_DAY);
-  const open = tasks.filter((x) => x.stage !== "done");
-  const done = tasks.filter((x) => x.stage === "done" && x.completed_at && new Date(x.completed_at) >= since);
-  const made = tasks.filter((x) => new Date(x.created_at) >= since);
-  const people = team.map((m) => ({ user: m.user, name: m.display_name, online: m.status !== "OFFLINE", task: m.task,
-    open: open.filter((x) => x.assignee === m.user), done: done.filter((x) => (x.completed_by || x.assignee) === m.user),
-    lim: limits[m.user] || null, clock: clocks.find((c) => c.user === m.user) || null, commits: commits.find((c) => c.name === m.display_name)?.commits ?? null }));
-  const times = done.map((x) => new Date(x.completed_at) - new Date(x.created_at)).sort((a, b) => a - b);
-  const shown = Math.min(days, 30);
-  // each day: what was created, what was closed, and how many were open when the day ended (the line of the chart)
-  const perDay = [...Array(shown)].map((_, i) => {
-    const from = startOfDay(now, i - shown + 1), to = startOfDay(from, 1), within = (at) => at && new Date(at) >= from && new Date(at) < to;
-    return { from, today: i === shown - 1, made: tasks.filter((x) => within(x.created_at)).length, done: tasks.filter((x) => x.stage === "done" && within(x.completed_at)).length,
-      open: tasks.filter((x) => new Date(x.created_at) < to && !(x.stage === "done" && x.completed_at && new Date(x.completed_at) < to)).length };
-  });
-  // what somebody should look at, the worst first; `step` is what to do about it
-  const alerts = [];
-  const late = open.filter((x) => x.deadline && new Date(x.deadline) < now).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
-  for (const x of late.slice(0, 3)) alerts.push({ tone: "bad", what: `Atrasada há ${anSpan(now - new Date(x.deadline))}`, text: x.title, who: nameOf(x.assignee), href: `#/tarefas/${x.id}`,
-    step: `${nameOf(x.assignee)}: fechar ou dar novo prazo a «${x.title}».` });
-  for (const x of open.filter((y) => y.priority === "urgent" && !late.includes(y)).slice(0, 3)) alerts.push({ tone: "bad", what: "Urgente e por fazer", text: x.title, who: nameOf(x.assignee), href: `#/tarefas/${x.id}`,
-    step: `${nameOf(x.assignee)}: começar por «${x.title}», que é urgente.` });
-  for (const x of open.filter((y) => y.stage === "blocked").slice(0, 3)) alerts.push({ tone: "warn", what: "Bloqueada", text: x.title, who: nameOf(x.assignee), href: `#/tarefas/${x.id}`,
-    step: `Desbloquear «${x.title}» (${nameOf(x.assignee)}).` });
-  const heavy = [...people].sort((a, b) => b.open.length - a.open.length)[0];
-  const rest = people.filter((p) => p !== heavy), restAvg = rest.length ? rest.reduce((n, p) => n + p.open.length, 0) / rest.length : 0;
-  if (heavy && heavy.open.length >= 6 && heavy.open.length >= 2 * Math.max(1, restAvg)) alerts.push({ tone: "warn", what: "Carga desigual",
-    text: `${heavy.name} tem ${heavy.open.length} tarefas abertas; ${rest.map((p) => `${p.name} ${p.open.length}`).join(", ")}`, who: heavy.name, href: "#/tarefas",
-    step: `Repartir a carga: passar tarefas de ${heavy.name} (${heavy.open.length}) para ${anList(rest.map((p) => p.name))}.` });
-  for (const p of people) {
-    const until = (reset, week) => (reset ? ` até ${week ? `${new Date(reset * 1000).toLocaleDateString("pt-PT", { weekday: "long" })} às ` : "às "}${anClock(reset)}` : "");
-    if (p.lim?.week >= 85) alerts.push({ tone: "bad", what: "Claude quase no limite", text: `${p.name} usou ${p.lim.week}% da semana`, who: p.name, href: "",
-      step: `${p.name}: poupar o Claude${until(p.lim.week_reset, true)}; o trabalho pesado de IA passa para quem tem folga.` });
-    else if (p.lim?.five >= 85) alerts.push({ tone: "warn", what: "Claude quase no limite", text: `${p.name} usou ${p.lim.five}% da sessão de 5 horas`, who: p.name, href: "",
-      step: `${p.name}: esperar pela sessão nova${until(p.lim.five_reset)} antes de pedir trabalho grande ao Claude.` });
-  }
-  const stale = open.filter((x) => now - new Date(x.created_at) > 3 * AN_DAY && x.priority !== "urgent" && !late.includes(x)).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  for (const x of stale.slice(0, 3)) alerts.push({ tone: "", what: `Parada há ${anSpan(now - new Date(x.created_at))}`, text: x.title, who: nameOf(x.assignee), href: `#/tarefas/${x.id}`,
-    step: `Decidir sobre «${x.title}»: fazer esta semana ou apagar.` });
-  return { days, open, done, made, people, perDay, alerts, median: times.length ? times[Math.floor(times.length / 2)] : null };
-}
-
-// The analysis as a short brief: one sentence a person, what to do next, and the rhythm. `analysisText` is the same brief
-// in plain text, to paste into a Claude that is about to work for the team.
-function briefOf(a, now = new Date()) {
-  const person = (p) => {
-    const urgent = p.open.filter((x) => x.priority === "urgent").length;
-    const bits = [p.open.length ? `${p.open.length} ${p.open.length === 1 ? "tarefa aberta" : "tarefas abertas"}${urgent ? ` (${urgent} ${urgent === 1 ? "urgente" : "urgentes"})` : ""}` : "sem tarefas abertas",
-      `${p.done.length} ${p.done.length === 1 ? "concluída" : "concluídas"}`,
-      p.clock?.at ? `${pontoWorked(p.clock)} de ponto hoje${p.clock.running ? "" : " (parado)"}` : "sem ponto hoje",
-      p.lim ? `Claude a ${p.lim.five ?? "?"}% da sessão e ${p.lim.week ?? "?"}% da semana` : "Claude sem leitura"];
-    return { name: p.name, line: `${bits.join("; ")}${p.online ? "" : "; offline"}.` };
-  };
-  const balance = a.done.length - a.made.length;
-  return { title: `Estado da equipa em ${now.toLocaleDateString("pt-PT", { day: "numeric", month: "long" })}, ${fmt.hhmm(now.toISOString())}`, period: `últimos ${a.days} dias`,
-    people: a.people.map(person), steps: a.alerts.map((x) => x.step),
-    rhythm: `Em ${a.days} dias criaram-se ${a.made.length} tarefas e concluíram-se ${a.done.length}: ${balance >= 0 ? "fecha-se mais do que se abre" : `ficam mais ${-balance} por fazer do que havia`}. `
-      + `Há ${a.open.length} abertas ao todo${a.median == null ? "." : ` e uma tarefa leva tipicamente ${anSpan(a.median)} a ser concluída.`}` };
-}
-const analysisText = (b) => [`${b.title} (${b.period})`, "", ...b.people.map((p) => `${p.name}: ${p.line}`), "",
-  b.steps.length ? "O que fazer a seguir:" : "Nada a pedir atenção.", ...b.steps.map((x, i) => `${i + 1}. ${x}`), "", b.rhythm].join("\n");
-
-// The chart of the rhythm: bars for what each day created and closed, a line for what was left open when the day ended.
-function rhythmChart(days) {
-  const W = 760, H = 230, left = 34, right = 16, top = 26, bottom = 34, innerW = W - left - right, innerH = H - top - bottom;
-  const maxBar = Math.max(1, ...days.map((d) => Math.max(d.made, d.done))), maxOpen = Math.max(1, ...days.map((d) => d.open));
-  const slot = innerW / days.length, bar = Math.min(18, slot * 0.28), every = Math.ceil(days.length / 10);
-  const y = (n, max) => top + innerH - (n / max) * innerH, cx = (i) => left + slot * (i + 0.5);
-  const grid = [0, 0.5, 1].map((k) => `<line x1="${left}" x2="${W - right}" y1="${top + innerH * (1 - k)}" y2="${top + innerH * (1 - k)}" class="g"/>
-    <text x="${left - 8}" y="${top + innerH * (1 - k) + 3.5}" class="ax" text-anchor="end">${Math.round(maxBar * k)}</text>`).join("");
-  const bars = days.map((d, i) => {
-    const label = `${d.from.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" })}: ${d.made} criadas, ${d.done} concluídas, ${d.open} abertas no fim do dia`;
-    const one = (n, cls, dx) => (n ? `<rect class="${cls}" x="${cx(i) + dx}" y="${y(n, maxBar)}" width="${bar}" height="${top + innerH - y(n, maxBar)}" rx="3"/>
-      ${days.length <= 14 ? `<text class="v ${cls}" x="${cx(i) + dx + bar / 2}" y="${y(n, maxBar) - 5}" text-anchor="middle">${n}</text>` : ""}` : "");
-    return `<g><title>${esc(label)}</title><rect x="${left + slot * i}" y="${top}" width="${slot}" height="${innerH}" class="${d.today ? "now" : "hit"}"/>
-      ${one(d.made, "made", -bar - 1.5)}${one(d.done, "done", 1.5)}
-      ${i % every === 0 || d.today ? `<text class="ax ${d.today ? "on" : ""}" x="${cx(i)}" y="${H - 14}" text-anchor="middle">${d.today ? "hoje" : `${d.from.toLocaleDateString("pt-PT", { weekday: "short" }).replace(".", "")} ${d.from.getDate()}`}</text>` : ""}</g>`;
-  }).join("");
-  const points = days.map((d, i) => `${cx(i)},${y(d.open, maxOpen)}`).join(" ");
-  const last = days[days.length - 1];
-  return `<svg class="an-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tarefas criadas, concluídas e abertas por dia">${grid}${bars}
-    <polyline class="open" points="${points}"/>${days.map((d, i) => `<circle class="open" cx="${cx(i)}" cy="${y(d.open, maxOpen)}" r="${d.today ? 4 : 2.5}"/>`).join("")}
-    <text class="v open" x="${cx(days.length - 1)}" y="${y(last.open, maxOpen) - 10}" text-anchor="middle">${last.open}</text></svg>`;
-}
-
-function analysisHtml(a) {
-  const brief = briefOf(a), balance = a.done.length - a.made.length;
-  const person = (p) => {
-    const urgent = p.open.filter((x) => x.priority === "urgent").length, total = p.open.length + p.done.length;
-    const fact = (n, label, cls = "") => `<div class="an-fact ${cls}"><b>${n}</b><span>${t(label)}</span></div>`;
-    return `<div class="panel an-person ${p.online ? "" : "off"}"><header>${ui.avatar(p.name)}<div><b>${esc(p.name)}</b><span>${esc(p.online ? (p.task ? `${t("A trabalhar")}: ${p.task}` : t("Online")) : t("Offline"))}</span></div></header>
-      <div class="an-split" title="${t("Concluídas e abertas")}"><i style="width:${total ? p.done.length / total * 100 : 0}%"></i></div>
-      <div class="an-facts">${fact(p.open.length, "abertas", urgent ? "bad" : "")}${fact(p.done.length, "concluídas")}${fact(p.commits ?? "—", "commits na semana")}
-        ${fact(p.clock?.at ? pontoWorked(p.clock) : "—", "ponto hoje", p.clock?.running ? "ok" : "")}${fact(p.lim?.five == null ? "—" : `${p.lim.five}%`, "Claude 5 h", p.lim?.five >= 85 ? "bad" : "")}${fact(p.lim?.week == null ? "—" : `${p.lim.week}%`, "Claude semana", p.lim?.week >= 85 ? "bad" : "")}</div>
-      ${urgent ? `<p class="an-note bad">${t(urgent === 1 ? "1 urgente por fazer" : "{n} urgentes por fazer", { n: urgent })}</p>` : ""}</div>`;
-  };
-  return `${ui.sec("O que pede atenção", `<span class="faint">${a.alerts.length || t("nada")}</span>`)}
-    ${a.alerts.length ? `<div class="panel rows">${a.alerts.map((x) => `<a class="rw an-alert ${x.tone}" ${x.href ? `href="${x.href}"` : ""}><i></i><div class="rw-main"><b>${esc(x.text)}</b><span>${esc(t(x.what))}${x.who && !x.text.startsWith(x.who) ? ` · ${esc(x.who)}` : ""}</span></div>${x.href ? icon("chevron") : ""}</a>`).join("")}</div>`
-      : `<div class="panel pad an-fine">${icon("check")}<div><b>${t("Nada a pedir atenção")}</b><span>${t("Sem atrasos, sem urgentes por fazer, sem ninguém sobrecarregado.")}</span></div></div>`}
-    ${ui.sec("Carga de cada pessoa", `<span class="faint">${t("últimos {n} dias", { n: a.days })}</span>`)}<div class="an-people">${a.people.map(person).join("")}</div>
-    ${ui.sec("Ritmo", `<span class="faint">${t(balance >= 0 ? "fecha-se mais do que se abre" : "abre-se mais do que se fecha")}</span>`)}
-    <div class="panel pad an-rhythm"><div class="an-nums"><div><b>${a.made.length}</b><span>${t("criadas")}</span></div><div class="ok"><b>${a.done.length}</b><span>${t("concluídas")}</span></div>
-        <div><b>${a.open.length}</b><span>${t("abertas agora")}</span></div><div><b>${a.median == null ? "—" : anSpan(a.median)}</b><span>${t("até concluir (típico)")}</span></div>
-        <p class="an-key"><i class="made"></i>${t("criadas no dia")}<i class="done"></i>${t("concluídas no dia")}<i class="open"></i>${t("abertas no fim do dia")}</p></div>
-      ${rhythmChart(a.perDay)}</div>
-    ${ui.sec("Resumo", `<button class="btn sm quiet" id="an-copy">${icon("doc")}${t("Copiar como texto")}</button>`)}
-    <div class="panel an-brief"><header><b>${esc(brief.title)}</b><span>${esc(brief.period)}</span></header>
-      <div class="an-brief-people">${brief.people.map((p) => `<div>${ui.avatar(p.name, "sm")}<p><b>${esc(p.name)}</b>${esc(p.line)}</p></div>`).join("")}</div>
-      <h5>${t(brief.steps.length ? "O que fazer a seguir" : "Nada a pedir atenção")}</h5>
-      ${brief.steps.length ? `<ol>${brief.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
-      <h5>${t("Ritmo")}</h5><p>${esc(brief.rhythm)}</p>
-      <pre id="an-text" hidden>${esc(analysisText(brief))}</pre>
-      <footer>${t("«Copiar como texto» leva isto para colar numa conversa com o Claude antes de lhe pedir trabalho.")}</footer></div>`;
-}
-
-async function loadAnalysis() {
-  await mount($("an-main"), async () => {
-    const [tasks, team, limits, board, rank] = await Promise.all([api("/api/tasks"), api("/api/team"), api("/api/limits/team").catch(() => ({})),
-      api("/api/ponto").catch(() => null), api("/api/analytics/ranking").catch(() => null)]);
-    return analysisHtml(analysisOf(tasks, team, limits, board?.people || [], rank?.week || [], analyticsDays));
-  }, 8);
-  if ($("an-copy")) $("an-copy").onclick = async () => {
-    const text = $("an-text").textContent;
-    try { await navigator.clipboard.writeText(text); flash(t("Resumo copiado.")); }
-    catch { $("an-text").hidden = false; const r = document.createRange(); r.selectNodeContents($("an-text")); getSelection().removeAllRanges(); getSelection().addRange(r); flash(t("Selecionado: Ctrl+C para copiar.")); }
-  };
-}
-onLive(["task", "ponto"], async () => { if ($("an-more")?.open) { $("an-main")._html = null; await loadAnalysis(); } });
-
 HUB_VIEWS.analise = async function () {
-  // The page is the one the team knows: who did most, the team's numbers, the code. The newer reading of the same data
-  // (attention, load, rhythm, summary) is folded at the bottom, for whoever wants it.
   page(`${ui.head("Análise", t("Análise"), t("Quem fez o quê, a equipa e o código."),
     `<div class="segx" id="days">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${d === analyticsDays ? "on" : ""}">${d} ${t("dias")}</button>`).join("")}</div>`)}
-    <div id="ranking"></div><div id="analytics"></div>
-    <details class="an-more" id="an-more"><summary>${t("Atenção, carga de cada um, ritmo e resumo")}</summary><div id="an-main"></div></details>`);
+    <div id="ranking"></div><div id="analytics"></div>`);
   loadRanking();
-  $("an-more").ontoggle = () => { if ($("an-more").open) loadAnalysis(); };
   $("days").onclick = (e) => {
     if (!e.target.dataset.d) return;
     analyticsDays = Number(e.target.dataset.d);
     $("days").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.target));
     $("analytics")._html = null; loadAnalytics();
-    if ($("an-more").open) { $("an-main")._html = null; loadAnalysis(); }
   };
   await loadAnalytics();
 };

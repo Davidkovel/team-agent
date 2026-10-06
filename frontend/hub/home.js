@@ -121,15 +121,21 @@ async function newsBar() {
     <button class="nb-all" data-act="alerts">${t("Ver todas")}${icon("chevron")}</button>`;
 }
 
-// "Feitas": the last tasks somebody finished, where the notifications card used to be. A fixed number of rows, so it never scrolls.
+// "Feitas": the last tasks somebody finished, where the notifications card used to be. Who did each one is their photo, not
+// only a name; on top, how many each person closed today. A fixed number of rows, so it never scrolls.
 const DONE_ROWS = 5;
+const doneFace = (name, size = "sm") => `<span class="doer did" title="${esc(name)}">${ui.avatar(name, size)}<i>${icon("tick")}</i></span>`;
 async function finishedCard() {
   const done = (await api("/api/tasks")).filter((x) => x.stage === "done" && x.completed_at).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
-  const today = done.filter((x) => new Date(x.completed_at) >= startOfDay(new Date())).length;
-  return `${cardHead("check", "Feitas", today ? t(today === 1 ? "1 hoje" : "{n} hoje", { n: today }) : "", seeAll("Ver todas", "#/tarefas"))}
-    ${done.length ? `<div class="news">${done.slice(0, DONE_ROWS).map((x) => `<button class="nrow" data-go="#/tarefas/${x.id}"><i></i>
-      <span class="n-ic ok">${icon("check")}</span>
-      <span class="n-t"><b>${esc(x.title)}</b><span>${esc(nameOf(x.completed_by || x.assignee))}</span></span><time>${fmt.ago(x.completed_at)}</time></button>`).join("")}</div>`
+  const who = (x) => nameOf(x.completed_by || x.assignee);
+  const today = done.filter((x) => new Date(x.completed_at) >= startOfDay(new Date()));
+  const score = [...today.reduce((m, x) => m.set(who(x), (m.get(who(x)) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1]);
+  const tag = (x) => (x.priority === "urgent" ? `<em class="dn-tag bad">${t("Urgente")}</em>` : x.priority === "high" ? `<em class="dn-tag warn">${t("Alta")}</em>` : "");
+  return `${cardHead("check", "Feitas", today.length ? t(today.length === 1 ? "1 hoje" : "{n} hoje", { n: today.length }) : "", seeAll("Ver todas", "#/tarefas"))}
+    ${score.length ? `<div class="dn-score">${score.map(([name, n]) => `<span class="dn-who">${ui.avatar(name, "sm")}<b>${esc(name)}</b><i>${n}</i></span>`).join("")}</div>` : ""}
+    ${done.length ? `<div class="dn-list">${done.slice(0, DONE_ROWS).map((x) => `<button class="dn-row" data-go="#/tarefas/${x.id}">${doneFace(who(x))}
+      <span class="dn-t"><b>${esc(x.title)}</b><span>${esc(who(x))}${x.completed_by && x.completed_by !== x.assignee ? ` · ${t("era de")} ${esc(nameOf(x.assignee))}` : ""}</span></span>
+      ${tag(x)}<time>${fmt.ago(x.completed_at)}</time></button>`).join("")}</div>`
       : `<p class="in-empty">${t("Ainda nada concluído. As tarefas feitas aparecem aqui.")}</p>`}`;
 }
 

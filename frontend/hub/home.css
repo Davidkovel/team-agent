@@ -369,3 +369,22 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 @media (max-width: 1150px) {
   .in-newsbar { position: static; max-width: none; order: -1; }
 }
+
+/* ---------------------------------------------------------------- Feitas: who finished what, with their faces */
+.dn-score { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 10px; }
+.dn-who { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 4px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, .04); }
+.dn-who b { font: 600 12px var(--ui); }
+.dn-who i { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: rgba(95, 224, 138, .16); color: #5fe08a; font: 700 11px var(--mono); font-style: normal; text-align: center; }
+.dn-list { display: flex; flex-direction: column; }
+.dn-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; width: 100%; padding: 8px 0; border: 0; border-radius: 0;
+  background: none; color: inherit; text-align: left; cursor: pointer; }
+.dn-row + .dn-row { border-top: 1px solid rgba(255, 255, 255, .05); }
+.dn-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dn-t b { font: 600 13.5px var(--ui); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dn-t span { color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dn-row:hover .dn-t b { color: #fff; text-decoration: underline; text-decoration-color: rgba(255, 255, 255, .3); text-underline-offset: 3px; }
+.dn-row time { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.dn-tag { padding: 2px 8px; border-radius: 999px; font: 700 9.5px var(--ui); font-style: normal; letter-spacing: .08em; text-transform: uppercase; }
+.dn-tag.bad { color: var(--bad); background: rgba(239, 111, 94, .14); }
+.dn-tag.warn { color: var(--warn); background: rgba(226, 181, 92, .14); }

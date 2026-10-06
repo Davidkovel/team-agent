@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QWidget
 from . import badge
 
 TEXT, MUTED = QColor("#f2f3f5"), QColor("#a3a7ae")
-AMBER, WHITE, ONLINE = QColor("#e3bd6b"), QColor("#f2f3f5"), QColor("#7fd492")
+AMBER, WHITE, ONLINE = QColor("#e3bd6b"), QColor("#f2f3f5"), QColor("#4ee07a")
 UI = ("Segoe UI Variable Text", "Segoe UI")
 WIDTH, PAD, RADIUS = 460, 18, 16
 ICON = 36                                  # the star at the left of a card
@@ -26,7 +26,8 @@ MARGIN = 18                                # room around the plate for its shado
 TOP = 18                                   # gap between the card and the top of the screen
 SLIDE_IN, HOLD, SLIDE_OUT, GAP = 460, 8000, 300, 250   # ms
 MAX_BATCH = 3                              # more than this at once (a computer that was off, catching up) become a single card
-P_WIDTH, P_HEIGHT, P_EDGE, P_GAP, P_HOLD = 340, 84, 18, 10, 6000
+P_WIDTH, P_HEIGHT, P_EDGE, P_GAP, P_HOLD = 420, 108, 22, 12, 7000
+BEAT, BEATS = 1100, 3                       # ms of one ring beating out of a presence card, and how many
 
 
 def ring():
@@ -232,7 +233,15 @@ class PresenceCard(Card):
     def __init__(self, name: str, text: str, slot: int):
         super().__init__(P_WIDTH, P_HEIGHT, ONLINE, P_HOLD)
         self._name, self._text = name, text
-        self._f_name, self._f_text = _font(12, QFont.DemiBold), _font(9.5, QFont.DemiBold)
+        self._f_name, self._f_text = _font(15, QFont.DemiBold), _font(11, QFont.DemiBold)
+        self._beat = 1.0   # how far the ring has gone out; 1 = no ring
+        self._pulse = QVariantAnimation(self)
+        self._pulse.setStartValue(0.0)
+        self._pulse.setEndValue(1.0)
+        self._pulse.setDuration(BEAT)
+        self._pulse.setLoopCount(BEATS)
+        self._pulse.setEasingCurve(QEasingCurve.OutCubic)
+        self._pulse.valueChanged.connect(self._beaten)
         area = QGuiApplication.primaryScreen().availableGeometry()
         self._rest, self._off = area.right() - P_EDGE - P_WIDTH - MARGIN, area.right() + 1
         self._y = area.bottom() - P_EDGE - P_HEIGHT - MARGIN - slot * (P_HEIGHT + P_GAP)
@@ -241,25 +250,41 @@ class PresenceCard(Card):
         self.move(round(self._off + (self._rest - self._off) * k), self._y)
         self.setWindowOpacity(max(0.0, min(1.0, k * 1.6)))
 
+    def _beaten(self, v):
+        self._beat = v
+        self.update()
+
     def run(self):
         self._enter()
+        QTimer.singleShot(SLIDE_IN - 120, self._pulse.start)   # the ring starts as the card lands
 
     def paintEvent(self, _):
         p = QPainter(self)
-        self._plate(p)
-        av = QRectF(20, (P_HEIGHT - 3) / 2 - 24, 48, 48)
+        rect = self._plate(p)
+        wash = QLinearGradient(rect.topLeft(), rect.topRight())   # green light from the left, so it does not read as one more dark window
+        wash.setColorAt(0, _tint(ONLINE, 0.28))
+        wash.setColorAt(0.75, _tint(ONLINE, 0.0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(wash)
+        p.drawRoundedRect(rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS)
+        if self._beat < 1.0:   # the ring that beats out of the card: movement is what the eye catches in a corner
+            grow = 2 + 12 * self._beat
+            p.setPen(QPen(_tint(ONLINE, 0.8 * (1 - self._beat)), 2.5))
+            p.setBrush(Qt.NoBrush)
+            p.drawRoundedRect(rect.adjusted(-grow, -grow, grow, grow), RADIUS + grow, RADIUS + grow)
+        av = QRectF(22, (P_HEIGHT - 3) / 2 - 30, 60, 60)
         self._star(p, av)
-        dot = av.bottomRight() - QRectF(0, 0, 6, 6).bottomRight()
-        p.setPen(QPen(QColor(24, 24, 27), 2.5))
+        dot = av.bottomRight() - QRectF(0, 0, 8, 8).bottomRight()
+        p.setPen(QPen(QColor(24, 24, 27), 3))
         p.setBrush(ONLINE)
-        p.drawEllipse(dot, 5.5, 5.5)
-        x, w = 84, P_WIDTH - 84 - PAD
+        p.drawEllipse(dot, 7.5, 7.5)
+        x, w = 100, P_WIDTH - 100 - PAD
         p.setFont(self._f_name)
         p.setPen(TEXT)
-        p.drawText(QRectF(x, 18, w, 24), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_name).elidedText(self._name, Qt.ElideRight, w))
+        p.drawText(QRectF(x, 22, w, 32), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_name).elidedText(self._name, Qt.ElideRight, w))
         p.setFont(self._f_text)
         p.setPen(ONLINE)
-        p.drawText(QRectF(x, 43, w, 18), Qt.AlignLeft | Qt.AlignVCenter, self._text)
+        p.drawText(QRectF(x, 56, w, 24), Qt.AlignLeft | Qt.AlignVCenter, self._text)
 
 
 class Presence(QObject):
@@ -270,6 +295,8 @@ class Presence(QObject):
         self._cards = {}   # slot -> card
 
     def show(self, name: str, text: str = "está online agora"):
+        if not self._cards:
+            ring()   # once for a group of people arriving together, not once each
         slot = next(i for i in range(len(self._cards) + 1) if i not in self._cards)
         card = self._cards[slot] = PresenceCard(name, text, slot)
         card.finished.connect(lambda: (self._cards.pop(slot, None), card.close(), card.deleteLater()))

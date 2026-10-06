@@ -48,6 +48,21 @@ Subscriptions and the VAPID key live in `~/.team-agent/` (`webpush.json`, `vapid
 one Hub, which sends what is made on it and what arrives by sync. Needs `pywebpush` (in requirements); without it the Hub runs as before.
 Whoever creates a task for themselves gets it on the phone too (not in the bell or the widget).
 
+## Keep the Hub's Memória up to date (always)
+
+Marco asked (6 Oct): everything we change in the widget or the Hub must also be written into the Hub's **Memória**
+(Sistema > Memória), so the team, and every Team AI run that reads it before a task, knows the current state.
+After a change that matters (a new behaviour, a decision, a rule, something that must never come back):
+
+```powershell
+.\.venv\Scripts\python scripts\memoria.py WIDGET "Vídeos no widget" "O que é verdade agora e porquê, em 2-4 frases."
+.\.venv\Scripts\python scripts\memoria.py --list
+```
+
+Same title = the note is rewritten, not repeated: keep one note per subject with the current state, not a diary.
+Categories in use: REGRAS, HUB, WIDGET, TELEMÓVEL, DESIGN. Team notes go to every PC by sync and into every task's
+prompt, so keep them short, in Portuguese, and without secrets, IPs or keys.
+
 The sections below were written for the old host setup; where they disagree with this one, this one is right.
 
 ## Make it work

@@ -17,7 +17,7 @@ os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS",
                       "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-smooth-scrolling")
 
 from PySide6.QtCore import QElapsedTimer, QEasingCurve, QEvent, QFile, QIODevice, QObject, QRect, QRectF, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineScript
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -152,6 +152,8 @@ class HubExpander(QWidget):
         page.setBackgroundColor(BG)
         # A crashed page used to leave a dead, frozen window: now it comes back by itself.
         page.renderProcessTerminated.connect(self._page_died)
+        # A link that opens a new tab (a site in the Memória, a commit on GitHub) goes to the browser.
+        page.newWindowRequested.connect(self._open_outside)
         # Videos: the page hands them to the native player (Qt's Chromium has no H.264).
         self._bridge = Bridge(self)
         self._bridge.play.connect(self._play_videos)
@@ -181,6 +183,11 @@ class HubExpander(QWidget):
     def _page_died(self, status, code):
         if status != QWebEnginePage.NormalTerminationStatus:
             QTimer.singleShot(400, self.view.reload)
+
+    def _open_outside(self, request):
+        url = request.requestedUrl()
+        if url.scheme() in ("http", "https"):
+            QDesktopServices.openUrl(url)
 
     def _play_videos(self, payload: str):
         self.stack.setCurrentWidget(self.player)

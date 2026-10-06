@@ -856,7 +856,8 @@ HUB_VIEWS.despesas = async function () {
 
 /* ================================================================ memory */
 const MEMORY_SCOPES = [["team", "Equipa"], ["global", "Global"], ["company", "Empresa"], ["project", "Projeto"], ["agent", "Agente"], ["task", "Tarefa"]];
-let memoryScope = "team";
+let memoryScope = "all";
+const memoryOpen = new Set();   // the notes left open stay open when the page reloads
 async function memoryTargets(scope) {
   if (scope === "company") return companies.map((c) => [c.id, c.name]);
   if (scope === "project") return (await api("/api/projects")).map((p) => [String(p.id), p.name]);
@@ -864,41 +865,83 @@ async function memoryTargets(scope) {
   if (scope === "task") return (await api("/api/tasks")).slice(0, 60).map((x) => [String(x.id), `#${x.id} ${x.title}`]);
   return [];
 }
+// A link shows as its site (and path), never the whole tracking tail; it opens in the browser.
+const MEM_URL = /https?:\/\/[^\s<>"']+/g;
+const memSite = (url) => { try { const u = new URL(url); return u.host.replace(/^www\./, "") + (u.pathname.length > 1 ? u.pathname.replace(/\/$/, "") : ""); } catch { return url; } };
+function memText(text) {
+  let out = "", last = 0;
+  for (const m of text.matchAll(MEM_URL)) {
+    out += esc(text.slice(last, m.index)) + `<a class="mem-link" href="${esc(m[0])}" target="_blank" rel="noopener">${esc(memSite(m[0]))} ↗</a>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(text.slice(last));
+}
+const memPeek = (text) => (text || "").replace(MEM_URL, (u) => memSite(u)).split("\n").map((l) => l.trim()).filter(Boolean).join(" · ");
+function memRow(m) {
+  const cat = (m.category || "").trim();
+  return `<div class="mem-row ${memoryOpen.has(m.id) ? "open" : ""}" data-memory="${m.id}">
+    <button class="mem-head" data-toggle-memory>${cat ? ui.tag(cat) : ""}<b class="mem-title">${esc(m.title.trim())}</b>
+      <span class="mem-peek">${esc(memPeek(m.content))}</span><span class="mem-chev">${icon("chevron")}</span></button>
+    <div class="mem-body">${m.content ? `<p>${memText(m.content.trim())}</p>` : `<p class="faint">${t("Sem texto.")}</p>`}
+      <div class="mem-foot"><span class="faint">${t("Atualizada")} ${fmt.day(m.updated_at)}</span><button class="btn quiet sm" data-edit-memory>${t("Editar")}</button></div></div></div>`;
+}
 async function loadMemory() {
-  paint($("memory-scopes"), MEMORY_SCOPES.map(([id, label]) => `<button class="chp ${id === memoryScope ? "on" : ""}" data-s="${id}">${t(label)}</button>`).join(""));
   await mount($("memory"), async () => {
-    const [items, targets] = await Promise.all([api(`/api/memory?scope=${memoryScope}`), memoryTargets(memoryScope)]);
-    if (!items.length) return `<div class="panel" style="grid-column:1/-1">${ui.empty("layers", "Memória vazia", "O que escreveres aqui é dado ao agente antes de ele começar uma tarefa deste âmbito.",
+    const all = await api("/api/memory");
+    const count = (id) => all.filter((m) => m.scope === id).length;
+    paint($("memory-scopes"), [["all", "Tudo", all.length], ...MEMORY_SCOPES.map(([id, label]) => [id, label, count(id)])]
+      .filter(([id, , n]) => id === "all" || n || id === memoryScope || id === "team")
+      .map(([id, label, n]) => `<button class="chp ${id === memoryScope ? "on" : ""}" data-s="${id}">${t(label)}${n ? ` <span class="mem-n">${n}</span>` : ""}</button>`).join(""));
+    const items = memoryScope === "all" ? all : all.filter((m) => m.scope === memoryScope);
+    if (!items.length) return `<div class="panel">${ui.empty("layers", "Memória vazia", "O que escreveres aqui é dado ao agente antes de ele começar uma tarefa deste âmbito.",
       `<button class="btn sm primary" data-new-memory>${t("Adicionar à memória")}</button>`)}</div>`;
-    const groups = {};
-    for (const m of items) ((groups[m.scope_id] ||= {})[m.category || t("Geral")] ||= []).push(m);
-    return Object.entries(groups).map(([target, cats]) => `${target ? `<div class="sec" style="grid-column:1/-1;margin:6px 0 0">${esc(targets.find(([id]) => id === target)?.[1] || target)}</div>` : ""}
-      ${Object.entries(cats).map(([cat, list]) => `<div class="panel"><h4>${esc(cat)}</h4>${list.map((m) => `<div class="mem-item" data-memory="${m.id}"><b>${esc(m.title)}</b>
-        ${m.content ? `<p>${esc(m.content)}</p>` : ""}</div>`).join("")}</div>`).join("")}`).join("");
+    // one block per place (Equipa, Empresa · Bare Desk, ...), the notes inside ordered by category
+    const names = {};
+    for (const scope of new Set(items.map((m) => m.scope))) for (const [id, name] of await memoryTargets(scope).catch(() => [])) names[`${scope}:${id}`] = name;
+    const rank = (m) => MEMORY_SCOPES.findIndex(([s]) => s === m.scope);
+    const groups = new Map();
+    for (const m of [...items].sort((a, b) => rank(a) - rank(b) || (a.category || "").localeCompare(b.category || "") || a.title.localeCompare(b.title))) {
+      const label = t(MEMORY_SCOPES.find(([s]) => s === m.scope)?.[1] || m.scope);
+      const key = m.scope_id ? `${label} · ${names[`${m.scope}:${m.scope_id}`] || m.scope_id}` : label;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(m);
+    }
+    return [...groups].map(([key, list]) => `<section class="mem-group"><div class="sec"><span>${esc(key)}</span><span class="faint">${list.length}</span></div>
+      <div class="panel mem-list">${list.map(memRow).join("")}</div></section>`).join("");
   }, 5);
 }
 async function editMemory(existing) {
-  const targets = await memoryTargets(memoryScope);
-  if (!existing && ["company", "project", "agent", "task"].includes(memoryScope) && !targets.length) return flash(t("Ainda não há nada deste âmbito a que juntar memória."));
+  // where a new note goes: one list of every place, starting on the tab that is open
+  const places = [["team|", t("Equipa")], ["global|", t("Global")]];
+  if (!existing) for (const [scope, label] of MEMORY_SCOPES.slice(2, 5)) for (const [id, name] of await memoryTargets(scope).catch(() => [])) places.push([`${scope}|${id}`, `${t(label)} · ${name}`]);
+  const start = places.find(([v]) => v.startsWith(`${memoryScope}|`))?.[0] || "team|";
   formModal(existing ? "Editar memória" : "Adicionar à memória",
-    (existing || !targets.length ? "" : field("De quem", `<select name="scope_id">${options(targets, "")}</select>`, true))
+    (existing ? "" : field("Onde", `<select name="place">${options(places, start)}</select>`, true))
     + field("Categoria", `<input name="category" value="${esc(existing?.category || "")}" placeholder="ex: NEGÓCIO, DESIGN, TECH, DECISÕES">`)
     + field("Título", `<input name="title" required value="${esc(existing?.title || "")}">`)
     + field("Conteúdo", `<textarea name="content">${esc(existing?.content || "")}</textarea>`, true),
   async (v) => {
-    if (existing) await api(`/api/memory/${existing.id}`, { method: "PUT", body: { category: v.category.toUpperCase(), title: v.title, content: v.content } });
-    else await api("/api/memory", { method: "POST", body: { scope: memoryScope, scope_id: v.scope_id || "", category: v.category.toUpperCase(), title: v.title, content: v.content } });
+    const body = { category: v.category.trim().toUpperCase(), title: v.title.trim(), content: v.content.trim() };
+    if (existing) await api(`/api/memory/${existing.id}`, { method: "PUT", body });
+    else {
+      const [scope, scope_id] = v.place.split("|");
+      memoryOpen.add((await api("/api/memory", { method: "POST", body: { ...body, scope, scope_id } })).id);
+    }
     $("memory")._html = null; loadMemory();
   }, existing ? { danger: { label: "Apagar", run: async () => { await api(`/api/memory/${existing.id}`, { method: "DELETE" }); $("memory")._html = null; loadMemory(); } } } : {});
 }
 HUB_VIEWS.memoria = async function () {
-  page(`${ui.head("Sistema", t("Memória"), t("O que a IA deve saber antes de começar: factos e decisões, por âmbito."), ui.btn("Adicionar à memória", "data-new-memory", "primary", "plus"))}
+  page(`${ui.head("Sistema", t("Memória"), t("O que a IA deve saber antes de começar: factos e decisões, por âmbito. Clica numa nota para a abrir."), ui.btn("Adicionar à memória", "data-new-memory", "primary", "plus"))}
     <div class="chipbar" id="memory-scopes"></div><div class="mem" id="memory"></div>`);
   $("view").onclick = async (e) => {
-    const scope = e.target.closest("#memory-scopes [data-s]"), item = e.target.closest("[data-memory]");
+    if (e.target.closest("a.mem-link")) return;   // the link opens; the note stays as it is
+    const scope = e.target.closest("#memory-scopes [data-s]"), row = e.target.closest("[data-memory]");
     if (scope) { memoryScope = scope.dataset.s; $("memory")._html = null; return loadMemory(); }
     if (e.target.closest("[data-new-memory]")) return editMemory();
-    if (item) editMemory((await api(`/api/memory?scope=${memoryScope}`)).find((m) => m.id === Number(item.dataset.memory)));
+    if (!row) return;
+    const id = Number(row.dataset.memory);
+    if (e.target.closest("[data-edit-memory]")) return editMemory((await api("/api/memory")).find((m) => m.id === id));
+    if (e.target.closest("[data-toggle-memory]")) { row.classList.toggle("open"); memoryOpen[row.classList.contains("open") ? "add" : "delete"](id); }
   };
   await loadMemory();
 };

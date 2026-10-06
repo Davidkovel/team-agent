@@ -282,3 +282,42 @@ class AIRequest(Base):
     error: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ClaudeSession(Base):
+    """One Claude Code window on somebody's PC, for the Escritório: its latest state, never every step (a window that makes
+    500 tool calls is one row that changes, so sync stays light). Written by this PC's Hub from the Claude Code hooks."""
+    __tablename__ = "claude_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)  # whose PC it runs on
+    key: Mapped[str] = mapped_column(String(80), index=True)  # Claude Code's session_id
+    project: Mapped[str] = mapped_column(String(120), default="")
+    status: Mapped[str] = mapped_column(String(12), default="idle")  # idle | working | waiting | ended
+    prompt: Mapped[str] = mapped_column(String(200), default="")  # the start of the last request, one line
+    action: Mapped[str] = mapped_column(String(160), default="")  # what it is doing now, in words ("a editar pages.js")
+    model: Mapped[str] = mapped_column(String(60), default="")
+    since: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # when the current status began
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(lazy="joined")
+
+
+class ClaudeAgent(Base):
+    """A subagent a Claude window launched: which one, what it was asked, and how it ended."""
+    __tablename__ = "claude_agents"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("claude_sessions.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    tool_use_id: Mapped[str] = mapped_column(String(80), default="")
+    agent_id: Mapped[str] = mapped_column(String(80), default="")  # a background agent's id, to know when it stops
+    kind: Mapped[str] = mapped_column(String(60), default="")  # pesquisador, revisor-hub, general-purpose, Explore...
+    model: Mapped[str] = mapped_column(String(30), default="")
+    description: Mapped[str] = mapped_column(String(160), default="")
+    action: Mapped[str] = mapped_column(String(160), default="")  # what it is doing now, from the steps it takes itself
+    status: Mapped[str] = mapped_column(String(10), default="working")  # working | done | failed
+    result: Mapped[str] = mapped_column(String(240), default="")
+    tokens: Mapped[int] = mapped_column(Integer, default=0)  # as Claude Code reports them when it finishes
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

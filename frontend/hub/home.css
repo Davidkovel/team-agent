@@ -404,34 +404,3 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
   #in-team .p-ring { width: 76px; height: 76px; }
   #in-team .p-ring .av { width: 70px; height: 70px; font-size: 24px; }
 }
-
-/* ---------------------------------------------------------------- a little colour on the black, only on Início: one colour
-   per meaning (blue = to do, green = people and done, amber = to read, red = urgent or late). The rest stays black and chrome.
-   Asked by Kovel on 6 Oct, after a whole coloured theme was refused: delete this block and Início is black and white again. */
-.page.inicio { --c-do: #5b9bff; --c-ok: #5fe08a; --c-read: #f2b84b; --c-late: #ef6f5e; --c-cal: #b39bff; --c-act: #58d5e6; }
-.page.inicio .hero-act.main { background: linear-gradient(180deg, #6ea8ff, #3f7df0); border-color: #7fb2ff; color: #fff; text-shadow: none;
-  box-shadow: 0 8px 22px -8px rgba(79, 140, 255, .8); }
-.page.inicio .hero-act.main:hover { border-color: #a9cbff; filter: brightness(1.08); }
-.page.inicio .hero-act[data-act="note"] svg.i { color: var(--c-read); }
-.page.inicio .hero-act[data-act="agenda"] svg.i { color: var(--c-cal); }
-.page.inicio .stat.lit.today { border-color: rgba(91, 155, 255, .45); background: linear-gradient(180deg, #131c2c, #0b1018); }
-.page.inicio .stat.lit.today .stat-ic { background: linear-gradient(180deg, #6ea8ff, #3f7df0); color: #fff; }
-.page.inicio .stat.lit.today b { color: #8fbaff; }
-.page.inicio .stat.lit:nth-child(3) { border-color: rgba(242, 184, 75, .45); background: linear-gradient(180deg, #261d0d, #130f07); }
-.page.inicio .stat.lit:nth-child(3) .stat-ic { background: linear-gradient(180deg, #f7c868, #e09c2a); color: #1a1205; }
-.page.inicio .stat.lit:nth-child(3) b { color: var(--c-read); }
-.page.inicio .stat.lit:nth-child(4) { border-color: rgba(239, 111, 94, .5); background: linear-gradient(180deg, #2a1312, #140909); }
-.page.inicio .stat.lit:nth-child(4) .stat-ic { background: var(--c-late); color: #fff; }
-.page.inicio .stat.lit:nth-child(4) b { color: var(--c-late); }
-.page.inicio #in-team .ch > svg.i, .page.inicio #in-done .ch > svg.i { color: var(--c-ok); }
-.page.inicio .in-tasks .ch > svg.i { color: var(--c-do); }
-.page.inicio .in-prog .ch > svg.i { color: var(--c-read); }
-.page.inicio .in-cal .ch > svg.i { color: var(--c-cal); }
-.page.inicio .in-side .ch > svg.i { color: var(--c-act); }
-.page.inicio .ch-link:hover { color: var(--c-do); }
-.page.inicio .day-tabs button.on { background: linear-gradient(180deg, #6ea8ff, #3f7df0); color: #fff; box-shadow: 0 4px 14px -6px rgba(79, 140, 255, .9); }
-.page.inicio .ring-val { stroke: var(--c-do); filter: drop-shadow(0 0 6px rgba(91, 155, 255, .55)); }
-.page.inicio .in-bar i { background: linear-gradient(90deg, var(--c-do), var(--c-ok)); }
-.page.inicio .nb-count.on, .page.inicio .in-newsbar .nb-count.on:hover { background: linear-gradient(180deg, #f7c868, #e09c2a); color: #1a1205; }
-.page.inicio .nb-count.on b { color: #1a1205; }
-.page.inicio #in-team .person.on, .page.inicio #in-team .person.work { border-color: rgba(95, 224, 138, .22); }

@@ -41,7 +41,7 @@ def relaunch() -> bool:
         return False
     try:
         subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(script)],
-                         cwd=str(REPO), creationflags=HIDDEN | getattr(subprocess, "DETACHED_PROCESS", 0), close_fds=True,
+                         cwd=str(REPO), creationflags=HIDDEN, close_fds=True,  # not DETACHED_PROCESS: with it powershell exits at once and runs nothing
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
         return False

@@ -318,3 +318,57 @@ html.is-phone .m-task .sub .other { color: var(--m-orange); }
 html.is-phone .m-task .doer-row .av { width: 26px; height: 26px; font-size: 11px; box-shadow: 0 0 0 2px var(--m-card); }
 html.is-phone .m-task .doer-row .doer + .doer { margin-left: -8px; }
 html.is-phone .m-task .doer > i { width: 13px; height: 13px; box-shadow: 0 0 0 2px var(--m-card); }
+
+/* ---------- Início, take 3: urgent on top in red, lit numbers, the team side by side ---------- */
+@keyframes m-pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 69, 58, .7); } 70% { box-shadow: 0 0 0 9px rgba(255, 69, 58, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0); } }
+html.is-phone #m-alert:empty { display: none; }
+html.is-phone .m-urgent { overflow: hidden; border-radius: 18px; background: linear-gradient(160deg, #3a0d0b, #1f0807 70%); border: 1px solid rgba(255, 69, 58, .55);
+  box-shadow: 0 10px 30px rgba(255, 69, 58, .18); }
+html.is-phone .m-urgent header { display: flex; align-items: center; gap: 9px; padding: 13px 16px 8px; color: #ff6961; }
+html.is-phone .m-urgent header b { font: 800 13px var(--m-font); letter-spacing: .14em; text-transform: uppercase; }
+html.is-phone .m-urgent header span { margin-left: auto; min-width: 24px; height: 24px; padding: 0 8px; border-radius: 12px; background: var(--m-red); color: #fff; font: 700 13px/24px var(--m-font); text-align: center; }
+html.is-phone .m-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--m-red); animation: m-pulse 1.8s ease-out infinite; }
+html.is-phone .m-urow { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; }
+html.is-phone .m-urow + .m-urow::before { content: ""; position: absolute; top: 0; left: 52px; right: 0; border-top: .5px solid rgba(255, 105, 97, .25); }
+html.is-phone .m-urow:active { background: rgba(255, 69, 58, .12); }
+html.is-phone .m-urow .m-check { border-color: #ff6961; }
+html.is-phone .m-urow > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+html.is-phone .m-urow b { color: #fff; font: 700 18px/1.25 var(--m-font); letter-spacing: -.01em; }
+html.is-phone .m-urow span { color: #ffb4ae; font: 400 14px var(--m-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-phone .m-urow span .late, html.is-phone .m-urow span .today { color: #fff; font-weight: 600; }
+html.is-phone .m-urow > svg.i { flex: none; width: 16px; height: 16px; color: #ff8a82; }
+html.is-phone .m-umore { display: block; padding: 10px 16px 13px; color: #ff8a82; font: 600 14px var(--m-font); text-decoration: none; }
+
+/* the numbers light up when there is something there */
+html.is-phone .m-stat { position: relative; border: 1px solid transparent; }
+html.is-phone .m-stat-ic { display: grid; place-items: center; width: 28px; height: 28px; margin-bottom: 4px; border-radius: 50%; background: rgba(118, 118, 128, .24); color: var(--m-dim); }
+html.is-phone .m-stat-ic svg.i { width: 15px; height: 15px; }
+html.is-phone .m-stat.lit.today { background: rgba(255, 214, 10, .10); border-color: rgba(255, 214, 10, .35); }
+html.is-phone .m-stat.lit.today .m-stat-ic { background: #ffd60a; color: #2b2400; }
+html.is-phone .m-stat.lit.hot { background: rgba(255, 69, 58, .16); border-color: rgba(255, 69, 58, .6); }
+html.is-phone .m-stat.lit.hot .m-stat-ic { background: var(--m-red); color: #fff; animation: m-pulse 1.8s ease-out infinite; }
+html.is-phone .m-stat.lit.blue { background: rgba(10, 132, 255, .14); border-color: rgba(10, 132, 255, .55); }
+html.is-phone .m-stat.lit.blue .m-stat-ic { background: var(--m-blue); color: #fff; }
+html.is-phone .m-stat.lit span:last-child { color: #fff; }
+
+/* the team, side by side */
+html.is-phone .m-people { display: flex; gap: 6px; overflow-x: auto; padding: 16px 8px 14px; border-radius: 18px; background: var(--m-card); scrollbar-width: none; scroll-snap-type: x mandatory; }
+html.is-phone .m-people::-webkit-scrollbar { display: none; }
+html.is-phone .m-person { flex: 1 0 96px; min-width: 0; display: grid; justify-items: center; gap: 3px; padding: 4px 2px; color: #fff; text-decoration: none; text-align: center; scroll-snap-align: start; }
+html.is-phone .m-person:active { opacity: .7; }
+html.is-phone .m-ring { position: relative; display: grid; place-items: center; width: 70px; height: 70px; margin-bottom: 6px; border-radius: 50%; padding: 3px;
+  background: conic-gradient(from 200deg, #3a3a3c, #48484a, #3a3a3c); }
+html.is-phone .m-ring .av { width: 64px; height: 64px; font-size: 24px; border: 3px solid var(--m-card); }
+html.is-phone .m-person.on .m-ring { background: conic-gradient(from 200deg, #30d158, #7cf29a, #30d158); box-shadow: 0 0 18px rgba(48, 209, 88, .25); }
+html.is-phone .m-person.work .m-ring { background: conic-gradient(from 200deg, #0a84ff, #64d2ff, #0a84ff); box-shadow: 0 0 18px rgba(10, 132, 255, .3); }
+html.is-phone .m-person.wait .m-ring { background: var(--m-orange); }
+html.is-phone .m-person.bad .m-ring { background: var(--m-red); }
+html.is-phone .m-person.off .m-ring .av { filter: grayscale(1); opacity: .5; }
+html.is-phone .m-person .m-place { right: -1px; bottom: 0; width: 24px; height: 24px; box-shadow: 0 0 0 3px var(--m-card); }
+html.is-phone .m-person .m-place svg.i { width: 13px; height: 13px; }
+html.is-phone .m-person.work .m-place { background: var(--m-blue); color: #fff; }
+html.is-phone .m-person b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px var(--m-font); }
+html.is-phone .m-person > span { color: var(--m-dim); font: 400 12.5px var(--m-font); white-space: nowrap; }
+html.is-phone .m-person.on > span { color: var(--m-green); }
+html.is-phone .m-person.work > span { color: #64a8ff; }
+html.is-phone .m-person em { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c7c7cc; font: 400 11.5px var(--m-font); font-style: normal; }

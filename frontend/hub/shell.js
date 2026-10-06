@@ -190,7 +190,6 @@ onLive(["notification"], hubNews);
 const COMMANDS = [
   ["Criar tarefa", "plus", () => newTask()],
   ["Entregar tarefa à IA", "bot", () => newTask({ for_ai: "developer" })],
-  ["Perguntar à Team AI", "spark", () => toggleAI(true)],
   ["Ver agentes", "bot", "#/agentes"], ["Ver aprovações", "check", "#/aprovacoes"], ["Ao vivo", "pulse", "#/aovivo"],
   ["Tarefas", "tasks", "#/tarefas"], ["Projetos", "folder", "#/projetos"], ["Empresas", "building", "#/empresas"], ["Código", "code", "#/codigo"], ["Entregas", "fotos", "#/entregas"],
   ["Histórico", "history", "#/historico"], ["Semana", "calendar", "#/semana"], ["Equipa", "users", "#/equipa"], ["Análise", "chart", "#/analise"],
@@ -295,7 +294,8 @@ function hubStart() {
   $("collapse").innerHTML = icon("sidebar");
   $("open-palette").innerHTML = `${icon("search")}<span>${t("Procurar ou executar…")}</span><kbd>Ctrl K</kbd>`;
   $("ai-fab").innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${HUB_ICONS.spark}</svg>`;
-  $("ai-fab").hidden = false;
+  // The Team AI's round button stays hidden since 6 Oct: Kovel had it taken off every page (and off Ctrl+K and the phone's
+  // "Mais"). The panel's code is still below, for the day it comes back.
   $("app").classList.toggle("collapsed", localStorage.getItem("hub.side") === "collapsed");
 
   $("bell").onclick = (e) => { e.stopPropagation(); toggleNotifications(); };

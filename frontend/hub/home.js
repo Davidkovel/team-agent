@@ -187,7 +187,7 @@ async function progressBody() {
         <li><i class="bad"></i>${t("Atrasadas")}<b>${p.late.length}</b></li></ul></div>
     <div class="week">${icon("trend")}<b>${t("Progresso do grupo")}</b><span>${t("esta semana")}</span></div>
     <div class="week-bar"><div class="in-bar"><i style="width:${pct}%"></i></div><b>${weekTotal ? `${pct}%` : "—"}</b></div>
-    <div class="week-nums">${[[weekTotal, "Tarefas totais"], [weekDone, "Concluídas"], [p.inProgress, "Em curso"], [p.late.length, "Atrasadas"]]
+    <div class="week-nums">${[[weekTotal, "Totais"], [weekDone, "Concluídas"], [p.inProgress, "Em curso"], [p.late.length, "Atrasadas"]]
       .map(([n, label]) => `<div><b>${n}</b><span>${t(label)}</span></div>`).join("")}</div>`;
 }
 

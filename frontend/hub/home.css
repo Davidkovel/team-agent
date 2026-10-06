@@ -388,3 +388,12 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .dn-tag { padding: 2px 8px; border-radius: 999px; font: 700 9.5px var(--ui); font-style: normal; letter-spacing: .08em; text-transform: uppercase; }
 .dn-tag.bad { color: var(--bad); background: rgba(239, 111, 94, .14); }
 .dn-tag.warn { color: var(--warn); background: rgba(226, 181, 92, .14); }
+
+/* the team card: the faces sit together in the middle, not one in each third of the card */
+#in-team .people { justify-content: center; gap: 10px; }
+#in-team .person { flex: 0 1 128px; }
+
+/* Progresso da equipa: as tall as the card beside it, with its two halves spread over the height, and labels on one line */
+.in-grid .in-prog { align-self: stretch; display: flex; flex-direction: column; }
+#in-prog { flex: 1; display: flex; flex-direction: column; justify-content: space-around; }
+.week-nums span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .1em; }

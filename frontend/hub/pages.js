@@ -763,14 +763,52 @@ async function loadRanking() {
 }
 onLive(["activity", "task"], async () => { if ($("ranking")) await loadRanking(); });
 
+// A number with a line under it that says what it means: who, how much of what, compared with what.
+const statNote = (label, value, note = "") => `<div class="panel statc"><span>${t(label)}</span>${ui.num(value)}${note ? `<small class="statc-n">${esc(note)}</small>` : ""}</div>`;
+// The folders of the repository in the team's words: nobody here says "backend".
+const CODE_AREA = { frontend: "Páginas do Hub", backend: "Motor do Hub", widget: "Widget", agent: "Agente de IA", library: "Biblioteca", scripts: "Instalação", docs: "Documentação" };
+const CODE_KIND = [["design", "Design"], ["photo", "Fotos"], ["text", "Textos"], ["code", "Código"]];
+
+// "Código" for people who do not read code: how many changes went out, the last one, where they landed and of what kind.
+function codeHtml(commits, days, source) {
+  if (!commits) return `${ui.sec("Alterações ao Hub e ao widget", ui.src("not_connected"))}<p class="faint">${t("Sem acesso ao repositório neste computador.")}</p>`;
+  const since = Date.now() - days * 864e5, list = commits.filter((c) => new Date(c.date) >= since);
+  const areas = {}, kinds = {}, authors = {};
+  for (const c of list) {
+    authors[c.author] = (authors[c.author] || 0) + 1;
+    for (const a of c.areas || []) areas[CODE_AREA[a.name] || "Outros"] = (areas[CODE_AREA[a.name] || "Outros"] || 0) + a.files;
+    for (const [k, v] of Object.entries(c.kinds || {})) kinds[k] = (kinds[k] || 0) + v.files;
+  }
+  const files = Object.values(areas).reduce((n, v) => n + v, 0), last = list[0];
+  const bars = (rows) => { const top = Math.max(1, ...rows.map((r) => r[1])); return rows.length ? `<div class="cd-bars">${rows.map(([name, n]) =>
+    `<div><span>${esc(t(name))}</span><i><u style="width:${n / top * 100}%"></u></i><b>${n}</b></div>`).join("")}</div>` : `<p class="faint" style="margin:0">${t("Sem alterações neste período.")}</p>`; };
+  const who = Object.entries(authors).sort((a, b) => b[1] - a[1]).map(([name, n]) => `${name.split(" ")[0]} ${n}`).join(" · ");
+  return `${ui.sec("Alterações ao Hub e ao widget", `<a class="ch-link" href="#/entregas">${t("Ver cada uma")}${icon("chevron")}</a>`)}
+    <div class="stats">${statNote("Alterações enviadas", list.length, who || t("ninguém enviou nada"))}
+      ${statNote("Por dia", list.length ? (list.length / days).toFixed(1).replace(".", ",") : 0, t("em média, nos últimos {n} dias", { n: days }))}
+      ${statNote("Ficheiros mexidos", files, t("somando todas as alterações"))}</div>
+    ${last ? `<a class="panel cd-last" href="#/entregas"><span>${t("Última alteração")}</span><b>${esc(last.message)}</b><em>${esc(last.author)} · ${fmt.ago(last.date)}</em></a>` : ""}
+    <div class="cd-two"><div class="panel pad"><div class="ph-eyebrow">${t("Onde se mexeu")}</div>${bars(Object.entries(areas).sort((a, b) => b[1] - a[1]))}</div>
+      <div class="panel pad"><div class="ph-eyebrow">${t("De que tipo")}</div>${bars(CODE_KIND.filter(([k]) => kinds[k]).map(([k, label]) => [label, kinds[k]]))}</div></div>
+    ${commits.length >= 100 && list.length === commits.length ? `<p class="faint" style="margin-top:10px">${t("Só se veem as 100 alterações mais recentes: num período longo há mais do que estas.")}</p>` : ""}`;
+}
+
 async function loadAnalytics() {
   await mount($("analytics"), async () => {
-    const a = await api(`/api/analytics?days=${analyticsDays}`);
+    const [a, team, tasks, commits] = await Promise.all([api(`/api/analytics?days=${analyticsDays}`), api("/api/team").catch(() => []), api("/api/tasks").catch(() => []),
+      api("/api/commits?limit=100").catch(() => null)]);
+    const online = team.filter((m) => m.status !== "OFFLINE").map((m) => m.display_name);
+    const open = tasks.filter((x) => x.stage !== "done"), urgent = open.filter((x) => x.priority === "urgent").length;
+    const carrying = team.map((m) => [m.display_name, open.filter((x) => x.assignee === m.user).length]).filter(([, n]) => n).sort((x, y) => y[1] - x[1]).map(([name, n]) => `${name} ${n}`).join(" · ");
+    const period = t("nos últimos {n} dias", { n: analyticsDays });
     const hours = a.ai.ai_seconds ? (a.ai.ai_seconds / 3600).toFixed(1) + " h" : null;
     return `${ui.sec("Equipa", ui.src(a.team.source))}<div class="stats">
-        ${statCard("Pessoas online", `${a.team.active_users}/${a.team.people}`)}${statCard("Sessões de IA ativas", a.team.active_sessions)}
-        ${statCard("Tarefas criadas", a.team.tasks_created)}${statCard("Tarefas concluídas", a.team.tasks_completed)}
-        ${statCard("Tarefas abertas", a.team.tasks_open)}${statCard("Pedidos de aprovação", a.team.approvals)}</div>
+        ${statNote("Pessoas online", `${a.team.active_users}/${a.team.people}`, online.length ? online.join(", ") : t("ninguém agora"))}
+        ${statNote("Tarefas criadas", a.team.tasks_created, period)}
+        ${statNote("Tarefas concluídas", a.team.tasks_completed, a.team.tasks_created ? t("{n}% das criadas no período", { n: Math.round(a.team.tasks_completed / a.team.tasks_created * 100) }) : period)}
+        ${statNote("Tarefas por fazer", a.team.tasks_open, `${carrying || t("nenhuma")}${urgent ? ` · ${t(urgent === 1 ? "1 urgente" : "{n} urgentes", { n: urgent })}` : ""}`)}
+        ${a.team.active_sessions ? statNote("IA a trabalhar agora", a.team.active_sessions, t("sessões abertas")) : ""}
+        ${a.team.approvals ? statNote("À espera de aprovação", a.team.approvals, t("pedidos da IA por decidir")) : ""}</div>
       ${a.ai.sessions || a.ai.runs ? `${ui.sec("Uso de IA", ui.src(a.ai.source))}<div class="stats">
         ${statCard("Sessões", a.ai.sessions || null)}${statCard("Tokens de entrada", a.ai.runs ? fmt.tokens(a.ai.tokens.input) : null)}
         ${statCard("Tokens de saída", a.ai.runs ? fmt.tokens(a.ai.tokens.output) : null)}${statCard("Agentes", a.ai.agents || null)}
@@ -783,10 +821,7 @@ async function loadAnalytics() {
         <div class="panel pad"><div class="ph-eyebrow">${t("Por tarefa")}</div>${barRows(a.cost.per_task, a.cost.total_usd)}</div></div>
         <div class="stack">${statCard("Custo total de IA", a.cost.total_usd == null ? null : fmt.usd(a.cost.total_usd))}
         <div class="panel pad"><div class="ph-eyebrow">${t("Por projeto")}</div>${barRows(a.cost.per_project, a.cost.total_usd)}</div></div></div>` : ""}
-      ${ui.sec("Código", ui.src(a.code.source))}<div class="stats">
-        ${statCard("Commits", a.code.source === "live" ? a.code.commits : null)}${statCard("Linhas adicionadas", a.code.source === "live" ? fmt.int(a.code.added) : null)}
-        ${statCard("Linhas removidas", a.code.source === "live" ? fmt.int(a.code.deleted) : null)}
-</div>
+      ${codeHtml(commits, analyticsDays)}
       ${a.value.cost_per_task.usd != null || a.value.cost_per_commit.usd != null ? `${ui.sec("Valor")}<div class="stats">
         ${statCard("Custo por tarefa concluída", a.value.cost_per_task.usd == null ? null : fmt.usd(a.value.cost_per_task.usd), a.value.cost_per_task.source)}
         ${statCard("Custo por commit", a.value.cost_per_commit.usd == null ? null : fmt.usd(a.value.cost_per_commit.usd), a.value.cost_per_commit.source)}</div>

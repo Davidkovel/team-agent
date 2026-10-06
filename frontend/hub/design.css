@@ -575,3 +575,34 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 /* the panel's team title: the count and the button no longer squeeze each other */
 #hpanel h4 em { white-space: nowrap; }
 #hpanel-check { margin-left: 8px; }
+
+/* Análise: the rhythm as a real chart, and the summary as a brief instead of a block of typewriter text */
+.an-rhythm .an-nums { align-items: flex-end; }
+.an-rhythm .an-key { margin: 0 0 4px auto; flex-wrap: wrap; }
+.an-key i.open { margin-left: 12px; height: 3px; width: 14px; border-radius: 2px; background: #f4f6f8; }
+.an-svg { display: block; width: 100%; height: auto; margin-top: 14px; overflow: visible; }
+.an-svg, .an-svg * { stroke: none; stroke-width: 0; }   /* the icons' rule (every svg is drawn in outline) must not reach the chart */
+.an-svg line.g { stroke: rgba(255, 255, 255, .07); stroke-width: 1; }
+.an-svg .ax { fill: var(--faint); font: 500 10.5px var(--ui); }
+.an-svg .ax.on { fill: var(--text); font-weight: 700; }
+.an-svg .hit { fill: transparent; } .an-svg g:hover .hit { fill: rgba(255, 255, 255, .04); }
+.an-svg .now { fill: rgba(255, 255, 255, .045); }
+.an-svg rect.made { fill: rgba(255, 255, 255, .3); } .an-svg rect.done { fill: var(--ok); }
+.an-svg .v { font: 600 11px var(--mono); fill: var(--muted); } .an-svg .v.done { fill: var(--ok); } .an-svg .v.open { fill: #fff; font-size: 12px; }
+.an-svg polyline.open { fill: none; stroke: #f4f6f8; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; opacity: .9; }
+.an-svg circle.open { fill: #0e1013; stroke: #f4f6f8; stroke-width: 2; }
+.an-more[open] > summary { margin-bottom: 6px; }
+.an-brief { padding: 20px 22px; }
+.an-brief > header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.an-brief > header b { font: 600 17px var(--display); }
+.an-brief > header span { color: var(--faint); font-size: 12px; }
+.an-brief-people { display: grid; gap: 12px; margin-top: 16px; }
+.an-brief-people > div { display: flex; gap: 12px; align-items: flex-start; }
+.an-brief-people p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.an-brief-people p b { display: block; color: var(--text); font: 600 13.5px var(--ui); }
+.an-brief h5 { margin: 22px 0 8px; font: 600 10.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.an-brief ol { margin: 0; padding-left: 20px; display: grid; gap: 7px; font-size: 13.5px; line-height: 1.45; }
+.an-brief ol li::marker { color: var(--faint); font: 600 12px var(--mono); }
+.an-brief > p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.an-brief pre { margin: 16px 0 0; padding: 14px; border-radius: 8px; background: #0b0c0e; white-space: pre-wrap; font: 12px/1.55 var(--mono); user-select: text; }
+.an-brief > footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11.5px; }

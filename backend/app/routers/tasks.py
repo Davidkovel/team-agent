@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import hub, push
 from ..db import get_db
-from ..models import AgentSession, Approval, Project, Task, TaskEvent, UsageRecord, User
+from ..models import Activity, AgentSession, Approval, Project, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
 from ..security import current_user, sees_all
-from ..services import (approval_out, delete_tasks, event_out, log_activity, not_mistake, notify, purge_at, purge_trash,
-                        session_out, task_out)
+from ..services import (approval_out, delete_tasks, event_out, finishers, iso, log_activity, not_mistake, notify, purge_at,
+                        purge_trash, session_out, task_out)
 
 router = APIRouter(prefix="/api/tasks")
 
@@ -140,7 +140,9 @@ async def list_tasks(user: User = Depends(current_user), db: AsyncSession = Depe
     query = select(Task).where(not_mistake()).order_by(Task.id.desc())
     if not sees_all(user):
         query = query.where(Task.assignee_id == user.id)
-    return [task_out(t) for t in (await db.execute(query)).scalars()]
+    tasks = list((await db.execute(query)).scalars())
+    done = await finishers(db)
+    return [task_out(t, done.get(t.id)) for t in tasks]
 
 
 @router.get("/trash")  # declared before /{task_id}, or "trash" would be read as a task number
@@ -152,6 +154,19 @@ async def trash_list(user: User = Depends(current_user), db: AsyncSession = Depe
     return [{**task_out(t), "purge_at": purge_at(t)} for t in (await db.execute(query)).scalars()]
 
 
+# What a person did to a task, as the history shows it. The agent's own steps are its events, not this.
+LOGGED = ("task_status", "task_edit")
+
+
+async def task_log(db: AsyncSession, task: Task) -> list[dict]:
+    """Who made the task, then every status change and edit, oldest first, each with who did it and when."""
+    made = [{"who": task.creator.username, "name": task.creator.display_name, "kind": "task_created",
+             "message": f"criou a tarefa para {task.assignee.display_name}", "at": iso(task.created_at)}] if task.creator else []
+    rows = (await db.execute(select(Activity).where(Activity.task_id == task.id, Activity.kind.in_(LOGGED)).order_by(Activity.id))).scalars()
+    return made + [{"who": a.user.username, "name": a.user.display_name, "kind": a.kind,
+                    "message": a.message.split(": ", 1)[0], "at": iso(a.created_at)} for a in rows]
+
+
 @router.get("/{task_id}")
 async def task_detail(task_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     task = await get_task(task_id, user, db)
@@ -160,10 +175,46 @@ async def task_detail(task_id: int, user: User = Depends(current_user), db: Asyn
     sessions = (await db.execute(select(AgentSession).where(AgentSession.task_id == task_id).order_by(AgentSession.id.desc()))).scalars()
     cost, runs = (await db.execute(select(func.sum(UsageRecord.cost_usd), func.count(UsageRecord.id))
                                    .where(UsageRecord.task_id == task_id))).one()
-    return {**task_out(task), "events": [event_out(e) for e in events], "approvals": [approval_out(a) for a in approvals],
+    return {**task_out(task, (await finishers(db, [task.id])).get(task.id)), "log": await task_log(db, task),
+            "events": [event_out(e) for e in events], "approvals": [approval_out(a) for a in approvals],
             "sessions": [session_out(s) for s in sessions],
             # the SDK's estimate for the runs of this task; None when no run reported any
             "ai_cost_usd": round(cost, 4) if runs else None}
+
+
+PRIORITY_TEXT = {"low": "Baixa", "normal": "Normal", "high": "Alta", "urgent": "Urgente"}
+MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+
+
+def _when(d: datetime) -> str:
+    d = (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).astimezone()  # the Hub's own clock is the team's (Lisboa)
+    return f"{d.day} {MONTHS[d.month - 1]} {d:%H:%M}"
+
+
+async def _what_changed(db: AsyncSession, task: Task, changes: dict) -> list[str]:
+    """The edits in words, only what really changes ("mudou o prazo para 8 out 14:00"). Status has its own line."""
+    said = []
+    if "title" in changes and (changes["title"] or "") != task.title:
+        said.append("mudou o título")
+    if "description" in changes and (changes["description"] or "") != (task.description or ""):
+        said.append("mudou a descrição")
+    if changes.get("priority") and changes["priority"] != (task.priority or "normal"):
+        said.append(f"mudou a prioridade para {PRIORITY_TEXT[changes['priority']]}")
+    if "deadline" in changes:
+        old, new = task.deadline, changes["deadline"]
+        same = (old is None and new is None) or (old is not None and new is not None
+                                                 and abs((old.replace(tzinfo=old.tzinfo or timezone.utc) - new.replace(tzinfo=new.tzinfo or timezone.utc)).total_seconds()) < 60)
+        if not same:
+            said.append(f"mudou o prazo para {_when(new)}" if new else "tirou o prazo")
+    if "project_id" in changes and changes["project_id"] != task.project_id:
+        said.append("mudou o projeto")
+    if "company" in changes and (changes["company"] or None) != (task.company or None):
+        said.append("mudou a empresa")
+    if changes.get("assignee") and changes["assignee"] != task.assignee.username:
+        other = (await db.execute(select(User).where(User.username == changes["assignee"]))).scalar_one_or_none()
+        if other:
+            said.append(f"passou a tarefa a {other.display_name}")
+    return said
 
 
 @router.patch("/{task_id}")
@@ -174,6 +225,7 @@ async def edit_task(task_id: int, body: TaskEdit, user: User = Depends(current_u
     changes = body.model_dump(exclude_unset=True)
     await _check_links(db, changes.get("company"), changes.get("project_id"))
     old_status = task.status
+    said = await _what_changed(db, task, changes)
     if "status" in changes or "assignee" in changes:
         if task.status in HELD_BY_AGENT:
             raise HTTPException(409, "The agent is working on this task: pause or stop it first")
@@ -192,6 +244,8 @@ async def edit_task(task_id: int, body: TaskEdit, user: User = Depends(current_u
         task.blocked_reason = ""
     await db.commit()
     await db.refresh(task)
+    if said:
+        await log_activity(db, user, "task_edit", f"{' e '.join(said)}: {task.title}", task.id)
     if task.status != old_status:
         verb = {"TODO": "voltou a pôr por fazer", "BLOCKED": "marcou como bloqueada", "REVIEW": "pôs em revisão",
                 "COMPLETED": "concluiu"}[task.status]
@@ -199,7 +253,7 @@ async def edit_task(task_id: int, body: TaskEdit, user: User = Depends(current_u
         if task.status == "COMPLETED" and task.created_by != user.id:  # whoever asked for it hears that it is done
             await notify(db, [task.created_by], "task", "info", f"{user.display_name} concluiu: {task.title}", "", f"#/tarefas/{task.id}")
     await rt.publish("task", task.assignee_id)
-    return task_out(task)
+    return task_out(task, user.username if task.status == "COMPLETED" and task.status != old_status else (await finishers(db, [task.id])).get(task.id))
 
 
 @router.post("/{task_id}/trash")

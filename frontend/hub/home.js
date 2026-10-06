@@ -143,19 +143,8 @@ const tilesHtml = () => `<nav class="in-tiles">${TILES.map(([act, ic, title, sub
   <span class="tile-ic"><span>${icon(ic)}</span></span>${act === "alerts" ? '<i class="badge-n" id="in-unread" hidden></i>' : ""}
   <span class="tile-t"><b>${esc(t(title))}</b><span>${esc(t(sub))}</span></span>${icon("chevron")}</button>`).join("")}</nav>`;
 
-// For the figures, a task sent to everybody counts once: it is done when everybody has done it, until then it is still open.
-function countOnce(tasks) {
-  return groupAll(tasks.filter((x) => !x.trashed_at)).map((x) => {
-    if (!x.group) return x;
-    const left = x.group.filter((y) => y.stage !== "done");
-    if (left.length) return { ...left.find((y) => y.stage === "in_progress") || left[0], group: x.group };
-    const last = x.group.reduce((a, b) => (new Date(b.completed_at || 0) > new Date(a.completed_at || 0) ? b : a));
-    return { ...last, group: x.group };
-  });
-}
-
 async function progressBody() {
-  const p = planOf(countOnce(await api("/api/tasks")));
+  const p = planOf(asOne(await api("/api/tasks"))); // a task sent to everybody counts once, done when all did it
   const doneN = p.doneToday.length, total = doneN + p.today.length;
   const weekDone = p.doneWeek.length, weekTotal = weekDone + p.open.length;
   const pct = weekTotal ? Math.round((weekDone / weekTotal) * 100) : 0;
@@ -186,21 +175,23 @@ function taskRow(x, done) {
   const [when, late] = done ? [fmt.hhmm(x.completed_at), ""] : whenOf(x, tasksTab);
   const own = x.group ? x.group.find((y) => y.assignee === me.username) : x;
   const held = !done && own && heldByAgent(own);
-  const check = done ? `<span class="tcheck">${icon("tick")}</span>`
+  const mineDone = !done && x.group && own && own.stage === "done"; // my part is done, the others' is not
+  const check = done || mineDone ? `<span class="tcheck ${mineDone ? "part" : ""}" title="${mineDone ? t("Já fizeste a tua parte") : ""}">${icon("tick")}</span>`
     : held ? `<span class="tcheck held" title="${t("O agente está a tratar dela")}"></span>`
     : own ? `<button class="tcheck" data-done="${own.id}" title="${t("Concluir")}" aria-label="${t("Concluir")}"></button>`
     : `<button class="tcheck" data-task="${x.id}" title="${t("Abrir")}" aria-label="${t("Abrir")}"></button>`;
   const prio = !done && x.priority === "urgent" ? "urgent" : !done && x.priority === "high" ? "high" : "";
   return `<div class="trow ${done ? "done" : ""} ${prio}">${check}<button class="ttitle" data-task="${(own || x).id}">${esc(x.title)}</button>
-    <span class="twhen ${late}">${esc(when)}</span><span class="ttag ${x.group ? "all" : ""}">${esc(x.group ? t("Todos") : tagOf(x))}</span></div>`;
+    <span class="twhen ${late}">${esc(when)}</span>${x.group ? `<span class="ttag all" title="${esc(whoLeft(x.group))}">${whoFaces(x.group)}<b>${x.group.filter((y) => y.stage === "done").length}/${x.group.length}</b></span>`
+      : `<span class="ttag ${done && x.completed_by && x.completed_by !== x.assignee ? "other" : ""}" title="${esc(done ? doneBy(x) : "")}">${esc(done && x.completed_by ? nameOf(x.completed_by) : tagOf(x))}</span>`}</div>`;
 }
 
 // What is still to do fills the card, the most important first. What is already done today is one quiet line that opens on a click.
 let showDone = false;
 async function tasksBody() {
-  const p = planOf(await api("/api/tasks"));
-  const open = groupAll(p[tasksTab]).sort((a, b) => importance(a) - importance(b));
-  const done = tasksTab === "today" ? groupAll(p.doneToday) : [];
+  const p = planOf(asOne(await api("/api/tasks"))); // "Para todos" is one row, open until everybody did their part
+  const open = p[tasksTab].sort((a, b) => importance(a) - importance(b));
+  const done = tasksTab === "today" ? p.doneToday : [];
   const more = open.length - MAX_ROWS;
   return `<div class="day-tabs" role="tablist">${DAY_TABS.map(([id, label]) =>
       `<button role="tab" data-tab="${id}" class="${id === tasksTab ? "on" : ""}" aria-selected="${id === tasksTab}">${t(label)}</button>`).join("")}</div>

@@ -75,6 +75,7 @@ class Task(Base):
     trash_prev_progress: Mapped[int | None] = mapped_column(Integer)
 
     assignee: Mapped[User] = relationship(foreign_keys=[assignee_id], lazy="joined")
+    creator: Mapped[User] = relationship(foreign_keys=[created_by], lazy="joined")
     project_ref: Mapped["Project | None"] = relationship(lazy="joined")
 
 

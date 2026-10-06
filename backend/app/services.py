@@ -19,7 +19,7 @@ def iso(dt: datetime | None) -> str | None:
     return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).isoformat()
 
 
-def task_out(t: Task) -> dict:
+def task_out(t: Task, completed_by: str | None = None) -> dict:
     return {
         "id": t.id, "title": t.title, "description": t.description, "goal": t.goal,
         "requirements": t.requirements, "project": t.project,
@@ -34,7 +34,23 @@ def task_out(t: Task) -> dict:
         "agent_role": t.agent_role or "", "agent_instructions": t.agent_instructions or "",
         "git_branch": t.git_branch or "", "blocked_reason": t.blocked_reason or "",
         "trashed_at": iso(t.trashed_at), "trash_reason": t.trash_reason,
+        "created_by": t.creator.username if t.creator else None,
+        # who finished it, which is not always the person it was for (see finishers)
+        "completed_by": completed_by if t.status == "COMPLETED" else None,
     }
+
+
+async def finishers(db: AsyncSession, task_ids: list[int] | None = None) -> dict[int, str]:
+    """Who finished each task: the last status change written down for it is a "concluiu" (reopening it is a newer one).
+    The activity log was always kept, by whoever pressed the button (or the agent), so this holds for old tasks too."""
+    query = select(Activity.task_id, Activity.message, User.username).join(User, User.id == Activity.user_id) \
+        .where(Activity.kind == "task_status", Activity.task_id.is_not(None)).order_by(Activity.id)
+    if task_ids is not None:
+        query = query.where(Activity.task_id.in_(task_ids))
+    last: dict[int, tuple[str, str]] = {}
+    for task_id, message, username in (await db.execute(query)).all():
+        last[task_id] = (message, username)
+    return {task_id: username for task_id, (message, username) in last.items() if message.startswith("concluiu")}
 
 
 TRASH_HOURS = 7  # how long a task stays in the bin, recoverable, before it is deleted for good

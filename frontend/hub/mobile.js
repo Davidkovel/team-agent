@@ -120,7 +120,7 @@
   // A task sent to everybody is one task; in "mine" it stands for my own copy (its circle finishes mine).
   function scopeOf(all, scope) {
     const grouped = groupAll(all.filter((x) => !x.trashed_at));
-    if (scope === "team") return grouped;
+    if (scope === "team") return asOne(all.filter((x) => !x.trashed_at));
     return grouped.filter((x) => (x.group ? x.group.some((y) => y.assignee === me.username) : x.assignee === me.username))
       .map((x) => (x.group ? { ...x.group.find((y) => y.assignee === me.username), group: x.group } : x));
   }
@@ -146,12 +146,13 @@
   const faces = (list) => `<span class="m-faces">${list.slice(0, 3).map((y) => ui.avatar(nameOf(y.assignee), "sm")).join("")}</span>`;
   const taskRow = (x, team) => {
     const tone = x.stage === "done" ? "done" : x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
-    const meta = [x.group ? t("Para todos") : "", esc(x.project_name || companies.find((c) => c.id === x.company)?.name || ""), x.stage === "done" ? "" : deadlineLabel(x),
+    const meta = [x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : x.stage === "done" && x.completed_by ? `<span class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</span>` : "",
+      esc(x.project_name || companies.find((c) => c.id === x.company)?.name || ""), x.stage === "done" ? "" : deadlineLabel(x),
       x.stage === "in_progress" ? `<span class="ai">${t("Em curso")}</span>` : x.stage === "blocked" ? `<span class="late">${t("Bloqueada")}</span>` : ""].filter(Boolean);
     return `<div class="m-task ${tone}" data-id="${x.id}">
       <button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}">${x.stage === "done" ? icon("tick") : ""}</button>
       <div><b>${tone === "urgent" ? '<i class="m-bang">!!</i>' : tone === "high" ? '<i class="m-bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span class="sub">${meta.join(" · ")}</span>` : ""}</div>
-      ${x.group ? faces(x.group) : team ? faces([x]) : ""}</div>`;
+      ${x.group ? whoFaces(x.group) : team ? faces([x]) : ""}</div>`;
   };
   const block = (title, list, tone, team, sort = true) => (list.length ? `<section class="m-sec"><h3 class="m-grp ${tone}"><i></i>${t(title)}<span>${list.length}</span></h3>
     <div class="m-list">${(sort ? [...list].sort(byImportance) : list).map((x) => taskRow(x, team)).join("")}</div></section>` : "");

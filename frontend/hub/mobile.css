@@ -311,3 +311,10 @@ html.is-phone .m-task .ai { color: #64a8ff; }
 html.is-phone .m-faces { flex: none; display: inline-flex; }
 html.is-phone .m-faces .av { width: 26px; height: 26px; margin-left: -8px; font-size: 11px; box-shadow: 0 0 0 2px var(--m-card); }
 html.is-phone .m-faces .av:first-child { margin-left: 0; }
+
+/* who did their part, on the phone */
+html.is-phone .m-task .sub .all { color: #c7c7cc; }
+html.is-phone .m-task .sub .other { color: var(--m-orange); }
+html.is-phone .m-task .doer-row .av { width: 26px; height: 26px; font-size: 11px; box-shadow: 0 0 0 2px var(--m-card); }
+html.is-phone .m-task .doer-row .doer + .doer { margin-left: -8px; }
+html.is-phone .m-task .doer > i { width: 13px; height: 13px; box-shadow: 0 0 0 2px var(--m-card); }

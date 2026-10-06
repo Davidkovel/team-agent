@@ -37,18 +37,41 @@ function groupAll(list) {
   }
   return out;
 }
+// The card for a task sent to everybody is done only when everybody has done it; until then it stands where the work still is.
+function asOne(list) {
+  return groupAll(list).map((x) => {
+    if (!x.group) return x;
+    const left = x.group.filter((y) => y.stage !== "done");
+    if (left.length) return { ...(left.find((y) => y.stage === "in_progress") || left[0]), group: x.group };
+    return { ...x.group.reduce((a, b) => (new Date(b.completed_at || 0) > new Date(a.completed_at || 0) ? b : a)), group: x.group };
+  });
+}
+// A face per person: a tick on whoever did their part, faded for whoever has not.
+const whoFace = (y, size = "sm") => `<span class="doer ${y.stage === "done" ? "did" : "left"}" title="${esc(nameOf(y.assignee))}: ${esc(y.stage === "done"
+  ? `${t("feito")}${y.completed_by && y.completed_by !== y.assignee ? ` (${t("por")} ${nameOf(y.completed_by)})` : ""}` : t("por fazer"))}">${ui.avatar(nameOf(y.assignee), size)}<i>${icon("tick")}</i></span>`;
+const whoFaces = (group, size) => `<span class="doer-row">${group.map((y) => whoFace(y, size)).join("")}</span>`;
+// "2 de 3 feito · falta Kovel"
+function whoLeft(group) {
+  const left = group.filter((y) => y.stage !== "done");
+  if (!left.length) return t("Todos fizeram");
+  const did = group.length - left.length;
+  return `${t("{a} de {b} feito", { a: did, b: group.length })} · ${t("falta")} ${left.map((y) => nameOf(y.assignee)).join(", ")}`;
+}
+// "por Kovel", and when it was somebody else's: "por Kovel (era do Marco)"
+const doneBy = (x) => (x.completed_by ? `${t("por")} ${nameOf(x.completed_by)}${x.completed_by !== x.assignee ? ` (${t("era de")} ${nameOf(x.assignee)})` : ""}` : "");
 const importance = (x) => (x.priority === "urgent" ? 0 : x.priority === "high" ? 1 : 2);
 const isFresh = (x) => x.stage !== "done" && Date.now() - new Date(x.created_at) < 15 * 60000;
 
 function taskCard(x) {
   const late = x.deadline && x.stage !== "done" && new Date(x.deadline) < new Date();
   const mineOf = x.group && x.group.find((y) => y.assignee === me.username);
-  const stack = x.group ? `<span class="av-stack">${x.group.map((y) => ui.avatar(nameOf(y.assignee), "sm")).join("")}</span>` : ui.avatar(nameOf(x.assignee), "sm");
+  const stack = x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.assignee), "sm");
   const top = [x.priority === "urgent" ? ui.tag(t("Urgente"), "bad") : x.priority === "high" ? ui.tag(t("Alta"), "warn") : "", x.group ? ui.tag(t("Para todos"), "ai") : "", isFresh(x) ? ui.tag(t("Nova"), "ok") : ""].join("");
   return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
     ${top ? `<div class="tk-top">${top}</div>` : ""}
     <b>${esc(x.title)}</b>
     ${x.stage === "in_progress" || (x.progress > 0 && x.stage !== "done") ? ui.progress(x.progress, "ai") : ""}
+    ${x.group ? `<span class="tk-who">${esc(whoLeft(x.group))}</span>` : ""}
     <div class="tk-foot">${stack}<span class="grow ell">${esc(x.project_name || x.project || "")}</span>
       ${x.agent_role ? ui.tag("IA", "ai") : ""}${x.priority === "low" ? ui.tag(t(PRIORITY[x.priority]), x.priority) : ""}
       ${x.deadline ? ui.tag(fmt.date(x.deadline), late ? "bad" : "") : ""}</div></article>`;
@@ -57,8 +80,10 @@ function taskCard(x) {
 // What is finished takes little room: one short line each, only today's, and the older ones behind a button.
 let showOlderDone = false;
 const doneAt = (x) => new Date(x.completed_at || x.updated_at || x.created_at);
-const doneCard = (x) => `<article class="tk tk-done" draggable="${x.group ? "false" : "true"}" data-id="${((x.group && x.group.find((y) => y.assignee === me.username)) || x).id}">
-  <span class="tk-tick">${icon("check")}</span><b>${esc(x.title)}</b>${x.group ? `<i>${t("Todos")}</i>` : ui.avatar(nameOf(x.assignee), "sm")}</article>`;
+const doneCard = (x) => `<article class="tk tk-done" draggable="${x.group ? "false" : "true"}" data-id="${((x.group && x.group.find((y) => y.assignee === me.username)) || x).id}"
+  title="${esc(x.group ? whoLeft(x.group) : doneBy(x))}"><span class="tk-tick">${icon("check")}</span><span class="tk-dt"><b>${esc(x.title)}</b>
+  ${x.group ? `<i>${t("Todos fizeram")}</i>` : x.completed_by ? `<i class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</i>` : ""}</span>
+  ${x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.completed_by || x.assignee), "sm")}</article>`;
 function doneColumn(list, label) {
   const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
   const sorted = [...list].sort((a, b) => doneAt(b) - doneAt(a));
@@ -80,8 +105,9 @@ async function loadBoard() {
     const tasks = taskFilter ? all.filter((x) => x.assignee === taskFilter) : all;
     if (!all.length) return `<div style="grid-column:1/-1">${ui.empty("tasks", "Sem tarefas", "Cria a primeira tarefa: fica contigo ou vai direta para um agente.",
       `<button class="btn sm primary" data-new-task>${t("Nova tarefa")}</button>`)}</div>`;
+    const cards = asOne(tasks); // "Para todos" is one card, in "Concluída" only once everybody has done it
     return STAGES.map(([stage, label]) => {
-      const mine = groupAll(tasks.filter((x) => x.stage === stage)).sort((a, b) => importance(a) - importance(b)); // urgent first, then as before
+      const mine = cards.filter((x) => x.stage === stage).sort((a, b) => importance(a) - importance(b)); // urgent first, then as before
       if (stage === "done") return doneColumn(mine, label);
       return `<section class="col" data-stage="${stage}"><div class="col-head"><span>${t(label)}</span><i>${mine.length}</i></div>
         ${mine.map(taskCard).join("") || `<p class="faint" style="margin:6px 2px;font-size:12px">${t("Vazio")}</p>`}</section>`;
@@ -181,16 +207,20 @@ function assignToAI(x) {
 }
 
 async function openTaskModal(id) {
-  let x;
-  try { x = await request_(`/api/tasks/${id}`); } catch (e) { flash(e.message); return; }
+  let x, all;
+  try { [x, all] = await Promise.all([request_(`/api/tasks/${id}`), request_("/api/tasks")]); } catch (e) { flash(e.message); return; }
+  const group = groupAll(all.filter((y) => !y.trashed_at)).find((g) => g.group && g.group.some((y) => y.id === x.id))?.group;
   const held = heldByAgent(x), running = ["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status);
-  const kv = [["Responsável", esc(nameOf(x.assignee))], ["Projeto", esc(x.project_name || x.project || "—")],
+  const kv = [["Responsável", group ? `${t("Todos")} (${group.length})` : esc(nameOf(x.assignee))],
+    ["Criada por", x.created_by ? `${esc(nameOf(x.created_by))} · ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}` : "—"],
+    ...(x.stage === "done" && !group ? [["Concluída por", x.completed_by ? `${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : ""}` : `<span class="faint">${t("Sem registo")}</span>`]] : []), ["Projeto", esc(x.project_name || x.project || "—")],
     ["Empresa", esc(companies.find((c) => c.id === x.company)?.name || "—")], ["Prioridade", t(PRIORITY[x.priority])],
     ["Prazo", x.deadline ? `${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}` : "—"], ["Agente", x.agent_role ? esc(t(ROLES[x.agent_role])) : "—"],
     ["Branch", x.git_branch ? `<span class="mono">${esc(x.git_branch)}</span>` : "—"],
     ["Custo de IA", x.ai_cost_usd == null ? `<span class="faint">${t("Sem dados")}</span>` : `${fmt.usd(x.ai_cost_usd)} ${ui.src("estimated")}`]];
   openModal(`<div class="rowx" style="margin-bottom:12px"><h3 style="margin:0" class="grow">${esc(x.title)}</h3>
-      ${ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></div>
+      ${group ? ui.tag(t("{a} de {b} feito", { a: group.filter((y) => y.stage === "done").length, b: group.length }), group.every((y) => y.stage === "done") ? "ok" : "")
+        : ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></div>
     ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx" style="margin-bottom:12px"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
     ${x.current_action && running ? `<div class="now" style="margin-bottom:12px">${esc(x.current_action)}</div>` : ""}
     ${x.blocked_reason ? `<p class="msg note" style="margin:0 0 12px">${esc(x.blocked_reason)}</p>` : ""}
@@ -199,6 +229,14 @@ async function openTaskModal(id) {
       ${x.goal ? `<p style="margin:0" class="dim"><b>${t("Objetivo")}:</b> ${esc(x.goal)}</p>` : ""}
       ${x.requirements?.length ? `<ul style="margin:0;padding-left:18px" class="dim">${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
       ${x.result ? `<div class="panel pad"><div class="ph-eyebrow">${t("Resultado")}</div><p style="margin:0;white-space:pre-wrap">${esc(x.result)}</p></div>` : ""}
+      ${group ? `<div class="panel">${ui.sec("Quem já fez").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
+        <div class="who-list">${group.map((y) => `<div class="who-line ${y.stage === "done" ? "did" : ""}">${whoFace(y, "")}<div><b>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` <small>${t("tu")}</small>` : ""}</b>
+          <span>${y.stage === "done" ? `${t("Feito")}${y.completed_at ? ` · ${fmt.day(y.completed_at)} ${fmt.hhmm(y.completed_at)}` : ""}${y.completed_by && y.completed_by !== y.assignee ? ` · ${t("por")} ${esc(nameOf(y.completed_by))}` : ""}`
+            : esc(t(STAGE_LABEL[y.stage]))}</span></div></div>`).join("")}</div>
+        <p class="faint" style="margin:0;padding:4px var(--pad) 12px;font-size:12px">${esc(whoLeft(group))}</p></div>` : ""}
+      <div class="panel">${ui.sec("Histórico").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
+        <div class="hist">${(x.log || []).map((e) => `<div class="hist-row">${ui.avatar(e.name, "sm")}<div><b>${esc(e.name)}</b> ${esc(group && e.kind === "task_created" ? t("criou a tarefa para todos") : e.message)}
+          <time>${fmt.day(e.at)} ${fmt.hhmm(e.at)}</time></div></div>`).join("") || `<p class="faint" style="margin:0">${t("Sem registo.")}</p>`}</div></div>
       <div class="panel">${ui.sec("Atividade").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
         ${x.events.length ? `<div class="tl" style="padding-bottom:8px">${ui.feed(x.events.slice(-30).map((e) => ({ at: e.created_at, text: e.message,
           tone: e.kind === "error" ? "bad" : e.kind === "decision" ? "warn" : e.kind === "result" ? "ok" : "ai" })))}</div>`

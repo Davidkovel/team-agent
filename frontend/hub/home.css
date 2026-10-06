@@ -259,3 +259,9 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .in-done.on svg.i:last-child { transform: rotate(90deg); }
 .trows.small .trow { padding: 6px 2px; }
 .trows.small .ttitle { font-size: 12.5px; }
+
+/* Início: "Para todos" shows the faces with ticks and how many did it; a finished task shows who finished it */
+.ttag.all { display: inline-flex; align-items: center; gap: 6px; max-width: none; padding: 2px 8px 2px 4px; overflow: visible; }
+.ttag.all b { font: 600 10px var(--mono); letter-spacing: 0; }
+.ttag.other { border-color: rgba(255, 179, 64, .45); color: #ffb340; }
+.tcheck.part { border: 0; background: rgba(48, 209, 88, .85); }

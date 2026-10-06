@@ -44,6 +44,7 @@ INNER = WIDTH - 28     # what the modules get
 SHADOW = 18
 RADIUS = 24
 GROW, SHRINK = 0.42, 0.32   # seconds
+CLOCK_PILL = 74             # width of the Parar / Retomar button in your own row
 COMMITS_EVERY = 8           # Hub polls (4 s each) between two looks at the last commits: every half minute
 ACCOUNT_EVERY = 75          # Hub polls (4 s each) between two looks at the Claude account's usage: every 5 minutes
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
@@ -783,6 +784,17 @@ class Member(Hover):
         clock().frame.connect(self._frame)
         self.setEnabled(False)
 
+    def _clock_pill(self) -> QRectF:
+        """Where the Parar / Retomar button of your own row sits."""
+        return QRectF(self.width() - CLOCK_PILL, self.height() / 2 - 13, CLOCK_PILL, 26)
+
+    def hitButton(self, pos) -> bool:
+        # Once the clock was started only its button stops and starts it, as in the Hub: a click anywhere on the row
+        # used to stop the hours by accident.
+        if self._me and self._person and self._person.get("ponto"):
+            return self._clock_pill().contains(QPointF(pos))
+        return super().hitButton(pos)
+
     def _frame(self, t):
         self._t = t
         if self._person and self._person.get("online") and self.isVisible():
@@ -798,7 +810,7 @@ class Member(Hover):
         self.setEnabled(can)
         self.setCursor(Qt.PointingHandCursor if can else Qt.ArrowCursor)
         self.setToolTip("" if not can else "Bater o ponto" if not person.get("ponto") else
-                        "Parar o ponto: as horas deixam de contar" if clock_runs(person) else "Retomar o ponto")
+                        "Parar: as horas de hoje deixam de contar" if clock_runs(person) else "Retomar: as horas voltam a contar")
         self.update()
 
     def paintEvent(self, _):
@@ -851,13 +863,32 @@ class Member(Hover):
         p.drawText(QRectF(48, 26, 150, 16), Qt.AlignLeft | Qt.AlignVCenter, state)
         if person.get("ponto"):
             runs = clock_runs(person)
-            p.setPen(QColor(TEXT) if runs else QColor(MUTED))   # stopped, the hours go grey and stand still
+            # your own row is the Hub's Ponto box in small: the hours, green while they count, and a button that says what it does
+            right = w - (CLOCK_PILL + 10 if self._me else 0)
+            p.setPen(QColor("#5fe08a") if runs and self._me else QColor(TEXT) if runs else QColor(MUTED))   # stopped, the hours go grey and stand still
             p.setFont(self._f_time)
-            p.drawText(QRectF(w - 80, 8, 80, 20), Qt.AlignRight | Qt.AlignVCenter, worked_of(person))
+            p.drawText(QRectF(right - 80, 8, 80, 20), Qt.AlignRight | Qt.AlignVCenter, worked_of(person))
             p.setPen(QColor(FAINT))
             p.setFont(self._f_small)
-            note = f"desde {hhmm(person['ponto'])}" if runs else "parado · retomar" if self._me else "parado"
-            p.drawText(QRectF(w - 110, 28, 110, 14), Qt.AlignRight | Qt.AlignVCenter, note)
+            p.drawText(QRectF(right - 110, 28, 110, 14), Qt.AlignRight | Qt.AlignVCenter, f"desde {hhmm(person['ponto'])}" if runs else "parado")
+            if self._me:
+                pill = self._clock_pill()
+                shape = QPainterPath()
+                shape.addRoundedRect(pill, 13, 13)
+                if runs:   # "Parar" is an outline: stopping the clock is the quieter of the two things
+                    p.setPen(pen(QColor(255, 255, 255, int(90 + 110 * self.hover)), 1.2))
+                    p.setBrush(QColor(255, 255, 255, int(14 + 30 * self.hover)))
+                    p.drawRoundedRect(pill.adjusted(.6, .6, -.6, -.6), 12.4, 12.4)
+                    self.paint_wave(p, shape, "#ffffff", 0.2)
+                    p.setPen(QColor(TEXT))
+                else:      # "Retomar" is the white button, like "Bater ponto"
+                    p.setPen(Qt.NoPen)
+                    p.setBrush(QColor(255, 255, 255, int(235 + 20 * self.hover)))
+                    p.drawRoundedRect(pill, 13, 13)
+                    self.paint_wave(p, shape, "#000000", 0.22)
+                    p.setPen(QColor("#000000"))
+                p.setFont(self._f_pill)
+                p.drawText(pill, Qt.AlignCenter, "Parar" if runs else "Retomar")
         elif self.isEnabled():
             pill = QRectF(w - 92, h / 2 - 13, 92, 26)
             p.setPen(Qt.NoPen)
@@ -1849,7 +1880,7 @@ class WidgetWindow(QWidget):
         self._render_people(self._team)
         if not result.get("running", True):
             mine = {"ponto": result["at"], "ponto_state": result}
-            self.notify("Ponto", f"Ponto parado: {worked_of(mine)} hoje. Clica na tua linha para retomar.")
+            self.notify("Ponto", f"Ponto parado: {worked_of(mine)} hoje. «Retomar» põe as horas a contar outra vez.")
         elif result.get("since") and result["since"] != result["at"]:
             self.notify("Ponto", "Ponto a contar outra vez. A equipa já sabe.")
         else:

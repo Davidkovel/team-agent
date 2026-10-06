@@ -56,7 +56,7 @@ async function drawPanel() {
     <section><h4>${icon("videos")}Higgsfield</h4>${panelMeter("Créditos usados", higgs, higgs == null ? t("Por definir: arrasta para dizer quanto já gastaste.") : "")}
       <input id="hpanel-higgs" type="range" min="0" max="100" value="${higgs ?? 0}" aria-label="Higgsfield"></section>
     <section><h4>${icon("users")}${t("Equipa")}<em>${team.filter((m) => m.status !== "OFFLINE").length} ${t("de")} ${team.length} online</em>
-      <button class="btn sm quiet" id="hpanel-check" title="${t("Cada computador ligado volta a ler os limites do Claude agora")}">${t("Verificar agora")}</button></h4>
+      <button class="btn sm quiet" id="hpanel-check" title="${t("Cada computador ligado volta a ler os limites do Claude agora")}">${t("Verificar")}</button></h4>
       <div class="pmates">${team.map((m) => panelMate(m, teamLimits[m.user])).join("")}</div>
       <small class="pclock-n">${t("Claude usado por cada um. Passa o rato para ver quanto resta.")}</small></section>
     ${version?.head ? `<p class="pver" title="${esc(version.subject || "")}"><span>${t("Versão")} <b>${esc(version.head.split("-")[0])}</b>${version.when ? ` · ${fmt.ago(version.when)}` : ""}</span>

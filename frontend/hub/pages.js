@@ -793,18 +793,111 @@ async function loadAnalytics() {
       <p class="faint" style="margin-top:14px">${t("O custo é a estimativa que o SDK do Claude dá em cada sessão; não é uma fatura.")}</p>` : ""}`;
   }, 8);
 }
+/* ---------- Análise: what asks for attention, who carries what, and whether we close more than we open.
+   The page used to be counters (commits, lines, people online) that nobody could act on. Those are still there, folded
+   at the bottom; on top is what a person, or a Claude given the summary, can do something about. ---------- */
+const AN_DAY = 864e5;
+const anSpan = (ms) => (ms < 36e5 ? `${Math.max(1, Math.round(ms / 6e4))} min` : ms < AN_DAY ? `${Math.round(ms / 36e5)} h` : `${Math.round(ms / AN_DAY)} ${Math.round(ms / AN_DAY) === 1 ? "dia" : "dias"}`);
+
+function analysisOf(tasks, team, limits, clocks, commits, days, now = new Date()) {
+  const since = new Date(now - days * AN_DAY);
+  const open = tasks.filter((x) => x.stage !== "done");
+  const done = tasks.filter((x) => x.stage === "done" && x.completed_at && new Date(x.completed_at) >= since);
+  const made = tasks.filter((x) => new Date(x.created_at) >= since);
+  const people = team.map((m) => ({ user: m.user, name: m.display_name, online: m.status !== "OFFLINE", task: m.task,
+    open: open.filter((x) => x.assignee === m.user), done: done.filter((x) => (x.completed_by || x.assignee) === m.user),
+    lim: limits[m.user] || null, clock: clocks.find((c) => c.user === m.user) || null, commits: commits.find((c) => c.name === m.display_name)?.commits ?? null }));
+  const times = done.map((x) => new Date(x.completed_at) - new Date(x.created_at)).sort((a, b) => a - b);
+  const shown = Math.min(days, 30);
+  const perDay = [...Array(shown)].map((_, i) => {
+    const from = startOfDay(now, i - shown + 1), to = startOfDay(from, 1), within = (at) => at && new Date(at) >= from && new Date(at) < to;
+    return { from, made: tasks.filter((x) => within(x.created_at)).length, done: tasks.filter((x) => x.stage === "done" && within(x.completed_at)).length };
+  });
+  // what somebody should look at, the worst first
+  const alerts = [];
+  const late = open.filter((x) => x.deadline && new Date(x.deadline) < now).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+  for (const x of late.slice(0, 3)) alerts.push({ tone: "bad", what: `Atrasada há ${anSpan(now - new Date(x.deadline))}`, text: x.title, who: nameOf(x.assignee), href: `#/tarefas/${x.id}` });
+  for (const x of open.filter((y) => y.priority === "urgent" && !late.includes(y)).slice(0, 3)) alerts.push({ tone: "bad", what: "Urgente e por fazer", text: x.title, who: nameOf(x.assignee), href: `#/tarefas/${x.id}` });
+  for (const x of open.filter((y) => y.stage === "blocked").slice(0, 3)) alerts.push({ tone: "warn", what: "Bloqueada", text: x.title, who: nameOf(x.assignee), href: `#/tarefas/${x.id}` });
+  const heavy = [...people].sort((a, b) => b.open.length - a.open.length)[0];
+  const rest = people.filter((p) => p !== heavy), restAvg = rest.length ? rest.reduce((n, p) => n + p.open.length, 0) / rest.length : 0;
+  if (heavy && heavy.open.length >= 6 && heavy.open.length >= 2 * Math.max(1, restAvg)) alerts.push({ tone: "warn", what: "Carga desigual",
+    text: `${heavy.name} tem ${heavy.open.length} tarefas abertas; ${rest.map((p) => `${p.name} ${p.open.length}`).join(", ")}`, who: heavy.name, href: "#/tarefas" });
+  for (const p of people) {
+    if (p.lim?.five >= 85) alerts.push({ tone: "warn", what: "Claude quase no limite", text: `${p.name} usou ${p.lim.five}% da sessão de 5 horas`, who: p.name, href: "" });
+    if (p.lim?.week >= 85) alerts.push({ tone: "bad", what: "Claude quase no limite", text: `${p.name} usou ${p.lim.week}% da semana`, who: p.name, href: "" });
+  }
+  const stale = open.filter((x) => now - new Date(x.created_at) > 3 * AN_DAY && x.priority !== "urgent" && !late.includes(x)).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  for (const x of stale.slice(0, 3)) alerts.push({ tone: "", what: `Parada há ${anSpan(now - new Date(x.created_at))}`, text: x.title, who: nameOf(x.assignee), href: `#/tarefas/${x.id}` });
+  return { days, open, done, made, people, perDay, alerts, median: times.length ? times[Math.floor(times.length / 2)] : null, stale: stale.length, late: late.length };
+}
+
+// The same analysis as plain text: to read at a glance, or to paste into a Claude that is about to work for the team.
+function analysisText(a, now = new Date()) {
+  const lim = (p) => (p.lim ? `, Claude ${p.lim.five ?? "?"}% (5 h) e ${p.lim.week ?? "?"}% (semana)` : "");
+  const clock = (p) => (p.clock?.at ? `, ponto ${pontoWorked(p.clock)} hoje${p.clock.running ? "" : " (parado)"}` : ", sem ponto hoje");
+  return [`Estado da equipa em ${now.toLocaleDateString("pt-PT", { day: "numeric", month: "long" })}, ${fmt.hhmm(now.toISOString())} (últimos ${a.days} dias)`, "",
+    ...a.people.map((p) => `${p.name}: ${p.open.length} abertas (${p.open.filter((x) => x.priority === "urgent").length} urgentes), ${p.done.length} concluídas${p.commits == null ? "" : `, ${p.commits} commits esta semana`}${clock(p)}${lim(p)}${p.online ? "" : ", offline"}`), "",
+    a.alerts.length ? "A pedir atenção:" : "Nada a pedir atenção.", ...a.alerts.map((x) => `- ${x.what}: ${x.text}${x.who && !x.text.startsWith(x.who) ? ` (${x.who})` : ""}`), "",
+    `Ritmo: ${a.made.length} criadas e ${a.done.length} concluídas; ${a.open.length} abertas ao todo${a.median == null ? "" : `; uma tarefa leva tipicamente ${anSpan(a.median)} a ser concluída`}.`].join("\n");
+}
+
+function analysisHtml(a) {
+  const top = Math.max(1, ...a.perDay.map((d) => Math.max(d.made, d.done)));
+  const balance = a.done.length - a.made.length;
+  const person = (p) => {
+    const urgent = p.open.filter((x) => x.priority === "urgent").length, total = p.open.length + p.done.length;
+    const fact = (n, label, cls = "") => `<div class="an-fact ${cls}"><b>${n}</b><span>${t(label)}</span></div>`;
+    return `<div class="panel an-person ${p.online ? "" : "off"}"><header>${ui.avatar(p.name)}<div><b>${esc(p.name)}</b><span>${esc(p.online ? (p.task ? `${t("A trabalhar")}: ${p.task}` : t("Online")) : t("Offline"))}</span></div></header>
+      <div class="an-split" title="${t("Concluídas e abertas")}"><i style="width:${total ? p.done.length / total * 100 : 0}%"></i></div>
+      <div class="an-facts">${fact(p.open.length, "abertas", urgent ? "bad" : "")}${fact(p.done.length, "concluídas")}${fact(p.commits ?? "—", "commits na semana")}
+        ${fact(p.clock?.at ? pontoWorked(p.clock) : "—", "ponto hoje", p.clock?.running ? "ok" : "")}${fact(p.lim?.five == null ? "—" : `${p.lim.five}%`, "Claude 5 h", p.lim?.five >= 85 ? "bad" : "")}${fact(p.lim?.week == null ? "—" : `${p.lim.week}%`, "Claude semana", p.lim?.week >= 85 ? "bad" : "")}</div>
+      ${urgent ? `<p class="an-note bad">${t(urgent === 1 ? "1 urgente por fazer" : "{n} urgentes por fazer", { n: urgent })}</p>` : ""}</div>`;
+  };
+  return `${ui.sec("O que pede atenção", `<span class="faint">${a.alerts.length || t("nada")}</span>`)}
+    ${a.alerts.length ? `<div class="panel rows">${a.alerts.map((x) => `<a class="rw an-alert ${x.tone}" ${x.href ? `href="${x.href}"` : ""}><i></i><div class="rw-main"><b>${esc(x.text)}</b><span>${esc(t(x.what))}${x.who && !x.text.startsWith(x.who) ? ` · ${esc(x.who)}` : ""}</span></div>${x.href ? icon("chevron") : ""}</a>`).join("")}</div>`
+      : `<div class="panel pad an-fine">${icon("check")}<div><b>${t("Nada a pedir atenção")}</b><span>${t("Sem atrasos, sem urgentes por fazer, sem ninguém sobrecarregado.")}</span></div></div>`}
+    ${ui.sec("Carga de cada pessoa", `<span class="faint">${t("últimos {n} dias", { n: a.days })}</span>`)}<div class="an-people">${a.people.map(person).join("")}</div>
+    ${ui.sec("Ritmo", `<span class="faint">${t(balance >= 0 ? "fecha-se mais do que se abre" : "abre-se mais do que se fecha")}</span>`)}
+    <div class="panel pad an-rhythm"><div class="an-nums"><div><b>${a.made.length}</b><span>${t("criadas")}</span></div><div><b>${a.done.length}</b><span>${t("concluídas")}</span></div>
+        <div class="${balance < 0 ? "bad" : "ok"}"><b>${balance > 0 ? "+" : ""}${balance}</b><span>${t("saldo")}</span></div><div><b>${a.open.length}</b><span>${t("abertas ao todo")}</span></div>
+        <div><b>${a.median == null ? "—" : anSpan(a.median)}</b><span>${t("até concluir (típico)")}</span></div></div>
+      <div class="an-chart">${a.perDay.map((d) => `<div title="${d.from.toLocaleDateString("pt-PT", { weekday: "short", day: "numeric", month: "short" })}: ${d.made} ${t("criadas")}, ${d.done} ${t("concluídas")}">
+        <span><i class="made" style="height:${d.made / top * 100}%"></i><i class="done" style="height:${d.done / top * 100}%"></i></span><em>${d.from.getDate()}</em></div>`).join("")}</div>
+      <p class="an-key"><i class="made"></i>${t("criadas")}<i class="done"></i>${t("concluídas")}</p></div>
+    ${ui.sec("Resumo em texto", `<button class="btn sm quiet" id="an-copy">${t("Copiar")}</button>`)}
+    <div class="panel pad"><pre class="an-text" id="an-text">${esc(analysisText(a))}</pre>
+      <p class="faint" style="margin:10px 0 0">${t("O mesmo estado em texto: para ler de uma vez ou colar numa conversa com o Claude antes de lhe pedir trabalho.")}</p></div>`;
+}
+
+async function loadAnalysis() {
+  await mount($("an-main"), async () => {
+    const [tasks, team, limits, board, rank] = await Promise.all([api("/api/tasks"), api("/api/team"), api("/api/limits/team").catch(() => ({})),
+      api("/api/ponto").catch(() => null), api("/api/analytics/ranking").catch(() => null)]);
+    return analysisHtml(analysisOf(tasks, team, limits, board?.people || [], rank?.week || [], analyticsDays));
+  }, 8);
+  if ($("an-copy")) $("an-copy").onclick = async () => {
+    const text = $("an-text").textContent;
+    try { await navigator.clipboard.writeText(text); flash(t("Resumo copiado.")); }
+    catch { const r = document.createRange(); r.selectNodeContents($("an-text")); getSelection().removeAllRanges(); getSelection().addRange(r); flash(t("Selecionado: Ctrl+C para copiar.")); }
+  };
+}
+onLive(["task", "ponto"], async () => { if ($("an-main")) { $("an-main")._html = null; await loadAnalysis(); } });
+
 HUB_VIEWS.analise = async function () {
-  page(`${ui.head("Análise", t("Análise"), t("Quem fez o quê, a equipa e o código."),
+  page(`${ui.head("Análise", t("Análise"), t("O que pede atenção, a carga de cada um e o ritmo da equipa."),
     `<div class="segx" id="days">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${d === analyticsDays ? "on" : ""}">${d} ${t("dias")}</button>`).join("")}</div>`)}
-    <div id="ranking"></div><div id="analytics"></div>`);
-  loadRanking();
+    <div id="an-main"></div>
+    <details class="an-more" id="an-more"><summary>${t("Mais números: IA, custo e código")}</summary><div id="ranking"></div><div id="analytics"></div></details>`);
+  $("an-more").ontoggle = () => { if ($("an-more").open) { loadRanking(); loadAnalytics(); } };   // the old counters, asked for only when somebody opens them
   $("days").onclick = (e) => {
     if (!e.target.dataset.d) return;
     analyticsDays = Number(e.target.dataset.d);
     $("days").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.target));
-    $("analytics")._html = null; loadAnalytics();
+    $("an-main")._html = null; loadAnalysis();
+    if ($("an-more").open) { $("analytics")._html = null; loadAnalytics(); }
   };
-  await loadAnalytics();
+  await loadAnalysis();
 };
 
 async function loadUsagePage() {

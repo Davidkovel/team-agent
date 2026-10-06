@@ -531,3 +531,47 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 #hpanel-check { height: 24px; padding: 0 9px; font-size: 10.5px; }
 .pl-seen { color: var(--faint); font-size: 10.5px; }
 .pl-seen.old { color: var(--warn); }
+
+/* ---------------------------------------------------------------- Análise */
+.an-alert > i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+.an-alert.bad > i { background: var(--bad); box-shadow: 0 0 8px rgba(239, 111, 94, .6); }
+.an-alert.warn > i { background: var(--warn); }
+.an-alert:not([href]) { cursor: default; }
+.an-fine { display: flex; align-items: center; gap: 14px; }
+.an-fine svg.i { width: 22px; height: 22px; color: var(--ok); }
+.an-fine div { display: flex; flex-direction: column; }
+.an-fine span { color: var(--muted); font-size: 12px; }
+.an-people { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.an-person { padding: 16px; }
+.an-person.off { opacity: .72; }
+.an-person > header { display: flex; align-items: center; gap: 12px; }
+.an-person > header div { min-width: 0; display: flex; flex-direction: column; }
+.an-person > header b { font: 600 15px var(--ui); }
+.an-person > header span { color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.an-split { height: 6px; margin: 14px 0; border-radius: 999px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.an-split i { display: block; height: 100%; background: var(--ok); border-radius: 999px; }
+.an-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; }
+.an-fact b { display: block; font: 600 19px/1.1 var(--mono); }
+.an-fact span { color: var(--faint); font-size: 11px; }
+.an-fact.bad b { color: var(--bad); } .an-fact.ok b { color: var(--ok); }
+.an-note { margin: 12px 0 0; font-size: 12px; } .an-note.bad { color: var(--bad); }
+.an-nums { display: flex; flex-wrap: wrap; gap: 10px 34px; }
+.an-nums b { display: block; font: 600 24px/1.1 var(--mono); }
+.an-nums span { color: var(--faint); font-size: 11px; }
+.an-nums .bad b { color: var(--bad); } .an-nums .ok b { color: var(--ok); }
+.an-chart { display: flex; align-items: flex-end; gap: 4px; height: 120px; margin-top: 20px; }
+.an-chart > div { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.an-chart span { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 2px; border-bottom: 1px solid var(--line); }
+.an-chart i { width: 42%; max-width: 14px; min-height: 0; border-radius: 3px 3px 0 0; }
+.an-chart i.made, .an-key i.made { background: rgba(255, 255, 255, .28); }
+.an-chart i.done, .an-key i.done { background: var(--ok); }
+.an-chart em { color: var(--faint); font: 500 9.5px var(--mono); font-style: normal; }
+.an-key { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--faint); font-size: 11px; }
+.an-key i { width: 9px; height: 9px; border-radius: 2px; } .an-key i + i, .an-key i.done { margin-left: 12px; }
+.an-key i.made { margin-left: 0; }
+.an-text { margin: 0; white-space: pre-wrap; font: 12.5px/1.6 var(--mono); color: var(--text); user-select: text; }
+.an-more { margin-top: 26px; }
+.an-more > summary { cursor: pointer; color: var(--muted); font: 600 12px var(--ui); }
+/* the panel's team title: the count and the button no longer squeeze each other */
+#hpanel h4 em { white-space: nowrap; }
+#hpanel-check { margin-left: 8px; }

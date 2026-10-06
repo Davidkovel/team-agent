@@ -388,19 +388,3 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .dn-tag { padding: 2px 8px; border-radius: 999px; font: 700 9.5px var(--ui); font-style: normal; letter-spacing: .08em; text-transform: uppercase; }
 .dn-tag.bad { color: var(--bad); background: rgba(239, 111, 94, .14); }
 .dn-tag.warn { color: var(--warn); background: rgba(226, 181, 92, .14); }
-
-/* ---------------------------------------------------------------- the team card: each person is a tile that fills its share,
-   so the faces are not three small circles with empty card between them */
-#in-team .people { align-items: stretch; gap: 10px; padding: 4px 0 2px; }
-#in-team .person { align-content: center; gap: 4px; padding: 16px 8px; border: 1px solid rgba(255, 255, 255, .06); border-radius: 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, .01)); }
-#in-team .person:hover { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .14); }
-#in-team .person.off { background: none; border-style: dashed; }
-#in-team .p-ring { width: 92px; height: 92px; margin-bottom: 10px; }
-#in-team .p-ring .av { width: 86px; height: 86px; font-size: 30px; }
-#in-team .p-place { width: 28px; height: 28px; }
-#in-team .person b { font-size: 15px; }
-@media (max-width: 1400px) {
-  #in-team .p-ring { width: 76px; height: 76px; }
-  #in-team .p-ring .av { width: 70px; height: 70px; font-size: 24px; }
-}

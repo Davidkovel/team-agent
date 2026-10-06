@@ -219,7 +219,8 @@
     const load = async () => {
       const [tasks, team, inbox] = await Promise.all([api("/api/tasks"), api("/api/team"), request("/api/notifications?limit=6")]);
       if (!$("m-home")) return;
-      const p = plan(scopeOf(tasks, "mine"));
+      const teamView = scopeNow() === "team"; // the same tasks as Tarefas (and as the computer, for whoever directs the work)
+      const p = plan(scopeOf(tasks, teamView ? "team" : "mine"));
       paint($("m-alert"), urgentCard(p.hoje.urgent));
       const stat = (tab, n, label, tone, ic) => `<a class="m-stat ${n ? `${tone} lit` : ""}" href="${tab ? "#/tarefas" : "#/avisos"}" ${tab ? `data-goto="${tab}"` : ""}>
         <span class="m-stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></a>`;
@@ -228,9 +229,9 @@
       const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
       paint($("m-team"), `<section class="m-sec"><header><b>${t("Equipa")}</b><span class="m-online"><i></i>${online} ${t("de")} ${team.length} ${t("online")}</span></header>
         <div class="m-people">${order.map(mateTile).join("")}</div></section>`);
-      const next = [...p.hoje.late, ...p.hoje.today, ...p.hoje.undated].sort(byImportance).slice(0, 4); // the urgent ones are already on top
-      paint($("m-todo"), `<section class="m-sec"><header><b>${t("A seguir")}</b><a href="#/tarefas" data-goto="hoje">${t("Ver todas")}</a></header>${next.length
-        ? `<div class="m-list">${next.map((x) => taskRow(x, false)).join("")}</div>`
+      const rest = [...p.hoje.late, ...p.hoje.today, ...p.hoje.undated].sort(byImportance), next = rest.slice(0, 5); // the urgent ones are already on top
+      paint($("m-todo"), `<section class="m-sec"><header><b>${t("A seguir")}</b><a href="#/tarefas" data-goto="hoje">${rest.length > 5 ? t("Ver as {n}", { n: rest.length }) : t("Ver todas")}</a></header>${next.length
+        ? `<div class="m-list">${next.map((x) => taskRow(x, teamView)).join("")}</div>`
         : `<div class="m-empty">${icon("check")}<span>${t(p.hoje.urgent.length ? "Fora as urgentes, mais nada para hoje." : "Nada por fazer hoje. Bom trabalho.")}</span></div>`}</section>`);
       paint($("m-last"), `<section class="m-sec"><header><b>${t("Últimos avisos")}</b><a href="#/avisos">${t("Ver todos")}</a></header>${inbox.items.length
         ? `<div class="m-list">${inbox.items.slice(0, 3).map(nrow).join("")}</div>` : `<div class="m-empty">${icon("bell")}<span>${t("Sem avisos novos.")}</span></div>`}</section>`);
@@ -365,7 +366,10 @@
   /* Tarefas: like Reminders. Hoje, Próximas and Feitas, each in blocks; the circle finishes a task, a tap opens it. */
   const desktopTarefas = HUB_VIEWS.tarefas;
   HUB_VIEWS.tarefas = (r) => (phone() ? phoneTarefas(r) : desktopTarefas(r));
-  let taskTab = "hoje", taskScope = "mine", taskCo = "";
+  let taskTab = "hoje", taskCo = "";
+  // Minhas or Equipa: whoever directs the work sees the team's tasks, as on the computer, until they choose otherwise (remembered).
+  let taskScope = (() => { try { return localStorage.getItem("hub.taskScope"); } catch { return null; } })();
+  const scopeNow = () => taskScope || (me?.lead ? "team" : "mine");
 
   async function phoneTarefas(r) {
     page(`<div class="m-screen" id="m-tasks">
@@ -379,7 +383,7 @@
       if (taskCo && taskCo !== "none" && !withCo.some((c) => c.id === taskCo)) taskCo = "";
       const all = list.filter((x) => !x.trashed_at && (!taskCo || (taskCo === "none" ? !x.company : x.company === taskCo)));
       const waiting = approvals.filter((a) => a.status === "PENDING").length;
-      const hasTeam = all.some((x) => x.assignee !== me.username), team = hasTeam && taskScope === "team";
+      const hasTeam = all.some((x) => x.assignee !== me.username), team = hasTeam && scopeNow() === "team";
       const p = plan(scopeOf(all, team ? "team" : "mine"));
       $("m-t-sub").textContent = `${p.open.length} ${t("por fazer")}${p.nLate ? ` · ${p.nLate} ${t(p.nLate === 1 ? "atrasada" : "atrasadas")}` : ""}`;
       $("m-t-scope").innerHTML = hasTeam ? `<span class="m-scope"><button data-scope="mine" class="${team ? "" : "on"}">${t("Minhas")}</button><button data-scope="team" class="${team ? "on" : ""}">${t("Equipa")}</button></span>` : "";
@@ -411,7 +415,7 @@
       const tab = e.target.closest("[data-tab]"), scope = e.target.closest("[data-scope]"), co = e.target.closest("[data-co]");
       if (tab) { taskTab = tab.dataset.tab; return load(); }
       if (co) { taskCo = co.dataset.co; return load(); }
-      if (scope) { taskScope = scope.dataset.scope; return load(); }
+      if (scope) { taskScope = scope.dataset.scope; try { localStorage.setItem("hub.taskScope", taskScope); } catch { /* private window */ } return load(); }
       const row = e.target.closest(".m-task");
       if (row) openTaskModal(Number(row.dataset.id));
     };

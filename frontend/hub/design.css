@@ -545,3 +545,7 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .tnote-new { display: grid; gap: 8px; padding: 10px var(--pad, 14px) 14px; border-top: 1px solid var(--line); }
 .tnote-new textarea { width: 100%; min-height: 56px; resize: vertical; }
 .tnote-new .btn { justify-self: end; }
+
+/* "Para quando?" in a new task */
+.due-own { margin-top: 8px; max-width: 260px; }
+.due-say { display: block; margin-top: 6px; }

@@ -276,6 +276,29 @@ document.addEventListener("change", (e) => {
 // The tag of a task made for several people: "Para todos", or their names when it was only for some.
 const groupLabel = (group) => (group.length >= Object.keys(teamNames).length ? t("Para todos") : `${t("Para")} ${group.map((y) => nameOf(y.assignee)).join(", ")}`);
 
+// "Para quando?": a new task says when it is for. One press for today, tomorrow or the end of the week, a date of one's
+// own, or "Sem prazo" chosen on purpose: a task used to be born with no date unless somebody remembered to give it one.
+const dueAt = (days, hour = 18) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+function duePicker() {
+  const weekday = new Date().getDay(), toFriday = (5 - weekday + 7) % 7;   // 0 on a Friday: then "this week" is today
+  const picks = [["hoje", t("Hoje"), dueAt(0)], ["amanha", t("Amanhã"), dueAt(1)], ...(toFriday > 1 ? [["sexta", t("Sexta-feira"), dueAt(toFriday)]] : []),
+    ["semana", t("Daqui a uma semana"), dueAt(7)], ["data", t("Outra data"), ""], ["none", t("Sem prazo"), ""]];
+  return `<div class="field wide"><span>${t("Para quando?")}</span><div class="who" data-due><input type="hidden" name="deadline" value="">
+    ${picks.map(([id, label, at]) => `<label class="who-opt"><input type="radio" name="due_pick" value="${id}" data-at="${at}"><span>${esc(label)}</span></label>`).join("")}</div>
+    <input type="datetime-local" class="due-own" hidden aria-label="${t("Outra data")}">
+    <small class="muted due-say">${t("Escolhe quando tem de estar feita. As de hoje, amanhã e sexta ficam para as 18:00.")}</small></div>`;
+}
+document.addEventListener("input", (e) => {
+  const field = e.target.closest?.(".field")?.querySelector("[data-due]")?.closest(".field");
+  if (!field || !(e.target.name === "due_pick" || e.target.classList.contains("due-own"))) return;
+  const pick = field.querySelector('input[name="due_pick"]:checked'), own = field.querySelector(".due-own"), hidden = field.querySelector('input[name="deadline"]');
+  own.hidden = pick?.value !== "data";
+  if (pick?.value === "data" && !own.value && e.target !== own) own.value = dueAt(2);
+  hidden.value = pick?.value === "data" ? own.value : pick?.dataset.at || "";
+  field.querySelector(".due-say").textContent = pick?.value === "none" ? t("Sem prazo: fica em «Sem prazo» até alguém lhe dar uma data.")
+    : hidden.value ? `${t("Prazo")}: ${new Date(hidden.value).toLocaleString("pt-PT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}` : "";
+});
+
 function taskFields(x = {}, users = [], projects = [], sending = false) {
   const deadline = x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
   return (sending ? whoPicker(users, x.assignee || me.username) : "")
@@ -285,7 +308,7 @@ function taskFields(x = {}, users = [], projects = [], sending = false) {
     + field("Prioridade", `<select name="priority">${options(Object.entries(PRIORITY).map(([k, v]) => [k, t(v)]), x.priority || "normal")}</select>`)
     + field("Projeto", `<select name="project_id">${options([["", t("Sem projeto")], ...projects.map((p) => [p.id, p.name])], x.project_id)}</select>`)
     + field("Empresa", `<select name="company">${options([["", t("Sem empresa")], ...companies.map((c) => [c.id, c.name])], x.company)}</select>`)
-    + field("Prazo", `<input name="deadline" type="datetime-local" value="${deadline}">`)
+    + (sending ? duePicker() : field("Prazo", `<input name="deadline" type="datetime-local" value="${deadline}">`))
     + field("Branch de git", `<input name="git_branch" value="${esc(x.git_branch || "")}" placeholder="ex: checkout-fix">`);
 }
 const taskBody = (v) => ({ title: v.title.trim(), description: v.description, assignee: v.assignee, priority: v.priority,
@@ -298,6 +321,8 @@ async function newTask(preset = {}) {
     + field("Quem a faz", `<select name="for_ai">${options([["", t("Uma pessoa (fica em Por fazer)")], ...Object.entries(ROLES).filter(([k]) => k !== "custom").map(([k, v]) => [k, `${t("IA")}: ${t(v)}`])], preset.for_ai || "")}</select>`, true),
   async (v) => {
     if (!v.assignee) throw new Error(t("Escolhe pelo menos uma pessoa."));
+    if (!v.due_pick) throw new Error(t("Diz para quando é a tarefa (ou escolhe «Sem prazo»)."));
+    if (v.due_pick === "data" && !v.deadline) throw new Error(t("Escolhe a data do prazo."));
     const created = await api("/api/tasks", { method: "POST", body: { ...taskBody(v), for_ai: !!v.for_ai, agent_role: v.for_ai || "" } });
     flash(v.assignee === "all" ? t("Tarefa enviada a todos.") : v.assignee.includes(",") ? t("Tarefa enviada a {n} pessoas.", { n: v.assignee.split(",").length }) : t("Tarefa criada."));
     loadBoard();

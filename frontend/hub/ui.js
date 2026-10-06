@@ -16,6 +16,30 @@ const HUB_VIEWS = {};    // page id -> async view(route)
 const HUB_LOADERS = {};  // live event type -> [async loaders]
 const onLive = (types, fn) => types.forEach((type) => (HUB_LOADERS[type] ||= []).push(fn));
 
+/* A section that lives in its own file, fetched the first time somebody opens it (docs/empresa-amg.md, regras de peso):
+   the command center keeps growing by sections, and opening it must not get slower with each one. The file replaces
+   the stand-in in HUB_VIEWS with the real view and brings its own stylesheet. */
+const HUB_VERSION = (document.currentScript?.src.match(/[?&]v=([^&]+)/) || [])[1] || "";
+const lazyFiles = {};
+function lazyFile(file) {
+  return (lazyFiles[file] ||= new Promise((ok, fail) => {
+    const tag = file.endsWith(".css") ? Object.assign(document.createElement("link"), { rel: "stylesheet", href: `${file}?v=${HUB_VERSION}` })
+      : Object.assign(document.createElement("script"), { src: `${file}?v=${HUB_VERSION}` });
+    tag.onload = ok;
+    tag.onerror = () => { delete lazyFiles[file]; fail(new Error(t("Não consegui abrir esta secção. Tenta outra vez."))); };
+    document.head.append(tag);
+  }));
+}
+function lazyView(id, script, style) {
+  const standIn = async (route) => {
+    await Promise.all([lazyFile(script), style ? lazyFile(style).catch(() => {}) : null]);
+    if (HUB_VIEWS[id] === standIn) throw new Error(`${script}: HUB_VIEWS.${id} em falta`);
+    return HUB_VIEWS[id](route);
+  };
+  HUB_VIEWS[id] = standIn;
+}
+lazyView("escritorio", "hub/office.js", "hub/office.css");
+
 const HUB_ICONS = {
   folder: '<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
   bot: '<rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4M9 13v1M15 13v1M2 13v2M22 13v2"/><circle cx="12" cy="3.5" r="1"/>',

@@ -1,0 +1,132 @@
+/* O Escritório (hub/office.js). The computer in the AMG finish (lacquer panels, a chrome hairline, numbered capitals,
+   white and chrome for what matters, amber for "à tua espera", red only for what went wrong); the phone in the iOS look,
+   under html.is-phone. Nothing loops: a desk lights up once (.fresh) when its line changes. */
+
+/* the four numbers */
+.of-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.of-stat { position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding: 14px 16px;
+  border-radius: 10px; border: 1px solid rgba(255, 255, 255, .055); background: linear-gradient(180deg, rgba(21, 24, 29, .96), rgba(10, 12, 14, .96)); }
+.of-stat::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; height: 1px; background: var(--chrome-line); opacity: .35; }
+.of-stat > span { grid-row: 1 / 3; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--metal); color: #8f969f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); }
+.of-stat > span svg.i { width: 17px; height: 17px; }
+.of-stat b { color: #eef1f4; font: 600 26px/1 var(--mono); }
+.of-stat small { color: #6b727b; font: 600 9px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+.of-stat.lit { border-color: rgba(238, 241, 244, .2); background: linear-gradient(180deg, #23272d, #121418); }
+.of-stat.lit > span { background: var(--chrome); color: #0b0c0e; }
+.of-stat.lit.wait { border-color: rgba(226, 181, 92, .45); }
+.of-stat.lit.wait > span { background: #e2b55c; color: #1d1404; }
+.of-stat.lit.wait b { color: #e2b55c; }
+
+/* the departments: the rooms of the future 3D office, lit where someone works */
+.of-depts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.of-dept { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .07);
+  background: rgba(255, 255, 255, .02); color: #59606a; font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.of-dept svg.i { width: 14px; height: 14px; }
+.of-dept i { font: 600 11px var(--mono); font-style: normal; letter-spacing: 0; }
+.of-dept.used { color: #a7aeb7; border-color: rgba(255, 255, 255, .12); }
+.of-dept.busy { color: #fff; border-color: rgba(238, 241, 244, .45); background: linear-gradient(180deg, #2a2f36, #15181c); box-shadow: 0 0 14px rgba(238, 245, 255, .12); }
+
+/* desks and the film beside them */
+.of-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+@media (max-width: 1250px) { .of-grid { grid-template-columns: minmax(0, 1fr); } }
+.of-desks { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; }
+.of-desk { position: relative; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .06);
+  background: linear-gradient(180deg, rgba(21, 24, 29, .97), rgba(10, 12, 14, .97)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 20px 40px -26px rgba(0, 0, 0, .9); }
+.of-desk::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; height: 1px; background: var(--chrome-line); opacity: .35; }
+.of-desk.st-work { border-color: rgba(238, 241, 244, .2); }
+.of-desk.st-wait { border-color: rgba(226, 181, 92, .4); }
+.of-desk.st-stall { border-color: rgba(239, 111, 94, .3); }
+.of-desk.st-off { opacity: .6; }
+.of-desk.fresh { animation: of-fresh 1.4s ease-out 1; }
+@keyframes of-fresh { 0% { box-shadow: 0 0 0 1px rgba(238, 245, 255, .55), 0 0 26px rgba(238, 245, 255, .25); } 100% { box-shadow: 0 0 0 0 rgba(238, 245, 255, 0); } }
+.of-desk > header { display: flex; align-items: center; gap: 12px; }
+.of-who { position: relative; flex: none; }
+.of-who .av { width: 38px; height: 38px; font-size: 15px; }
+.of-who > i { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; background: #3a3f46; border: 2px solid #111316; }
+.st-work .of-who > i { background: #f4f6f8; box-shadow: 0 0 8px rgba(238, 245, 255, .8); }
+.st-wait .of-who > i { background: #e2b55c; box-shadow: 0 0 8px rgba(226, 181, 92, .7); }
+.st-stall .of-who > i { background: #ef6f5e; }
+.of-id { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.of-id b { color: #f4f6f8; font: 600 14px var(--ui); }
+.of-id span { color: #6b727b; font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.of-state { flex: none; padding: 3px 9px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, .1); color: #8f969f; font: 600 9px var(--ui); font-style: normal;
+  letter-spacing: .14em; text-transform: uppercase; }
+.st-work .of-state { color: #0b0c0e; background: var(--chrome); border-color: #eef1f4; }
+.st-wait .of-state { color: #e2b55c; border-color: rgba(226, 181, 92, .5); }
+.st-stall .of-state { color: #ef6f5e; border-color: rgba(239, 111, 94, .4); }
+.of-ask { margin: 12px 0 0; color: #cfd5dc; font: italic 500 16px/1.35 var(--serif); }
+.of-now { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, .03); color: #eef1f4; font-size: 13px; }
+.of-now svg.i { flex: none; width: 14px; height: 14px; color: #8f969f; }
+.of-now span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.of-now time { flex: none; color: #6b727b; font: 500 11px var(--mono); }
+.st-wait .of-now { color: #e2b55c; }
+.of-agents { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .06); }
+.of-agent { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .05); background: rgba(255, 255, 255, .02); }
+.of-agent.ag-working { border-color: rgba(238, 241, 244, .22); background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .015)); }
+.of-agent.ag-failed, .of-agent.ag-lost { border-color: rgba(239, 111, 94, .3); }
+.of-ag-ic { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--metal); color: #dfe4ea; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
+.ag-working .of-ag-ic { background: var(--chrome); color: #0b0c0e; }
+.of-ag-ic svg.i { width: 13px; height: 13px; }
+.of-ag-t { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px; }
+.of-ag-t b { color: #eef1f4; font: 600 13px var(--ui); }
+.of-tag, .of-model { padding: 0 6px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, .1); color: #a7aeb7; font: 600 8.5px/15px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.of-model { font-family: var(--mono); letter-spacing: 0; text-transform: none; font-size: 10px; }
+.of-ag-t p { flex-basis: 100%; margin: 0; color: #cfd5dc; font-size: 12.5px; }
+.of-ag-now, .of-ag-res { flex-basis: 100%; color: #8f969f; font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.of-ag-now { color: #eef1f4; }
+.of-agent > em { flex: none; display: grid; justify-items: end; gap: 2px; color: #8f969f; font: 500 11px var(--mono); font-style: normal; white-space: nowrap; }
+.of-agent > em svg.i { display: inline; width: 11px; height: 11px; vertical-align: -1px; margin-right: 3px; }
+.of-agent > em small { color: #59606a; font-size: 10px; }
+.ag-working > em { color: #fff; }
+.ag-failed > em, .ag-lost > em { color: #ef6f5e; }
+#of-closed details { margin-top: 14px; }
+#of-closed summary { cursor: pointer; color: #8f969f; font: 600 9.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+#of-closed .of-desks { margin-top: 10px; }
+.of-film { position: sticky; top: 16px; max-height: calc(100vh - 40px); overflow-y: auto; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .06);
+  background: linear-gradient(180deg, rgba(21, 24, 29, .97), rgba(10, 12, 14, .97)); }
+.of-film > header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: #a7aeb7; font: 600 9.5px var(--ui); letter-spacing: .22em; text-transform: uppercase; }
+.of-film > header svg.i { width: 14px; height: 14px; color: #6b727b; }
+.of-f { display: grid; grid-template-columns: 38px 22px minmax(0, 1fr); align-items: start; gap: 8px; padding: 7px 0; font-size: 12.5px; color: #a7aeb7; }
+.of-f + .of-f { border-top: 1px solid rgba(255, 255, 255, .045); }
+.of-f time { color: #59606a; font: 500 11px var(--mono); padding-top: 3px; }
+.of-f b { color: #eef1f4; font-weight: 600; }
+.of-f.agent_done span { color: #cfd5dc; }
+
+/* ---------- the phone: the same page as an iOS screen ---------- */
+html.is-phone .of-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+html.is-phone .of-stat { border: 0; border-radius: 16px; background: var(--m-card, #1c1c1e); }
+html.is-phone .of-stat::before, html.is-phone .of-desk::before { display: none; }
+html.is-phone .of-stat b { font-family: var(--m-font); font-size: 26px; }
+html.is-phone .of-stat small { font: 600 11px var(--m-font); letter-spacing: 0; text-transform: none; color: #8e8e93; }
+html.is-phone .of-stat.lit { background: rgba(48, 209, 88, .14); border: 1px solid rgba(48, 209, 88, .45); }
+html.is-phone .of-stat.lit > span { background: #30d158; color: #04230d; }
+html.is-phone .of-stat.lit.wait { background: rgba(255, 159, 10, .14); border-color: rgba(255, 159, 10, .45); }
+html.is-phone .of-stat.lit.wait > span { background: #ff9f0a; color: #2b1900; }
+html.is-phone .of-stat.lit.wait b { color: #ff9f0a; }
+html.is-phone .of-depts { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+html.is-phone .of-depts::-webkit-scrollbar { display: none; }
+html.is-phone .of-dept { flex: none; font: 600 12px var(--m-font); letter-spacing: 0; text-transform: none; background: var(--m-card, #1c1c1e); border: 0; }
+html.is-phone .of-dept.busy { background: rgba(48, 209, 88, .16); color: #30d158; box-shadow: none; }
+html.is-phone .of-grid, html.is-phone .of-desks { grid-template-columns: minmax(0, 1fr); }
+html.is-phone .of-desk { border: 0; border-radius: 16px; background: var(--m-card, #1c1c1e); box-shadow: none; }
+html.is-phone .of-desk.st-work { box-shadow: inset 3px 0 0 #30d158; }
+html.is-phone .of-desk.st-wait { box-shadow: inset 3px 0 0 #ff9f0a; }
+html.is-phone .st-work .of-who > i { background: #30d158; box-shadow: none; border-color: var(--m-card, #1c1c1e); }
+html.is-phone .st-wait .of-who > i { background: #ff9f0a; box-shadow: none; }
+html.is-phone .of-id b { font: 600 17px var(--m-font); }
+html.is-phone .of-id span { font: 400 14px var(--m-font); color: #8e8e93; }
+html.is-phone .of-state { border: 0; font: 600 12px var(--m-font); letter-spacing: 0; text-transform: none; background: rgba(118, 118, 128, .24); color: #8e8e93; }
+html.is-phone .st-work .of-state { background: rgba(48, 209, 88, .16); color: #30d158; }
+html.is-phone .st-wait .of-state { background: rgba(255, 159, 10, .16); color: #ff9f0a; }
+html.is-phone .of-ask { font: 400 15px/1.35 var(--m-font); font-style: normal; color: #e5e5ea; }
+html.is-phone .of-now { font: 400 15px var(--m-font); background: rgba(118, 118, 128, .16); }
+html.is-phone .of-agent { border: 0; background: rgba(118, 118, 128, .12); }
+html.is-phone .of-agent.ag-working { background: rgba(48, 209, 88, .1); }
+html.is-phone .ag-working .of-ag-ic { background: #30d158; color: #04230d; }
+html.is-phone .of-ag-t b { font: 600 15px var(--m-font); }
+html.is-phone .of-tag, html.is-phone .of-model { border: 0; background: rgba(118, 118, 128, .3); color: #e5e5ea; font: 600 11px/18px var(--m-font); letter-spacing: 0; text-transform: none; }
+html.is-phone .of-ag-t p, html.is-phone .of-ag-now, html.is-phone .of-ag-res { font-family: var(--m-font); font-size: 14px; }
+html.is-phone .of-film { position: static; max-height: none; border: 0; border-radius: 16px; background: var(--m-card, #1c1c1e); }
+html.is-phone .of-film > header { font: 700 17px var(--m-font); letter-spacing: 0; text-transform: none; color: #fff; }
+html.is-phone .of-f { font: 400 14px/1.35 var(--m-font); color: #c7c7cc; }

@@ -44,6 +44,7 @@ INNER = WIDTH - 28     # what the modules get
 SHADOW = 18
 RADIUS = 24
 GROW, SHRINK = 0.42, 0.32   # seconds
+NOTES_IN_WIDGET = False     # the list of notifications inside the widget: off since 6 Oct, nobody read it there (they are in the Hub's bell)
 CLOCK_PILL = 74             # width of the Parar / Retomar button in your own row
 COMMITS_EVERY = 8           # Hub polls (4 s each) between two looks at the last commits: every half minute
 ACCOUNT_EVERY = 75          # Hub polls (4 s each) between two looks at the Claude account's usage: every 5 minutes
@@ -1488,7 +1489,8 @@ class WidgetWindow(QWidget):
                 self._team = None  # the Hub is not answering
             if who and self._team is not None:
                 self._poll_notices(url, who)
-                self._poll_inbox(url, who, tick)
+                if NOTES_IN_WIDGET:
+                    self._poll_inbox(url, who, tick)
             if tick % 2 == 0 and self._team is not None:
                 try:
                     self._week = hub.get_json(url + "/api/local/week")  # needs the team key away from the server computer; without it the last value stays
@@ -1583,7 +1585,7 @@ class WidgetWindow(QWidget):
                 row.show_item(item)
         unread = data.get("unread") or 0
         self.notes_count.setText(f"{unread} por ler" if unread else "tudo lido")
-        self.notes.setVisible(bool(items))
+        self.notes.setVisible(NOTES_IN_WIDGET and bool(items))
         if not items:
             self._arm_clear(False)
 

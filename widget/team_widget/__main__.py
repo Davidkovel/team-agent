@@ -18,6 +18,22 @@ from .ui.tray import start_tray
 from .ui.window import UI, WidgetWindow, font
 
 
+def log_launch():
+    """Who started this second copy (it brings the open widget or the Hub window forward): one line in
+    ~/.team-agent/widget-launches.log, so a widget that keeps popping up can be traced to whatever launches it."""
+    try:
+        import datetime
+        import subprocess
+        ppid = os.getppid()
+        chain = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                f"$p = Get-CimInstance Win32_Process -Filter 'ProcessId={ppid}'; if ($p) {{ $g = Get-CimInstance Win32_Process -Filter \"ProcessId=$($p.ParentProcessId)\"; \"$($p.CommandLine)  <=  $($g.CommandLine)\" }}"],
+                               capture_output=True, text=True, timeout=8, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip()
+        with open(Path.home() / ".team-agent" / "widget-launches.log", "a", encoding="utf-8") as log:
+            log.write(f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S}  parent {ppid}: {chain}\n")
+    except Exception:
+        pass
+
+
 def already_open(name: str) -> bool:
     """True when this widget is already running: it is asked to come to the front and this copy stops.
     Each click on Abrir AMG used to open one more widget, and each one started its own Hub on the same database."""
@@ -25,6 +41,7 @@ def already_open(name: str) -> bool:
     socket.connectToServer(name)
     if not socket.waitForConnected(500):
         return False
+    log_launch()
     socket.write(b"show")
     socket.waitForBytesWritten(500)
     socket.disconnectFromServer()

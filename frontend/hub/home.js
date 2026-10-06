@@ -170,25 +170,34 @@ const DAY_EMPTY = { today: "Nada para hoje. Cria uma tarefa, ou dá um prazo a u
   week: "Nada com prazo para esta semana." };
 const MAX_ROWS = 6;
 
+// A task sent to everybody is one row ("Todos"); its circle finishes your own copy, or opens it when none is yours.
 function taskRow(x, done) {
   const [when, late] = done ? [fmt.hhmm(x.completed_at), ""] : whenOf(x, tasksTab);
-  const held = !done && heldByAgent(x);
+  const own = x.group ? x.group.find((y) => y.assignee === me.username) : x;
+  const held = !done && own && heldByAgent(own);
   const check = done ? `<span class="tcheck">${icon("tick")}</span>`
     : held ? `<span class="tcheck held" title="${t("O agente está a tratar dela")}"></span>`
-    : `<button class="tcheck" data-done="${x.id}" title="${t("Concluir")}" aria-label="${t("Concluir")}"></button>`;
-  return `<div class="trow ${done ? "done" : ""}">${check}<button class="ttitle" data-task="${x.id}">${esc(x.title)}</button>
-    <span class="twhen ${late}">${esc(when)}</span><span class="ttag">${esc(tagOf(x))}</span></div>`;
+    : own ? `<button class="tcheck" data-done="${own.id}" title="${t("Concluir")}" aria-label="${t("Concluir")}"></button>`
+    : `<button class="tcheck" data-task="${x.id}" title="${t("Abrir")}" aria-label="${t("Abrir")}"></button>`;
+  const prio = !done && x.priority === "urgent" ? "urgent" : !done && x.priority === "high" ? "high" : "";
+  return `<div class="trow ${done ? "done" : ""} ${prio}">${check}<button class="ttitle" data-task="${(own || x).id}">${esc(x.title)}</button>
+    <span class="twhen ${late}">${esc(when)}</span><span class="ttag ${x.group ? "all" : ""}">${esc(x.group ? t("Todos") : tagOf(x))}</span></div>`;
 }
 
+// What is still to do fills the card, the most important first. What is already done today is one quiet line that opens on a click.
+let showDone = false;
 async function tasksBody() {
   const p = planOf(await api("/api/tasks"));
-  const rows = [...p[tasksTab].map((x) => [x, false]), ...(tasksTab === "today" ? p.doneToday.map((x) => [x, true]) : [])];
-  const more = rows.length - MAX_ROWS;
+  const open = groupAll(p[tasksTab]).sort((a, b) => importance(a) - importance(b));
+  const done = tasksTab === "today" ? groupAll(p.doneToday) : [];
+  const more = open.length - MAX_ROWS;
   return `<div class="day-tabs" role="tablist">${DAY_TABS.map(([id, label]) =>
       `<button role="tab" data-tab="${id}" class="${id === tasksTab ? "on" : ""}" aria-selected="${id === tasksTab}">${t(label)}</button>`).join("")}</div>
-    ${rows.length ? `<div class="trows">${rows.slice(0, MAX_ROWS).map(([x, done]) => taskRow(x, done)).join("")}</div>`
-      : `<p class="in-empty">${t(DAY_EMPTY[tasksTab])}</p>`}
-    ${more > 0 ? `<a class="in-more" href="#/tarefas">${t("Mais {n} no quadro", { n: more })}</a>` : ""}`;
+    ${open.length ? `<div class="trows">${open.slice(0, MAX_ROWS).map((x) => taskRow(x, false)).join("")}</div>`
+      : `<p class="in-empty">${t(done.length ? "Tudo feito por hoje." : DAY_EMPTY[tasksTab])}</p>`}
+    ${more > 0 ? `<a class="in-more" href="#/tarefas">${t("Mais {n} no quadro", { n: more })}</a>` : ""}
+    ${done.length ? `<button class="in-done ${showDone ? "on" : ""}" data-show-done>${icon("check")}<span>${t(done.length === 1 ? "1 concluída hoje" : "{n} concluídas hoje", { n: done.length })}</span>${icon("chevron")}</button>
+      ${showDone ? `<div class="trows small">${done.map((x) => taskRow(x, true)).join("")}</div>` : ""}` : ""}`;
 }
 
 function calRow(x) {
@@ -271,6 +280,7 @@ async function homeClick(e) {
   if (notice) return openNotice(notice);
   const tab = e.target.closest("[data-tab]");
   if (tab) { tasksTab = tab.dataset.tab; return mount($("in-tasks"), tasksBody, 4); }
+  if (e.target.closest("[data-show-done]")) { showDone = !showDone; return mount($("in-tasks"), tasksBody, 4); }
   const done = e.target.closest("[data-done]");
   if (done) {
     done.disabled = true;

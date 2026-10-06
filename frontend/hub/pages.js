@@ -54,6 +54,21 @@ function taskCard(x) {
       ${x.deadline ? ui.tag(fmt.date(x.deadline), late ? "bad" : "") : ""}</div></article>`;
 }
 
+// What is finished takes little room: one short line each, only today's, and the older ones behind a button.
+let showOlderDone = false;
+const doneAt = (x) => new Date(x.completed_at || x.updated_at || x.created_at);
+const doneCard = (x) => `<article class="tk tk-done" draggable="${x.group ? "false" : "true"}" data-id="${((x.group && x.group.find((y) => y.assignee === me.username)) || x).id}">
+  <span class="tk-tick">${icon("check")}</span><b>${esc(x.title)}</b>${x.group ? `<i>${t("Todos")}</i>` : ui.avatar(nameOf(x.assignee), "sm")}</article>`;
+function doneColumn(list, label) {
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const sorted = [...list].sort((a, b) => doneAt(b) - doneAt(a));
+  const today = sorted.filter((x) => doneAt(x) >= midnight), older = sorted.filter((x) => doneAt(x) < midnight);
+  return `<section class="col col-done" data-stage="done"><div class="col-head"><span>${t(label)}</span><i>${list.length}</i></div>
+    ${today.length ? today.map(doneCard).join("") : `<p class="faint" style="margin:6px 2px;font-size:12px">${t("Nada concluído hoje")}</p>`}
+    ${older.length ? `<button class="done-older" data-older-done>${t(showOlderDone ? "Esconder as anteriores" : "Ver as anteriores ({n})", { n: older.length })}</button>
+      ${showOlderDone ? older.slice(0, 20).map(doneCard).join("") : ""}` : ""}</section>`;
+}
+
 async function loadBoard() {
   const board = $("board");
   if (!board) return;
@@ -67,9 +82,9 @@ async function loadBoard() {
       `<button class="btn sm primary" data-new-task>${t("Nova tarefa")}</button>`)}</div>`;
     return STAGES.map(([stage, label]) => {
       const mine = groupAll(tasks.filter((x) => x.stage === stage)).sort((a, b) => importance(a) - importance(b)); // urgent first, then as before
-      const shown = stage === "done" ? mine.slice(0, 15) : mine;
+      if (stage === "done") return doneColumn(mine, label);
       return `<section class="col" data-stage="${stage}"><div class="col-head"><span>${t(label)}</span><i>${mine.length}</i></div>
-        ${shown.map(taskCard).join("") || `<p class="faint" style="margin:6px 2px;font-size:12px">${t("Vazio")}</p>`}</section>`;
+        ${mine.map(taskCard).join("") || `<p class="faint" style="margin:6px 2px;font-size:12px">${t("Vazio")}</p>`}</section>`;
     }).join("");
   }, 5);
   loadBin();
@@ -243,6 +258,7 @@ HUB_VIEWS.tarefas = async function (r) {
     if (e.target.closest("[data-bin-open]")) return openBin();
     const chip = e.target.closest("#task-filter [data-u]");
     if (chip) { taskFilter = chip.dataset.u; $("board")._html = null; return loadBoard(); }
+    if (e.target.closest("[data-older-done]")) { showOlderDone = !showOlderDone; return loadBoard(); }
     const card = e.target.closest(".tk");
     if (card) openTaskModal(Number(card.dataset.id));
   };

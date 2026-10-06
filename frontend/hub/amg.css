@@ -193,3 +193,14 @@ html, body { background: var(--bg); }
 .av-stack { display: inline-flex; }
 .av-stack .av { margin-left: -7px; box-shadow: 0 0 0 2px var(--surface-2); }
 .av-stack .av:first-child { margin-left: 0; }
+
+/* the finished column: one short line per task, today's only, the older ones behind a button */
+.tk.tk-done { flex-direction: row; align-items: center; gap: 8px; padding: 6px 9px; background: rgba(255, 255, 255, .02); opacity: .72; }
+.tk.tk-done:hover { opacity: 1; }
+.tk.tk-done b { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, .2); }
+.tk.tk-done i { font: 600 8.5px var(--ui); font-style: normal; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.tk-tick { display: grid; place-items: center; width: 16px; height: 16px; flex: none; border-radius: 50%; background: var(--chrome, #cfd5dc); color: #0b0c0e; }
+.tk-tick svg.i { width: 10px; height: 10px; stroke-width: 3; }
+.col-done { min-height: 0; }
+.done-older { margin-top: 2px; padding: 6px 2px; border: 0; background: none; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; justify-content: flex-start; }
+.done-older:hover { color: var(--text); }

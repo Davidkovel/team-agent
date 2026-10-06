@@ -244,3 +244,18 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
   .ring { align-self: center; }
   .trow { grid-template-columns: 22px minmax(0, 1fr) auto; } .ttag { display: none; }
 }
+
+/* tasks: "Para todos" is one row, urgent ones stand out, and what is done today folds into one line */
+.trow.urgent .ttitle { color: #fff; font-weight: 700; }
+.trow.urgent .tcheck { border-color: #ef6f5e; }
+.trow.urgent { box-shadow: inset 3px 0 0 #ef6f5e; padding-left: 10px; background: linear-gradient(90deg, rgba(255, 69, 58, .09), transparent 60%); }
+.trow.high { box-shadow: inset 3px 0 0 #ff9f0a; padding-left: 10px; }
+.ttag.all { border-color: rgba(238, 241, 244, .35); color: #fff; }
+.in-done { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; padding: 8px 4px 0; border: 0; border-top: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 0; background: none; color: #7d848d; font: 600 9.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; cursor: pointer; justify-content: flex-start; }
+.in-done:hover { color: #fff; }
+.in-done svg.i { width: 13px; height: 13px; }
+.in-done svg.i:last-child { margin-left: auto; transition: transform .15s; }
+.in-done.on svg.i:last-child { transform: rotate(90deg); }
+.trows.small .trow { padding: 6px 2px; }
+.trows.small .ttitle { font-size: 12.5px; }

@@ -21,7 +21,7 @@
     ["home", "Início", "home", ["home"]],
     ["tarefas", "Tarefas", "tasks", ["tarefas", "aprovacoes", "semana"]],
     ["avisos", "Avisos", "bell", ["avisos"]],
-    ["empresas", "Trabalho", "building", ["empresas", "projetos", "codigo", "baredesk"]],
+    ["empresas", "Trabalho", "building", ["empresas", "projetos", "codigo", "entregas", "baredesk"]],
   ];
 
   // #/avisos only exists on the phone: on a computer the address falls back to Início, as any unknown one does

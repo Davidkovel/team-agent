@@ -880,3 +880,57 @@ HUB_VIEWS.definicoes = async function () {
     flash(t("Guardado."));
   };
 };
+
+// ---------------------------------------------------------------- Entregas: what each push changed, for somebody who does not read code
+const PUSH_KINDS = [["photo", "Fotos", "fotos"], ["design", "Design", "layers"], ["text", "Textos", "doc"], ["code", "Código", "code"]];
+const PUSH_PHOTOS = 12; // pictures shown of one push; the rest is a count
+let pushWho = "", pushKind = "";
+
+function pushHtml(c) {
+  const files = c.files || [], kinds = c.kinds || {};
+  const of = (k) => files.filter((f) => f.kind === k);
+  const photos = of("photo");
+  const chips = PUSH_KINDS.filter(([k]) => kinds[k]).map(([k, label, ic]) =>
+    `<span class="push-kind ${k}">${icon(ic)}${t(label)} <b>${kinds[k].files}</b>${k === "photo" ? "" : diffStat(kinds[k].added, kinds[k].deleted)}</span>`).join("");
+  const blob = (f) => `/api/commits/blob?repo=${encodeURIComponent(c.repo)}&sha=${c.sha}&path=${encodeURIComponent(f.path)}`;
+  const gallery = photos.length ? `<div class="push-photos">${photos.slice(0, PUSH_PHOTOS).map((f) =>
+    `<figure><a target="_blank" rel="noopener"><img alt="" data-blob="${esc(blob(f))}"></a><figcaption title="${esc(f.path)}">${esc(f.path.split("/").pop())}</figcaption></figure>`).join("")}
+    ${photos.length > PUSH_PHOTOS ? `<figure class="more"><b>+${photos.length - PUSH_PHOTOS}</b></figure>` : ""}</div>` : "";
+  const lists = PUSH_KINDS.filter(([k]) => k !== "photo" && of(k).length).map(([k, label]) => `
+    <details class="push-files"><summary>${t(label)} · ${kinds[k].files} ${kinds[k].files === 1 ? "ficheiro" : "ficheiros"}</summary>
+      ${of(k).map((f) => `<div class="file"><code>${esc(f.path)}</code><span>${f.binary ? '<span class="muted">binário</span>' : diffStat(f.added, f.deleted)}</span></div>`).join("")}
+    </details>`).join("");
+  return `<article class="panel push">
+    <header><div><b>${esc(c.author)}</b><span>${ago(c.date)} · ${time(c.date)} · ${esc(c.repo)}</span></div>
+      ${c.url ? `<a class="ch-link" href="${esc(c.url)}" target="_blank" rel="noopener">GitHub</a>` : ""}</header>
+    <h3>${esc(c.message)}</h3>
+    ${c.body ? `<p class="push-body">${esc(c.body)}</p>` : ""}
+    <div class="push-kinds">${chips || `<span class="muted">${t("Sem detalhe dos ficheiros neste computador.")}</span>`}</div>
+    ${gallery}${lists}</article>`;
+}
+
+HUB_VIEWS.entregas = async function () {
+  page(`${ui.head("Trabalho", t("Entregas"), t("O que mudou em cada push: fotos, design, textos e código, cada coisa no seu sítio."))}
+    <div class="chips" id="push-who"></div><div class="chips" id="push-kind"></div>
+    <div class="push-list" id="push-list"><p class="muted">A carregar…</p></div>`);
+  const all = await api("/api/commits?limit=60");
+  const draw = () => {
+    if (!$("push-list")) return;
+    const authors = [...new Set(all.map((c) => c.author))];
+    $("push-who").innerHTML = '<span class="chip-label">Quem</span>' + ["", ...authors].map((a) =>
+      `<span class="chip ${a === pushWho ? "active" : ""}" data-a="${esc(a)}">${a ? esc(a) : "Todos"}</span>`).join("");
+    $("push-kind").innerHTML = '<span class="chip-label">O quê</span>' + [["", "Tudo"], ...PUSH_KINDS].map(([k, label]) =>
+      `<span class="chip ${k === pushKind ? "active" : ""}" data-k="${k}">${t(label)}</span>`).join("");
+    const items = all.filter((c) => (!pushWho || c.author === pushWho) && (!pushKind || c.kinds?.[pushKind]));
+    $("push-list").innerHTML = items.length ? items.map(pushHtml).join("") : `<div class="empty">${t("Nenhum push com isto.")}</div>`;
+    for (const img of $("push-list").querySelectorAll("img[data-blob]")) { // a picture needs the sign-in, so it cannot be a plain src
+      fetch(img.dataset.blob, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => (r.ok ? r.blob() : Promise.reject()))
+        .then((b) => { img.src = img.parentNode.href = URL.createObjectURL(b); })
+        .catch(() => img.closest("figure").classList.add("gone"));
+    }
+  };
+  $("push-who").onclick = (e) => { if (e.target.dataset.a !== undefined) { pushWho = e.target.dataset.a; draw(); } };
+  $("push-kind").onclick = (e) => { if (e.target.dataset.k !== undefined) { pushKind = e.target.dataset.k; draw(); } };
+  draw();
+};

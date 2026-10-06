@@ -3,7 +3,7 @@ import mimetypes
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -223,6 +223,15 @@ async def history(limit: int = 100, user: User = Depends(current_user), db: Asyn
 async def commits_feed(limit: int = 40, user: User = Depends(current_user)):
     """Latest commits across the team's repositories (GitHub first, local git as fallback)."""
     return await asyncio.to_thread(commits.recent, min(max(limit, 1), 100))
+
+
+@router.get("/commits/blob")
+async def commit_blob(repo: str, sha: str, path: str, user: User = Depends(current_user)):
+    """A picture as it was in one commit, for the page that shows what each push changed."""
+    found = await asyncio.to_thread(commits.blob, repo, sha, path)
+    if not found:
+        raise HTTPException(404, "Not in this commit")
+    return Response(found[0], media_type=found[1], headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/repos")

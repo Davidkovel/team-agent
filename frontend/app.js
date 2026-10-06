@@ -117,7 +117,7 @@ const NAV = [
   ["Início", "home", [["home", "Início"]]],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]]],
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes", true], ["historico", "Histórico", true]]],
-  ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["baredesk", "BareDesk"]]],
+  ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"]]],
   ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA", true], ["despesas", "Despesas", true]]],
   ["Sistema", "gear", [["memoria", "Memória"], ["definicoes", "Definições"]]],
 ];

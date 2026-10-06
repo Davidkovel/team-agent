@@ -7,6 +7,8 @@ for private repos); that one only knows the message and author, not the files.
 """
 import json
 import os
+import mimetypes
+import re
 import subprocess
 import threading
 import time
@@ -60,6 +62,46 @@ def _github(repo: dict, limit: int) -> list[dict]:
              "files": None, "areas": [], "stats": None} for r in rows]
 
 
+PHOTO = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".bmp", ".ico", ".svg"}
+DESIGN = {".css", ".scss", ".html", ".qss", ".ttf", ".otf", ".woff", ".woff2"}
+TEXT = {".md", ".txt"}
+MAX_BLOB = 8 * 1024 * 1024
+MIME = {".webp": "image/webp", ".avif": "image/avif", ".svg": "image/svg+xml", ".ico": "image/x-icon"}   # Windows does not know all of them
+
+
+def kind(path: str) -> str:
+    """What a changed file is to somebody who does not read code: a picture, design, a text, or code."""
+    ext = Path(path).suffix.lower()
+    return "photo" if ext in PHOTO else "design" if ext in DESIGN else "text" if ext in TEXT else "code"
+
+
+def _kinds(files: list[dict]) -> dict:
+    out = {}
+    for f in files:
+        k = out.setdefault(f["kind"], {"files": 0, "added": 0, "deleted": 0})
+        k["files"] += 1
+        k["added"] += f["added"]
+        k["deleted"] += f["deleted"]
+    return out
+
+
+def blob(repo_name: str, sha: str, path: str) -> tuple[bytes, str] | None:
+    """A picture as it was in one commit, read from the local checkout. Only pictures, and only by commit and path."""
+    repo = next((r for r in repos() if r["name"] == repo_name), None)
+    root = _local_path(repo) if repo else None
+    if not root or not re.fullmatch(r"[0-9a-f]{7,40}", sha) or Path(path).suffix.lower() not in PHOTO:
+        return None
+    if path.startswith(("-", "/")) or ".." in path.split("/") or ":" in path:
+        return None
+    try:
+        out = subprocess.run(["git", "-C", str(root), "show", f"{sha}:{path}"], capture_output=True, timeout=10, env=GIT_ENV)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode or len(out.stdout) > MAX_BLOB:
+        return None   # deleted in that commit, or not a file of it
+    return out.stdout, MIME.get(Path(path).suffix.lower()) or mimetypes.guess_type(path)[0] or "application/octet-stream"
+
+
 def _areas(files: list[dict]) -> list[dict]:
     """Groups changed files by their top-level folder: that is the 'where' of a commit."""
     groups = defaultdict(lambda: {"files": 0, "added": 0, "deleted": 0})
@@ -94,10 +136,10 @@ def _parse(raw: str, repo: dict) -> list[dict]:
             if len(nums) < 3:
                 continue
             files.append({"path": nums[2], "added": int(nums[0]) if nums[0].isdigit() else 0,
-                          "deleted": int(nums[1]) if nums[1].isdigit() else 0, "binary": nums[0] == "-"})
+                          "deleted": int(nums[1]) if nums[1].isdigit() else 0, "binary": nums[0] == "-", "kind": kind(nums[2])})
         out.append({"sha": sha.strip(), "author": author, "date": date, "message": subject, "body": _clean_body(body),
                     "url": base + sha.strip() if base else "", "via": "local",
-                    "files": files[:MAX_FILES], "areas": _areas(files),
+                    "files": files[:MAX_FILES], "areas": _areas(files), "kinds": _kinds(files),
                     "stats": {"files": len(files), "added": sum(f["added"] for f in files), "deleted": sum(f["deleted"] for f in files)}})
     return out
 

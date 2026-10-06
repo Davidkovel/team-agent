@@ -166,7 +166,7 @@ const COMMANDS = [
   ["Entregar tarefa à IA", "bot", () => newTask({ for_ai: "developer" })],
   ["Perguntar à Team AI", "spark", () => toggleAI(true)],
   ["Ver agentes", "bot", "#/agentes"], ["Ver aprovações", "check", "#/aprovacoes"], ["Ao vivo", "pulse", "#/aovivo"],
-  ["Tarefas", "tasks", "#/tarefas"], ["Projetos", "folder", "#/projetos"], ["Empresas", "building", "#/empresas"], ["Código", "code", "#/codigo"],
+  ["Tarefas", "tasks", "#/tarefas"], ["Projetos", "folder", "#/projetos"], ["Empresas", "building", "#/empresas"], ["Código", "code", "#/codigo"], ["Entregas", "fotos", "#/entregas"],
   ["Histórico", "history", "#/historico"], ["Semana", "calendar", "#/semana"], ["Equipa", "users", "#/equipa"], ["Análise", "chart", "#/analise"],
   ["Uso de IA", "token", "#/uso"], ["Despesas", "wallet", "#/despesas"], ["Memória", "layers", "#/memoria"], ["Definições", "gear", "#/definicoes"],
   ["Início", "home", "#/home"],

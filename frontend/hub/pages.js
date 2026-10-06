@@ -356,6 +356,13 @@ async function openTaskModal(id) {
   openModal(`<div class="rowx" style="margin-bottom:12px"><h3 style="margin:0" class="grow">${esc(x.title)}</h3>
       ${group ? ui.tag(t("{a} de {b} feito", { a: group.filter((y) => y.stage === "done").length, b: group.length }), group.every((y) => y.stage === "done") ? "ok" : "")
         : ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></div>
+    ${x.stage !== "done" ? `<div class="panel pad tdue ${x.deadline && new Date(x.deadline) < new Date() ? "late" : ""}"><div class="ph-eyebrow">${t("Prazo")}</div>
+        <p class="tdue-now">${x.deadline ? (new Date(x.deadline) < new Date() ? `${t("Atrasada")}: ${t("era para")} ${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}` : `${t("Até")} ${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}`)
+          : t("Sem prazo. Dá-lhe um dia e uma hora: passado esse momento, a tarefa fica atrasada.")}</p>
+        <input type="datetime-local" id="task-due" value="${x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}" aria-label="${t("Prazo")}">
+        <div class="tdue-quick">${[["Hoje 18:00", 0], ["Amanhã 18:00", 1], ...((5 - new Date().getDay() + 7) % 7 > 1 ? [["Sexta 18:00", (5 - new Date().getDay() + 7) % 7]] : []), ["Daqui a 1 semana", 7]]
+          .map(([label, days]) => `<button type="button" class="chp" data-due-days="${days}">${t(label)}</button>`).join("")}</div>
+        <div class="rowx">${ui.btn("Guardar prazo", "data-act=due", "sm primary")}${x.deadline ? ui.btn("Tirar prazo", "data-act=nodue", "sm quiet") : ""}</div></div>` : ""}
     ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx" style="margin-bottom:12px"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
     ${x.current_action && running ? `<div class="now" style="margin-bottom:12px">${esc(x.current_action)}</div>` : ""}
     ${x.blocked_reason ? `<p class="msg note" style="margin:0 0 12px">${esc(x.blocked_reason)}</p>` : ""}
@@ -407,8 +414,19 @@ async function openTaskModal(id) {
   };
   $("task-note").text.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("task-note").requestSubmit(); };   // Ctrl+Enter saves
   $("modal-box").onclick = async (e) => {
+    const quick = e.target.closest("[data-due-days]");
+    if (quick) { $("task-due").value = dueAt(Number(quick.dataset.dueDays)); return; }   // fills the field; "Guardar prazo" keeps it
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
+    if (act === "due" || act === "nodue") {
+      const value = act === "due" ? $("task-due").value : "";
+      if (act === "due" && !value) return flash(t("Escolhe o dia e a hora do prazo."));
+      try {
+        await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { deadline: value ? new Date(value).toISOString() : null } });
+        flash(t(value ? "Prazo guardado." : "Prazo tirado.")); loadBoard(); openTaskModal(x.id);
+      } catch (err) { flash(err.message); }
+      return;
+    }
     if (act === "ai") return assignToAI(x);
     if (act === "done") {
       try { await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); loadBoard(); openTaskModal(x.id); }

@@ -559,3 +559,6 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .tdue.late .tdue-now { color: var(--bad); font-weight: 600; }
 .tdue input { flex: 0 1 220px; width: auto; }
 .tdue-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* a task's description stretches with its text */
+#modal textarea[name="description"] { min-height: 130px; max-height: 55vh; resize: vertical; overflow-y: auto; }

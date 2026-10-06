@@ -299,6 +299,13 @@ document.addEventListener("input", (e) => {
     : hidden.value ? `${t("Prazo")}: ${new Date(hidden.value).toLocaleString("pt-PT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}` : "";
 });
 
+// The description of a task, and a note, grow with what is written in them, up to most of the screen: a long text used to
+// be read through a box three lines tall.
+const growText = (el) => { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(innerHeight * 0.55))}px`; };
+document.addEventListener("input", (e) => { if (e.target.matches?.('textarea[name="description"], .tnote-new textarea')) growText(e.target); });
+new MutationObserver(() => document.querySelectorAll('#modal textarea[name="description"]:not([data-grown])').forEach((el) => { el.dataset.grown = "1"; growText(el); }))
+  .observe(document.documentElement, { childList: true, subtree: true });   // a task opened for editing shows its whole text at once
+
 function taskFields(x = {}, users = [], projects = [], sending = false) {
   const deadline = x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
   return (sending ? whoPicker(users, x.assignee || me.username) : "")

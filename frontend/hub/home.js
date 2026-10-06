@@ -236,16 +236,32 @@ function taskRow(x, done) {
 
 // What is still to do fills the card, the most important first. What is already done today is one quiet line that opens on a click.
 let showDone = false;
+const openMates = new Set(); // whose tasks are unfolded in "A seguir"
+const MATE_ROWS = 5;         // tasks shown of one teammate when unfolded; the rest is on the board
 async function tasksBody() {
   const p = planOf(asOne(await api("/api/tasks"))); // "Para todos" is one row, open until everybody did their part
   const open = p[tasksTab].sort((a, b) => importance(a) - importance(b));
   const done = tasksTab === "today" ? p.doneToday : [];
-  const more = open.length - MAX_ROWS;
+  // Mine and the ones for several people come first, as rows. What belongs to one teammate is a single line with their
+  // face and how many: fourteen tasks of somebody else used to push this person's own work out of the card.
+  const isMine = (x) => (x.group ? true : x.assignee === me.username);
+  const mine = open.filter(isMine), theirs = new Map();
+  for (const x of open.filter((y) => !isMine(y))) theirs.set(x.assignee, [...(theirs.get(x.assignee) || []), x]);
+  const more = mine.length - MAX_ROWS;
+  const mate = ([user, list]) => {
+    const urgent = list.filter((x) => x.priority === "urgent").length, on = openMates.has(user);
+    return `<button class="mate-sum ${on ? "on" : ""}" data-mate="${esc(user)}" aria-expanded="${on}">${ui.avatar(nameOf(user), "sm")}<b>${esc(nameOf(user))}</b>
+        <span>${t(list.length === 1 ? "1 tarefa" : "{n} tarefas", { n: list.length })}${urgent ? ` · <em>${t(urgent === 1 ? "1 urgente" : "{n} urgentes", { n: urgent })}</em>` : ""}</span>${icon("chevron")}</button>
+      ${on ? `<div class="trows small">${list.slice(0, MATE_ROWS).map((x) => taskRow(x, false)).join("")}</div>
+        ${list.length > MATE_ROWS ? `<a class="in-more" href="#/tarefas">${t("Mais {n} no quadro", { n: list.length - MATE_ROWS })}</a>` : ""}` : ""}`;
+  };
   return `<div class="day-tabs" role="tablist">${DAY_TABS.map(([id, label]) =>
       `<button role="tab" data-tab="${id}" class="${id === tasksTab ? "on" : ""}" aria-selected="${id === tasksTab}">${t(label)}</button>`).join("")}</div>
-    ${open.length ? `<div class="trows">${open.slice(0, MAX_ROWS).map((x) => taskRow(x, false)).join("")}</div>`
-      : `<p class="in-empty">${t(done.length ? "Tudo feito por hoje." : DAY_EMPTY[tasksTab])}</p>`}
+    ${theirs.size ? `<div class="trows-h">${t("Para ti")}</div>` : ""}
+    ${mine.length ? `<div class="trows">${mine.slice(0, MAX_ROWS).map((x) => taskRow(x, false)).join("")}</div>`
+      : `<p class="in-empty">${t(open.length ? "Nada para ti aqui." : done.length ? "Tudo feito por hoje." : DAY_EMPTY[tasksTab])}</p>`}
     ${more > 0 ? `<a class="in-more" href="#/tarefas">${t("Mais {n} no quadro", { n: more })}</a>` : ""}
+    ${theirs.size ? `<div class="trows-h">${t("Da equipa")}</div><div class="mates-sum">${[...theirs].sort((a, b) => b[1].length - a[1].length).map(mate).join("")}</div>` : ""}
     ${done.length ? `<button class="in-done ${showDone ? "on" : ""}" data-show-done>${icon("check")}<span>${t(done.length === 1 ? "1 concluída hoje" : "{n} concluídas hoje", { n: done.length })}</span>${icon("chevron")}</button>
       ${showDone ? `<div class="trows small">${done.map((x) => taskRow(x, true)).join("")}</div>` : ""}` : ""}`;
 }
@@ -336,6 +352,8 @@ async function homeClick(e) {
   const tab = e.target.closest("[data-tab]");
   if (tab) { tasksTab = tab.dataset.tab; return mount($("in-tasks"), tasksBody, 4); }
   if (e.target.closest("[data-show-done]")) { showDone = !showDone; return mount($("in-tasks"), tasksBody, 4); }
+  const mateSum = e.target.closest("[data-mate]");
+  if (mateSum) { openMates.has(mateSum.dataset.mate) ? openMates.delete(mateSum.dataset.mate) : openMates.add(mateSum.dataset.mate); return mount($("in-tasks"), tasksBody, 4); }
   const done = e.target.closest("[data-done]");
   if (done) {
     done.disabled = true;

@@ -67,3 +67,12 @@ def test_the_clock_stops_and_starts_again_and_keeps_what_was_worked(client):
     assert mine == {k: again[k] for k in mine}
     team = {p["user"]: p for p in client.get("/api/local/team").json()}
     assert team["owner"]["ponto_state"]["running"] is True and team["owner"]["ponto"] == first["at"]
+
+
+def test_widget_reads_the_last_commits_with_who_sent_them(client, monkeypatch):
+    from app import commits
+    monkeypatch.setattr(commits, "recent", lambda limit=40: [{"sha": "abc1234", "author": "Marco Goucha", "message": "Página nova", "date": "2026-10-06T10:00:00+00:00", "repo": "Agente AMG"},
+                                                              {"sha": "def5678", "author": "Alguém de fora", "message": "Outra", "date": "2026-10-06T09:00:00+00:00"}])
+    got = client.get("/api/local/commits").json()
+    assert [(c["sha"], c["name"], c["message"]) for c in got] == [("abc1234", got[0]["name"], "Página nova"), ("def5678", "Alguém de fora", "Outra")]
+    assert got[1]["user"] is None   # not one of the team: shown by the name git has

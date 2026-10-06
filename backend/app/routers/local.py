@@ -3,6 +3,7 @@
 The widget has no login, so these only answer requests that come from this machine (like /api/local/week).
 Anyone on the network must use the normal, token-protected endpoints instead.
 """
+import asyncio
 import hmac
 import ipaddress
 import time
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import ponto, sync
+from .. import commits, ponto, sync, week
 from ..config import settings
 from ..db import get_db
 from ..models import Approval, Notification, User
@@ -222,3 +223,17 @@ async def local_ponto_stop(body: WidgetPing, request: Request, db: AsyncSession 
                            x_team_widget: str | None = Header(None)):
     """Stop the clock from the widget, for the person sitting at that computer."""
     return await ponto.stop(db, await widget_user(body, request, db, x_team_widget))
+
+
+@router.get("/commits")
+async def local_commits(request: Request, db: AsyncSession = Depends(get_db)):
+    """The last few commits and the team member behind each, for the widget's quiet "somebody sent a change" card."""
+    local_or_team_key(request)
+    users = list((await db.execute(select(User).order_by(User.id))).scalars())
+    alias_map = week.aliases()
+    out = []
+    for c in await asyncio.to_thread(commits.recent, 8):
+        person = week.person_for(c["author"], users, alias_map)
+        out.append({"sha": c["sha"], "user": person.username if person else None, "name": person.display_name if person else c["author"],
+                    "message": c["message"], "date": c["date"], "repo": c.get("repo", "")})
+    return out

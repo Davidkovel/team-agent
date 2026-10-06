@@ -19,6 +19,8 @@ from . import badge
 
 TEXT, MUTED = QColor("#f2f3f5"), QColor("#a3a7ae")
 AMBER, WHITE, ONLINE, OFFLINE = QColor("#e3bd6b"), QColor("#f2f3f5"), QColor("#4ee07a"), QColor("#8a8f98")
+QUIET = QColor("#9fb4d6")                   # a teammate working or sending a change: pale, so it does not shout
+Q_HOLD, Q_OPACITY = 4500, 0.88             # the quiet card: shorter on the screen and a little see-through
 UI = ("Segoe UI Variable Text", "Segoe UI")
 WIDTH, PAD, RADIUS = 460, 18, 16
 ICON = 36                                  # the star at the left of a card
@@ -230,9 +232,9 @@ class Notices(QObject):
 class PresenceCard(Card):
     """Somebody came online (green) or went offline (grey): a small card in the bottom right corner, the way Steam says it."""
 
-    def __init__(self, name: str, text: str, slot: int, colour: QColor = ONLINE):
-        super().__init__(P_WIDTH, P_HEIGHT, colour, P_HOLD)
-        self._name, self._text, self._colour = name, text, colour
+    def __init__(self, name: str, text: str, slot: int, colour: QColor = ONLINE, quiet: bool = False):
+        super().__init__(P_WIDTH, P_HEIGHT, colour, Q_HOLD if quiet else P_HOLD)
+        self._name, self._text, self._colour, self._quiet = name, text, colour, quiet
         self._f_name, self._f_text = _font(11, QFont.DemiBold), _font(9, QFont.DemiBold)
         self._beat = 1.0   # how far the ring has gone out; 1 = no ring
         self._pulse = QVariantAnimation(self)
@@ -248,7 +250,7 @@ class PresenceCard(Card):
 
     def _at(self, k):
         self.move(round(self._off + (self._rest - self._off) * k), self._y)
-        self.setWindowOpacity(max(0.0, min(1.0, k * 1.6)))
+        self.setWindowOpacity(max(0.0, min(Q_OPACITY if self._quiet else 1.0, k * 1.6)))
 
     def _beaten(self, v):
         self._beat = v
@@ -256,13 +258,14 @@ class PresenceCard(Card):
 
     def run(self):
         self._enter()
-        QTimer.singleShot(SLIDE_IN - 120, self._pulse.start)   # the ring starts as the card lands
+        if not self._quiet:
+            QTimer.singleShot(SLIDE_IN - 120, self._pulse.start)   # the ring starts as the card lands
 
     def paintEvent(self, _):
         p = QPainter(self)
         rect = self._plate(p)
         wash = QLinearGradient(rect.topLeft(), rect.topRight())   # green light from the left, so it does not read as one more dark window
-        wash.setColorAt(0, _tint(self._colour, 0.28))
+        wash.setColorAt(0, _tint(self._colour, 0.1 if self._quiet else 0.28))
         wash.setColorAt(0.75, _tint(self._colour, 0.0))
         p.setPen(Qt.NoPen)
         p.setBrush(wash)
@@ -285,7 +288,7 @@ class PresenceCard(Card):
         p.drawText(QRectF(x, P_HEIGHT / 2 - 21, w, 20), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_name).elidedText(self._name, Qt.ElideRight, w))
         p.setFont(self._f_text)
         p.setPen(self._colour)
-        p.drawText(QRectF(x, P_HEIGHT / 2 - 1, w, 18), Qt.AlignLeft | Qt.AlignVCenter, self._text)
+        p.drawText(QRectF(x, P_HEIGHT / 2 - 1, w, 18), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_text).elidedText(self._text, Qt.ElideRight, w))
 
 
 class Presence(QObject):
@@ -301,5 +304,13 @@ class Presence(QObject):
             ring()   # once for a group of people arriving together, not once each
         slot = next(i for i in range(len(self._cards) + 1) if i not in self._cards)
         card = self._cards[slot] = PresenceCard(name, text, slot, ONLINE if online else OFFLINE)
+        card.finished.connect(lambda: (self._cards.pop(slot, None), card.close(), card.deleteLater()))
+        card.run()
+
+    def say(self, name: str, text: str):
+        """Something a teammate is doing (started a task, sent a change): the same corner, but no sound, no ring, a little
+        see-through and gone sooner. It is there for whoever looks, and does not ask to be looked at."""
+        slot = next(i for i in range(len(self._cards) + 1) if i not in self._cards)
+        card = self._cards[slot] = PresenceCard(name, text, slot, QUIET, quiet=True)
         card.finished.connect(lambda: (self._cards.pop(slot, None), card.close(), card.deleteLater()))
         card.run()

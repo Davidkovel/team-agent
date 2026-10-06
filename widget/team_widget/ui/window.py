@@ -44,6 +44,7 @@ INNER = WIDTH - 28     # what the modules get
 SHADOW = 18
 RADIUS = 24
 GROW, SHRINK = 0.42, 0.32   # seconds
+COMMITS_EVERY = 8           # Hub polls (4 s each) between two looks at the last commits: every half minute
 ACCOUNT_EVERY = 75          # Hub polls (4 s each) between two looks at the Claude account's usage: every 5 minutes
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 LOGO = ASSETS / "logo.png"
@@ -1079,6 +1080,10 @@ class WidgetWindow(QWidget):
         self.news.connect(self.notices.push)
         self.presence = Presence(self)  # the corner card that says a teammate came online
         self._online_seen = None
+        self._work_seen = None      # user -> the task they are working on (None when not working), as last seen
+        self._commits = None        # the last commits the Hub knows (/api/local/commits), read off the UI thread
+        self._commits_shown = None  # the list already looked at
+        self._commit_shas = None    # every commit seen so far (None until the first look, which is not news)
         self.inbox_news.connect(self._render_notes)
         self._inbox_seen, self._notes = None, None  # unread count last asked about, and what came back
         self._notice_after = None  # newest "task sent" notice when the widget started (None until the first look)
@@ -1458,6 +1463,11 @@ class WidgetWindow(QWidget):
                     self._week = hub.get_json(url + "/api/local/week")  # needs the team key away from the server computer; without it the last value stays
                 except (OSError, ValueError, urllib.error.URLError):
                     pass
+            if tick % COMMITS_EVERY == 0 and self._team is not None:
+                try:
+                    self._commits = hub.get_json(url + "/api/local/commits")
+                except (OSError, ValueError, urllib.error.URLError):
+                    pass   # an older Hub, or it is busy: the last list stays
             if tick % ACCOUNT_EVERY == 0:
                 refresh_from_account()  # the Claude usage figures straight from the account, here and never on the UI thread
             tick += 1
@@ -1740,6 +1750,35 @@ class WidgetWindow(QWidget):
                     self.notify("Ponto", f"{names[user]} bateu o ponto às {hhmm(at)}")
         self._ponto_seen = now
 
+    def _follow_work(self, team):
+        """A quiet card when a teammate starts working on something. Never for this person, never with a sound."""
+        if not team:
+            return
+        me = self._identity(team)
+        now = {p["user"]: (p.get("task") or "") if p.get("status") == "WORKING" else None for p in team}
+        if self._work_seen is not None:
+            for p in team:
+                task = now[p["user"]]
+                if task is not None and self._work_seen.get(p["user"]) is None and p["user"] != me:
+                    self.presence.say(p["name"], f"a trabalhar: {task}" if task else "começou a trabalhar")
+        self._work_seen = now
+
+    def _follow_commits(self):
+        """A quiet card when a teammate sends changes (commits). Several at once from one person are one card."""
+        commits = self._commits
+        if commits is None or commits is self._commits_shown:
+            return
+        self._commits_shown = commits
+        if self._commit_shas is not None:
+            me = self._identity(self._team or [])
+            by = {}
+            for c in commits:
+                if c["sha"] not in self._commit_shas and c.get("user") != me:
+                    by.setdefault(c["name"], []).append(c)
+            for name, items in by.items():
+                self.presence.say(name, f"enviou: {items[0]['message']}" if len(items) == 1 else f"enviou {len(items)} alterações")
+        self._commit_shas = (self._commit_shas or set()) | {c["sha"] for c in commits}
+
     def _follow_online(self, team):
         """Tells this person when someone comes online or goes offline, the way Steam does."""
         if not team:  # no answer yet: the first real list is a look, not news
@@ -1827,7 +1866,9 @@ class WidgetWindow(QWidget):
                 self._render_usage()
                 self._follow_ponto(team)
                 self._follow_online(team)
+                self._follow_work(team)
             self._team_seen = team
+        self._follow_commits()
         week = self._week
         if week is not None and week is not self._week_seen:
             if (self._week_seen or {}).get("pending") != week.get("pending"):

@@ -397,3 +397,18 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .in-grid .in-prog { align-self: stretch; display: flex; flex-direction: column; }
 #in-prog { flex: 1; display: flex; flex-direction: column; justify-content: space-around; }
 .week-nums span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .1em; }
+
+/* "A seguir": this person's tasks as rows, each teammate's as one line that unfolds */
+.trows-h { margin: 14px 0 4px; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .18em; text-transform: uppercase; }
+.day-tabs + .trows-h { margin-top: 12px; }
+.mates-sum { display: grid; gap: 6px; }
+.mate-sum { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .06);
+  background: rgba(255, 255, 255, .025); color: inherit; text-align: left; cursor: pointer; }
+.mate-sum:hover { border-color: rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .05); }
+.mate-sum b { font: 600 13.5px var(--ui); }
+.mate-sum span { flex: 1; color: var(--muted); font-size: 12px; }
+.mate-sum em { color: #ef6f5e; font-style: normal; font-weight: 600; }
+.mate-sum svg.i { width: 14px; height: 14px; color: var(--faint); transition: transform .15s; }
+.mate-sum.on svg.i { transform: rotate(90deg); }
+.mates-sum .trows.small { padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, .07); margin-left: 16px; }
+.mate-sum .av { flex: none; width: 26px; height: 26px; font-size: 11px; }

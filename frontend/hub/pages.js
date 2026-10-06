@@ -743,7 +743,8 @@ HUB_VIEWS.equipa = async function () {
 };
 async function loadTeamPage() {
   // whoever said "Estou a fazer" on a task: their photo in the turning ring and the task, first thing on their card
-  await mount($("team-grid"), async () => (await api("/api/agents")).map((a) => `<a class="panel hover agent-card ${a.doing ? "doing" : ""}" href="${a.doing ? `#/tarefas/${a.doing.id}` : `#/agentes/${esc(a.id)}`}">
+  await mount($("team-grid"), async () => (await api("/api/agents"))
+    .sort((a, b) => !!b.doing - !!a.doing || (a.status === "OFFLINE") - (b.status === "OFFLINE")).map((a) => `<a class="panel hover agent-card ${a.doing ? "doing" : ""}" href="${a.doing ? `#/tarefas/${a.doing.id}` : `#/agentes/${esc(a.id)}`}">
     <div class="rowx">${a.doing ? `<span class="dl-ring">${ui.avatar(a.display_name, "lg")}</span>` : ui.avatar(a.display_name, "lg")}<div class="grow"><b style="font-size:15px">${esc(a.display_name)}</b>
       <div>${ui.status(a.status === "OFFLINE" ? "OFFLINE" : "ONLINE")}</div></div></div>
     ${a.doing ? `<div class="ag-doing"><small>${t("A fazer agora")} · ${t("desde")} ${sinceOf(a.doing.since)}</small><b>${esc(a.doing.title)}</b></div>` : ""}

@@ -176,3 +176,23 @@ def test_other_computer_needs_the_team_key_to_show_online(client, monkeypatch):
     finally:
         services.WIDGET_SEEN.clear()
         asyncio.run(rt.store.clear_presence(2))
+
+
+def where_of(client, headers, username):
+    return next(m for m in client.get("/api/team", headers=headers).json() if m["user"] == username).get("where")
+
+
+IPHONE = {"user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"}
+WINDOWS = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36"}
+
+
+def test_the_team_sees_whether_someone_is_on_the_phone_or_the_computer(client):
+    _, owner = login(client, "owner")
+    mtok, _ = login(client, "mark")
+    assert where_of(client, owner, "mark") == []
+    with client.websocket_connect(f"/ws?token={mtok}", headers=IPHONE):
+        assert wait_for(lambda: where_of(client, owner, "mark") == ["phone"])
+        with client.websocket_connect(f"/ws?token={mtok}", headers=WINDOWS) as pc:
+            pc.send_text("ping")  # the next ping counts the computer too
+            assert wait_for(lambda: where_of(client, owner, "mark") == ["pc", "phone"])
+    assert wait_for(lambda: where_of(client, owner, "mark") == [])

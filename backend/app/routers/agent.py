@@ -13,7 +13,7 @@ from ..db import get_db
 from ..models import UNFINISHED, AgentSession, Approval, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
 from ..security import agent_user, make_jwt
-from ..services import (ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, approval_out, deciders, event_out, log_activity, notify,
+from ..services import (ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, where, approval_out, deciders, event_out, log_activity, notify,
                         save_agent_state, task_out, team_view)
 from .work import memory_for_task
 
@@ -101,7 +101,7 @@ async def session(user: User = Depends(agent_user)):
 async def heartbeat(body: Heartbeat, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     before = await rt.store.get_presence(user.id)
     was_online = before is not None and before.get("via") not in SOFT_VIA  # an open Hub/widget is not the agent
-    await rt.store.set_presence(user.id, {**body.model_dump(), "last_seen": time.time()}, settings.heartbeat_timeout)
+    await rt.store.set_presence(user.id, {**body.model_dump(), "where": where(user.id, agent=True), "last_seen": time.time()}, settings.heartbeat_timeout)
     await save_agent_state(db, user.id, body.status)
     rt.online.add(user.id)
     ONLINE_VIA[user.id] = "agent"

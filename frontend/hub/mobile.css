@@ -141,18 +141,9 @@ html.is-phone .m-screen { display: grid; gap: 22px; }
 html.is-phone .m-large span { display: block; color: var(--muted); font: 500 14px var(--ui); }
 html.is-phone .m-large h1 { margin: 4px 0 0; font: 500 38px/1.05 var(--serif); letter-spacing: -.01em; }
 html.is-phone .m-large h1 em { color: #aeb5be; }
-html.is-phone .m-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-html.is-phone .m-tile { position: relative; display: grid; gap: 2px; padding: 16px; border-radius: 20px; background: #14171b; border: .5px solid rgba(255, 255, 255, .08); color: var(--text); text-decoration: none; }
-html.is-phone .m-tile:active { background: #1b1f24; }
-html.is-phone .m-tile svg.i { width: 22px; height: 22px; color: #9aa1ab; }
-html.is-phone .m-tile b { margin-top: 10px; font: 700 34px/1 var(--display); letter-spacing: -.02em; }
-html.is-phone .m-tile span { color: var(--muted); font: 500 14px var(--ui); }
-html.is-phone .m-tile.hot b { color: #ff6961; }
-html.is-phone .m-tile.hot svg.i { color: #ff6961; }
 html.is-phone .m-sec header { display: flex; align-items: baseline; justify-content: space-between; margin: 0 4px 10px; }
 html.is-phone .m-sec header b { font: 700 21px var(--ui); letter-spacing: -.01em; }
 html.is-phone .m-sec header a { color: #9aa1ab; font: 500 15px var(--ui); text-decoration: none; }
-html.is-phone .m-grp { margin: 0 4px 8px; color: var(--faint); font: 600 12px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
 html.is-phone .m-list { overflow: hidden; border-radius: 18px; background: #14171b; border: .5px solid rgba(255, 255, 255, .08); }
 html.is-phone .m-row2, html.is-phone .m-nrow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 11px 14px; border: 0; border-top: .5px solid rgba(255, 255, 255, .07);
   background: transparent; color: var(--text); text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
@@ -172,9 +163,6 @@ html.is-phone .m-nrow.unread::before { content: ""; position: absolute; left: 4p
 html.is-phone .m-nrow.unread b { font-weight: 700; }
 html.is-phone .m-nrow.unread .m-ico { background: rgba(255, 255, 255, .14); color: #fff; }
 html.is-phone .m-link { justify-self: start; margin: -8px 4px 0; padding: 6px 0; border: 0; background: transparent; color: #0a84ff; font: 500 16px var(--ui); cursor: pointer; }
-html.is-phone .m-empty { padding: 18px; border-radius: 18px; background: #14171b; border: .5px solid rgba(255, 255, 255, .08); color: var(--muted); font: 400 15px var(--ui); }
-html.is-phone .m-banner { height: 120px; overflow: hidden; border-radius: 20px; background: #0c0d0f; }
-html.is-phone .m-banner img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; opacity: .85; }
 html.is-phone[data-page="avisos"] .subtabs, html.is-phone[data-page="home"] .subtabs { display: none; }
 html.is-phone #m-av-list { display: grid; gap: 22px; }
 
@@ -190,24 +178,11 @@ html.is-phone .m-seg button { flex: 1 1 0; min-width: 0; height: 34px; display: 
 html.is-phone .m-seg button i { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: rgba(255, 255, 255, .13); font: 600 11px/18px var(--ui); font-style: normal; text-align: center; }
 html.is-phone .m-seg button.on { background: #5b5e66; color: #fff; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
 html.is-phone .m-seg button.hot i { background: #ff453a; color: #fff; }
-html.is-phone .m-seg.small { width: 62%; justify-self: start; }
-html.is-phone .m-seg.small button { height: 28px; font-size: 12px; }
-html.is-phone .m-grp.late { color: #ff6961; }
-html.is-phone .m-grp.today { color: #ffb340; }
-html.is-phone .m-task { position: relative; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px 10px 14px; border-top: .5px solid rgba(255, 255, 255, .07); cursor: pointer; }
 html.is-phone .m-list > .m-task:first-child { border-top: 0; }
 html.is-phone .m-task:active { background: rgba(255, 255, 255, .05); }
-html.is-phone .m-task.urgent::before, html.is-phone .m-task.high::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 2px 2px 0; background: #ff453a; }
-html.is-phone .m-task.high::before { background: #ff9f0a; }
-html.is-phone .m-check { flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1.8px solid #5b6169; border-radius: 50%; background: transparent; color: #fff; cursor: pointer; }
 html.is-phone .m-check svg.i { width: 16px; height: 16px; stroke-width: 3; }
-html.is-phone .m-task.urgent .m-check { border-color: #ff453a; }
-html.is-phone .m-task.high .m-check { border-color: #ff9f0a; }
-html.is-phone .m-task.done .m-check { border-color: #30d158; background: #30d158; color: #06240f; }
-html.is-phone .m-task.done b { color: var(--muted); text-decoration: line-through; }
 html.is-phone .m-task > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
 html.is-phone .m-task b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: 500 16px/1.25 var(--ui); }
-html.is-phone .m-task.urgent b { font-weight: 700; }
 html.is-phone .m-task .sub { color: var(--muted); font: 400 13px/1.3 var(--ui); }
 html.is-phone .m-task .late { color: #ff6961; font-weight: 600; }
 html.is-phone .m-task .today { color: #ffb340; font-weight: 600; }
@@ -229,5 +204,110 @@ html.is-phone #m-av .nl-body { font-size: 13.5px; }
 html.is-phone #m-av .nl-x { width: 34px; height: 34px; font-size: 20px; }
 html.is-phone #m-av .nl-tick { width: 24px; height: 24px; }
 html.is-phone .btn.nl-danger { background: #c9372c !important; border-color: #c9372c !important; color: #fff !important; }
-html.is-phone .m-task.urgent { background: linear-gradient(90deg, rgba(255, 69, 58, .13), transparent 70%); }
-html.is-phone .m-task.all .sub { color: #9db8e8; }
+
+/* ---------- 2026-10-06: the phone redone, iOS-clean ---------- */
+/* the system font on the phone (San Francisco on an iPhone), the serif only for the greeting */
+html.is-phone { --m-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", var(--ui); --m-card: #1c1c1e; --m-line: rgba(84, 84, 88, .55);
+  --m-red: #ff453a; --m-orange: #ff9f0a; --m-green: #30d158; --m-blue: #0a84ff; --m-dim: #8e8e93; }
+html.is-phone body, html.is-phone .m-screen, html.is-phone #m-tabs, html.is-phone #m-bar { font-family: var(--m-font); }
+html.is-phone body, html.is-phone .hub, html.is-phone .hub > main { background: #000; }
+html.is-phone .m-screen { gap: 26px; }
+html.is-phone .m-large span { color: var(--m-dim); font: 600 13px var(--m-font); letter-spacing: .02em; text-transform: uppercase; }
+html.is-phone .m-large h1 { font-size: 34px; }
+
+/* the three numbers, like the Reminders smart lists */
+html.is-phone .m-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+html.is-phone .m-stat { display: grid; gap: 4px; padding: 14px 14px 12px; border-radius: 16px; background: var(--m-card); color: #fff; text-decoration: none; transition: transform .15s ease; }
+html.is-phone .m-stat:active { transform: scale(.97); }
+html.is-phone .m-stat b { font: 700 30px/1 var(--m-font); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+html.is-phone .m-stat span { color: var(--m-dim); font: 600 13px var(--m-font); }
+html.is-phone .m-stat.today b { color: #ffd60a; }
+html.is-phone .m-stat.hot b { color: var(--m-red); }
+html.is-phone .m-stat.blue b { color: var(--m-blue); }
+
+/* section heads */
+html.is-phone .m-sec header { margin: 0 4px 8px; align-items: center; }
+html.is-phone .m-sec header b { font: 700 22px var(--m-font); letter-spacing: -.02em; }
+html.is-phone .m-sec header a { color: var(--m-dim); font: 400 16px var(--m-font); }
+html.is-phone .m-online { display: inline-flex; align-items: center; gap: 6px; color: var(--m-dim); font: 400 15px var(--m-font); }
+html.is-phone .m-online i { width: 8px; height: 8px; border-radius: 50%; background: var(--m-green); box-shadow: 0 0 0 3px rgba(48, 209, 88, .18); }
+html.is-phone .m-list { border: 0; border-radius: 14px; background: var(--m-card); }
+
+/* the team, like a contacts list: face, where they are, a state on the right */
+html.is-phone .m-mate { display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 10px 14px; color: #fff; text-decoration: none; position: relative; }
+html.is-phone .m-mate + .m-mate::before { content: ""; position: absolute; top: 0; left: 70px; right: 0; border-top: .5px solid var(--m-line); }
+html.is-phone .m-mate:active { background: rgba(255, 255, 255, .06); }
+html.is-phone .m-face { position: relative; flex: none; }
+html.is-phone .m-face .av { width: 44px; height: 44px; font-size: 18px; }
+html.is-phone .m-mate.off .m-face .av { filter: grayscale(1); opacity: .55; }
+html.is-phone .m-place { position: absolute; right: -4px; bottom: -3px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--m-green); color: #04230d; box-shadow: 0 0 0 2.5px var(--m-card); }
+html.is-phone .m-place svg.i { width: 12px; height: 12px; stroke-width: 2.4; }
+html.is-phone .m-mate.work .m-place { background: var(--m-blue); color: #fff; }
+html.is-phone .m-mate.wait .m-place { background: var(--m-orange); color: #2b1900; }
+html.is-phone .m-mate.bad .m-place { background: var(--m-red); color: #fff; }
+html.is-phone .m-mate > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
+html.is-phone .m-mate b { font: 600 17px var(--m-font); letter-spacing: -.01em; }
+html.is-phone .m-mate b small { margin-left: 4px; color: var(--m-dim); font: 400 13px var(--m-font); }
+html.is-phone .m-where { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--m-dim); font: 400 14px var(--m-font); white-space: nowrap; overflow: hidden; }
+html.is-phone .m-where span { overflow: hidden; text-overflow: ellipsis; }
+html.is-phone .m-where svg.i { flex: none; width: 14px; height: 14px; }
+html.is-phone .m-mate.on .m-where, html.is-phone .m-mate.on .m-where svg.i { color: #c7c7cc; }
+html.is-phone .m-mate.work .m-where { color: #64a8ff; }
+html.is-phone .m-sep { flex: none; width: 3px; height: 3px; margin: 0 3px; border-radius: 50%; background: var(--m-dim); }
+html.is-phone .m-state { flex: none; padding: 4px 10px; border-radius: 12px; background: rgba(118, 118, 128, .24); color: var(--m-dim); font: 600 12px var(--m-font); font-style: normal; }
+html.is-phone .m-mate.on .m-state { background: rgba(48, 209, 88, .16); color: var(--m-green); }
+html.is-phone .m-mate.work .m-state { background: rgba(10, 132, 255, .18); color: #64a8ff; }
+html.is-phone .m-mate.wait .m-state { background: rgba(255, 159, 10, .16); color: var(--m-orange); }
+
+/* empty states */
+html.is-phone .m-empty { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 14px; background: var(--m-card); color: var(--m-dim); font: 400 15px var(--m-font); }
+html.is-phone .m-empty svg.i { flex: none; width: 22px; height: 22px; color: var(--m-green); }
+html.is-phone .m-empty.big { flex-direction: column; gap: 6px; padding: 42px 24px; text-align: center; }
+html.is-phone .m-empty.big svg.i { width: 40px; height: 40px; margin-bottom: 6px; color: #48484a; }
+html.is-phone .m-empty.big b { color: #fff; font: 600 18px var(--m-font); }
+html.is-phone .m-empty.big span { font-size: 15px; }
+
+/* Tarefas: the head, Minhas / Equipa, the segments, the blocks */
+html.is-phone .m-head-act { display: flex; align-items: center; gap: 10px; }
+html.is-phone .m-scope { display: inline-flex; padding: 2px; border-radius: 9px; background: rgba(118, 118, 128, .24); }
+html.is-phone .m-scope button { height: 30px; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; color: #fff; font: 500 13px var(--m-font); cursor: pointer; }
+html.is-phone .m-scope button.on { background: #636366; font-weight: 600; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+html.is-phone .m-plus { width: 40px; height: 40px; }
+html.is-phone .m-seg { padding: 2px; border-radius: 9px; background: rgba(118, 118, 128, .24); }
+html.is-phone .m-seg button { height: 32px; border-radius: 7px; color: #fff; font: 500 14px var(--m-font); transition: background .2s ease; }
+html.is-phone .m-seg button.on { background: #636366; }
+html.is-phone .m-seg button i { background: rgba(255, 255, 255, .16); }
+html.is-phone .m-seg button i.hot { background: var(--m-red); color: #fff; }
+html.is-phone #m-t-body { gap: 22px; }
+html.is-phone .m-grp { display: flex; align-items: center; gap: 8px; margin: 0 4px 8px; color: #fff; font: 700 17px var(--m-font); letter-spacing: -.01em; text-transform: none; }
+html.is-phone .m-grp i { width: 9px; height: 9px; border-radius: 50%; background: #636366; }
+html.is-phone .m-grp span { margin-left: auto; color: var(--m-dim); font: 400 15px var(--m-font); }
+html.is-phone .m-grp.late i { background: var(--m-red); }
+html.is-phone .m-grp.late { color: var(--m-red); }
+html.is-phone .m-grp.today i { background: #ffd60a; }
+html.is-phone .m-grp.ok i { background: var(--m-green); }
+
+/* a task, like a reminder: the circle, the title (!! when urgent), one line under it, faces on the right */
+html.is-phone .m-task { position: relative; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 11px 14px; cursor: pointer; transition: opacity .35s ease, transform .35s ease; }
+html.is-phone .m-task + .m-task::before { content: ""; position: absolute; top: 0; left: 52px; right: 0; border-top: .5px solid var(--m-line); }
+html.is-phone .m-task:active { background: rgba(255, 255, 255, .05); }
+html.is-phone .m-check { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1.6px solid #636366; border-radius: 50%; background: transparent; color: #fff; cursor: pointer;
+  transition: background .2s ease, border-color .2s ease, transform .15s ease; }
+html.is-phone .m-check:active { transform: scale(.85); }
+html.is-phone .m-check svg.i { width: 14px; height: 14px; stroke-width: 3; }
+html.is-phone .m-task.urgent .m-check { border-color: var(--m-red); }
+html.is-phone .m-task.high .m-check { border-color: var(--m-orange); }
+html.is-phone .m-task.done .m-check, html.is-phone .m-task.finishing .m-check { border-color: var(--m-green); background: var(--m-green); color: #04230d; }
+html.is-phone .m-task.finishing { opacity: .35; transform: translateX(8px); }
+html.is-phone .m-task b { font: 400 17px/1.3 var(--m-font); letter-spacing: -.01em; }
+html.is-phone .m-task.done b { color: var(--m-dim); text-decoration: none; }
+html.is-phone .m-bang { margin-right: 5px; color: var(--m-red); font: 700 17px var(--m-font); font-style: normal; }
+html.is-phone .m-bang.high { color: var(--m-orange); }
+html.is-phone .m-task .sub { color: var(--m-dim); font: 400 14px/1.3 var(--m-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-phone .m-task .late { color: var(--m-red); font-weight: 500; }
+html.is-phone .m-task .today { color: #ffd60a; font-weight: 500; }
+html.is-phone .m-task .ai { color: #64a8ff; }
+html.is-phone .m-faces { flex: none; display: inline-flex; }
+html.is-phone .m-faces .av { width: 26px; height: 26px; margin-left: -8px; font-size: 11px; box-shadow: 0 0 0 2px var(--m-card); }
+html.is-phone .m-faces .av:first-child { margin-left: 0; }

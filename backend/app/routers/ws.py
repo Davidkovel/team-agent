@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ..db import SessionLocal
@@ -6,6 +8,7 @@ from ..security import user_from_agent_token, user_from_jwt
 from ..services import hub_gone, hub_seen
 
 router = APIRouter()
+PHONE = re.compile(r"iPhone|iPad|Android|Mobile")
 
 
 async def _present(user_id: int):
@@ -21,7 +24,7 @@ async def _serve(ws: WebSocket, kind: str, token: str):
         await ws.close(code=4401)
         return
     await ws.accept()
-    conn = Connection(ws, user.id, user.role, kind)
+    conn = Connection(ws, user.id, user.role, kind, "phone" if PHONE.search(ws.headers.get("user-agent", "")) else "pc")
     rt.connections.append(conn)
     user_id = user.id
     if kind == "dashboard":

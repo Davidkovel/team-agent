@@ -166,6 +166,7 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
             "status": presence["status"] if presence else "OFFLINE",
             "task": presence.get("task", "") if presence else "",
             "progress": presence.get("progress", 0) if presence else 0,
+            "where": (presence.get("where") or ["pc"]) if presence else [],  # an agent or an older Hub elsewhere: a computer
             "last_seen": iso(saved.last_seen) if saved else None,
             **usage_fields(u.id, week_cost, meters, budget),
         }
@@ -206,12 +207,33 @@ def dashboard_open(user_id: int) -> bool:
     return any(c.kind == "dashboard" and c.user_id == user_id for c in rt.connections)
 
 
+def where(user_id: int, agent: bool = False) -> list[str]:
+    """Where the person is at this computer's Hub: "pc" (the widget, the agent or a Hub window on a computer), "phone"."""
+    found = {c.device for c in rt.connections if c.kind == "dashboard" and c.user_id == user_id}
+    if agent or widget_recent(user_id):
+        found.add("pc")
+    return sorted(found)
+
+
+async def _refresh_where(user_id: int, current: dict):
+    """The agent owns the status: only say again where the person is, when that changed."""
+    places = where(user_id, agent=True)
+    if current.get("where") != places:
+        await rt.store.set_presence(user_id, {**current, "where": places}, settings.heartbeat_timeout)
+        await rt.publish("presence", user_id, "team")
+
+
 async def hub_seen(user_id: int, via: str = "hub") -> bool:
     """The person's Hub/widget is open, so they are online. Returns True when this made them newly online."""
     current = await rt.store.get_presence(user_id)
     if current is not None and current.get("via") not in SOFT_VIA:
+        if not current.get("remote"):
+            await _refresh_where(user_id, current)
         return False  # the agent's own heartbeat owns the status while it is alive
-    await rt.store.set_presence(user_id, {"status": "ONLINE", "via": via, "task": "", "progress": 0, "last_seen": time.time()}, SOFT_TTL)
+    places = where(user_id)
+    await rt.store.set_presence(user_id, {"status": "ONLINE", "via": via, "where": places, "task": "", "progress": 0, "last_seen": time.time()}, SOFT_TTL)
+    if current is not None and current.get("where") != places:
+        await rt.publish("presence", user_id, "team")
     if current is not None:
         return False
     if user_id not in rt.online:
@@ -224,6 +246,7 @@ async def hub_seen(user_id: int, via: str = "hub") -> bool:
 async def hub_gone(user_id: int):
     """The last Hub window closed: drop the presence now instead of waiting for the TTL (unless the widget still vouches for them)."""
     if widget_recent(user_id) or dashboard_open(user_id):
+        await hub_seen(user_id, "widget" if widget_recent(user_id) else "hub")  # still here, maybe no longer on the phone
         return
     current = await rt.store.get_presence(user_id)
     if current is None or current.get("via") not in SOFT_VIA:

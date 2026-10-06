@@ -98,8 +98,9 @@ class RedisStore:
 
 
 class Connection:
-    def __init__(self, ws: WebSocket, user_id: int, role: str, kind: str):
+    def __init__(self, ws: WebSocket, user_id: int, role: str, kind: str, device: str = "pc"):
         self.ws, self.user_id, self.role, self.kind = ws, user_id, role, kind
+        self.device = device  # "phone" or "pc": where this Hub window is open
 
 
 class Realtime:

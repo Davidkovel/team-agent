@@ -58,6 +58,12 @@ def hhmm(iso_time: str) -> str:
     return datetime.fromisoformat(iso_time).astimezone().strftime("%H:%M")
 
 
+def worked(iso_time: str) -> str:
+    """3h 25, the time since they clocked in today: what the team looks at is how long, not since when."""
+    minutes = max(0, int((datetime.now().astimezone() - datetime.fromisoformat(iso_time).astimezone()).total_seconds())) // 60
+    return f"{minutes // 60}h {minutes % 60:02d}"
+
+
 def elapsed(started_at) -> str:
     if not started_at:
         return ""
@@ -829,10 +835,10 @@ class Member(Hover):
         if person.get("ponto"):
             p.setPen(QColor(TEXT))
             p.setFont(self._f_time)
-            p.drawText(QRectF(w - 80, 8, 80, 20), Qt.AlignRight | Qt.AlignVCenter, hhmm(person["ponto"]))
+            p.drawText(QRectF(w - 80, 8, 80, 20), Qt.AlignRight | Qt.AlignVCenter, worked(person["ponto"]))
             p.setPen(QColor(FAINT))
             p.setFont(self._f_small)
-            p.drawText(QRectF(w - 80, 28, 80, 14), Qt.AlignRight | Qt.AlignVCenter, "ponto")
+            p.drawText(QRectF(w - 80, 28, 80, 14), Qt.AlignRight | Qt.AlignVCenter, f"desde {hhmm(person['ponto'])}")
         elif self.isEnabled():
             pill = QRectF(w - 92, h / 2 - 13, 92, 26)
             p.setPen(Qt.NoPen)

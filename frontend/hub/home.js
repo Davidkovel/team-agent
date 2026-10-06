@@ -71,7 +71,7 @@ function heroHtml(now, ignite) {
       <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
       <p class="hero-quote">“${esc(t(quoteOfDay()))}”</p>
       <div class="hero-acts"><button class="hero-act main" data-act="task">${icon("plus")}${t("Nova tarefa")}</button>
-        <button class="hero-act" data-act="note">${icon("note")}${t("Nota")}</button><button class="hero-act" data-act="agenda">${icon("calendar")}${t("Prazos")}</button></div>
+        <button class="hero-act" data-act="agenda">${icon("calendar")}${t("Prazos")}</button></div>
     </div>
     <div class="hero-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" srcset="assets/amg-front-1200.webp 1200w, assets/amg-front-2400.webp 2400w"
       sizes="(max-width: 700px) 100vw, (max-width: 1150px) 62vw, min(54vw, 860px)" alt="" decoding="async"></div>
@@ -328,22 +328,10 @@ async function openAgenda() {
   };
 }
 
-// "Notas": an idea for the whole team, kept in the team's memory, where the Team AI reads it too.
-function newNote() {
-  formModal("Nova nota", field("Título", `<input name="title" required maxlength="200" placeholder="${t("A ideia, numa linha")}">`, true)
-    + field("Nota", `<textarea name="content" placeholder="${t("Os pormenores (opcional)")}"></textarea>`, true)
-    + `<p class="dim wide" style="margin:0">${t("Fica na Memória da equipa: todos a veem e a Team AI também a lê.")}</p>`,
-  async (v) => {
-    await api("/api/memory", { method: "POST", body: { scope: "team", category: "nota", title: v.title.trim(), content: v.content || "" } });
-    flash(t("Nota guardada na Memória da equipa."));
-  }, { submit: "Guardar nota" });
-}
-
 async function homeClick(e) {
   const act = e.target.closest("[data-act]")?.dataset.act;
   if (act === "task") return newTask();
   if (act === "agenda") return openAgenda();
-  if (act === "note") return newNote();
   if (act === "alerts") return openNotices();
   const go = e.target.closest("[data-go]");
   if (go) { location.hash = go.dataset.go; return; }

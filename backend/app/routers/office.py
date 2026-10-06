@@ -16,7 +16,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
-from ..models import ClaudeAgent, ClaudeSession, User
+from .. import health
+from ..models import ClaudeAgent, ClaudeSession, PcHealth, User
 from ..realtime import rt
 from ..security import current_user
 from ..services import iso
@@ -278,3 +279,14 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
         film.append({"at": iso(r.started_at), "who": r.user.display_name, "project": r.project, "kind": "window_open", "agent": "", "text": r.prompt})
     film.sort(key=lambda f: f["at"] or "", reverse=True)
     return {"sessions": sessions, "film": film[:40]}
+
+
+@router.get("/health")
+async def health_view(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Saúde: what the Agente AMG costs on each person's PC, as that PC last measured it (health.py)."""
+    rows = {r.user_id: r for r in (await db.execute(select(PcHealth))).scalars()}
+    people = (await db.execute(select(User).order_by(User.id))).scalars().all()
+    keys = ("cores", "hub_cpu", "hub_ram", "widget_cpu", "widget_ram", "web_cpu", "web_ram")
+    return {"limits": health.LIMITS, "every": health.EVERY,
+            "pcs": [{"user": p.username, "name": p.display_name, "updated_at": iso(rows[p.id].updated_at) if p.id in rows else None,
+                     **{k: getattr(rows[p.id], k) if p.id in rows else None for k in keys}} for p in people]}

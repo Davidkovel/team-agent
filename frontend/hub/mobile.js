@@ -96,7 +96,7 @@
   $("m-search").onclick = (e) => { e.stopPropagation(); sheet.hidden = true; $("open-palette").click(); };
 
   function openMore() {
-    const rows = [["bot", "Escritório", "#/escritorio"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"], ["layers", "Memória", "#/memoria"], ["gear", "Definições", "#/definicoes"]];
+    const rows = [["bot", "Escritório", "#/escritorio"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"], ["layers", "Memória", "#/memoria"], ["pulse", "Saúde", "#/saude"], ["gear", "Definições", "#/definicoes"]];
     sheet.querySelector(".m-box").innerHTML = `<i class="m-grab"></i><h3>${t("Mais")}</h3><div class="m-list">
       ${rows.map(([ic, label, href]) => `<a class="m-row" href="${href}">${icon(ic)}${t(label)}</a>`).join("")}
       <button class="m-row" data-act="phone">${icon("bell")}${t("Receber as notificações no telemóvel")}</button>

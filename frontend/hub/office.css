@@ -130,3 +130,37 @@ html.is-phone .of-ag-t p, html.is-phone .of-ag-now, html.is-phone .of-ag-res { f
 html.is-phone .of-film { position: static; max-height: none; border: 0; border-radius: 16px; background: var(--m-card, #1c1c1e); }
 html.is-phone .of-film > header { font: 700 17px var(--m-font); letter-spacing: 0; text-transform: none; color: #fff; }
 html.is-phone .of-f { font: 400 14px/1.35 var(--m-font); color: #c7c7cc; }
+
+/* ---------- Saúde (hub/health.js): what the Agente AMG costs on each PC, against the limits ---------- */
+.hl-pcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; }
+.hl-pc { position: relative; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .06);
+  background: linear-gradient(180deg, rgba(21, 24, 29, .97), rgba(10, 12, 14, .97)); }
+.hl-pc::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; height: 1px; background: var(--chrome-line); opacity: .35; }
+.hl-pc.over { border-color: rgba(226, 181, 92, .45); }
+.hl-pc.stale { opacity: .7; }
+.hl-pc > header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.hl-pc > header .av { width: 36px; height: 36px; }
+.hl-pc > header div { flex: 1; display: grid; gap: 1px; }
+.hl-pc > header b { color: #f4f6f8; font: 600 14px var(--ui); }
+.hl-pc > header span { color: #6b727b; font-size: 12px; }
+.hl-pc > header em { padding: 3px 9px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, .1); color: #a7aeb7; font: 600 9px var(--ui); font-style: normal; letter-spacing: .14em; text-transform: uppercase; }
+.hl-pc.over > header em { color: #e2b55c; border-color: rgba(226, 181, 92, .5); }
+.hl-part { display: grid; grid-template-columns: 130px minmax(0, 1fr) 70px; align-items: center; gap: 12px; padding: 8px 0; }
+.hl-part + .hl-part { border-top: 1px solid rgba(255, 255, 255, .05); }
+.hl-name { display: grid; gap: 1px; }
+.hl-name b { color: #eef1f4; font: 600 13px var(--ui); }
+.hl-name span { color: #59606a; font-size: 11px; }
+.hl-bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .06); }
+.hl-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #8f98a2, #f4f6f8); }
+.hl-bar u { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgba(255, 255, 255, .45); }
+.hl-part.warn .hl-bar i { background: #e2b55c; } .hl-part.bad .hl-bar i { background: #ef6f5e; }
+.hl-num { display: grid; justify-items: end; gap: 1px; }
+.hl-num b { color: #f4f6f8; font: 600 16px var(--mono); }
+.hl-part.warn .hl-num b { color: #e2b55c; } .hl-part.bad .hl-num b { color: #ef6f5e; } .hl-part.none .hl-num b { color: #59606a; }
+.hl-num span { color: #6b727b; font: 500 10.5px var(--mono); }
+html.is-phone .hl-pcs { grid-template-columns: minmax(0, 1fr); }
+html.is-phone .hl-pc { border: 0; border-radius: 16px; background: var(--m-card, #1c1c1e); }
+html.is-phone .hl-pc::before { display: none; }
+html.is-phone .hl-part { grid-template-columns: 104px minmax(0, 1fr) 64px; }
+html.is-phone .hl-name b, html.is-phone .hl-pc > header b { font-family: var(--m-font); font-size: 15px; }
+html.is-phone .hl-bar i { background: #30d158; } html.is-phone .hl-part.warn .hl-bar i { background: #ff9f0a; } html.is-phone .hl-part.bad .hl-bar i { background: #ff453a; }

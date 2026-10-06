@@ -321,3 +321,18 @@ class ClaudeAgent(Base):
     tokens: Mapped[int] = mapped_column(Integer, default=0)  # as Claude Code reports them when it finishes
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PcHealth(Base):
+    """Saúde: what the Agente AMG itself costs on one person's PC (health.py), measured there once a minute and carried to
+    the other PCs by sync. CPU is % of that whole PC over the last minute, RAM in MB; empty when it could not be measured."""
+    __tablename__ = "pc_health"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    cores: Mapped[int] = mapped_column(Integer, default=0)
+    hub_cpu: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hub_ram: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    widget_cpu: Mapped[float | None] = mapped_column(Float, nullable=True)
+    widget_ram: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    web_cpu: Mapped[float | None] = mapped_column(Float, nullable=True)
+    web_ram: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

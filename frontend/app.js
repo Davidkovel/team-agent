@@ -120,7 +120,7 @@ const NAV = [
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes", true], ["historico", "Histórico", true]]],
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"]]],
   ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA", true], ["despesas", "Despesas", true]]],
-  ["Sistema", "gear", [["memoria", "Memória"], ["definicoes", "Definições"]]],
+  ["Sistema", "gear", [["memoria", "Memória"], ["saude", "Saúde"], ["definicoes", "Definições"]]],
 ];
 const TABS = NAV.flatMap(([, , pages]) => pages);
 const badgeCount = {}; // page id -> number, kept so tabs drawn later show it too

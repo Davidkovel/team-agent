@@ -412,3 +412,8 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .mate-sum.on svg.i { transform: rotate(90deg); }
 .mates-sum .trows.small { padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, .07); margin-left: 16px; }
 .mate-sum .av { flex: none; width: 26px; height: 26px; font-size: 11px; }
+
+/* the team card is as tall as the three finished tasks beside it: larger faces, so what height is left is not empty card */
+#in-team .p-ring { width: 86px; height: 86px; }
+#in-team .p-ring .av { width: 80px; height: 80px; font-size: 28px; }
+#in-team .people { padding: 2px 0 6px; }

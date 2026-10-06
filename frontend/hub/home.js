@@ -123,7 +123,7 @@ async function newsBar() {
 
 // "Feitas": the last tasks somebody finished, where the notifications card used to be. Who did each one is their photo, not
 // only a name; on top, how many each person closed today. A fixed number of rows, so it never scrolls.
-const DONE_ROWS = 5;
+const DONE_ROWS = 3;   // three: the card is then as tall as the team beside it, and neither has empty space
 const doneFace = (name, size = "sm") => `<span class="doer did" title="${esc(name)}">${ui.avatar(name, size)}<i>${icon("tick")}</i></span>`;
 async function finishedCard() {
   const done = (await api("/api/tasks")).filter((x) => x.stage === "done" && x.completed_at).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));

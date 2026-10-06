@@ -1,6 +1,6 @@
-"""The Hub inside the command center: maximizing grows the widget into the whole screen and the Hub appears in it.
+"""The Hub inside the command center: maximizing grows the widget into a large window and the Hub appears in it.
 
-HubExpander starts exactly on top of the widget, grows to fill the screen the widget is on, then shows the Hub.
+HubExpander starts exactly on top of the widget, grows to a large centered window on the screen the widget is on, then shows the Hub.
 Minimizing (the button, Esc or the taskbar) shrinks it back onto the widget and hands control back to it.
 Once open it is a normal window: drag the bar to move it (to another monitor too), drag any edge or corner to resize,
 double-click the bar or use the middle button to switch between full screen and a smaller window.
@@ -282,16 +282,16 @@ class HubExpander(QWidget):
     # ------------------------------------------------------------ grow / shrink
 
     def expand(self, origin: QRect, url: str):
-        """Grows from `origin` (the widget on screen) to the full screen it is on, then shows the Hub."""
+        """Grows from `origin` (the widget on screen) to a large window in the middle of its screen, then shows the Hub.
+        Full screen is one click away (the button, or a double-click on the bar)."""
         if self._busy:
             return
         self._origin = QRect(origin)
-        self._full = True
+        self._full = False
         self._set_page_state(QWebEnginePage.LifecycleState.Active)
         if self.view.url().toString() != url:
             self.view.load(QUrl(url))  # loads while it grows, so the Hub is ready when the motion ends
-        screen = QGuiApplication.screenAt(origin.center()) or QGuiApplication.primaryScreen()
-        self._morph(origin, screen.availableGeometry(), GROW_MS, QEasingCurve.OutQuart, keep_window=True)
+        self._morph(origin, self._windowed_rect(origin.center()), GROW_MS, QEasingCurve.OutQuart, keep_window=True)
 
     def collapse(self):
         """Shrinks back onto the widget and hides; the widget comes back via `collapsed`."""

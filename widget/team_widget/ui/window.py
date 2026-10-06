@@ -24,7 +24,7 @@ from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QAbstractButton, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
                                QVBoxLayout, QWidget)
 
-from .. import hub, system
+from .. import hub
 from ..api.agent_client import AgentClient
 from ..limits import claude_plan_usage, refresh_from_account
 from ..state.store import StateStore
@@ -1071,7 +1071,6 @@ class WidgetWindow(QWidget):
         self._waiting = None  # approvals waiting for this person at the last look (None: not looked yet)
         self._backdrop = None
         self._usage_at = 0.0
-        self._system_at = 0.0
         self._load = None
         self.mode = "orb"            # orb | panel | morph
         self._morph_dir, self._morph_t0, self._k = 0, 0.0, 0.0
@@ -1139,15 +1138,6 @@ class WidgetWindow(QWidget):
             for line in lines:
                 limits.box.addWidget(line)
             col.addWidget(limits)
-
-        dials = QWidget()
-        drow = QHBoxLayout(dials)
-        drow.setContentsMargins(0, 0, 0, 0)
-        drow.setSpacing(8)
-        self.dial_cpu, self.dial_ram, self.dial_battery = Dial("CPU"), Dial("RAM"), Dial("Bateria")
-        for d in (self.dial_cpu, self.dial_ram, self.dial_battery):
-            drow.addWidget(d, 1)
-        col.addWidget(dials)
 
         team = Platter("Equipa")
         self.grid_note = team.note
@@ -1775,9 +1765,6 @@ class WidgetWindow(QWidget):
         if time.time() - self._usage_at > 10:
             self._usage_at = time.time()
             self._render_usage()
-        if time.time() - self._system_at > 2:
-            self._system_at = time.time()
-            self._render_system()
         state = self.store.get()
         if self.store.version != self._version:
             self._version = self.store.version
@@ -1854,23 +1841,6 @@ class WidgetWindow(QWidget):
             self.task_card.hide()
 
         self._render_usage(state)
-
-    def _render_system(self):
-        """This PC: processor, memory, battery."""
-        load = system.cpu()
-        if load is not None:
-            self.dial_cpu.set(load, f"{round(load)}%", "processador", meter_color(load))
-        mem = system.memory()
-        if mem:
-            self.dial_ram.set(mem["pct"], f"{round(mem['pct'])}%", f"{mem['used_gb']:.1f} de {mem['total_gb']:.0f} GB", meter_color(mem["pct"]))
-        power = system.battery()
-        if not power:
-            self.dial_battery.set(None, "—", "na corrente")
-            return
-        pct, left = power["pct"], power["seconds"]
-        colour = COLORS["WORKING"] if power["plugged"] else COLORS["ERROR"] if pct <= 20 else COLORS["WAITING"] if pct <= 40 else WHITE
-        note = "a carregar" if power["plugged"] and pct < 100 else "na corrente" if power["plugged"]             else f"{left // 3600} h {left % 3600 // 60:02d} restam" if left else "a bateria"
-        self.dial_battery.set(pct, f"{round(pct)}%", note, colour)
 
     def _render_usage(self, state: dict | None = None):
         """Claude and Higgsfield of whoever sits here: the plan limits Claude Code reported, else the Hub's numbers."""

@@ -7,12 +7,45 @@ import os
 import sys
 from pathlib import Path
 
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
 
 from .api.agent_client import AgentClient
 from .state.store import StateStore
 from .ui.tray import start_tray
 from .ui.window import UI, WidgetWindow, font
+
+
+def already_open(name: str) -> bool:
+    """True when this widget is already running: it is asked to come to the front and this copy stops.
+    Each click on Abrir AMG used to open one more widget, and each one started its own Hub on the same database."""
+    socket = QLocalSocket()
+    socket.connectToServer(name)
+    if not socket.waitForConnected(500):
+        return False
+    socket.write(b"show")
+    socket.waitForBytesWritten(500)
+    socket.disconnectFromServer()
+    return True
+
+
+def listen_for_second_copy(name: str, window) -> QLocalServer:
+    server = QLocalServer()
+    QLocalServer.removeServer(name)  # a name left behind by a widget that crashed
+    server.listen(name)
+
+    def come_forward():
+        while (peer := server.nextPendingConnection()) is not None:
+            peer.disconnected.connect(peer.deleteLater)
+        expander = getattr(window, "_expander", None)
+        if expander is not None and expander.isVisible():
+            expander.showNormal()
+            expander.raise_()
+            expander.activateWindow()
+        else:
+            window.show_panel()
+    server.newConnection.connect(come_forward)
+    return server
 
 
 def main():
@@ -30,6 +63,9 @@ def main():
     app.setApplicationName("Agente AMG")
     app.setQuitOnLastWindowClosed(False)  # closing the widget hides it to the tray
     app.setFont(font(9, families=UI))
+    name = f"agente-amg-widget-{os.environ.get('USERNAME', '')}-{profile}"
+    if already_open(name):
+        return
 
     store = StateStore()
     client = AgentClient(port, data_dir / "local_api.token", store)
@@ -37,6 +73,7 @@ def main():
     window = WidgetWindow(store, client)
     window.quit = app.quit
     tray = start_tray(window)
+    server = listen_for_second_copy(name, window)  # noqa: F841 - kept alive while the widget runs
     window.show_panel()
     app.exec()
     if tray:

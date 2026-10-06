@@ -66,6 +66,14 @@ com o ecrã. A arquitetura acima (um registo, secções independentes) deixa faz
   O Hub instala os hooks sozinho em `~/.claude/settings.json` ao arrancar (`backend/app/claude_hooks.py`; `CLAUDE_OFFICE=0` tira-os).
 - **Saúde** (Sistema; telemóvel em Mais): cada Hub mede-se de minuto a minuto (Hub, widget, janela grande) com as contas do
   Windows (`backend/app/health.py`), tabela `pc_health` sincronizada.
+- **My Niggaz** (menu do PC, a seguir ao Escritório; telemóvel em Mais, a toda a largura): a sala dos agentes em pixel art
+  isométrica com néon, a primeira versão das personagens da fase 2D (`frontend/hub/crew.js` + `crew.css`). Oito agentes (Dev,
+  Explorador, Pesquisador, Designer, Marketing, Revisor, Tester, Faz-tudo) ficam no lounge sem trabalho; uma tarefa por fazer
+  (criada há menos de 30 min), em curso, à espera ou em pausa, um Claude a trabalhar (ou à tua espera há menos de 20 min) ou um
+  subagente a correr põe um deles a caminho de um dos 6 computadores, com o pedido num cartão por cima da cabeça. A caixa no
+  topo cria a tarefa (`POST /api/tasks`, `for_ai`) com o tipo de agente escolhido. Só lê `/api/tasks` e `/api/office`.
+  Peso medido a 6 out: ~3,3 ms por imagem a 1300 px, 12 imagens/s parado e 26 quando alguém anda (~4% de um núcleo), e só
+  com a página aberta, à vista e no separador da frente; fechada não corre nada.
 - **Secções carregadas só ao abrir**: `lazyView(id, ficheiro.js, ficheiro.css)` em `frontend/hub/ui.js`.
 - **5 agentes partilhados** em `.claude/agents/` e as regras de modelos e budget no `CLAUDE.md`.
 

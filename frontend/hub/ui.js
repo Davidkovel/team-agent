@@ -40,6 +40,7 @@ function lazyView(id, script, style) {
 }
 lazyView("escritorio", "hub/office.js", "hub/office.css");
 lazyView("saude", "hub/health.js", "hub/office.css");
+lazyView("niggaz", "hub/crew.js", "hub/crew.css");
 
 const HUB_ICONS = {
   folder: '<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',

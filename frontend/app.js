@@ -116,6 +116,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal
 const NAV = [
   ["Início", "home", [["home", "Início"]]],
   ["Escritório", "bot", [["escritorio", "Escritório"]]],
+  ["My Niggaz", "users", [["niggaz", "My Niggaz"]]],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]]],
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes", true], ["historico", "Histórico", true]]],
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"]]],

@@ -122,8 +122,12 @@
   });
 
   const KIND_ICON = { task_new: "tasks", task: "check", approval_required: "alert", approval_decided: "check", agent_failed: "alert", agent_waiting: "clock" };
-  const nrow = (n) => `<a class="m-nrow ${n.read ? "" : "unread"}" href="${esc(n.href || "#/home")}" data-n="${n.id}"><span class="m-ico">${icon(KIND_ICON[n.kind] || "bell")}</span>
-    <div><b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ""}</div><time>${fmt.ago(n.created_at)}</time></a>`;
+  // a notice on Início: the face of who sent it, what it is, the task, the time (the same reading as Avisos)
+  const nrow = (n) => {
+    const p = notifParts(n);
+    return `<a class="m-nrow ${n.read ? "" : "unread"}" href="${esc(n.href || "#/home")}" data-n="${n.id}">${p.who ? ui.avatar(p.who) : `<span class="m-ico">${icon(KIND_ICON[n.kind] || "bell")}</span>`}
+    <div><span class="m-ntop"><b>${esc(p.who || p.what)}</b>${p.who ? `<em>${esc(p.what)}</em>` : ""}<time>${fmt.ago(n.created_at)}</time></span><span class="m-ntitle">${esc(p.title)}</span></div></a>`;
+  };
   const when = (iso) => {
     const d = new Date(iso), now = new Date(), days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
     return days <= 0 ? "Hoje" : days === 1 ? "Ontem" : days < 7 ? "Esta semana" : "Mais antigas";

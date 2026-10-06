@@ -432,3 +432,50 @@ html.is-phone .m-co-tag { display: inline-block; padding: 0 6px; border-radius: 
 html.is-phone #m-w-body, html.is-phone #m-co-body { display: grid; gap: 26px; }
 html.is-phone[data-page="baredesk"] .ph p { display: none; }
 html.is-phone .bd-desc { margin: -6px 2px 14px; color: var(--m-dim); font: 400 15px var(--m-font); }
+
+/* ---------- Notificações on the phone, clean like the iPhone's notification centre (2026-10-06) ---------- */
+html.is-phone #m-av .nl-bar.nl-ios { position: sticky; top: calc(var(--m-bar) + env(safe-area-inset-top, 0px)); z-index: 30; display: flex; justify-content: space-between;
+  margin: -8px -14px 0; padding: 8px 14px; border: 0; background: rgba(0, 0, 0, .92); }
+html.is-phone #m-av .nl-ios button { padding: 6px 0; border: 0; background: none; color: #eef1f4; font: 500 16px var(--m-font); cursor: pointer; }
+html.is-phone #m-av .nl-ios button:active { opacity: .5; }
+html.is-phone #m-av .nl-list { margin: 0; display: grid; gap: 22px; }
+html.is-phone #m-av .nl-group h4 { padding: 0 4px 8px; color: #8e8e93; font: 600 13px var(--m-font); letter-spacing: .02em; text-transform: none; }
+html.is-phone #m-av .nl-group h4 i { display: none; }
+html.is-phone #m-av .nl-card { overflow: hidden; border-radius: 16px; background: var(--m-card); }
+html.is-phone #m-av .nl-row.nl-p { display: flex; align-items: flex-start; gap: 12px; padding: 13px 14px; border: 0; }
+html.is-phone #m-av .nl-row.nl-p + .nl-row.nl-p::before { content: ""; position: absolute; top: 0; left: 66px; right: 0; border-top: .5px solid var(--m-line); }
+html.is-phone #m-av .nl-row.nl-p.unread::before { display: none; }
+html.is-phone #m-av .nl-row.nl-p.unread + .nl-row.nl-p::before { display: block; }
+html.is-phone #m-av .nl-row.nl-p:active { background: rgba(255, 255, 255, .05); }
+html.is-phone #m-av .nl-face { position: relative; flex: none; margin-top: 2px; }
+html.is-phone #m-av .nl-face .av { width: 40px; height: 40px; font-size: 16px; }
+html.is-phone #m-av .nl-face > i { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: #3a3a3c; color: #fff; box-shadow: 0 0 0 2.5px var(--m-card); }
+html.is-phone #m-av .nl-face > i.hot { background: var(--m-red); }
+html.is-phone #m-av .nl-face > i svg.i { width: 11px; height: 11px; stroke-width: 2.4; }
+html.is-phone #m-av .nl-face .nl-ico { width: 40px; height: 40px; border-radius: 50%; background: #2c2c2e; color: #fff; }
+html.is-phone #m-av .nl-face .nl-ico.hot { background: rgba(255, 69, 58, .2); color: #ff6961; }
+html.is-phone #m-av .nl-face .nl-ico svg { width: 18px; height: 18px; }
+html.is-phone #m-av .nl-p .nl-main { gap: 2px; }
+html.is-phone #m-av .nl-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+html.is-phone #m-av .nl-top b { flex: none; color: #fff; font: 600 15px var(--m-font); }
+html.is-phone #m-av .nl-top span { flex: 1; min-width: 0; color: #8e8e93; font: 400 14px var(--m-font); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+html.is-phone #m-av .nl-top time { flex: none; margin-left: auto; color: #8e8e93; font: 400 13px var(--m-font); }
+html.is-phone #m-av .nl-dot { flex: none; align-self: center; width: 9px; height: 9px; border-radius: 50%; background: var(--m-blue, #0a84ff); }
+html.is-phone #m-av .nl-title { color: #e5e5ea; font: 400 15.5px/1.3 var(--m-font); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+html.is-phone #m-av .nl-row.unread .nl-title { color: #fff; font-weight: 500; }
+html.is-phone #m-av .nl-p .nl-body { color: #8e8e93; font: 400 14px/1.3 var(--m-font); -webkit-line-clamp: 1; }
+html.is-phone #m-av .nl-p .nl-tick { margin-top: 10px; }
+html.is-phone #m-av .nl-picking, html.is-phone #m-av .nl-confirm { border-radius: 14px; margin: 0; }
+html.is-phone .m-nrow { align-items: flex-start; }
+html.is-phone .m-nrow > .av { flex: none; width: 38px; height: 38px; font-size: 15px; margin-top: 1px; }
+html.is-phone .m-nrow.unread::before { left: auto; right: 12px; top: 22px; width: 8px; height: 8px; margin: 0; }
+html.is-phone .m-ntop { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding-right: 14px; }
+html.is-phone .m-ntop b { flex: none; font: 600 15px var(--m-font) !important; }
+html.is-phone .m-ntop em { flex: 1; min-width: 0; color: #8e8e93; font: 400 13.5px var(--m-font); font-style: normal; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+html.is-phone .m-ntop time { flex: none; margin-left: auto; color: #8e8e93; font: 400 12.5px var(--m-font); }
+html.is-phone .m-nrow .m-ntitle { color: #e5e5ea !important; font: 400 15px/1.3 var(--m-font) !important; white-space: normal !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+html.is-phone #m-av .nl-row.nl-p::before, html.is-phone #m-av .nl-row.nl-p.unread::before { display: none; }
+html.is-phone #m-av .nl-row.nl-p + .nl-row.nl-p::before { display: block; content: ""; position: absolute; top: 0; left: 66px; right: 0; width: auto; height: 0; margin: 0;
+  border-radius: 0; background: none; box-shadow: none; border-top: .5px solid var(--m-line); }
+html.is-phone .m-ntop b { color: #fff; }

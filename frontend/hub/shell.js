@@ -33,8 +33,22 @@ function notifDay(iso) {
 }
 const notifSel = { on: false, picked: new Set(), confirm: false };  // the choosing mode, shared by the bell and Avisos
 
+const onPhone = () => document.documentElement.classList.contains("is-phone");
+// "Kovel mandou uma tarefa a David: Widget: horas" -> who "Kovel", what "tarefa para David", title "Widget: horas"
+function notifParts(n) {
+  const cut = n.title.indexOf(": "), head = cut > 0 ? n.title.slice(0, cut) : n.title, rest = cut > 0 ? n.title.slice(cut + 2) : "";
+  const m = head.match(/^(\S+) (mandou uma tarefa a (.+)|deu-te uma tarefa|concluiu|pediu .+|aprovou|recusou)$/);
+  if (!m) return { who: "", what: t((NOTIF_KIND[n.kind] || [, "Aviso"])[1]), title: rest || n.title };
+  const what = m[3] ? (m[3] === "todos" ? t("tarefa para todos") : `${t("tarefa para")} ${m[3]}`) : m[2] === "deu-te uma tarefa" ? t("tarefa para ti") : m[2];
+  return { who: m[1], what, title: rest || head };
+}
+
 function notifToolbar(inbox) {
   const n = notifSel.picked.size;
+  if (!notifSel.on && onPhone()) {  // the phone: two quiet text buttons, like Mail ("Editar" picks which to delete)
+    return `<div class="nl-bar nl-ios">${inbox.unread ? `<button data-nl="read-all">${t("Marcar tudo como lido")}</button>` : "<span></span>"}
+      ${inbox.items.length ? `<button data-nl="pick">${t("Editar")}</button>` : ""}</div>`;
+  }
   if (!notifSel.on) {
     return `<div class="nl-bar">${inbox.unread ? `<button class="btn quiet sm" data-nl="read-all">${t("Marcar tudo como lido")}</button>` : ""}
       ${inbox.items.length ? `<button class="btn sm" data-nl="pick">${icon("check")}${t("Escolher para apagar")}</button>` : ""}</div>`;
@@ -55,7 +69,19 @@ function notifListHtml(inbox) {
   if (!inbox.items.length) return ui.empty("bell", "Sem notificações", "Só aparece aqui o que precisa de ti: tarefas novas, aprovações, agentes parados.");
   const groups = {};
   for (const n of [...inbox.items].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))) (groups[notifDay(n.created_at)] ||= []).push(n);
+  // the phone: who sent it (their face), what it is, the task in white, the time; unread is a dot by the time. No × on each row.
+  const phoneRow = (n) => {
+    const [ic] = NOTIF_KIND[n.kind] || ["bell"], picked = notifSel.picked.has(n.id), p = notifParts(n);
+    const hot = n.severity === "high" || n.kind.endsWith("failed") || n.kind === "approval_required";
+    return `<div class="nl-row nl-p ${n.read ? "" : "unread"} ${picked ? "picked" : ""} ${notifSel.on ? "picking" : ""}" data-n="${n.id}">
+      ${notifSel.on ? `<span class="nl-tick" aria-hidden="true">${picked ? icon("check") : ""}</span>` : ""}
+      <span class="nl-face">${p.who ? ui.avatar(p.who) : `<span class="nl-ico ${hot ? "hot" : ""}">${icon(ic)}</span>`}${p.who ? `<i class="${hot ? "hot" : ""}">${icon(ic)}</i>` : ""}</span>
+      <a class="nl-main" href="${esc(n.href || "#/home")}" data-open="${n.id}">
+        <span class="nl-top"><b>${esc(p.who || p.what)}</b>${p.who ? `<span>${esc(p.what)}</span>` : ""}<time>${fmt.ago(n.created_at)}</time>${n.read ? "" : '<i class="nl-dot"></i>'}</span>
+        <span class="nl-title">${esc(p.title)}</span>${n.body ? `<span class="nl-body">${esc(n.body)}</span>` : ""}</a></div>`;
+  };
   const row = (n) => {
+    if (onPhone()) return phoneRow(n);
     const [ic, kind] = NOTIF_KIND[n.kind] || ["bell", "Aviso"], picked = notifSel.picked.has(n.id);
     return `<div class="nl-row ${n.read ? "" : "unread"} ${picked ? "picked" : ""} ${notifSel.on ? "picking" : ""}" data-n="${n.id}">
       ${notifSel.on ? `<span class="nl-tick" aria-hidden="true">${picked ? icon("check") : ""}</span>` : ""}
@@ -66,7 +92,7 @@ function notifListHtml(inbox) {
       <time title="${esc(fmt.date ? fmt.date(n.created_at) : n.created_at)}">${fmt.ago(n.created_at)}</time>
       ${notifSel.on ? "" : `<button class="nl-x" data-del="${n.id}" title="${t("Apagar esta notificação")}" aria-label="${t("Apagar esta notificação")}">×</button>`}</div>`;
   };
-  return NOTIF_DAYS.filter((g) => groups[g]).map((g) => `<section class="nl-group"><h4>${t(g)} <i>${groups[g].length}</i></h4>${groups[g].map(row).join("")}</section>`).join("");
+  return NOTIF_DAYS.filter((g) => groups[g]).map((g) => `<section class="nl-group"><h4>${t(g)} <i>${groups[g].length}</i></h4><div class="nl-card">${groups[g].map(row).join("")}</div></section>`).join("");
 }
 
 // One click handler for both places. Returns true when it handled the click; `redraw` paints the list again.

@@ -51,6 +51,8 @@ melhor possível. Três camadas, cada uma com o seu limite:
 - Cada novidade é **medida antes do push** (CPU e memória do widget, do Hub e da janela grande). Se pesar, não entra.
 - Medido a 6 out 2026 no PC do Marco (12 núcleos): widget 6,3% do PC (a animação do painel), Hub 0,6% e 94 MB,
   janela grande minimizada 0% e 166 MB.
+- 7 out 2026 (cecde17): o widget parado passou a 0% (0 imagens por segundo); as animações decorativas tocam ~5 s depois
+  de uma mudança (o painel abre, alguém fica online ou offline, o estado muda), a ~166 imagens por segundo, e param.
 
 ## Quando ficar enorme
 

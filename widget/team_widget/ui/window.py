@@ -5,7 +5,9 @@ it back. The look is a luxury car's dashboard screen: black glass, white type, g
 and the three-pointed star are the official vector marks (badge.py: assets/amg-logo.svg, assets/mercedes-star.svg). The cockpit is laid out
 like iOS widgets: the hero card (time, date, how things are, the star), the Claude and Higgsfield limits as lines, three round dials for this PC
 (processor, memory, battery), and the team as a list.
-Every animation runs off one frame clock at the monitor's refresh rate (motion.py).
+Every animation runs off one frame clock at the monitor's refresh rate (motion.py), which ticks only while something
+moves, and each frame repaints only what moved. The decorative motion (the glint, the pulse, the rings round the faces)
+plays for a few seconds after a change and then rests: a cockpit where nothing happens draws nothing.
 """
 import getpass
 import math
@@ -44,6 +46,13 @@ INNER = WIDTH - 28     # what the modules get
 SHADOW = 18
 RADIUS = 24
 GROW, SHRINK = 0.42, 0.32   # seconds
+# The decorative motion (the glint on the hero's star, the agent's dot pulsing, the rings round the faces of whoever is
+# online) plays only after a change: the cockpit opens, someone comes online or goes, a state changes. It runs whole
+# cycles, from its resting look back to it, and then stops: at rest the cockpit draws no frames at all.
+GLINT = 3.2                 # seconds: one glint of light passes over the hero's star
+PULSES, PULSE = 2, 2.2      # the agent's dot pulses twice, 2.2 s each, while it works or waits
+RINGS, RING = 3, 1.8        # three sonar rings leave an online teammate's dot, 1.8 s each
+BREATHS, BREATH = 2, 2 * math.pi / 2.4   # two breaths of the ring round their picture, 2.6 s each
 NOTES_IN_WIDGET = False     # the list of notifications inside the widget: off since 6 Oct, nobody read it there (they are in the Hub's bell)
 CLOCK_PILL = 74             # width of the Parar / Retomar button in your own row
 COMMITS_EVERY = 8           # Hub polls (4 s each) between two looks at the last commits: every half minute
@@ -80,6 +89,19 @@ def worked_of(person: dict) -> str:
 
 def clock_runs(person: dict) -> bool:
     return bool(person.get("ponto")) and (person.get("ponto_state") or {}).get("running", True)
+
+
+def hours_turn(person: dict) -> float | None:
+    """Seconds until worked_of(person) shows another minute; None while it stands still."""
+    state = person.get("ponto_state")
+    if not person.get("ponto") or (state and not (state.get("running") and state.get("since"))):
+        return None
+    try:
+        start = datetime.fromisoformat(state["since"] if state else person["ponto"]).astimezone()
+    except ValueError:
+        return None
+    run = (datetime.now().astimezone() - start).total_seconds() + (int(state.get("worked_s") or 0) if state else 0)
+    return 60 - run % 60
 
 
 def elapsed(started_at) -> str:
@@ -295,6 +317,28 @@ def note_icon(kind: str | None, size: int, dpr: float) -> QPixmap:
         p.end()
         _note_icons[key] = pix
     return _note_icons[key]
+
+
+_avatars: dict[tuple, QPixmap] = {}
+
+
+def avatar(lit: bool, dpr: float) -> QPixmap:
+    """A teammate's picture in the team list, 36 px: the star on a black disc, dimmed when offline. Drawn once per state and
+    screen density, not on every frame of the ring breathing round it (the star is a vector file of 25 shapes)."""
+    key = (lit, round(dpr, 2))
+    if key not in _avatars:
+        pix = QPixmap(round(36 * dpr), round(36 * dpr))
+        pix.setDevicePixelRatio(dpr)
+        pix.fill(Qt.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0))
+        p.drawEllipse(QRectF(0, 0, 36, 36))
+        paint_star(p, QRectF(4, 4, 28, 28), 1.0 if lit else 0.35)
+        p.end()
+        _avatars[key] = pix
+    return _avatars[key]
 
 
 class Elided(QLabel):
@@ -587,8 +631,13 @@ class Badge(QWidget):
 
 class Hero(QWidget):
     """The main card: the time, the date and how things are on the left; the star on the right, with a slow
-    glint of light passing over it."""
+    glint of light passing over it.
+
+    The glint passes once, and the dot pulses while the agent works or waits, only after a change: the cockpit opens or
+    the state on the card changes. Then the card rests and draws nothing until the minute on the clock turns. While it
+    moves, each frame repaints only the star and the dot."""
     H = 168
+    DOT = QRect(28, 113, 11, 11)   # the pulsing dot on the chip (paintEvent: 13 px into the chip at x 20, y 106..130)
 
     def __init__(self):
         super().__init__()
@@ -598,15 +647,63 @@ class Hero(QWidget):
         self._f_time, self._f_date, self._f_state, self._f_note = (font(34, QFont.DemiBold, DISPLAY), font(9, QFont.Normal, UI),
                                                                    font(8.5, QFont.DemiBold, UI), font(8, QFont.Normal, UI))
         self._card = None
+        self._from = -math.inf         # when the last change set the card moving (perf_counter seconds)
+        self._shown = self._moving = self._glinting = False   # shown: between showEvent and hideEvent (minimized counts as hidden)
+        self._minute = QTimer(self)    # the time on the card changes once a minute: one repaint then
+        self._minute.setSingleShot(True)
+        self._minute.timeout.connect(self._next_minute)
         clock().frame.connect(self._frame)
 
     def set_status(self, text, colour, pulse=False, note=""):
+        if (text, QColor(colour), pulse, note) == (self._status, self._status_colour, self._pulse, self._note):
+            return   # asked again every few seconds with nothing new: no repaint
         self._status, self._status_colour, self._pulse, self._note = text, QColor(colour), pulse, note
         self.update()
+        self._play()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._shown = True
+        self._next_minute()
+        self._play()
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        self._shown = False
+        self._minute.stop()
+        self._settle()
+
+    def _play(self):
+        """Something changed: the glint passes over the star once and the agent's dot pulses, from rest back to rest."""
+        self._from = time.perf_counter()
+        self._settle()
+
+    def _motion(self) -> float:
+        """Seconds the card moves after a change."""
+        return max(GLINT, PULSES * PULSE if self._pulse else 0.0)
+
+    def _settle(self):
+        """Frames while the motion after the last change lasts and the card is on the screen; none after that."""
+        self._moving = self._shown and time.perf_counter() - self._from < self._motion()
+        clock().need(self, self._moving)
+
+    def _next_minute(self):
+        self.update()
+        if self._shown:
+            self._minute.start(int((60 - time.time() % 60) * 1000) + 20)
 
     def _frame(self, _):
-        if self.isVisible():
-            self.update()
+        if not self._moving:
+            return
+        t = time.perf_counter() - self._from
+        glint = t < GLINT
+        if glint or self._glinting:   # only what moves is repainted; once more after the glint, to leave the star clean
+            self.update(self._star_rect().toAlignedRect())
+        self._glinting = glint
+        if self._pulse:
+            self.update(self.DOT)
+        if t >= self._motion():
+            self._settle()   # this frame paints the card at rest: no more frames until the next change
 
     def _star_rect(self) -> QRectF:
         s = self.H - 12
@@ -647,15 +744,17 @@ class Hero(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.drawPixmap(0, 0, self._card)
-        t = time.time()
-        # a glint passes over the star every nine seconds, slowly
-        phase = (t % 9.0) / 3.2
+        t = time.perf_counter() - self._from   # seconds since the last change set the card moving
+        # after a change a glint passes over the star once, slowly
+        phase = t / GLINT
         if phase < 1:
             sr = self._star_rect()
             x = sr.left() - 60 + (sr.width() + 120) * (phase * phase * (3 - 2 * phase))
+            # the slanted band already touches the star where the sweep begins and ends: it comes in and leaves softly
+            k = min(1.0, phase / 0.2, (1 - phase) / 0.2)
             glint = QLinearGradient(QPointF(x - 40, sr.bottom()), QPointF(x + 40, sr.top()))
             glint.setColorAt(0, QColor(255, 255, 255, 0))
-            glint.setColorAt(0.5, QColor(255, 255, 255, 34))
+            glint.setColorAt(0.5, QColor(255, 255, 255, round(34 * k * k * (3 - 2 * k))))
             glint.setColorAt(1, QColor(255, 255, 255, 0))
             ring = QPainterPath()
             ring.addEllipse(sr.adjusted(sr.width() * 0.09, sr.height() * 0.09, -sr.width() * 0.09, -sr.height() * 0.09))
@@ -677,7 +776,8 @@ class Hero(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 255, 255, 20))
         p.drawRoundedRect(chip, 12, 12)
-        glow = 0.5 + 0.5 * math.sin(t * 2 * math.pi / 2.2) if self._pulse else 1.0
+        # while the agent works or waits the dot pulses after a change, from fully lit back to fully lit
+        glow = 0.5 + 0.5 * math.cos(min(t, PULSES * PULSE) * 2 * math.pi / PULSE) if self._pulse else 1.0
         p.setBrush(rgba(self._status_colour.name(), 0.4 + 0.6 * glow))
         p.drawEllipse(QPointF(chip.left() + 13, chip.center().y()), 3.2, 3.2)
         p.setPen(QColor(TEXT))
@@ -701,6 +801,8 @@ class Line(QWidget):
         self._f_title, self._f_value, self._f_note = font(8.5, QFont.DemiBold, UI), font(10.5, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI)
 
     def set(self, pct, value: str, note=""):
+        if (pct, value, note) == (self._pct, self._value, self._note):
+            return   # asked again every few seconds with nothing new: no repaint
         self._pct, self._value, self._note = pct, value, note
         self._glide.to(max(0, min(100, pct or 0)) / 100)
         self.update()
@@ -769,7 +871,14 @@ class Dial(QWidget):
 
 class Member(Hover):
     """One teammate in the list: the star as their picture (lit when online), name and state, and when they
-    clocked in. Your own row has the clock-in button."""
+    clocked in. Your own row has the clock-in button.
+
+    After a change (the cockpit opens, they come online or go, their state changes) the ring round an online teammate's
+    picture breathes and the dot sends out sonar rings, from rest back to rest, and then the row is still. While it
+    moves, each frame repaints only that corner (PICTURE). The hours of a running clock are repainted when their minute
+    turns."""
+    PICTURE = QRect(0, 5, 45, 47)   # the picture with its rings and dot (paintEvent, on a row 52 tall)
+    MOTION = max(RINGS * RING, BREATHS * BREATH)   # seconds the rings move after a change
 
     def __init__(self):
         super().__init__()
@@ -780,8 +889,13 @@ class Member(Hover):
             font(10, QFont.DemiBold, UI), font(8.5, QFont.Normal, UI), font(11, QFont.DemiBold, DISPLAY),
             font(7, QFont.Normal, UI), font(8.5, QFont.DemiBold, UI))
         self._f_tag = font(6.5, QFont.Bold, UI, spacing=0.6)
-        self._t, self.ping = 0.0, 1.0
+        self._t, self.ping = self.MOTION, 1.0   # _t: seconds into the motion after the last change; MOTION and past: at rest
+        self._from = 0.0
         self._ping = animate(self, 900, lambda v: self._set("ping", v))
+        self._shown = self._breathes = False   # shown: between showEvent and hideEvent (minimized counts as hidden)
+        self._minute = QTimer(self)   # the hours of a running clock
+        self._minute.setSingleShot(True)
+        self._minute.timeout.connect(self._next_minute)
         clock().frame.connect(self._frame)
         self.setEnabled(False)
 
@@ -796,10 +910,48 @@ class Member(Hover):
             return self._clock_pill().contains(QPointF(pos))
         return super().hitButton(pos)
 
-    def _frame(self, t):
-        self._t = t
-        if self._person and self._person.get("online") and self.isVisible():
-            self.update()  # the online dot breathes
+    @staticmethod
+    def _state(person: dict | None):
+        """What sets the row moving again when it changes: who it is, online or not, what they do, their clock."""
+        return person and (person.get("user"), bool(person.get("online")), person.get("status"), clock_runs(person))
+
+    def _play(self):
+        """Something changed for this row: its rings move again from rest, for MOTION seconds."""
+        self._from, self._t = time.perf_counter(), 0.0
+        self._settle()
+
+    def _frame(self, _):
+        if not self._breathes:
+            return
+        self._t = time.perf_counter() - self._from
+        self.update(self.PICTURE)  # the online dot breathes
+        if self._t >= self.MOTION:
+            self._settle()   # this frame paints the rings at rest: no more frames until the next change
+
+    def _settle(self):
+        """Frames while the motion after the last change lasts, for an online teammate's row on the screen; none after."""
+        shown = self._shown and self._person is not None
+        self._breathes = shown and bool(self._person.get("online")) and self._t < self.MOTION
+        clock().need(self, self._breathes)
+        turn = hours_turn(self._person) if shown else None
+        if turn is None:
+            self._minute.stop()
+        else:
+            self._minute.start(int(turn * 1000) + 20)
+
+    def _next_minute(self):
+        self.update()
+        self._settle()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._shown = True
+        self._play()
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        self._shown = False
+        self._settle()
 
     def set(self, person: dict, me: bool):
         was = self._person
@@ -813,8 +965,12 @@ class Member(Hover):
         self.setToolTip("" if not can else "Bater o ponto" if not person.get("ponto") else
                         "Parar: as horas de hoje deixam de contar" if clock_runs(person) else "Retomar: as horas voltam a contar")
         self.update()
+        if self._state(person) != self._state(was):
+            self._play()   # they came online or went, or what they do changed: the rings move for a few seconds
+        else:
+            self._settle()
 
-    def paintEvent(self, _):
+    def paintEvent(self, e):
         if not self._person:
             return
         p = QPainter(self)
@@ -825,11 +981,8 @@ class Member(Hover):
             p.setPen(QPen(QColor(255, 255, 255, 16), 1))
             p.drawLine(QPointF(48, h - 0.5), QPointF(w, h - 0.5))
         av = QRectF(0, h / 2 - 18, 36, 36)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(0, 0, 0))
-        p.drawEllipse(av)
-        paint_star(p, av.adjusted(4, 4, -4, -4), 1.0 if online else 0.35)
-        breath = 0.5 + 0.5 * math.sin(self._t * 2.4)
+        p.drawPixmap(av.topLeft(), avatar(bool(online), self.devicePixelRatioF()))
+        breath = 0.5 + 0.5 * math.sin(min(self._t, BREATHS * BREATH) * 2.4)   # whole breaths, so it rests where it began
         p.setPen(QPen(rgba(COLORS["ONLINE"], 0.45 + 0.4 * breath) if online else QColor(255, 255, 255, 26), 1.3))
         p.setBrush(Qt.NoBrush)
         p.drawEllipse(av.adjusted(0.6, 0.6, -0.6, -0.6))
@@ -838,14 +991,16 @@ class Member(Hover):
             r = 5 + 12 * self.ping
             p.drawEllipse(av.center(), r, r)
         dot = QPointF(av.right() - 3, av.bottom() - 3)
-        if online:  # a sonar ring leaving the dot
-            k = (self._t / 1.8) % 1.0
+        if online and self._t < RINGS * RING:  # a sonar ring leaving the dot (it starts hidden under the dot and fades out)
+            k = (self._t / RING) % 1.0
             p.setPen(Qt.NoPen)
             p.setBrush(rgba(COLORS["ONLINE"], 0.42 * (1 - k)))
             p.drawEllipse(dot, 4.4 + 5 * k, 4.4 + 5 * k)
         p.setPen(QPen(QColor(24, 24, 26), 2.5))
         p.setBrush(QColor(COLORS["ONLINE"] if online else COLORS["OFFLINE"]))
         p.drawEllipse(dot, 4.4, 4.4)
+        if self.PICTURE.contains(e.rect()):
+            return   # a breathing frame: nothing else on the row has changed
         p.setPen(QColor(TEXT) if online else QColor(MUTED))
         p.setFont(self._f_name)
         p.drawText(QRectF(48, 8, 150, 18), Qt.AlignLeft | Qt.AlignVCenter, person["name"])
@@ -946,16 +1101,16 @@ class Orb(QWidget):
         self._face, self._face_key = None, None
         self._f_time = font(22, QFont.DemiBold, DISPLAY)
         self._light = False                  # is the wallpaper behind it light? then the words go dark
-        self._ticks = 0
-        self._minute = QTimer(self)          # the face only changes when the minute does
-        self._minute.timeout.connect(self._second)
-        self._minute.start(1000)
+        self._minute = QTimer(self)          # the face only changes when the minute does: one repaint then
+        self._minute.setSingleShot(True)
+        self._minute.timeout.connect(self._next_minute)
+        self._looks = QTimer(self)           # a look at the wallpaper every 20 s, while the button is on the screen
+        self._looks.timeout.connect(self._sample)
 
-    def _second(self):
-        self._ticks += 1
-        if self._ticks % 20 == 0:
-            self._sample()
+    def _next_minute(self):
         self.update()
+        if self.isVisible():
+            self._minute.start(int((60 - time.time() % 60) * 1000) + 20)
 
     def _sample(self):
         """Looks at the desktop behind it and picks white or dark words to match."""
@@ -974,7 +1129,14 @@ class Orb(QWidget):
 
     def showEvent(self, e):
         QTimer.singleShot(400, self._sample)
+        self._looks.start(20_000)
+        self._next_minute()
         super().showEvent(e)
+
+    def hideEvent(self, e):
+        self._looks.stop()
+        self._minute.stop()
+        super().hideEvent(e)
 
     def _set(self, name, v):
         setattr(self, name, v)
@@ -1369,6 +1531,7 @@ class WidgetWindow(QWidget):
         self.mode = "morph"
         self._morph_dir, self._morph_t0 = direction, time.perf_counter()
         self._k = 0.0 if direction > 0 else 1.0
+        clock().need(self)
         self.update()
 
     def _morph_frame(self, _):
@@ -1383,6 +1546,7 @@ class WidgetWindow(QWidget):
             self._morph_done()
 
     def _morph_done(self):
+        clock().need(self, False)
         if self._morph_dir > 0:
             self.mode = "panel"
             self.orb.hide()
@@ -1695,14 +1859,6 @@ class WidgetWindow(QWidget):
     def _fade_done(self):
         if self._fade.endValue() == 0.0:
             self.hide()
-
-    def showEvent(self, e):
-        clock().start()
-        super().showEvent(e)
-
-    def hideEvent(self, e):
-        clock().stop()  # nothing to animate while the widget is in the tray
-        super().hideEvent(e)
 
     def closeEvent(self, e):
         e.ignore()  # closing hides to tray; the agent keeps running

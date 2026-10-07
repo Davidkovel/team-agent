@@ -22,7 +22,7 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtWidgets import (QAbstractButton, QComboBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                                QSlider, QVBoxLayout, QWidget)
 
-from .motion import FrameClock, clock
+from .motion import FrameClock, fine_timers
 
 BG = "#070708"
 PANEL = "#0e0f11"
@@ -535,7 +535,7 @@ class VideoPlayer(QWidget):
             self.toggle_full()
         self.media.stop()
         self.media.setSource(QUrl())   # lets go of the file and the decoder
-        self._ticker.stop()
+        self._follow(False)
         self.closed.emit(self.changed)
 
     def trash_current(self):
@@ -649,11 +649,20 @@ class VideoPlayer(QWidget):
         self.b_play.update()
         self._pos_clock.restart()
         if playing and self.isVisible():
-            clock().start()   # 1 ms Windows timers, so the playhead lands on every refresh
+            self._follow(True)
+        else:
+            self._follow(False)
+            self._paint_time()
+
+    def _follow(self, on: bool):
+        """The playhead follows the picture every frame while a video plays on the screen, with the 1 ms Windows timer
+        resolution so it lands on every refresh; paused, stopped or hidden, neither runs."""
+        if on:
+            fine_timers(self)
             self._ticker.start(max(1, int(1000 / FrameClock.target_fps())))
         else:
             self._ticker.stop()
-            self._paint_time()
+            fine_timers(self, False)
 
     def _on_status(self, status):
         if status in (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferedMedia):
@@ -692,7 +701,7 @@ class VideoPlayer(QWidget):
 
     def _tick(self):
         if not self.isVisible():
-            self._ticker.stop()
+            self._follow(False)
             return
         self._paint_time()
 

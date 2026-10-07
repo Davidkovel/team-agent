@@ -23,7 +23,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineScript
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
-from .motion import FrameClock, clock
+from .motion import FrameClock, fine_timers
 from .player import VideoPlayer
 
 BG = QColor(7, 7, 8)
@@ -55,7 +55,7 @@ class Ghost(QWidget):
         self._to = QRectF(end.translated(-area.topLeft()))
         self._rect, self._ms, self._curve, self._done = self._from, ms, QEasingCurve(curve), done
         self.show()
-        clock().start()  # 1 ms Windows timer resolution, else frames land every 15.6 ms
+        fine_timers(self)  # 1 ms Windows timer resolution while it moves, else frames land every 15.6 ms
         self._clock.start()
         self._timer.start(max(1, int(1000 / FrameClock.target_fps())))
 
@@ -67,6 +67,7 @@ class Ghost(QWidget):
         self.repaint()
         if t >= 1.0:
             self._timer.stop()
+            fine_timers(self, False)
             self._done()
 
     def paintEvent(self, _):

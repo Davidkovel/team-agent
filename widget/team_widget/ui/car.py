@@ -142,6 +142,14 @@ class CarView(QWidget):
 
     # ------------------------------------------------------------ animation
 
+    def showEvent(self, e):
+        super().showEvent(e)
+        clock().need(self)   # the light moves for as long as the car is on the screen
+
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        clock().need(self, False)
+
     def _advance(self, t: float):
         if not self.isVisible():
             self._last = None

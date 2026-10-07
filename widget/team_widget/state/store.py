@@ -13,6 +13,8 @@ class StateStore:
 
     def set(self, state: dict):
         with self._lock:
+            if state == self._state:
+                return  # e.g. "still offline" after each failed reconnect: nothing for the widget to redraw
             self._state = state
             self.version += 1
 

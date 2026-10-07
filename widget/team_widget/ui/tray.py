@@ -76,7 +76,12 @@ def start_tray(window: WidgetWindow):
 
     icon.activated.connect(activated)
 
+    shown = {}  # the status the icon shows now
+
     def on_status(status: str):
+        if status == shown.get("status"):
+            return  # the same icon again would only make Windows redraw the tray
+        shown["status"] = status
         icon.setIcon(image(status))
         icon.setToolTip(f"Agente AMG - {status}")
 

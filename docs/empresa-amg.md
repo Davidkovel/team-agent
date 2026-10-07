@@ -66,14 +66,25 @@ com o ecrã. A arquitetura acima (um registo, secções independentes) deixa faz
   O Hub instala os hooks sozinho em `~/.claude/settings.json` ao arrancar (`backend/app/claude_hooks.py`; `CLAUDE_OFFICE=0` tira-os).
 - **Saúde** (Sistema; telemóvel em Mais): cada Hub mede-se de minuto a minuto (Hub, widget, janela grande) com as contas do
   Windows (`backend/app/health.py`), tabela `pc_health` sincronizada.
-- **My Niggaz** (menu do PC, a seguir ao Escritório; telemóvel em Mais, a toda a largura): a sala dos agentes em pixel art
-  isométrica com néon, a primeira versão das personagens da fase 2D (`frontend/hub/crew.js` + `crew.css`). Oito agentes (Dev,
-  Explorador, Pesquisador, Designer, Marketing, Revisor, Tester, Faz-tudo) ficam no lounge sem trabalho; uma tarefa por fazer
-  (criada há menos de 30 min), em curso, à espera ou em pausa, um Claude a trabalhar (ou à tua espera há menos de 20 min) ou um
-  subagente a correr põe um deles a caminho de um dos 6 computadores, com o pedido num cartão por cima da cabeça. A caixa no
-  topo cria a tarefa (`POST /api/tasks`, `for_ai`) com o tipo de agente escolhido. Só lê `/api/tasks` e `/api/office`.
-  Peso medido a 6 out: ~3,3 ms por imagem a 1300 px, 12 imagens/s parado e 26 quando alguém anda (~4% de um núcleo), e só
-  com a página aberta, à vista e no separador da frente; fechada não corre nada.
+- **My Niggaz** (menu do PC, a seguir ao Escritório; telemóvel em Mais, a toda a largura): a Batcave da equipa, em pixel art
+  isométrica (`frontend/hub/crew.js` + `crew.css`), com uma câmara que vai do escritório à garagem (Escritório · Garagem · Tudo,
+  ou arrastar). **Os agentes são personagens do Batman** e cada um tem um papel: Batman (código), Lucius Fox (engenharia),
+  Riddler (pesquisa), Catwoman (design), Joker (marketing), Alfred (revisão), Robin (testes) e Gordon (operações); o Lucius,
+  o Riddler, o Alfred e o Gordon andam de fato e gravata. Sem trabalho ficam no lounge (sofá, Batcomputador, o fato na
+  vitrine, café, saco de boxe, xadrez); uma missão mandada daqui (a um deles pelo nome, ou a qualquer um), uma tarefa do
+  quadro, um Claude a trabalhar ou um subagente põe um deles a caminho de um dos 6 computadores. Clicar num agente abre o
+  **painel de missão** (acabamento AMG: carbono, cromado, conta-rotações do progresso, tempo, custo, agora/último/a seguir,
+  registo, pausar/parar); num agente livre, dá-lhe uma missão ali mesmo. Peso medido a 7 out: ~3,6 ms por imagem a 3000 px,
+  12 imagens/s parado e 26 a mexer, só com a página aberta e à vista.
+- **Cada personagem é a sua própria conversa do Claude** (`tasks.crew`, `backend/app/crew.py`): o agente automático de quem
+  recebe a tarefa corre-a como essa personagem, retomando sempre a mesma conversa (guardada em
+  `~/.team-agent/<perfil>/crew/<id>`, recomeça ao fim de 12 tarefas) e começa cada missão com o briefing do Hub
+  (`GET /api/agent/tasks/{id}/briefing`): quem é, a Memória, as empresas e os projetos, o trabalho aberto, o que a equipa
+  acabou e o que ela própria fez. **Cada tarefa acabada pelo agente deixa uma nota na Memória** (categoria TAREFAS), por isso
+  todos sabem tudo a partir da tarefa seguinte; o pedido de cada tarefa leva só as 15 mais recentes dessas notas.
+- **A garagem**: quatro carros em pratos giratórios (Mercedes-AMG G 63, Porsche 911 GT3 RS, Lamborghini Aventador SVJ,
+  Ferrari SF90 Stradale), com placa e painel próprio. **Cada carro vai representar um projeto**: por agora estão todos
+  «por atribuir» (`CARS[].project` no `crew.js`).
 - **Secções carregadas só ao abrir**: `lazyView(id, ficheiro.js, ficheiro.css)` em `frontend/hub/ui.js`.
 - **5 agentes partilhados** em `.claude/agents/` e as regras de modelos e budget no `CLAUDE.md`.
 

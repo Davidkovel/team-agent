@@ -92,7 +92,7 @@ class ClaudeAgentProvider(AIProvider):
                                       tools=[f"mcp__{MCP_SERVER}__{t}" for t in tools if t in registry.tools])
                 for name, (description, prompt, tools) in SUBAGENTS.items()}
 
-    async def run(self, prompt, system_prompt, registry, workspace: Path, resume_session, on_session) -> RunResult:
+    async def run(self, prompt, system_prompt, registry, workspace: Path, resume_session, on_session, home: Path | None = None) -> RunResult:
         from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions, ClaudeSDKClient, ResultMessage,
                                       SystemMessage, TextBlock, ToolResultBlock, ToolUseBlock, UserMessage)
 
@@ -101,7 +101,9 @@ class ClaudeAgentProvider(AIProvider):
             model=self.model,
             cli_path=native_cli(),
             system_prompt=system_prompt,
-            cwd=workspace,
+            # Claude Code keeps a conversation under the folder it ran in: a crew member always runs in their own, so
+            # their conversation can be resumed whatever the task's workspace. Our tools work in the workspace anyway.
+            cwd=home or workspace,
             mcp_servers={MCP_SERVER: self._mcp_server(registry)},
             strict_mcp_config=True,  # only our server: not the connectors of the signed-in Claude account
             tools=["Agent"] if self.subagents else [],  # no other Claude Code built-in

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import crew
 from ..config import settings
 from ..db import get_db
 from ..models import UNFINISHED, AgentSession, Approval, Task, TaskEvent, UsageRecord, User
@@ -142,6 +143,14 @@ async def task_memory(task_id: int, user: User = Depends(agent_user), db: AsyncS
             for m in await memory_for_task(db, task)]
 
 
+@router.get("/tasks/{task_id}/briefing")
+async def task_briefing(task_id: int, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+    """What a crew member reads before starting (crew.py): who they are, the Memória, the projects, the open work, what
+    the crew finished lately and what they did before."""
+    task = await own_task(task_id, user, db)
+    return await crew.briefing(db, task, await memory_for_task(db, task))
+
+
 @router.post("/tasks/{task_id}/update")
 async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     task = await own_task(task_id, user, db)
@@ -161,6 +170,7 @@ async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent
         await log_activity(db, user, "task_status", f"{STATUS_TEXT.get(task.status, task.status)}: {task.title}", task.id)
         href = f"#/tarefas/{task.id}"
         if task.status == "COMPLETED":
+            await crew.remember_task(db, task, user)  # the whole crew knows it from the next task on
             await notify(db, {user.id, task.created_by}, "task_completed", "low", f"Tarefa concluída: {task.title}",
                          (task.result or "")[:300], href)
         elif task.status == "FAILED":

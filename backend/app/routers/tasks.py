@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import hub, push
+from ..crew import CREW, role_of
 from ..db import get_db
 from ..models import Activity, AgentSession, Approval, Project, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
@@ -37,6 +38,7 @@ class TaskCreate(BaseModel):
     agent_role: Role | Literal[""] = ""
     # True: the assignee's agent picks it up at once (how tasks always worked). False: it waits in "to do" for a person.
     for_ai: bool = True
+    crew: str = ""  # a member of the crew (crew.CREW) does it, as themselves
 
 
 class TaskEdit(BaseModel):
@@ -136,6 +138,10 @@ async def create_task(body: TaskCreate, user: User = Depends(current_user), db: 
         if not assignees:
             raise HTTPException(422, "Choose who the task is for")
     await _check_links(db, body.company, body.project_id)
+    if body.crew and body.crew not in CREW:
+        raise HTTPException(422, "Unknown crew member")
+    if body.crew and not body.agent_role:
+        body.agent_role = role_of(body.crew)
     tasks = [await _create(db, body, person, user) for person in assignees]
     await _announce(db, user, tasks, everybody)
     return task_out(next((t for t in tasks if t.assignee_id == user.id), tasks[0]))

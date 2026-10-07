@@ -80,6 +80,7 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
 - **Agentes da equipa** em `.claude/agents/`: `pesquisador` (Haiku), `explorador` (Haiku, só lê), `revisor-hub` (Sonnet, antes do push), `designer-hub` (Sonnet), `marketing` (Sonnet, BareDesk e escolas).
 - **Várias sessões no mesmo PC:** ver as outras (ListAgents) antes de mexer em ficheiros partilhados e combinar por mensagem; nunca deixar commits por enviar; o merge ou o reset do trabalho de outra sessão é a pessoa que decide.
 
+- **A equipa do My Niggaz** (`backend/app/crew.py`): uma tarefa pode ir para uma personagem (`crew`: batman, lucius, riddler, catwoman, joker, alfred, robin, gordon). O agente automático corre-a nessa personagem, sempre na mesma conversa do Claude, com o briefing do Hub; cada tarefa acabada vira uma nota TAREFAS na Memória. Mudar uma personagem = `CREW` no `crew.py` e no `frontend/hub/crew.js`.
 - **A empresa de agentes:** o rumo do Agente AMG está em `docs/empresa-amg.md` (visão de Deus, departamentos, fases 2D → controlo → 3D). Lê-o antes de construir algo grande.
 - **Regras de peso:** o Hub guarda o estado e não cada passo; o widget só mostra resumos e só anima quando algo muda; cada secção da central carrega só quando se entra nela. Limites parados: widget e Hub abaixo de 1% de CPU, central aberta abaixo de 3%. Mede antes do push: se pesar, não entra.
 

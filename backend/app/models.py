@@ -60,6 +60,9 @@ class Task(Base):
     company: Mapped[str | None] = mapped_column(String(50))  # library company id
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"))
     agent_role: Mapped[str] = mapped_column(String(30), default="")  # which kind of agent it was given to (AGENT_ROLES)
+    # which member of the crew does it (crew.CREW: batman, joker...): the agent runs it as that character, in their own
+    # Claude conversation. Empty: the agent as before.
+    crew: Mapped[str | None] = mapped_column(String(30))
     agent_instructions: Mapped[str] = mapped_column(Text, default="")
     git_branch: Mapped[str] = mapped_column(String(120), default="")
     blocked_reason: Mapped[str] = mapped_column(Text, default="")

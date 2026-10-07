@@ -19,13 +19,21 @@ from .state import AgentState
 SYSTEM_PROMPT = """You are {name}'s Team Agent: an autonomous AI worker running on {name}'s computer as part of a small team. You receive one assigned task and carry it out end to end.
 
 How you work:
-- You can act only through the provided tools. Files, git and commands are confined to the task workspace (the current directory).
+- You can act only through the provided tools. Files, git and commands are confined to the task workspace; paths are relative to it.
 - Call update_progress after every meaningful step, with an honest percentage. Write current_action, last_action and next_action in European Portuguese, at most 8 words each: a plain statement of what was done, without details or reasons. Your teammates read these as the short report of your work.
 - Every tool call is checked by a permission policy. Safe actions run immediately. Sensitive ones pause until the owner approves. A BLOCKED or REJECTED result is final: do not retry it or look for a workaround.
 - Before any action with outside effect that the tools do not gate themselves (publishing ads or content, production changes, spending money), call request_approval first and proceed only if approved. If you cannot perform such an action with your tools, prepare everything as a draft in the workspace and say so in the result.
 - Use record_decision for choices a future session would need to understand.
 - If you are blocked or the task is ambiguous, call request_help and stop.
 - When every requirement is met, call complete_task once with a summary of the result and where the deliverables are, then stop."""
+
+
+# Added to the system prompt when the task was given to a member of the crew (the Hub's crew.py).
+CREW_PROMPT = """
+
+Who you are in this team: {persona}
+You are one of the crew of eight: {team}. Each of you works in their own Claude conversation. This one is yours: the tasks you did before are earlier in it, if any. What any of you finishes goes into the Hub's memory, and you get that memory, the projects and the open work at the start of every task, so take it as what the team knows now.
+Stay yourself in how you think and decide, but the work comes first: no role-play in files, code, progress reports or results."""
 
 
 # How to work when a task was handed over as a particular kind of agent (the Hub's "Assign to AI").
@@ -56,6 +64,8 @@ class TeamAgent:
         self.ask_ai = ask_ai                # makes a provider for a question from the Hub, apart from the task's own
         self._session: SessionReport | None = None  # the Hub's record of the run in progress
         self._memory: list[dict] = []       # what the Hub says the AI should know for the current task
+        self._brief: dict = {}              # the Hub's briefing for it (crew.py): projects, open work, the crew member
+        self._crew = ""                     # the crew member it runs as, if any
         self._asks: set[asyncio.Task] = set()
         self.state = AgentState(dashboard_url=cfg.server_url, history=store.history()[-8:])
         self.on_change: Callable[[], None] = lambda: None
@@ -187,6 +197,7 @@ class TeamAgent:
             lines += ["", "What the team already knows (the Hub's memory). Take it as given:",
                       *[f"- [{m['scope']}{'/' + m['category'] if m.get('category') else ''}] {m['title']}: {m['content']}"
                         for m in self._memory]]
+        lines += self._briefing_lines()
         if resume:
             lines += ["", "This task was interrupted and is being RESUMED. Do not start over.",
                       f"Saved state: {task.get('progress', 0)}% done; last action: {task.get('last_action') or 'none'}; "
@@ -201,12 +212,42 @@ class TeamAgent:
             lines += ["First verify the real state of the workspace (list_files, git status), then continue from where you stopped."]
         return "\n".join(lines)
 
+    def _briefing_lines(self) -> list[str]:
+        """The rest of the Hub's briefing (crew.py): the projects, the open work, what the team finished, what you did."""
+        b, lines = self._brief, []
+        if b.get("companies") or b.get("projects"):
+            lines += ["", "The team's companies and projects:",
+                      *[f"- company: {c['name']}" for c in b.get("companies", [])],
+                      *[f"- project {p['name']} ({p['status']}{', ' + p['company'] if p.get('company') else ''})"
+                        f"{': ' + p['description'] if p.get('description') else ''}" for p in b.get("projects", [])]]
+        if b.get("open"):
+            lines += ["", "Open work right now (what comes next):",
+                      *[f"- {t['title']} [{t['status']}, for {t['for']}{', ' + t['crew'] if t.get('crew') else ''}]" for t in b["open"]]]
+        if b.get("finished"):
+            lines += ["", "Finished lately by the team:", *[f"- {t['title']} ({t['by']}): {t['result']}" for t in b["finished"]]]
+        if b.get("mine"):
+            lines += ["", "Your own last tasks:", *[f"- {t['title']}: {t['result']}" for t in b["mine"]]]
+        return lines
+
+    def _crew_home(self, crew: str) -> Path:
+        path = self.cfg.data_dir / "crew" / re.sub(r"[^A-Za-z0-9_-]", "_", crew)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
     async def _execute(self, task: dict, resume: bool):
         self._intent, self._result = None, None
         workspace = self._workspace(task)
         registry = build_registry(ToolContext(workspace, PermissionPolicy(workspace, self.cfg.policy_file), self))
         system = SYSTEM_PROMPT.format(name=self.state.display_name or self.state.user)
-        self._memory = await self._report("task_memory", task["id"]) or []
+        # A Hub that knows the crew sends a whole briefing; an older one only the memory.
+        self._brief = await self._report("task_briefing", task["id"]) or {}
+        self._memory = self._brief.get("memory", []) if self._brief else await self._report("task_memory", task["id"]) or []
+        member = self._brief.get("crew") or {}
+        crew = member.get("id") or ""
+        if crew:
+            team = ", ".join(f"{m['name']} ({m['what']})" for m in self._brief.get("team", []))
+            system += CREW_PROMPT.format(persona=member["persona"], team=team or "the rest of the crew")
+        self._crew = crew
         self._session = SessionReport(self._report, "task", self.cfg.model, task["id"])
         await self._session.open()
         self.ai.on_event = self._session.on_event
@@ -215,17 +256,27 @@ class TeamAgent:
             if reason := self.ai.unavailable_reason():
                 raise RuntimeError(f"AI provider is not ready: {reason}")
             await self._set_status("WORKING", "IN_PROGRESS")
-            session = task.get("session_id") if resume else None
-            log.info("%s Claude session for TASK-%s", "Resuming" if session else "Started", task["id"])
+            session = task.get("session_id") if resume else self.store.crew_session(crew) if crew else None
+            extra = {"home": self._crew_home(crew)} if crew else {}
+            if crew and session and not resume:
+                # the crew member's conversation already cost something before this task: count only what this one adds
+                saved = self.store.usage(task["id"])
+                if not saved["session_id"]:
+                    saved["session_id"], saved["session_cost"] = session, self.store.crew(crew)["cost"]
+                    self.store.save_usage(task["id"], saved)
+            log.info("%s Claude session for TASK-%s%s", "Resuming" if session else "Started", task["id"],
+                     f" as {member.get('name')}" if crew else "")
             try:
-                result = await self.ai.run(self._prompt(task, resume), system, registry, workspace, session, self._on_session)
+                result = await self.ai.run(self._prompt(task, resume), system, registry, workspace, session, self._on_session, **extra)
             except Exception as exc:
                 if not session or self._intent:
                     raise
                 # The saved session is gone (e.g. another machine); the task context in the prompt is enough.
                 log.info("Could not resume the saved session (%s); continuing from task context", type(exc).__name__)
-                result = await self.ai.run(self._prompt(task, True), system, registry, workspace, None, self._on_session)
+                result = await self.ai.run(self._prompt(task, resume), system, registry, workspace, None, self._on_session, **extra)
             await self._report_usage(task["id"], result)
+            if crew and result.session_id:
+                self.store.save_crew(crew, result.session_id, result.session_cost_usd, new_task=not resume)
         except Exception as exc:
             result = RunResult(ok=False, error=f"{type(exc).__name__}: {exc}")
         await self._session.close("INTERRUPTED" if self._intent else "DONE" if result.ok else "ERROR", result, self._run_cost)
@@ -234,6 +285,8 @@ class TeamAgent:
         self.wake()
 
     async def _on_session(self, session_id: str):
+        if self._crew and self.store.crew(self._crew)["session_id"] != session_id:
+            self.store.save_crew(self._crew, session_id, None, new_task=False)  # kept at once: a crash must not lose it
         if self._session:
             await self._session.set_claude_session(session_id)
         if self._task and self._task.get("session_id") != session_id:

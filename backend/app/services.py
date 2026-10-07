@@ -31,7 +31,7 @@ def task_out(t: Task, completed_by: str | None = None) -> dict:
         "stage": TASK_STAGE.get(t.status, "todo"), "priority": t.priority or "normal", "deadline": iso(t.deadline),
         "company": t.company or (t.project if t.project in hub.companies() else None),
         "project_id": t.project_id, "project_name": t.project_ref.name if t.project_ref else "",
-        "agent_role": t.agent_role or "", "agent_instructions": t.agent_instructions or "",
+        "agent_role": t.agent_role or "", "agent_instructions": t.agent_instructions or "", "crew": t.crew or "",
         "git_branch": t.git_branch or "", "blocked_reason": t.blocked_reason or "",
         "trashed_at": iso(t.trashed_at), "trash_reason": t.trash_reason,
         "created_by": t.creator.username if t.creator else None,

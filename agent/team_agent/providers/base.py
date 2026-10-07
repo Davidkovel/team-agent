@@ -41,7 +41,9 @@ class AIProvider(ABC):
 
     @abstractmethod
     async def run(self, prompt: str, system_prompt: str, registry: ToolRegistry, workspace: Path,
-                  resume_session: str | None, on_session: Callable[[str], Awaitable[None]]) -> RunResult: ...
+                  resume_session: str | None, on_session: Callable[[str], Awaitable[None]],
+                  home: Path | None = None) -> RunResult:
+        """home: where the conversation is kept (a crew member's own folder); the workspace when None."""
 
     async def ask(self, prompt: str, system_prompt: str) -> RunResult:
         """Answer one question from the text of the prompt alone (no tools). Providers that cannot say so."""

@@ -9,6 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import commits, hub
+from ..crew import trim_memory
 from ..db import get_db
 from ..models import TASK_STAGE, Activity, AgentSession, Approval, Expense, Memory, Notification, Project, Task, UsageRecord, User
 from ..realtime import rt
@@ -172,7 +173,7 @@ async def memory_for_task(db: AsyncSession, task: Task) -> list[Memory]:
     if task.project_id:
         wanted.append((Memory.scope == "project") & (Memory.scope_id == str(task.project_id)))
     rows = (await db.execute(select(Memory).where(or_(*wanted)).order_by(Memory.id))).scalars().all()
-    return sorted(rows, key=lambda m: SCOPES.index(m.scope))
+    return sorted(trim_memory(rows), key=lambda m: SCOPES.index(m.scope))
 
 
 @router.get("/memory")

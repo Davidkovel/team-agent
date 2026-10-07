@@ -156,12 +156,13 @@ def test_memory_expenses_and_search(client):
     assert client.post("/api/memory", headers=owner, json={"scope": "project", "title": "No id"}).status_code == 422
     assert client.post("/api/memory", headers=david, json={"scope": "team", "title": "Not allowed"}).status_code == 403
     assert client.post("/api/memory", headers=david, json={"scope": "agent", "scope_id": "david", "title": "Mine"}).status_code == 200
-    assert [m["title"] for m in client.get("/api/memory?scope=team", headers=david).json()] == ["Pricing multiplier"]
+    # finished tasks also leave TAREFAS notes (crew.py); the hand-written ones are what this checks
+    assert [m["title"] for m in client.get("/api/memory?scope=team", headers=david).json() if m["category"] != "TAREFAS"] == ["Pricing multiplier"]
 
     # the notes reach the agent with the task they apply to
     mark_agent = agent(client, "mark", owner)
     task = client.post("/api/tasks", headers=owner, json={"title": "Update prices", "assignee": "mark"}).json()
-    assert [m["title"] for m in client.get(f"/api/agent/tasks/{task['id']}/memory", headers=mark_agent).json()] == ["Pricing multiplier"]
+    assert [m["title"] for m in client.get(f"/api/agent/tasks/{task['id']}/memory", headers=mark_agent).json() if m["category"] != "TAREFAS"] == ["Pricing multiplier"]
 
     empty = client.get("/api/expenses", headers=owner).json()
     assert empty["items"] == [] and empty["month_totals"] == {}

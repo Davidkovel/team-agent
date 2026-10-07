@@ -24,7 +24,8 @@ log = logging.getLogger("team.backend")
 # 5: sync_log and sync_meta, for the Hubs of the team's computers to trade changes (sync.py).
 # 6: users.phone_topic, for notifications on the phone (push.py).
 # 12: tasks.doing_since, the "Estou a fazer" button.
-SCHEMA_VERSION = 12
+# 13: tasks.crew, the member of the crew (crew.py) a task is given to.
+SCHEMA_VERSION = 13
 
 
 def current_version(conn) -> int:

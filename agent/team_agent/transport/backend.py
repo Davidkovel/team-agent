@@ -47,6 +47,9 @@ class BackendClient:
     async def task_memory(self, task_id: int) -> list[dict]:
         return await self._call("GET", f"/tasks/{task_id}/memory")
 
+    async def task_briefing(self, task_id: int) -> dict:
+        return await self._call("GET", f"/tasks/{task_id}/briefing")
+
     async def start_session(self, **fields) -> dict:
         return await self._call("POST", "/sessions", fields)
 

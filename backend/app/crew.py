@@ -1,4 +1,4 @@
-"""The crew: the eight characters of My Niggaz (frontend/hub/crew.js draws them in the Batcave).
+"""The crew: the eight characters of Empresa AMG (frontend/hub/crew.js draws them in the Batcave).
 
 A task can be given to one of them (`tasks.crew`). The agent of the person the task is for then runs it as that
 character: the same crew member keeps the same Claude conversation from task to task (the agent resumes it), and every

@@ -68,7 +68,7 @@ com o ecrã. A arquitetura acima (um registo, secções independentes) deixa faz
   O Hub instala os hooks sozinho em `~/.claude/settings.json` ao arrancar (`backend/app/claude_hooks.py`; `CLAUDE_OFFICE=0` tira-os).
 - **Saúde** (Sistema; telemóvel em Mais): cada Hub mede-se de minuto a minuto (Hub, widget, janela grande) com as contas do
   Windows (`backend/app/health.py`), tabela `pc_health` sincronizada.
-- **My Niggaz** (menu do PC, a seguir ao Escritório; telemóvel em Mais, a toda a largura): a Batcave da equipa, em pixel art
+- **Empresa AMG** (antiga My Niggaz; `#/empresa`, o `#/niggaz` ainda abre; menu do PC, a seguir ao Escritório; telemóvel em Mais, a toda a largura): a Batcave da equipa, em pixel art
   isométrica (`frontend/hub/crew.js` + `crew.css`), com uma câmara que vai do escritório à garagem (Escritório · Garagem · Tudo,
   ou arrastar). **Os agentes são personagens do Batman** e cada um tem um papel: Batman (código), Lucius Fox (engenharia),
   Riddler (pesquisa), Catwoman (design), Joker (marketing), Alfred (revisão), Robin (testes) e Gordon (operações); o Lucius,

@@ -1,6 +1,8 @@
 # Redesenho da página dos agentes (a Batcave, antiga «My Niggaz»)
 
-Pedido do Marco a 7 de outubro de 2026. **Estado: plano aceite pelo Marco, ainda nada construído.**
+Pedido do Marco a 7 de outubro de 2026. **Estado (7 out, fim do dia): fase 1 feita** — pontos 1 a 5 e o losango do 10.
+Falta: 6 (parede de comando), 7 (sala de estar com a Memória e o botão Reunião), 8 (arsenal; precisa da coluna de skills no Hub),
+9 (ligações), o resto do 10 (luz toda branca fria, animações) e 11 (dicas ao passar o rato, legenda, câmara ao clicar).
 
 Este ficheiro é o contexto todo da conversa em que o Marco o pediu. Quem pegar nisto (o Marco, o Kovel, o David ou
 qualquer Claude, em qualquer conta ou PC) lê isto e continua sem precisar dessa conversa. As decisões curtas estão também

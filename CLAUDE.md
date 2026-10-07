@@ -80,17 +80,17 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
 - **Agentes da equipa** em `.claude/agents/`: `pesquisador` (Haiku), `explorador` (Haiku, só lê), `revisor-hub` (Sonnet, antes do push), `designer-hub` (Sonnet), `marketing` (Sonnet, BareDesk e escolas).
 - **Várias sessões no mesmo PC:** ver as outras (ListAgents) antes de mexer em ficheiros partilhados e combinar por mensagem; nunca deixar commits por enviar; o merge ou o reset do trabalho de outra sessão é a pessoa que decide.
 
-- **A equipa do My Niggaz** (`backend/app/crew.py`): uma tarefa pode ir para uma personagem (`crew`: batman, lucius, riddler, catwoman, joker, alfred, robin, gordon). O agente automático corre-a nessa personagem, sempre na mesma conversa do Claude, com o briefing do Hub; cada tarefa acabada vira uma nota TAREFAS na Memória. Mudar uma personagem = `CREW` no `crew.py` e no `frontend/hub/crew.js`.
+- **A equipa da Empresa AMG** (`backend/app/crew.py`): uma tarefa pode ir para uma personagem (`crew`: batman, lucius, riddler, catwoman, joker, alfred, robin, gordon). O agente automático corre-a nessa personagem, sempre na mesma conversa do Claude, com o briefing do Hub; cada tarefa acabada vira uma nota TAREFAS na Memória. Mudar uma personagem = `CREW` no `crew.py` e no `frontend/hub/crew.js`.
 - **A empresa de agentes:** o rumo do Agente AMG está em `docs/empresa-amg.md` (visão de Deus, departamentos, fases 2D → controlo → 3D). Lê-o antes de construir algo grande.
 - **Regras de peso:** o Hub guarda o estado e não cada passo; o widget só mostra resumos e só anima quando algo muda; cada secção da central carrega só quando se entra nela. Limites parados: widget e Hub abaixo de 1% de CPU, central aberta abaixo de 3%. Mede antes do push: se pesar, não entra.
 
-### A My Niggaz (a Batcave)
+### A Empresa AMG (a Batcave, antiga My Niggaz)
 
 **Em redesenho (7 out):** o Marco pediu para a refazer (nome novo Empresa AMG, um posto fixo por setor, a parede de comando com
 uma coluna por sócio, a sala de estar com a Memória, o arsenal de skills). O plano aceite, o que falta e quem mexe no quê estão em
 `docs/batcave-redesenho.md`: lê-o antes de mexer nesta página.
 
-A página `#/niggaz`: a equipa de agentes em pixel art isométrica, com escritório e stand de carros. Quatro ficheiros, cada um com a sua parte:
+A página `#/empresa` (o `#/niggaz` antigo continua a abrir): a equipa de agentes em pixel art isométrica, com escritório e stand de carros. Quatro ficheiros, cada um com a sua parte:
 
 - `frontend/hub/crew.js`: o motor. O mundo, a câmara (Escritório · Stand · Tudo, ou arrastar), os agentes a andar e a trabalhar, as
   missões (lê `/api/tasks` e `/api/office`, cria com `POST /api/tasks` e `crew`), o painel de missão AMG, os rótulos e as placas.
@@ -100,6 +100,11 @@ A página `#/niggaz`: a equipa de agentes em pixel art isométrica, com escritó
   carro a partir de números tirados do carro verdadeiro (`MODELS`), mais os pormenores de cada um (`DETAILS`); desenham-se uma vez
   por tamanho para dentro do fundo.
 - `backend/app/crew.py`: as personagens do lado do Hub (papel, personalidade), o briefing que o agente lê e as notas TAREFAS.
+
+- **Postos e encaminhamento** (`DESKS`, `WORDS`, `NEAR` no `crew.js`): um posto de dois ladrilhos por setor, sempre do mesmo
+  agente, com o setor escrito no chão (`sectorFloor`, no fundo). Quem vai é o `routeOf()`: nome pedido → tipo de subagente → palavras
+  do pedido → papel → Operações; ocupado, o colega de `NEAR`. O «Automático» do formulário usa o mesmo `routeOf()` e manda já com `crew`.
+  Um posto ordena-se pelo meio (`x + y + 2`), a cadeira logo a seguir: assim quem passa atrás fica por baixo e quem passa à frente, por cima.
 
 Coisas que custaram tempo e não se devem repetir:
 

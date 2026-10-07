@@ -1,4 +1,4 @@
-// My Niggaz: the crew's Batcave (docs/empresa-amg.md, the 2D phase with characters). Two rooms side by side in one
+// Empresa AMG (formerly My Niggaz): the crew's Batcave (docs/empresa-amg.md, the 2D phase with characters). Two rooms side by side in one
 // isometric world, seen through a camera that pans between them:
 // - the office, where the crew lives: eight Batman characters (crew-people.js), four of them in suit and tie. With
 //   nothing to do they hang around the lounge (the sofa, the Batcomputer, the suit in its case, Alfred's coffee, the
@@ -123,8 +123,11 @@
   }
 
   // ================================================================ office furniture and where people go
-  const DESKS = [[7, 2], [10, 2], [13, 2], [8, 6], [11, 6], [14, 6]]
-    .map(([x, y], i) => ({ i, x, y, deco: ["mug", "batarang", "cowl", "mug", "phones", "batarang"][i], agent: null, boot: -9 }));
+  // one post per sector, always in the same place, two tiles wide, with the sector's name on the floor in front of it
+  // (docs/batcave-redesenho.md). Each agent works at their own; whoever covers for a busy colleague works at their own too.
+  const DESKS = [["batman", 5, 2], ["lucius", 8, 2], ["riddler", 11, 2], ["catwoman", 14, 2], ["joker", 5, 6], ["alfred", 8, 6], ["robin", 11, 6], ["gordon", 14, 6]]
+    .map(([crew, x, y], i) => ({ i, crew, x, y, deco: ["batarang", "mug", "cowl", "phones", "mug", "mug", "batarang", "phones"][i], agent: null, boot: -9 }));
+  const deskOf = (a) => DESKS.find((d) => d.crew === a.id);
   const SOFA = [4, 5, 6];
   const ROCKS = [[0, 0], [0, 10]];
   const CHAIRS = [[3, 4], [3, 7]];
@@ -134,9 +137,8 @@
     { x: 2, y: 1, pose: "look", dir: "ne", word: "a ver o fato" },
     { x: 4, y: 1, pose: "drink", dir: "ne", word: "no café" },
     { x: 1, y: 8, pose: "look", dir: "nw", word: "a vigiar Gotham" },
-    { x: 1, y: 2, pose: "train", dir: "ne", word: "a treinar" },
     { x: 2, y: 4, pose: "think", dir: "sw", word: "no xadrez" },
-    { x: 5, y: 3, pose: "phone", dir: "sw", word: "no telemóvel" },
+    { x: 3, y: 9, pose: "phone", dir: "sw", word: "no telemóvel" },
     { x: 5, y: 9, pose: "phone", dir: "se", word: "no telemóvel" },
     { x: 18, y: 10, at: [18.6, 10.35], pose: "look", dir: "ne", word: "a ver o Aventador SVJ", far: true },
     { x: 25, y: 10, at: [25.6, 10.35], pose: "look", dir: "ne", word: "a ver o SF90", far: true },
@@ -150,8 +152,8 @@
   const FIXED = [[1, 12], [2, 12], [3, 12], [4, 13], [5, 13], [4, 14], [5, 14], [1, 14], [2, 14], [3, 14], [1, 15], [2, 15], [3, 15], [5, 11], [6, 11],
     [9, 11], [10, 11], [11, 11], [12, 11], [13, 11], [11, 13], [27, 13], [25, 11]];
   const blocked = new Set([
-    ...DESKS.flatMap((d) => [k2(d.x, d.y), k2(d.x, d.y + 1)]), ...SOFA.map((y) => k2(0, y)), ...CHAIRS.map(([x, y]) => k2(x, y)),
-    ...ROCKS.map(([x, y]) => k2(x, y)), k2(2, 0), k2(4, 0), k2(5, 0), k2(1, 1), k2(2, 5), k2(6, 0), ...FIXED.map(([x, y]) => k2(x, y)),
+    ...DESKS.flatMap((d) => [k2(d.x, d.y), k2(d.x + 1, d.y), k2(d.x, d.y + 1), k2(d.x + 1, d.y + 1)]), ...SOFA.map((y) => k2(0, y)), ...CHAIRS.map(([x, y]) => k2(x, y)),
+    ...ROCKS.map(([x, y]) => k2(x, y)), k2(2, 0), k2(4, 0), k2(2, 5), ...FIXED.map(([x, y]) => k2(x, y)),
   ]);
   for (let x = 0; x < W; x++) for (let y = 0; y < D; y++) if (!"ogvtpb".includes(tile(x, y))) blocked.add(k2(x, y)); // the drop and the water
   for (const c of CARS) for (let x = OFFICE_W; x < W; x++) for (let y = 0; y < D; y++) {
@@ -242,23 +244,31 @@
   const LEATHER = mat("#24272e");
   let clock = 0;
 
+  // a post: a carbon top two tiles wide with a chrome edge, three screens, and a strip under the edge that says the state
+  // (green working, amber waiting, red needing help)
+  const CARBON = ["#1c1f26", "#0d0f13", "#08090c"], BEZEL = ["#2c323d", "#0b0e14", "#161a22"];
   function desk(g, d) {
-    const { x, y } = d, a = d.agent && d.agent.seated ? d.agent : null;
-    for (const [lx, ly] of [[.1, .14], [.86, .14], [.1, .8], [.86, .8]]) box(g, x + lx, y + ly, .05, .05, 0, 11, LEG);
-    box(g, x + .06, y + .1, .88, .78, 11, 2, TOP);
-    seg(g, P(x + .1, y + .88, 11.5), P(x + .92, y + .88, 11.5), a ? "rgba(79,180,255,.95)" : "rgba(79,180,255,.3)", .5);
-    box(g, x + .4, y + .22, .22, .14, 13, 1, METAL);
-    box(g, x + .48, y + .25, .06, .05, 14, 4, METAL);
-    box(g, x + .12, y + .23, .78, .06, 17, 14, ["#39414f", "#0b0e14", "#1a1f2a"]);
-    screen(g, d, x + .12, x + .9, y + .29, 17, 31);
-    box(g, x + .22, y + .54, .48, .16, 13, 1, ["#151922", "#0b0d12", "#08090d"]);
-    for (let i = 0; i < 4; i++) seg(g, P(x + .25, y + .58 + i * .03, 14.05), P(x + .67, y + .58 + i * .03, 14.05), "rgba(120,140,170,.25)", .25);
+    const { x, y } = d, a = d.agent && d.agent.seated ? d.agent : null, mode = deskMode(d);
+    for (const [lx, ly] of [[.08, .14], [1.87, .14], [.08, .8], [1.87, .8]]) box(g, x + lx, y + ly, .05, .05, 0, 11, LEG);
+    box(g, x + .04, y + .1, 1.92, .8, 11, 2, CARBON);
+    seg(g, P(x + .04, y + .9, 12.6), P(x + 1.96, y + .9, 12.6), "#c3cbd6", .5);
+    seg(g, P(x + 1.96, y + .1, 12.6), P(x + 1.96, y + .9, 12.6), "#7d8693", .5);
+    seg(g, P(x + .12, y + .9, 10.6), P(x + 1.88, y + .9, 10.6), mode === "off" ? "rgba(200,212,226,.16)" : LIGHT[mode], .6);
+    [[.08, .66], [.71, 1.29], [1.34, 1.92]].forEach(([s0, s1], k) => {
+      const mid = (s0 + s1) / 2;
+      box(g, x + mid - .1, y + .22, .2, .12, 13, 1, METAL);
+      box(g, x + mid - .03, y + .25, .06, .05, 14, 4, METAL);
+      box(g, x + s0, y + .23, s1 - s0, .06, 17, 14, BEZEL);
+      screen(g, d, x + s0, x + s1, y + .29, 17, 31, k);
+    });
+    box(g, x + .72, y + .54, .56, .16, 13, 1, ["#151922", "#0b0d12", "#08090d"]);
+    for (let i = 0; i < 4; i++) seg(g, P(x + .75, y + .58 + i * .03, 14.05), P(x + 1.25, y + .58 + i * .03, 14.05), "rgba(150,165,185,.25)", .25);
     if (a && a.mode === "work" && a.job && a.job.state === "work") {
-      const n = Math.floor(clock * 12) + d.i * 7, [kx, ky] = P(x + .26 + rnd(n) * .4, y + .57 + rnd(n + .3) * .1, 14);
-      g.fillStyle = NEON.cyan; g.fillRect(kx, ky, 1, .5);
+      const n = Math.floor(clock * 12) + d.i * 7, [kx, ky] = P(x + .76 + rnd(n) * .46, y + .57 + rnd(n + .3) * .1, 14);
+      g.fillStyle = "#eef4fb"; g.fillRect(kx, ky, 1, .5);
     }
-    box(g, x + .76, y + .6, .07, .1, 13, 1, ["#232834", "#111111", "#0b0b0b"]);
-    decoration(g, d);
+    box(g, x + 1.38, y + .6, .07, .1, 13, 1, ["#232834", "#111111", "#0b0b0b"]);
+    decoration(g, { ...d, x: x + .9, y: y + .3 });
   }
 
   function decoration(g, d) {
@@ -283,8 +293,9 @@
     if (a.mode === "done") return a.done === "ok" ? "done" : "fail";
     return a.job ? a.job.state : "off";
   }
-  function screen(g, d, x0, x1, y, z0, z1) {
-    const mode = deskMode(d), since = clock - d.boot;
+  function screen(g, d, x0, x1, y, z0, z1, k = 0) {
+    const mode = deskMode(d), since = clock - d.boot - k * .12;
+    if (k) d = { i: d.i + k * 17 };
     const flash = mode !== "off" && since < .35;
     const f = face(g, x0 + .07, x1 - .07, y, z0 + 1, z1 - 1, flash ? "#dfe9ff" : SCREEN_BG[mode]);
     if (mode === "off") { glyphOn(f, "bat", "#10161f"); f.px(f.wpx - 2, f.hpx - 2, Math.floor(clock * .8) % 3 ? "#0a2238" : NEON.blue); return; }
@@ -309,7 +320,7 @@
   }
 
   function chair(g, d) {
-    const x = d.x, Y = d.y + 1, a = d.agent && d.agent.seated ? d.agent : null;
+    const x = d.x + .5, Y = d.y + 1, a = d.agent && d.agent.seated ? d.agent : null;
     poly(g, [P(x + .2, Y + .42), P(x + .5, Y + .14), P(x + .8, Y + .42), P(x + .5, Y + .7)], "#05070a");
     for (const [wx, wy] of [[.24, .42], [.5, .17], [.76, .42], [.5, .67]]) dot(g, ...P(x + wx, Y + wy, 1), "#2a2f3a", 2, 1);
     box(g, x + .47, Y + .39, .06, .06, 1, 6, CHAIR);
@@ -376,30 +387,6 @@
     box(g, x + .8, y + .3, .1, .1, 15, 3, ["#ffffff", "#e3e3e3", "#c7c7c7"]);
   }
 
-  // the giant penny, the oldest trophy in the cave
-  function penny(g) {
-    const x = 5, y = 0;
-    box(g, x + .3, y + .3, .4, .3, 0, 3, mat("#2a2f38"));
-    const disc = (dy, r, c) => poly(g, Array.from({ length: 30 }, (_, i) => P(x + .5 + r * Math.cos((i / 30) * Math.PI * 2), y + .45 + dy, 20 + r * 36 * Math.sin((i / 30) * Math.PI * 2))), c);
-    disc(-.06, .44, "#6a3f1c"); disc(0, .44, "#b8743a"); disc(.004, .38, "#c98448"); disc(.008, .3, "#d4955a");
-    poly(g, [P(x + .38, y + .46, 12), P(x + .6, y + .46, 12), P(x + .62, y + .46, 25), P(x + .5, y + .46, 30), P(x + .4, y + .46, 26)], "#a0612f");
-    seg(g, P(x + .2, y + .46, 30), P(x + .32, y + .46, 34), "rgba(255,220,170,.6)", .6);
-  }
-
-  // the heavy bag on its chain; it swings when somebody trains
-  function bag(g) {
-    const x = 1, y = 1, someone = agents.some((a) => a.spot && a.spot.pose === "train" && !a.path.length && a.mode === "idle");
-    const swing = someone ? Math.sin(clock * 9) * 1.2 : 0;
-    const [tx, ty] = P(x + .5, y + .5, 60), [bx, by] = P(x + .5, y + .5, 34);
-    seg(g, [tx, ty], [bx + swing, by], "#5a606b", .6);
-    const cx = bx + swing;
-    poly(g, [[cx - 4, by], [cx + 4, by], [cx + 4, by + 22], [cx - 4, by + 22]], "#7a1a22");
-    poly(g, [[cx - 4, by], [cx - 2, by], [cx - 2, by + 22], [cx - 4, by + 22]], "#9a2a33");
-    poly(g, [[cx + 2, by], [cx + 4, by], [cx + 4, by + 22], [cx + 2, by + 22]], "#5a1219");
-    dot(g, cx - 4, by + 4, "#111", 9, 1); dot(g, cx - 4, by + 17, "#111", 9, 1);
-    oval(g, cx, by + 22, 4, 1.5, "#5a1219");
-  }
-
   function table(g) {
     const x = 2, y = 5;
     for (const [lx, ly] of [[.16, .2], [.8, .2], [.16, .76], [.8, .76]]) box(g, x + lx, y + ly, .05, .05, 0, 5, LEG);
@@ -411,16 +398,6 @@
     for (const [i, j, c] of [[1, 1, "#f4f4f4"], [3, 2, "#111"], [2, 5, "#f4f4f4"], [5, 3, "#111"], [0, 6, "#111"], [6, 6, "#f4f4f4"]]) {
       const [px, py] = P(x + .24 + i * .075, y + .26 + j * .075, 6.2);
       g.fillStyle = c; g.fillRect(px - .75, py - 3, 1.5, 3); g.fillRect(px - 1, py - .5, 2, .5);
-    }
-  }
-
-  function rack(g) {
-    const x = 6, y = 0, busy = agents.some((a) => a.seated && a.mode === "work");
-    box(g, x + .1, y + .12, .8, .56, 0, 48, mat("#1c2230"));
-    for (let r = 0; r < 9; r++) for (let c = 0; c < 4; c++) {
-      if (rnd(r * 7 + c * 13 + Math.floor(clock * (busy ? 7 : 1.5) + c)) < .42) continue;
-      const [px, py] = P(x + .2 + c * .17, y + .68, 6 + r * 4.6);
-      dot(g, px, py, (r + c) % 5 === 0 ? NEON.yellow : r % 3 ? NEON.blue : NEON.cyan, 2, 1);
     }
   }
 
@@ -929,7 +906,7 @@
   function assign(a, job, d, instant) {
     release(a);
     a.job = job; a.desk = d; d.agent = a; a.mode = "toDesk"; a.idleFor = 0; a.done = null; a.seated = false;
-    const seat = { x: d.x, y: d.y + 1, at: [d.x + .5, d.y + 1.42] };
+    const seat = { x: d.x, y: d.y + 1, at: [d.x + 1, d.y + 1.42] };
     if (instant) { a.x = seat.at[0]; a.y = seat.at[1]; a.path = []; sit(a); d.boot = -9; return; }
     signal = clock;
     a.bubble = { g: "!", until: clock + 1.2, c: NEON.amber }; a.hop = .35; a.wait = .75; a.path = []; a.pose = "stand";
@@ -1007,7 +984,6 @@
       a.emit += dt;
       if (a.pose === "sleep" && a.emit > 1.5) { a.emit = 0; emit("z", a.head[0] + 3, a.head[1] - 2, { vx: 3, vy: -6, life: 2.4, c: "#cfd8ff" }); }
       if (a.pose === "drink" && a.mode === "idle" && a.emit > .45 && !(a.spot && a.spot.bar)) { a.emit = 0; const [sx, sy] = clock < a.brewUntil ? P(4.34, .48, 22) : [a.head[0] + 2, a.head[1] + 6]; emit("bit", sx, sy, { vx: (Math.random() - .5) * 2, vy: -7, life: 1.1, c: "rgba(255,255,255,.55)" }); }
-      if (a.pose === "train" && a.mode === "idle" && a.emit > .55) { a.emit = 0; const [bx, by] = P(1.5, 1.5, 24); emit("bit", bx + 3, by, { vx: 8, vy: -10, life: .5, c: "rgba(255,255,255,.7)" }); }
     }
     moteAt += dt;
     if (moteAt > .35) {
@@ -1072,28 +1048,47 @@
       if (s.state === "working" || (s.state === "waiting" && now - Date.parse(s.since) < STILL_WAITING)) {
         out.push({ key: "c" + s.id, type: "claude", title: cleanPrompt(s.prompt) || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait",
           action: s.state === "working" ? s.action || "" : "", since: s.since, project: s.project, model: s.model, tokens: s.tokens,
-          subagents: (s.agents || []).map((x) => ({ kind: x.kind, state: x.state, description: x.description })), href: "#/escritorio" });
+          subagents: (s.agents || []).map((x) => ({ kind: x.kind, state: x.state, description: x.description })), skills: s.skills || [], href: "#/escritorio" });
       }
       for (const ag of s.agents || []) if (ag.state === "working") {
         out.push({ key: "a" + ag.id, type: "sub", kind: ag.kind, title: ag.description || ag.kind, who: s.name, state: "work", action: ag.action || "",
-          since: ag.started_at, project: s.project, model: ag.model, href: "#/escritorio" });
+          since: ag.started_at, project: s.project, model: ag.model, skills: ag.skills || [], href: "#/escritorio" });
       }
     }
     const rank = { work: 0, help: 1, start: 2, wait: 3, pause: 4 };
     return out.sort((p, q) => rank[p.state] - rank[q.state] || String(q.since).localeCompare(String(p.since)));
   }
-  function pick(j) {
-    const free = agents.filter((a) => !a.job && a.mode !== "done");
-    if (j.crew) return free.find((a) => a.id === j.crew) || null;      // asked for by name: that one, or the queue
-    if (!free.length) return null;
-    return free.find((a) => (j.role && a.role === j.role && a.role !== "custom") || (j.kind && a.kinds.includes(j.kind)))
-      || (j.type === "task" && !j.role ? free.find((a) => a.id === "gordon") : null)
-      || free[hash(j.key) % free.length];
+  // Who goes where, always by the same rule (docs/batcave-redesenho.md): a subagent by its kind, a request by its words,
+  // anything else to Operations. If that sector's agent is busy, the most alike free colleague; nobody free, the queue.
+  const word = (s) => new RegExp(`(?<![\\p{L}\\d])(${s})(?![\\p{L}\\d])`, "iu");
+  const WORDS = [
+    ["catwoman", word("design\\p{L}*|página\\p{L}*|pagina\\p{L}*|cor|cores|layout|ecrã\\p{L}*|visual|ícone\\p{L}*|logo\\p{L}*|estilo\\p{L}*|css")],
+    ["riddler", word("pesquis\\p{L}*|preço\\p{L}*|preco\\p{L}*|procur\\p{L}*|concorr\\p{L}*|fornecedor\\p{L}*")],
+    ["robin", word("test\\p{L}*")],
+    ["alfred", word("rever|revê|revisão|revisao|revis[ae]\\p{L}*|review")],
+    ["joker", word("anúncio\\p{L}*|anuncio\\p{L}*|posts?|campanha\\p{L}*|instagram|tiktok|marketing|legenda\\p{L}*")],
+    ["batman", word("erro\\p{L}*|bug\\p{L}*|código|codigo|corrig\\p{L}*|implement\\p{L}*|script\\p{L}*")],
+    ["lucius", word("onde está|onde esta|onde fica|explic\\p{L}*|como funciona")],
+  ];
+  const ROLE_CREW = { developer: "batman", research: "riddler", marketing: "joker", testing: "robin" };
+  const NEAR = { batman: ["lucius", "robin", "alfred"], lucius: ["batman", "riddler", "alfred"], riddler: ["lucius", "joker", "gordon"],
+    catwoman: ["joker", "batman", "robin"], joker: ["catwoman", "riddler", "gordon"], alfred: ["robin", "lucius", "batman"],
+    robin: ["alfred", "batman", "lucius"], gordon: ["alfred", "lucius", "riddler"] };
+  const byWords = (text) => (WORDS.find(([, re]) => re.test(text)) || [])[0];
+  function sectorOf(j) {
+    if (j.crew && NEAR[j.crew]) return j.crew;
+    const kind = j.kind && CREW.find((c) => c.kinds.includes(j.kind));
+    if (kind) return kind.id;
+    return byWords(`${j.title || ""} ${j.description || ""}`) || ROLE_CREW[j.role] || "gordon";
   }
-  function nearestDesk(a) {
-    const free = DESKS.filter((d) => !d.agent);
-    return free.sort((p, q) => Math.abs(p.x - a.x) + Math.abs(p.y + 1 - a.y) - (Math.abs(q.x - a.x) + Math.abs(q.y + 1 - a.y)))[0] || null;
+  // the agent who would take it now: { home: whose sector it is, a: who goes (null: nobody free) }
+  function routeOf(j) {
+    const home = sectorOf(j), free = agents.filter((a) => !a.job && a.mode !== "done");
+    if (j.crew) return { home, a: free.find((a) => a.id === j.crew) || null };   // asked for by name: that one, or the queue
+    for (const id of [home, ...NEAR[home]]) { const a = free.find((x) => x.id === id); if (a) return { home, a }; }
+    return { home, a: free[0] || null };
   }
+  const pick = (j) => routeOf(j).a;
   function outcome(j) {
     if (j.type !== "task") return true;
     const x = tasks.find((y) => y.id === j.id);
@@ -1118,7 +1113,7 @@
     queue = [];
     for (const j of list) {
       if (agents.some((a) => a.job && a.mode !== "done" && a.job.key === j.key)) continue;
-      const a = pick(j), d = a && nearestDesk(a);
+      const a = pick(j), d = a && deskOf(a);
       if (!a || !d) { queue.push(j); continue; }
       assign(a, j, d, instant);
     }
@@ -1150,6 +1145,7 @@
     g.drawImage(base, 0, 0, bg.width, bg.height);
     g.imageSmoothingEnabled = true;
     lightsStatic(g);
+    sectorFloor(g);
     showroom(g);
     beams(g);
     sign = buildSign();
@@ -1158,6 +1154,19 @@
     for (const c of CARS) c.bounds = window.CrewCars.bounds(carSpec(c), P);
   }
   const QB = (x, y, z) => P(x, y, z).map((v) => v * BS);
+  // the name of each sector, written flat on the floor in front of its post
+  function sectorFloor(g) {
+    g.save();
+    for (const d of DESKS) {
+      const c = CREW.find((x) => x.id === d.crew), [sx, sy] = P(d.x + 1, d.y + 2.3);
+      g.setTransform(BS, .5 * BS, -BS, .5 * BS, sx * BS, sy * BS);
+      g.strokeStyle = "rgba(200,212,226,.22)"; g.lineWidth = .4; g.beginPath(); g.moveTo(-15, -6.4); g.lineTo(15, -6.4); g.stroke();
+      g.font = `700 4.6px ${DISPLAY}`; g.textAlign = "center"; g.textBaseline = "alphabetic";
+      if ("letterSpacing" in g) g.letterSpacing = ".9px";
+      g.fillStyle = "rgba(214,224,236,.55)"; g.fillText(t(c.what).toUpperCase(), 0, 0);
+    }
+    g.restore();
+  }
   // light that never moves, painted sharp over the pixel cave
   function lightsStatic(g) {
     const tube = (a, b, c, w = 1.2) => {
@@ -1357,10 +1366,10 @@
     const [sx, sy] = P(7.0, 0, 32);
     g.setTransform(BS, BS * .5, 0, BS, (sx - area2.x) * BS, (sy - area2.y) * BS);
     emblem(g, 8, -7, 8.5, 5.2, 12 * BS);
-    chromeText(g, "MY NIGGAZ", 20, 0, `700 17px ${DISPLAY}`, NEON.blue, 1);
+    chromeText(g, "EMPRESA AMG", 20, 0, `700 17px ${DISPLAY}`, COLD, .8);
     g.font = `600 5.4px ${FONT}`; if ("letterSpacing" in g) g.letterSpacing = "2.4px";
-    g.shadowColor = NEON.yellow; g.shadowBlur = 6 * BS; g.fillStyle = "#ffe9a0";
-    g.fillText("AGENTE AMG  ·  BATCAVE", 21, 9);
+    g.shadowColor = COLD; g.shadowBlur = 5 * BS; g.fillStyle = "#c9d3df";
+    g.fillText("OS AGENTES  ·  BATCAVE", 21, 9);
     return { c, box: area2 };
   }
 
@@ -1438,16 +1447,17 @@
     glow(g, tx, ty, 22, LAMP.gold > .5 ? "#ffe28c" : "#c3daff", a * 1.4);
     glow(g, lx, ly, 7, "#ffffff", .55);
   }
-  const LIGHT = { work: NEON.cyan, start: NEON.cyan, wait: NEON.amber, help: NEON.red, pause: "#7d8590", done: NEON.green, fail: NEON.red };
+  const LIGHT = { work: NEON.green, start: "#dfe8f2", wait: NEON.amber, help: NEON.red, pause: "#7d8590", done: NEON.green, fail: NEON.red };
+  const COLD = "#dfe8f2";   // the bunker's light: cold white, colour only for the states and the partners
   function lights(g) {
     g.globalCompositeOperation = "lighter";
     for (const d of DESKS) {
       const mode = deskMode(d);
       if (mode === "off") continue;
-      glow(g, ...P(d.x + .4, d.y + .45, 24), 26, LIGHT[mode], .42 + Math.sin(clock * 6 + d.i) * .04);
-      glow(g, ...P(d.x + .3, d.y + 1.1, 0), 22, LIGHT[mode], .16);
+      glow(g, ...P(d.x + 1, d.y + .45, 24), 30, COLD, .26 + Math.sin(clock * 6 + d.i) * .03);
+      glow(g, ...P(d.x + 1, d.y + 1.1, 0), 24, LIGHT[mode], .2);
     }
-    glow(g, ...P(.1, 4.8, 38), 34, NEON.blue, .2 + (Math.floor(clock * 2) % 2) * .03);
+    glow(g, ...P(.1, 4.8, 38), 34, COLD, .16 + (Math.floor(clock * 2) % 2) * .03);
     glow(g, ...P(.1, 9, 30), 26, "#ffe9a0", .12 + Math.sin(clock * .7) * .03);
     glow(g, ...P(2.5, .4, 30), 20, "#dbe9ff", .22);
     glow(g, ...P((FALL.x0 + FALL.x1) / 2, .2, 26), 28, "#9fd8ff", .18 + Math.sin(clock * 3) * .02);
@@ -1506,11 +1516,21 @@
     pause: ["em pausa", "#9aa2ab"], go: ["vai trabalhar", NEON.cyan], done: ["feito", NEON.green], fail: ["falhou", NEON.red] };
   const idleWord = (a) => (a.path.length ? "a caminho" : a.pose === "sleep" ? "a dormir" : a.spot ? a.spot.word : "livre");
   function stateOf(a) { return !a.job ? "idle" : a.mode === "done" ? (a.done === "ok" ? "done" : "fail") : a.mode === "toDesk" ? "go" : a.job.state; }
+  // each partner has a quiet colour of their own, apart from the colours of the states
+  const PARTNERS = [["kovel", "Kovel", "#a99bff"], ["marco", "Marco", "#69b4ff"], ["david", "David", "#f28fb8"]];
+  function partnerOf(name) {
+    const low = String(name || "").toLowerCase(), p = PARTNERS.find(([k]) => low.includes(k));
+    return p ? { id: p[0], name: p[1], color: p[2] } : { id: "", name: name || "", color: "#c9d1dc" };
+  }
+  const shortModel = (m) => { const x = String(m || "").match(/opus|sonnet|haiku|fable/i); return x ? x[0][0].toUpperCase() + x[0].slice(1).toLowerCase() : ""; };
+  const kTokens = (n) => (n > 0 ? (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.max(1, Math.round(n / 1e3))}k`) + " tok" : "");
   function labelOf(a) {
     if (!a.job) return { pill: true, name: a.name, word: t(idleWord(a)), color: a.color };
-    const st = stateOf(a), [word, color] = WORD[st];
-    return { name: a.name, word: t(st === a.job.state && a.job.word ? a.job.word : word), color, title: a.job.title,
-      meta: `${t("para")} ${a.job.who}${a.job.project ? ` · ${a.job.project}` : ""}`, progress: a.job.type === "task" && a.job.progress > 0 ? a.job.progress : null };
+    const st = stateOf(a), [word, color] = WORD[st], j = a.job;
+    const chips = [...(j.skills || []).map((s) => "/" + s), ...(j.subagents || []).filter((x) => x.state === "working").map((x) => x.kind), ...(j.type === "sub" ? [j.kind] : [])];
+    return { name: a.name, sector: t(a.what), word: t(st === j.state && j.word ? j.word : word), color, title: j.title, now: j.action || "",
+      ask: partnerOf(j.who), meta: [j.project, j.since ? ago(j.since) : "", shortModel(j.model), kTokens(j.tokens)].filter(Boolean).join(" · "),
+      chips: [...new Set(chips.filter(Boolean))], progress: j.type === "task" && j.progress > 0 ? j.progress : null };
   }
   function clip(g, s, max) {
     s = String(s || "");
@@ -1533,7 +1553,7 @@
   }
   const measured = new Map();
   function measure(g, L) {
-    const id = `${dpr * LS}|${L.pill ? 1 : 0}|${L.name}|${L.word}|${L.title || ""}|${L.meta || ""}|${L.progress ?? ""}`;
+    const id = `${dpr * LS}|${L.pill ? 1 : 0}|${L.name}|${L.word}|${L.title || ""}|${L.now || ""}|${L.ask ? L.ask.name : ""}|${L.meta || ""}|${(L.chips || []).join(",")}|${L.progress ?? ""}`;
     let m = measured.get(id);
     if (!m) { if (measured.size > 300) measured.clear(); measured.set(id, (m = measureNow(g, L))); }
     return m;
@@ -1545,15 +1565,27 @@
       g.font = `500 ${9.5 * k}px ${FONT}`; const ww = g.measureText(L.word).width;
       return { w: Math.ceil(nw + ww + 30 * k), h: Math.round(19 * k), nw };
     }
-    const maxW = 172 * k, pad = 10 * k;
-    g.font = `500 ${10.5 * k}px ${FONT}`; const lines = wrap(g, L.title, maxW - 2 * pad, 2);
+    const maxW = 200 * k, pad = 10 * k, inner = maxW - 2 * pad;
+    g.font = `500 ${10.5 * k}px ${FONT}`; const lines = wrap(g, L.title, inner, 2);
     const tw = Math.max(...lines.map((s) => g.measureText(s).width));
     g.font = `700 ${11 * k}px ${FONT}`; const nw = g.measureText(L.name).width;
+    g.font = `500 ${9 * k}px ${FONT}`; const sw = g.measureText(` · ${L.sector}`).width;
     g.font = `700 ${8.5 * k}px ${FONT}`; const ww = g.measureText(L.word.toUpperCase()).width;
-    g.font = `500 ${9.5 * k}px ${FONT}`; const meta = clip(g, L.meta, maxW - 2 * pad);
-    const w = Math.ceil(Math.min(maxW, Math.max(tw, nw + ww + 26 * k, g.measureText(meta).width) + 2 * pad));
-    const h = Math.round((27 + lines.length * 13.5 + 14 + (L.progress != null ? 7 : 0) + 4) * k);
-    return { w, h, lines, meta, nw, ww };
+    g.font = `500 ${9.5 * k}px ${FONT}`; const now = L.now ? clip(g, `↳ ${L.now}`, inner) : "", nowW = now ? g.measureText(now).width : 0;
+    g.font = `700 ${9.5 * k}px ${FONT}`; const aw = g.measureText(L.ask.name).width + 9 * k;
+    g.font = `500 ${9.5 * k}px ${FONT}`; const meta = L.meta ? clip(g, ` · ${L.meta}`, inner - aw) : "", mw = meta ? g.measureText(meta).width : 0;
+    // the skills and subagents in use: as many pills as fit on one line, then "+n"
+    g.font = `600 ${8.5 * k}px ${FONT}`;
+    const chips = [];
+    let cw = 0;
+    for (let i = 0; i < L.chips.length; i++) {
+      const w = g.measureText(L.chips[i]).width + 10 * k, more = i < L.chips.length - 1 ? g.measureText(`+${L.chips.length - i}`).width + 10 * k : 0;
+      if (cw + w + (more ? more + 4 * k : 0) > inner && i < L.chips.length - 1) { const tail = `+${L.chips.length - i}`; chips.push({ s: tail, w: g.measureText(tail).width + 10 * k, more: true }); cw += chips[chips.length - 1].w; break; }
+      chips.push({ s: L.chips[i], w }); cw += w + 4 * k;
+    }
+    const w = Math.ceil(Math.min(maxW, Math.max(tw, nw + sw + ww + 20 * k, nowW, aw + mw, cw) + 2 * pad));
+    const h = Math.round((27 + lines.length * 13.5 + (now ? 13 : 0) + 14 + (chips.length ? 16 : 0) + (L.progress != null ? 7 : 0) + 4) * k);
+    return { w, h, lines, now, meta, aw, chips, nw, ww };
   }
   function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
   function paintLabel(g, it, m, x, y) {
@@ -1577,13 +1609,32 @@
     g.fillStyle = L.color; g.fillRect(x + pad, y + 6 * k, 14 * k, 2 * k);
     g.textBaseline = "alphabetic";
     g.font = `700 ${11 * k}px ${FONT}`; g.fillStyle = "#ffffff"; g.fillText(L.name, x + pad, y + 22 * k);
+    g.font = `500 ${9 * k}px ${FONT}`; g.fillStyle = "#8b939e"; g.fillText(` · ${L.sector}`, x + pad + m.nw, y + 22 * k);
     g.font = `700 ${8.5 * k}px ${FONT}`; g.fillStyle = L.color; g.textAlign = "right";
     g.fillText(L.word.toUpperCase(), x + m.w - pad, y + 21.5 * k);
     g.textAlign = "left";
-    g.font = `500 ${10.5 * k}px ${FONT}`; g.fillStyle = "#d6dde8";
+    g.font = `500 ${10.5 * k}px ${FONT}`; g.fillStyle = "#e3e8ef";
     m.lines.forEach((s, i) => g.fillText(s, x + pad, y + (37 + i * 13.5) * k));
-    const my = y + (37 + m.lines.length * 13.5 + 1) * k;
-    g.font = `500 ${9.5 * k}px ${FONT}`; g.fillStyle = "#7f8894"; g.fillText(m.meta, x + pad, my);
+    let my = y + (37 + m.lines.length * 13.5 + 1) * k;
+    g.font = `500 ${9.5 * k}px ${FONT}`;
+    if (m.now) { g.fillStyle = "#a9b6c6"; g.fillText(m.now, x + pad, my); my += 13 * k; }
+    // who asked, in their colour, then where, since when, the model and the tokens
+    g.fillStyle = L.ask.color; g.beginPath(); g.arc(x + pad + 2.5 * k, my - 3.3 * k, 2.5 * k, 0, Math.PI * 2); g.fill();
+    g.font = `700 ${9.5 * k}px ${FONT}`; g.fillText(L.ask.name, x + pad + 9 * k, my);
+    g.font = `500 ${9.5 * k}px ${FONT}`; g.fillStyle = "#7f8894"; g.fillText(m.meta, x + pad + m.aw, my);
+    if (m.chips.length) {
+      let cx = x + pad;
+      const cy = my + 5 * k;
+      g.font = `600 ${8.5 * k}px ${FONT}`; g.textBaseline = "middle";
+      for (const c of m.chips) {
+        rr(g, cx, cy, c.w, 12 * k, 6 * k); g.fillStyle = c.more ? "rgba(255,255,255,.04)" : "rgba(220,230,242,.08)"; g.fill();
+        g.strokeStyle = "rgba(220,230,242,.22)"; g.lineWidth = k * .8; g.stroke();
+        g.fillStyle = "#cfd8e3"; g.fillText(c.s, cx + 5 * k, cy + 6.5 * k);
+        cx += c.w + 4 * k;
+      }
+      g.textBaseline = "alphabetic";
+      my += 16 * k;
+    }
     if (L.progress != null) {
       const bw = m.w - 2 * pad, by = my + 6 * k;
       rr(g, x + pad, by, bw, 3 * k, 2 * k); g.fillStyle = "rgba(255,255,255,.08)"; g.fill();
@@ -1670,16 +1721,17 @@
   // ================================================================ one frame
   const FURN = [];
   const furn = (x, y, draw) => FURN.push({ k: x + y + 1, x, draw });
-  DESKS.forEach((d) => { furn(d.x, d.y, (g) => desk(g, d)); furn(d.x, d.y + 1, (g) => chair(g, d)); });
+  // the wings: k is the x + y of the point that decides what covers what (a wide piece is cut in slices, one per tile)
+  const item = (k, x, draw) => FURN.push({ k, x, draw });
+  // a post is two tiles wide: ordered by its middle, so whoever walks behind it is drawn first and whoever is in front, after
+  DESKS.forEach((d) => { item(d.x + d.y + 2, d.x + 1, (g) => desk(g, d)); item(d.x + d.y + 2.6, d.x + 1, (g) => chair(g, d)); });
   // what never changes is drawn once into its own picture (the area: x0, y0, x1, y1 on the floor and how high it goes)
   const still = (key, area, paint) => (g) => cachedDraw(g, key, area, paint);
   SOFA.forEach((y) => furn(0, y, still("sofa" + y, [0, y, 1, y + 1, 22], (q) => sofa(q, y))));
   CHAIRS.forEach(([x, y]) => furn(x, y, (g) => armchair(g, x, y)));
   ROCKS.forEach(([x, y]) => furn(x, y, still(`rock${x},${y}`, [x, y, x + 1, y + 1, 38], (q) => rock(q, x, y))));
-  furn(2, 0, still("suit", [2, 0, 3, 1, 42], suitCase)); furn(4, 0, coffee); furn(5, 0, still("penny", [5, 0, 6, 1, 40], penny));
-  furn(1, 1, bag); furn(2, 5, still("chess", [2, 5, 3, 6, 12], table)); furn(6, 0, rack);
-  // the wings: k is the x + y of the point that decides what covers what (a wide piece is cut in slices, one per tile)
-  const item = (k, x, draw) => FURN.push({ k, x, draw });
+  furn(2, 0, still("suit", [2, 0, 3, 1, 42], suitCase)); furn(4, 0, coffee);
+  furn(2, 5, still("chess", [2, 5, 3, 6, 12], table));
   item(15.95, 2.5, (g) => { const n = Math.min(30, vaultStats().total); cachedDraw(g, "goldA" + n, [1.6, 12.05, 3.4, 13.05, 16], (q) => goldPile(q, 2.5, 12.55, n)); });
   item(19.5, 4.85, (g) => { const n = clamp(vaultStats().total - 30, 0, 30); cachedDraw(g, "goldB" + n, [3.95, 13.25, 5.75, 14.25, 16], (q) => goldPile(q, 4.85, 13.75, n)); });
   item(18.3, 2.4, (g) => { const n = Math.min(24, vaultStats().week); cachedDraw(g, "cash" + n, [1.55, 14.5, 3.25, 15.5, 14], (q) => cashPile(q, 2.4, 15, n)); });
@@ -1717,9 +1769,13 @@
     a.head = [fx, y + fr.top / WS];
     a.box = [fx - 7, a.head[1] - 2, fx + 7, fy + 1];
   }
+  const DIAMOND = { work: NEON.green, go: NEON.green, start: COLD, wait: NEON.amber, help: NEON.red, pause: "#7d8590", done: NEON.green, fail: NEON.red, idle: "#7d8794" };
   function bubbles(g) {
     for (const a of agents) {
       if (!a.head) continue;
+      { const c = DIAMOND[stateOf(a)], cx = a.head[0], cy = a.head[1] - 5 + Math.sin(clock * 2.2 + a.i) * .6;
+        g.fillStyle = c; g.beginPath(); g.moveTo(cx, cy - 2.6); g.lineTo(cx + 1.6, cy); g.lineTo(cx, cy + 2.6); g.lineTo(cx - 1.6, cy); g.closePath(); g.fill();
+        g.fillStyle = "rgba(255,255,255,.55)"; g.beginPath(); g.moveTo(cx, cy - 2.6); g.lineTo(cx + 1.6, cy); g.lineTo(cx, cy); g.closePath(); g.fill(); }
       let b = a.bubble && a.bubble.until > clock ? a.bubble : null;
       if (!b && a.seated && a.mode === "work" && a.job) {
         b = { wait: { g: "?", c: NEON.amber }, help: { g: "!", c: NEON.red }, start: { g: "dots", c: NEON.cyan }, pause: { g: "pause", c: "#6b7380" } }[a.job.state];
@@ -2107,14 +2163,14 @@
     const j = a.job, L = labelOf(a);
     return `<button class="cr-job" data-agent="${a.i}" style="--c:${a.color}">
       <span class="cr-face"><img class="cr-px" src="${a.portrait}" alt=""></span>
-      <div class="cr-job-t"><div><b>${esc(a.name)}</b><em style="--s:${L.color}">${esc(L.word)}</em></div><p>${esc(j.title)}</p>
-        <small>${esc(t("para"))} ${esc(j.who)}${j.project ? ` · ${esc(j.project)}` : ""}${j.since ? ` · ${esc(ago(j.since))}` : ""}</small>
+      <div class="cr-job-t"><div><b>${esc(a.name)}</b><span class="cr-sec">${esc(t(a.what))}</span><em style="--s:${L.color}">${esc(L.word)}</em></div><p>${esc(j.title)}</p>
+        <small><span class="cr-ask" style="--p:${partnerOf(j.who).color}">${esc(j.who)}</span>${j.project ? ` · ${esc(j.project)}` : ""}${j.since ? ` · ${esc(ago(j.since))}` : ""}</small>
         ${L.progress != null ? `<span class="cr-bar"><i style="width:${Math.min(100, L.progress)}%"></i></span>` : ""}</div>
       <span class="cr-go-ic">${icon("chevron")}</span></button>`;
   }
   function queueRow(j) {
     const named = j.crew && crewById(j.crew) ? crewById(j.crew).name : "";
-    const why = j.stale ? t("à espera do agente automático de {n}", { n: j.who }) : named ? t("{c} está ocupado", { c: named }) : t("à espera de um computador livre");
+    const why = j.stale ? t("à espera do agente automático de {n}", { n: j.who }) : named ? t("{c} está ocupado", { c: named }) : t("estão todos ocupados");
     return `<button class="cr-q" data-href="${esc(j.href)}"><i></i><div><p>${esc(j.title)}</p><small>${esc(t("para"))} ${esc(j.who)} · ${esc(why)}</small></div>${icon("chevron")}</button>`;
   }
   function paintLists() {
@@ -2185,9 +2241,23 @@
     e.preventDefault();
     const input = $("cr-title"), title = input.value.trim();
     if (!title) { input.focus(); return; }
-    const crewId = (document.querySelector('input[name="cr-crew"]:checked') || {}).value || "";
-    if (await sendTask(title, crewId, $("cr-go"))) input.value = "";
+    const crewId = (document.querySelector('input[name="cr-crew"]:checked') || {}).value || autoCrew(title);
+    if (await sendTask(title, crewId, $("cr-go"))) { input.value = ""; routeHint(); }
     input.focus();
+  }
+  // "Automático": who would take it, said while it is being written, and sent already with that character
+  function autoCrew(title) { const r = routeOf({ title }); return (r.a || crewById(r.home)).id; }
+  const art = (a) => (a.id === "catwoman" ? "a" : "o");
+  function routeHint() {
+    const el = $("cr-route"), title = $("cr-title").value.trim(), chosen = (document.querySelector('input[name="cr-crew"]:checked') || {}).value;
+    if (!el) return;
+    if (!title || chosen) { el.textContent = ""; el.hidden = true; return; }
+    const r = routeOf({ title }), home = crewById(r.home);
+    el.hidden = false;
+    el.style.setProperty("--c", (r.a || home).color);
+    el.textContent = !r.a ? t("Fica na fila: estão todos ocupados. Vai para {a} {n} · {s} quando acabar.", { a: art(home), n: home.name, s: t(home.what) })
+      : r.a === home ? t("Vai para {a} {n} · {s}", { a: art(home), n: home.name, s: t(home.what) })
+      : t("Vai para {a} {n} · {s} ({h} está ocupado)", { a: art(r.a), n: r.a.name, s: t(r.a.what), h: home.name });
   }
 
   function mount() {
@@ -2216,6 +2286,8 @@
     el.onclick = panelClick; el.onsubmit = panelSubmit;
     for (const type of ["pointerdown", "pointerup", "pointermove"]) el.addEventListener(type, (e) => e.stopPropagation());
     $("cr-send").onsubmit = send;
+    $("cr-title").oninput = routeHint;
+    $("cr-send").onchange = routeHint;
     $("cr-jobs").onclick = (e) => { const b = e.target.closest("[data-agent]"); if (b) { if (view !== "office") goView("office"); openPanel({ kind: "agent", ref: agents[Number(b.dataset.agent)] }); } };
     $("cr-queue").onclick = (e) => { const b = e.target.closest("[data-href]"); if (b) location.hash = b.dataset.href; };
     const crew = $("cr-crew");
@@ -2228,18 +2300,19 @@
     resize(true);
   }
 
-  HUB_VIEWS.niggaz = async function () {
+  HUB_VIEWS.empresa = async function () {
     await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/crew-cars.js")]);
     const users = me.lead ? await api("/api/users").catch(() => []) : [];
     if (!agents.length) { agents = CREW.map(makeAgent); agents.forEach(placeIdle); }
-    page(`${ui.head("Agentes", "My Niggaz", t("A Batcave da equipa. Cada agente é a sua própria conversa do Claude, com a Memória da equipa desbloqueada. Manda uma missão a um deles e vê-o ir para o computador; clica nele para ver a missão. Ao lado, o stand: cada carro vai representar um projeto. No cofre, cada missão concluída é uma barra de ouro."))}
+    page(`${ui.head("Agentes", "Empresa AMG", t("A Batcave da equipa: oito agentes, cada um com o seu posto e o seu setor. Escreve a missão e ela vai sozinha para o setor certo; por cima de cada posto vês quem pediu, o que está a fazer e com que skills. Clica num agente para ver a missão. No cofre, cada missão concluída é uma barra de ouro."))}
       <form class="cr-send" id="cr-send" autocomplete="off">
         <label class="cr-in">${icon("bolt")}<input id="cr-title" maxlength="200" placeholder="${esc(t("Qual é a missão?"))}"></label>
         <div class="cr-pick" role="radiogroup" aria-label="${esc(t("Quem faz"))}">
-          <label><input type="radio" name="cr-crew" value="" checked><span class="any">${icon("users")}${esc(t("Qualquer um"))}</span></label>
+          <label title="${esc(t("Vai para o setor do pedido: design, pesquisa, testes, revisão, marketing, código, engenharia; o resto, Operações"))}"><input type="radio" name="cr-crew" value="" checked><span class="any">${icon("bolt")}${esc(t("Automático"))}</span></label>
           ${agents.map((a) => `<label title="${esc(a.name)} · ${esc(t(a.what))}"><input type="radio" name="cr-crew" value="${a.id}"><span style="--c:${a.color}"><img class="cr-px" src="${a.portrait}" alt="">${esc(a.name)}</span></label>`).join("")}</div>
         ${users.length ? `<label class="cr-who">${icon("users")}<select id="cr-who" title="${esc(t("No agente automático de quem"))}">${options(users.map((u) => [u.username, u.display_name]), me.username)}</select></label>` : ""}
         <button class="btn primary cr-go" id="cr-go">${t("Mandar")}${icon("arrow")}</button>
+        <p class="cr-route" id="cr-route" aria-live="polite" hidden></p>
       </form>
       <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>
         <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>

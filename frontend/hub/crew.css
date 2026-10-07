@@ -265,3 +265,28 @@ html.is-phone .cr-live { display: none; }
 html.is-phone .cr-stage { border-radius: 16px; margin: 0 -4px; }
 html.is-phone .cr-lists { grid-template-columns: minmax(0, 1fr); }
 html.is-phone .cp-send input { font-size: 16px; }
+
+/* ---- the vault, opened: the gold as one big figure, the days as an instrument cluster, who filled it most */
+.cp-vault { display: flex; align-items: center; gap: 16px; margin: 6px 14px 10px; padding: 16px 18px; border-radius: 16px;
+  background: radial-gradient(70% 120% at 18% 50%, rgba(255, 207, 90, .22), transparent 70%), linear-gradient(180deg, #0c0a06, #050403);
+  border: 1px solid rgba(255, 207, 90, .28); box-shadow: inset 0 1px 0 rgba(255, 236, 180, .12), 0 10px 30px -14px rgba(255, 190, 70, .45); }
+.cp-ingot { flex: none; width: 70px; height: 44px; filter: drop-shadow(0 4px 10px rgba(255, 190, 70, .45)); }
+.cp-vault b { display: block; font: 700 42px/1 var(--display); letter-spacing: -.02em;
+  background: linear-gradient(180deg, #fff6d6 0%, #ffcf5a 45%, #b9801f 56%, #ffe29a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cp-vault span { display: block; margin-top: 4px; color: #c9b37a; font: 700 9.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+.cp-who { display: grid; grid-template-columns: 74px minmax(0, 1fr) 30px; align-items: center; gap: 10px; padding: 5px 2px; }
+.cp-who b { font: 600 12.5px var(--ui); color: #e9edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-who-bar { height: 6px; border-radius: 4px; background: rgba(255, 255, 255, .06); overflow: hidden; }
+.cp-who-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #b9801f, #ffcf5a 60%, #fff3c4); box-shadow: 0 0 10px rgba(255, 207, 90, .5); }
+.cp-who em { font: 700 13px var(--mono); font-style: normal; color: #ffcf5a; text-align: right; }
+.cp-crewtop { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cp-crewtop span { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 3px; border-radius: 999px; font: 600 11.5px var(--ui); color: #e9edf3;
+  background: color-mix(in srgb, var(--c) 12%, #0a0b0e); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+.cp-crewtop img { width: 18px; height: 26px; margin-top: 2px; }
+.cp-crewtop b { color: #ffcf5a; font: 700 11px var(--mono); }
+.cp-money { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cp-money div { padding: 9px 10px; border-radius: 12px; background: linear-gradient(180deg, rgba(255, 207, 90, .07), rgba(255, 255, 255, .01)); border: 1px solid rgba(255, 207, 90, .16); }
+.cp-money small { display: block; color: #8b7f5f; font: 700 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.cp-money b { display: block; margin-top: 3px; font: 700 16px var(--display); color: #fff; }
+.cp-money span { display: block; color: #8b929c; font-size: 11px; }
+.cp-cost { font: 700 15px var(--mono); color: #fff; }

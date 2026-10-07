@@ -110,7 +110,21 @@ Coisas que custaram tempo e não se devem repetir:
 - **Testar no painel do browser**: escondido, o browser não corre `requestAnimationFrame` nem o `ResizeObserver`, por isso a página
   fica parada. Para testar, juntar um gancho temporário no fim do `crew.js` (`window.__crew = { tick, resize, goView, ... }` com
   `// DEBUG` no fim da linha) e tirá-lo antes do commit. Os screenshots desse painel às vezes chegam um passo atrasados: tirar dois.
-- **Peso**: ~2,3 ms por imagem a 1600 px; o fundo com os carros ~130 ms, só ao abrir e ao mudar de tamanho (espera 160 ms).
+- **Peso**: 3,5–5 ms por imagem a 1600 px (melhor de vários lotes; as medições soltas variam o dobro com o PC ocupado); o fundo
+  com os carros ~300 ms, só ao abrir e ao mudar de tamanho (espera 160 ms).
+- **O mundo é o `MAP`** (7 out): uma letra por ladrilho (o escritório, `~` o rio, `b` as pontes, `g` o stand, `v` o cofre, `t` a
+  varanda do bar, `p` o miradouro, `.` o abismo). Só há paredes em y = 0 e x = 0; qualquer outra aresta é uma ravina com uma luz ao
+  longo dela. Não pôr paredes noutras arestas: o fundo fica por baixo, e uma parede à frente não taparia quem está atrás dela.
+- **Mudar o `MAP` = confirmar que todos os `SPOTS` e secretárias têm caminho.** Os stands bloqueiam o stand inteiro entre o
+  corredor do meio e a fila da frente, e o rio só se atravessa nas pontes; sem a ponte da foz, a frente do stand e o miradouro
+  ficavam sem caminho e o `route()` mandava os agentes em linha reta por cima da água.
+- **Uma peça larga corta-se em fatias de um ladrilho** (o bar), cada uma ordenada onde está; ordenada como um só bloco, tapava quem
+  estava ao balcão ou deixava ver quem passava atrás. O que não muda desenha-se uma vez para uma imagem (`still` / `cachedDraw`, com
+  a área que ocupa); o ouro e as notas do cofre têm a contagem na chave da imagem.
+- **O cofre**: cada tarefa `COMPLETED` é uma barra de ouro (duas paletes de 30), as desta semana são as notas no carrinho. Clicar
+  abre o painel com a loja (`/api/store/summary`) e o custo da IA (`/api/usage/summary`). Quando um agente acaba, voam moedas para lá.
+- **O holofote do miradouro** varre a gruta e, quando chega uma missão, projeta o bat-sinal na parede do escritório (já não sai de
+  dentro do escritório).
 
 ### Testar uma mudança no Hub
 

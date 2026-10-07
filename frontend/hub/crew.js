@@ -7,7 +7,10 @@
 //   free computer and works there until it is done. Clicking one opens their mission panel. Each of them is their own
 //   Claude conversation on the agent (backend/app/crew.py, agent/.../core/agent.py);
 // - the garage, a Batcave showroom: four cars modelled in 3D (crew-cars.js) on mirror-black stands, each waiting to
-//   stand for a project (CARS[].project).
+//   stand for a project (CARS[].project);
+// - around them the cave is an island over an abyss (MAP): an underground river with its bridge between the two, the
+//   vault (every mission completed is a gold bar on its floor; click it for the numbers), the bar terrace and the lookout,
+//   whose searchlight sweeps the cave and throws the bat-signal when a mission comes in.
 // It only reads /api/tasks, /api/office and /api/memory, and creates tasks (POST /api/tasks with `crew`).
 // Its own files, fetched the first time the page opens (lazyView in ui.js). Weight rules: it only animates while the
 // page is open, on screen and in the front tab (12 frames a second, 26 while somebody walks or the camera moves); the
@@ -15,13 +18,38 @@
 (function () {
   // ================================================================ the world, in tiles
   // x runs to the right and down, y to the left and down; z is height in pixels. P() is where a point lands on the small
-  // canvas (LW × LH); the camera shows a piece of it blown up. x < OFFICE_W is the office, the rest the garage.
-  const W = 31, D = 11, WALL = 64, OFFICE_W = 17;
+  // canvas (LW × LH); the camera shows a piece of it blown up. The cave is not a rectangle: it is an island of rock over an
+  // abyss, and MAP says what each tile is. o the office · ~ the underground river · b the bridge over it · g the garage ·
+  // v the vault · t the bar terrace · p the lookout · . nothing (the drop). Walls stand only along y = 0 and x = 0; every
+  // other edge is a drop with a light along it. A new wing: letters here, then its furniture, its spots and its blocked tiles.
+  const MAP = [
+    "oooooooooooooooo~gggggggggggggg",
+    "oooooooooooooooo~gggggggggggggg",
+    "oooooooooooooooo~gggggggggggggg",
+    "oooooooooooooooo~gggggggggggggg",
+    "oooooooooooooooobgggggggggggggg",
+    "oooooooooooooooobgggggggggggggg",
+    "oooooooooooooooo~gggggggggggggg",
+    "oooooooooooooooo~gggggggggggggg",
+    "oooooooooooooooo~gggggggggggggg",
+    "oooooooooooooooo~gggggggggggggg",
+    "oooooooooooooooobgggggggggggggg",
+    "vvvvvvv.ttttttt.........ppppppp",
+    "vvvvvvv.ttttttt.........ppppppp",
+    "vvvvvvv..ttttt...........ppppp.",
+    "vvvvvvv...ttt.............ppp..",
+    "vvvvvv.........................",
+    "vvvv...........................",
+  ];
+  const W = MAP[0].length, D = MAP.length, WALL = 64, OFFICE_W = 17, GD = 11;   // GD: how deep the office and the garage are
+  const tile = (x, y) => (x >= 0 && y >= 0 && x < W && y < D ? MAP[y][x] : ".");
+  const BRIDGES = [[4.06, 5.94], [10.06, 10.94]];   // the two bridges over the river, from y to y (they are the "b" tiles)
+  const solid = (x, y) => tile(x, y) !== ".";
   const OX = D * 16 + 10, OY = WALL + 40;
   const LW = (W + D) * 16 + 20, LH = OY + (W + D) * 8 + 24;
   const P = (x, y, z = 0) => [OX + (x - y) * 16, OY + (x + y) * 8 - z];
   const ASPECT = 468 / 334, WS = 2;                     // WS: the moving world is drawn at twice the cave's pixels
-  const VIEWS = { office: { x: 0, y: 10, w: 468 }, garage: { x: 258, y: 150, w: 438 }, all: { x: -10, y: -34, w: 712 } };
+  const VIEWS = { office: { x: 40, y: 34, w: 512 }, vault: { x: -26, y: 104, w: 312 }, garage: { x: 354, y: 150, w: 438 }, all: { x: -8, y: -30, w: 806 } };
   const NEON = { cyan: "#7fe3ff", blue: "#4fb4ff", yellow: "#ffd23f", red: "#ff2d4f", green: "#4dff9a", amber: "#ffbf3c", violet: "#a66bff", white: "#eef5ff", pink: "#ff4fa3" };
   const FONT = '"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
   const DISPLAY = '"Space Grotesk", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
@@ -112,11 +140,20 @@
     { x: 5, y: 9, pose: "phone", dir: "se", word: "no telemóvel" },
     { x: 18, y: 10, at: [18.6, 10.35], pose: "look", dir: "ne", word: "a ver o Aventador SVJ", far: true },
     { x: 25, y: 10, at: [25.6, 10.35], pose: "look", dir: "ne", word: "a ver o SF90", far: true },
+    { x: 3, y: 13, pose: "look", dir: "sw", word: "a contar o ouro" },
+    { x: 10, y: 12, at: [10.5, 12.3], pose: "drink", dir: "ne", bar: true, word: "no bar" },
+    { x: 12, y: 12, at: [12.5, 12.3], pose: "drink", dir: "ne", bar: true, word: "no bar" },
+    { x: 12, y: 13, pose: "phone", dir: "se", word: "na varanda" },
+    { x: 26, y: 12, at: [26.4, 12.6], pose: "look", dir: "se", word: "no miradouro", far: true },
   ];
+  // what stands on the new wings: the vault's gold, its cart and its counter; the bar and its table; the searchlight and the telescope
+  const FIXED = [[1, 12], [2, 12], [3, 12], [4, 13], [5, 13], [4, 14], [5, 14], [1, 14], [2, 14], [3, 14], [1, 15], [2, 15], [3, 15], [5, 11], [6, 11],
+    [9, 11], [10, 11], [11, 11], [12, 11], [13, 11], [11, 13], [27, 13], [25, 11]];
   const blocked = new Set([
     ...DESKS.flatMap((d) => [k2(d.x, d.y), k2(d.x, d.y + 1)]), ...SOFA.map((y) => k2(0, y)), ...CHAIRS.map(([x, y]) => k2(x, y)),
-    ...ROCKS.map(([x, y]) => k2(x, y)), k2(2, 0), k2(4, 0), k2(5, 0), k2(1, 1), k2(2, 5), k2(6, 0),
+    ...ROCKS.map(([x, y]) => k2(x, y)), k2(2, 0), k2(4, 0), k2(5, 0), k2(1, 1), k2(2, 5), k2(6, 0), ...FIXED.map(([x, y]) => k2(x, y)),
   ]);
+  for (let x = 0; x < W; x++) for (let y = 0; y < D; y++) if (!"ogvtpb".includes(tile(x, y))) blocked.add(k2(x, y)); // the drop and the water
   for (const c of CARS) for (let x = OFFICE_W; x < W; x++) for (let y = 0; y < D; y++) {
     if (x + 1 > c.cx - STAND.hx && x < c.cx + STAND.hx && y + 1 > c.cy - STAND.hy && y < c.cy + STAND.hy) blocked.add(k2(x, y));
   }
@@ -421,7 +458,7 @@
   }
 
   // the waterfall at the back of the garage: a strip of falling water scrolled down the wall, and the pool at its foot
-  const FALL = { x0: 23.65, x1: 24.6, tex: null };
+  const FALL = { x0: 16.08, x1: 16.92, tex: null };   // over the head of the river, between the office and the garage
   function waterfall(g) {
     const w = Math.round((FALL.x1 - FALL.x0) * 16), h = WALL;
     if (!FALL.tex) {
@@ -438,8 +475,8 @@
     const off = (clock * 46) % 96;
     g.drawImage(FALL.tex, 0, off - 96, w, 96); g.drawImage(FALL.tex, 0, off, w, 96);
     g.restore();
-    poly(g, [P(FALL.x0 - .15, 0, .5), P(FALL.x1 + .15, 0, .5), P(FALL.x1 + .1, .82, .5), P(FALL.x0 - .1, .82, .5)], "rgba(60,140,200,.55)");
-    for (let i = 0; i < 8; i++) { const n = Math.floor(clock * 6) + i * 13, [px, py] = P(FALL.x0 + rnd(n) * (FALL.x1 - FALL.x0), .1 + rnd(n + 1) * .6, 1); g.fillStyle = "rgba(230,245,255,.8)"; g.fillRect(px, py, 1.5, .5); }
+    poly(g, [P(FALL.x0, 0, -2.5), P(FALL.x1, 0, -2.5), P(FALL.x1, .82, -2.5), P(FALL.x0, .82, -2.5)], "rgba(90,170,225,.5)");
+    for (let i = 0; i < 8; i++) { const n = Math.floor(clock * 6) + i * 13, [px, py] = P(FALL.x0 + rnd(n) * (FALL.x1 - FALL.x0), .1 + rnd(n + 1) * .6, -2); g.fillStyle = "rgba(230,245,255,.8)"; g.fillRect(px, py, 1.5, .5); }
   }
 
   // bats, flying loops over the cave
@@ -454,6 +491,195 @@
       g.fillStyle = "#05060a";
       rows.forEach((r, j) => { for (let i = 0; i < 7; i++) if (r[i] === "#") g.fillRect(x + i - 3, y + j - 2, 1, 1); });
     }
+  }
+
+  // ================================================================ the vault, the bar, the lookout, the river (moving layer)
+  // The vault (v): the strongroom's door stands open on the left wall, lit gold from inside, and on its floor lies the team's
+  // gold: every mission completed is a bar (two pallets of thirty), this week's are bundles of notes on the cart. Lasers guard
+  // its door and switch off for whoever walks in; the marquee over the door says the numbers; a click opens them all.
+  let vaultMemo = null, vaultOpen = false, vaultFlash = -9, hoverVault = false, vaultPlate = null;
+  function vaultStats() {
+    if (vaultMemo && vaultMemo.ref === tasks) return vaultMemo;
+    const done = tasks.filter((x) => x.status === "COMPLETED" && x.trash_reason !== "mistake");
+    const day = new Date(); day.setHours(0, 0, 0, 0);
+    const week = new Date(day); week.setDate(week.getDate() - ((week.getDay() + 6) % 7));
+    const month = new Date(day.getFullYear(), day.getMonth(), 1);
+    const at = (x) => Date.parse(x.completed_at || x.updated_at || x.created_at);
+    const since = (d) => done.filter((x) => at(x) >= +d).length;
+    return (vaultMemo = { ref: tasks, done, total: done.length, today: since(day), week: since(week), month: since(month) });
+  }
+  // a piece of furniture that only changes with its numbers is drawn once into its own picture
+  const sprites = new Map();
+  function cachedDraw(g, key, area, paint) {
+    let s = sprites.get(key);
+    if (!s) {
+      const [x0, y0, x1, y1, h] = area, l = P(x0, y1)[0] - 3, r = P(x1, y0)[0] + 3, tp = P(x0, y0, h)[1] - 3, bt = P(x1, y1)[1] + 3;
+      const c = document.createElement("canvas"); c.width = Math.ceil((r - l) * WS); c.height = Math.ceil((bt - tp) * WS);
+      const q = c.getContext("2d"); q.k = WS; q.imageSmoothingEnabled = false; q.setTransform(WS, 0, 0, WS, -l * WS, -tp * WS);
+      paint(q);
+      if (sprites.size > 200) sprites.clear();
+      sprites.set(key, (s = { c, l, t: tp }));
+    }
+    g.drawImage(s.c, s.l, s.t, s.c.width / WS, s.c.height / WS);
+  }
+  const GOLD = ["#ffd86b", "#c9922a", "#a8741c"], CASH = ["#5fae6e", "#2f6b3c", "#24552f"], BAND = ["#efe6c8", "#c9bf9f", "#b3a988"];
+  const PYRAMID = [[4, 4], [3, 3], [2, 2], [1, 1]];   // bars along x and along y, each layer, from the pallet up
+  const backToFront = (nx, ny) => { const out = []; for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) out.push([i, j]); return out.sort((p, q) => p[0] + p[1] - (q[0] + q[1])); };
+  function goldPile(g, cx, cy, n) {
+    box(g, cx - .85, cy - .47, 1.7, .94, 0, 3, mat("#3a2a1a"));
+    for (let i = 0; i < 3; i++) seg(g, P(cx - .85, cy - .3 + i * .3, 1.5), P(cx + .85, cy - .3 + i * .3, 1.5), "rgba(0,0,0,.35)", .4);
+    let left = n, z = 3;
+    for (const [nx, ny] of PYRAMID) {
+      if (left <= 0) break;
+      const x0 = cx - nx * .19, y0 = cy - ny * .1;
+      for (const [i, j] of backToFront(nx, ny)) {
+        if (left-- <= 0) break;
+        const x = x0 + i * .38, y = y0 + j * .2;
+        box(g, x, y, .34, .17, z, 2.2, GOLD);
+        seg(g, P(x + .04, y + .03, z + 2.25), P(x + .3, y + .03, z + 2.25), "rgba(255,250,220,.8)", .4);
+      }
+      z += 2.2;
+    }
+  }
+  function cashPile(g, cx, cy, n) {
+    box(g, cx - .8, cy - .45, 1.6, .9, 2, 2, mat("#2a2f38"));                      // the steel cart
+    for (const [wx, wy] of [[-.68, -.33], [.68, -.33], [-.68, .33], [.68, .33]]) oval(g, ...P(cx + wx, cy + wy, 1), 1.2, .8, "#0b0c10");
+    let left = Math.min(24, n), z = 4;
+    for (let L = 0; L < 2 && left > 0; L++, z += 2.6) {
+      for (const [i, j] of backToFront(4, 3)) {
+        if (left-- <= 0) break;
+        const x = cx - .72 + i * .37, y = cy - .38 + j * .26;
+        box(g, x, y, .34, .24, z, 2.6, CASH);
+        box(g, x + .14, y - .005, .06, .25, z, 2.65, BAND);
+      }
+    }
+  }
+  // the counting desk at the door: a machine with its green figures and the bundles waiting their turn
+  function counter(g) {
+    const x = 5.15, y = 11.2, w = 1.6, d = .62;
+    for (const [lx, ly] of [[.08, .08], [w - .12, .08], [.08, d - .12], [w - .12, d - .12]]) box(g, x + lx, y + ly, .05, .05, 0, 10, LEG);
+    box(g, x, y, w, d, 10, 1.5, ["#2b2f37", "#15181e", "#101318"]);
+    box(g, x + .2, y + .12, .5, .38, 11.5, 5, ["#cfd5dc", "#8d96a3", "#6b7380"]);
+    const f = face(g, x + .25, x + .65, y + .5, 12, 15.5, "#03120a");
+    for (let u = 1; u < f.wpx - 1; u += 2) f.px(u, 1, rnd(u + Math.floor(clock * 5)) > .35 ? NEON.green : "#0b3a1a");
+    box(g, x + .9, y + .18, .32, .22, 11.5, 2.4, CASH); box(g, x + .9, y + .18, .32, .22, 13.9, 2.4, CASH);
+    box(g, x + .98, y + .17, .06, .24, 11.5, 4.85, BAND);
+  }
+  // one stretch of the laser fence across the vault's door (the line y = GD), with the posts at its two ends
+  function laser(g, x) {
+    if (x === 0 || x === 6) {
+      const px = x === 0 ? .1 : 6.9;
+      box(g, px - .06, GD - .06, .12, .12, 0, 20, ["#e9edf2", "#9aa2ab", "#6b7380"]);
+      for (const z of [5, 11, 17]) dot(g, ...P(px, GD + .07, z), vaultOpen ? NEON.green : NEON.red, 1, 1);
+    }
+    if (vaultOpen) return;
+    const a0 = x === 0 ? .1 : x, a1 = x === 6 ? 6.9 : x + 1, fl = .62 + Math.sin(clock * 37 + x * 1.7) * .14;
+    for (const z of [5, 11, 17]) {
+      seg(g, P(a0, GD, z), P(a1, GD, z), `rgba(255,40,70,${(fl * .35).toFixed(2)})`, 1.4);
+      seg(g, P(a0, GD, z), P(a1, GD, z), `rgba(255,130,150,${fl.toFixed(2)})`, .35);
+    }
+  }
+
+  // The bar (t): a dark wood bar with a marble top and a light under its lip, bottles along the back, three lamps hanging
+  // on long cords from the dark. It is drawn in slices one tile wide, each sorted where it stands, so whoever stands at
+  // the bar and whoever walks behind it are both drawn right.
+  const BOTTLES = ["#c46a1a", "#2f7a3c", "#d9e6f0", "#7a1a2a", "#e0b040", "#3a6fd0", "#e8e0d0"];
+  const BAR = { x0: 9.15, x1: 13.85, y: 11.15, d: .62, lamps: [10, 11.5, 13] };
+  function barSlice(g, x0, x1) {
+    const { y, d } = BAR, first = x0 <= BAR.x0, last = x1 >= BAR.x1;
+    box(g, x0, y, x1 - x0, d, 0, 12, ["#2a2420", "#17120f", last ? "#100c0a" : null]);
+    box(g, x0 - (first ? .05 : 0), y - .05, x1 - x0 + (first ? .05 : 0) + (last ? .05 : 0), d + .1, 12, 1.2, ["#d9d4c8", "#9a948a", last ? "#7d776e" : null]);
+    seg(g, P(x0, y + d + .06, 3), P(x1, y + d + .06, 3), "rgba(255,191,60,.95)", .6);
+    for (let i = 0; i < 13; i++) {
+      const bx = 9.25 + i * .37;
+      if (bx < x0 || bx >= x1) continue;
+      const c = BOTTLES[i % BOTTLES.length], hgt = 6 + (i % 3) * 1.5;
+      box(g, bx, y + .06, .1, .1, 13.2, hgt, [sh(c, .25), c, sh(c, -.45)]);
+      box(g, bx + .03, y + .09, .04, .04, 13.2 + hgt, 2.5, ["#e9edf2", "#9aa2ab", "#7d8591"]);
+    }
+    if (x0 <= 10.6 && x1 > 10.6) box(g, 10.55, y + .4, .08, .08, 13.2, 2.2, ["rgba(220,240,255,.6)", "rgba(200,220,240,.35)", "rgba(200,220,240,.3)"]);
+    if (x0 <= 12.4 && x1 > 12.4) box(g, 12.35, y + .38, .1, .1, 13.2, 3.4, mat("#c9ced6"));
+    for (const v of BAR.lamps) {
+      if (v < x0 || v >= x1) continue;
+      seg(g, P(v, y + .3, 130), P(v, y + .3, 37), "rgba(40,44,52,.9)", .4);
+      const [lx, ly] = P(v, y + .3, 37);
+      poly(g, [[lx - 1, ly], [lx + 1, ly], [lx + 3, ly + 3], [lx - 3, ly + 3]], "#1d2129");
+      oval(g, lx, ly + 3, 3, 1, "#ffe2a8");
+    }
+  }
+  // the high table at the prow of the terrace: marble top, champagne on ice, two flutes
+  function cocktailTable(g) {
+    const cx = 11.5, cy = 13.5;
+    oval(g, ...P(cx, cy), 5, 2, "rgba(0,0,0,.4)");
+    box(g, cx - .05, cy - .05, .1, .1, 0, 13, METAL);
+    poly(g, Array.from({ length: 24 }, (_, i) => P(cx + Math.cos(i / 24 * Math.PI * 2) * .42, cy + Math.sin(i / 24 * Math.PI * 2) * .42, 12)), "#7d776e");
+    poly(g, Array.from({ length: 24 }, (_, i) => P(cx + Math.cos(i / 24 * Math.PI * 2) * .42, cy + Math.sin(i / 24 * Math.PI * 2) * .42, 13)), "#d9d4c8");
+    box(g, cx - .13, cy - .13, .26, .26, 13, 4, mat("#c9ced6"));
+    box(g, cx - .04, cy - .06, .07, .07, 17, 4, ["#1f3a24", "#13261a", "#0d1a12"]);
+    dot(g, ...P(cx - .01, cy - .03, 21.5), "#e8c55a", 1, 1);
+    for (const [fx, fy] of [[.25, .1], [.12, .28]]) box(g, cx + fx, cy + fy, .04, .04, 13, 3.4, ["rgba(255,236,170,.75)", "rgba(220,200,140,.45)", "rgba(220,200,140,.4)"]);
+  }
+
+  // The lookout (p): a landing ring, a telescope, and the searchlight. It sweeps the back of the cave slowly; when a
+  // mission comes in it swings round and throws the bat-signal on the office wall.
+  const LAMP = { x: 27.5, y: 13.5, aim: [14, 0, 58], gold: 0 };
+  const BEACONS = [[24.05, 11.2], [24.05, 12.9], [25.05, 13.9], [26.05, 14.9], [28.95, 14.9], [29.95, 13.9], [30.95, 12.9]];
+  function searchlight(g) {
+    const { x, y } = LAMP;
+    oval(g, ...P(x, y), 7, 3, "rgba(0,0,0,.45)");
+    box(g, x - .3, y - .3, .6, .6, 0, 3, mat("#2a2f38"));
+    const a = Math.atan2(LAMP.aim[1] - y, LAMP.aim[0] - x), ca = Math.cos(a), sa = Math.sin(a);
+    for (const s of [-1, 1]) box(g, x - sa * .27 * s - .04, y + ca * .27 * s - .04, .08, .08, 3, 10, METAL);
+    for (let i = 3; i >= -3; i--) {
+      const [px, py] = P(x + ca * i * .05, y + sa * i * .05, 11 + i * .9);
+      oval(g, px, py, 3.6, 3.6, i === 3 ? "#fff3cf" : i === -3 ? "#5b626f" : sh("#2f353f", -i * .03));
+    }
+    const [cx, cy] = P(x - ca * .15, y - sa * .15, 8.3);
+    g.strokeStyle = "rgba(220,228,238,.55)"; g.lineWidth = .4; g.beginPath(); g.ellipse(cx, cy, 3.6, 3.6, 0, 0, Math.PI * 2); g.stroke();
+  }
+  function telescope(g) {
+    const x = 25.6, y = 11.6;
+    for (const [lx, ly] of [[-.22, .16], [.22, .12], [0, -.24]]) seg(g, P(x, y, 11), P(x + lx, y + ly, 0), "#6b7380", .6);
+    seg(g, P(x - .18, y - .18, 12.5), P(x + .32, y + .32, 15.5), "#1d2129", 2.6);
+    seg(g, P(x - .18, y - .18, 12.5), P(x + .32, y + .32, 15.5), "#c9ced6", 1.2);
+    dot(g, ...P(x + .33, y + .33, 15.6), NEON.cyan, 1, 1);
+  }
+
+  // glass along the drops of the vault, the terrace and the lookout: one pane per tile edge, sorted where it stands
+  const RAIL = { v: ["rgba(255,207,90,.11)", "rgba(255,226,150,.9)"], t: ["rgba(150,205,255,.12)", "rgba(235,242,250,.85)"], p: ["rgba(255,60,80,.09)", "rgba(220,226,235,.85)"] };
+  function pane(g, a, b, h, tint, edge, z0 = 0) {
+    const A = P(a[0], a[1], z0), B = P(b[0], b[1], z0), C = P(b[0], b[1], z0 + h), E = P(a[0], a[1], z0 + h);
+    poly(g, [A, B, C, E], tint);
+    seg(g, E, C, edge, .6);
+    seg(g, A, E, "rgba(200,210,225,.45)", .4); seg(g, B, C, "rgba(200,210,225,.45)", .4);
+  }
+  const bridgeRail = (g, y) => pane(g, [15.75, y], [17.25, y], 8, "rgba(150,205,255,.13)", "rgba(235,242,250,.9)", 2);
+
+  // the river: light running down the water (not under the bridge), and where it pours over the edge into the abyss
+  function riverFlow(g) {
+    g.save(); g.beginPath();
+    for (const [y0, y1] of [[.85, 4.0], [6.0, 10.0]]) {
+      const pts = [P(16.12, y0, -3), P(16.86, y0, -3), P(16.86, y1, -3), P(16.12, y1, -3)];
+      g.moveTo(...pts[0]); pts.slice(1).forEach((p) => g.lineTo(...p)); g.closePath();
+    }
+    g.clip();
+    for (let i = 0; i < 16; i++) {
+      const lane = .14 + (i % 4) * .17, y = (clock * 1.7 + rnd(i) * GD) % GD, len = .3 + rnd(i + 2) * .45;
+      seg(g, P(16.08 + lane, y, -3), P(16.08 + lane, y + len, -3), `rgba(170,225,255,${(.22 + rnd(i + 5) * .3).toFixed(2)})`, .5);
+    }
+    g.restore();
+  }
+  function mouthFall(g) {
+    if (!FALL.tex) return;
+    const w = Math.round((FALL.x1 - FALL.x0) * 16), h = 46, [sx, sy] = P(FALL.x0, GD, 0);
+    g.save();
+    g.setTransform(g.k, .5 * g.k, 0, g.k, sx * g.k, sy * g.k);
+    g.beginPath(); g.rect(0, 0, w, h); g.clip();
+    const off = (clock * 64) % 96;
+    g.drawImage(FALL.tex, 0, off - 96, w, 96); g.drawImage(FALL.tex, 0, off, w, 96);
+    const fade = g.createLinearGradient(0, 0, 0, h); fade.addColorStop(0, "rgba(0,0,0,0)"); fade.addColorStop(1, "rgba(0,0,0,1)");
+    g.globalCompositeOperation = "destination-out"; g.fillStyle = fade; g.fillRect(0, 0, w, h);
+    g.restore();
   }
 
   // ================================================================ the cave that never moves (drawn once per size)
@@ -483,19 +709,53 @@
   }
   const wallTop = (ts, along) => ts.map((tt, i) => along(tt, WALL + (i % 3 === 0 ? 6 : 0) + rnd(tt * 9.1) * 9 - 3));
 
-  function room(b) {
-    const edgeF = [], edgeR = [];
-    for (let x = 0; x <= W; x += .5) edgeF.push(P(x, D, -14 - rnd(x * 3.3) * 10));
-    for (let y = 0; y <= D; y += .5) edgeR.push(P(W, y, -14 - rnd(y * 5.1 + 40) * 10));
-    poly(b, [P(0, D), P(W, D), ...edgeF.reverse()], "#0e1219");
-    poly(b, [P(W, 0), P(W, D), ...edgeR.reverse()], "#0a0d13");
-    for (let x = 0; x < W; x++) for (let y = 0; y < D; y++) {
-      const garage = x >= OFFICE_W, work = x >= 6 && !garage;
-      const c = garage ? ((Math.floor(x / 2) + Math.floor(y / 2)) % 2 ? "#15181e" : "#13161b") : work ? ((x + y) % 2 ? "#111827" : "#0f1522") : ((x + y) % 2 ? "#171b22" : "#14181f");
-      poly(b, [P(x, y), P(x + 1, y), P(x + 1, y + 1), P(x, y + 1)], c);
+  // how far the rock drops under a point of an edge: the same for the two tiles that share it, so the drops join up
+  const dropAt = (x, y) => 22 + rnd(x * 3.7 + y * 5.3 + 1) * 16 + (rnd(x * 1.3 + y * 7.1) > .78 ? 10 + rnd(x + y) * 14 : 0);
+  function drop(b, x, y, side, water) {
+    const n = 4, at = (i) => (side === "front" ? [x + i / n, y + 1] : [x + 1, y + i / n]), pts = [];
+    for (let i = 0; i <= n; i++) pts.push(P(...at(i), 0));
+    for (let i = n; i >= 0; i--) { const [px, py] = at(i); pts.push(P(px, py, -dropAt(px, py))); }
+    const [, top] = P(...at(0), 0), c = water ? ["#123049", "#081626", "#020509"] : side === "front" ? ["#171d28", "#0a0d13", "#030406"] : ["#10141c", "#07090e", "#020304"];
+    const grad = b.createLinearGradient(0, top - 4, 0, top + 50);
+    grad.addColorStop(0, c[0]); grad.addColorStop(.45, c[1]); grad.addColorStop(1, c[2]);
+    poly(b, pts, grad);
+    for (let s = 1; s < 4; s++) seg(b, P(...at(0), -s * 6 - rnd(x + y + s) * 3), P(...at(n), -s * 6 - rnd(x + y + s + 1) * 3), "rgba(150,175,215,.05)", .6);
+    if (!water && rnd(x * 2.1 + y * 3.9 + (side === "front" ? 0 : 50)) > .5) {     // a stalactite under this stretch
+      const [px, py] = at(1 + Math.floor(rnd(x + y * 9) * 3)), len = 8 + rnd(px * 7 + py) * 18, [sx, sy] = P(px, py, -dropAt(px, py) + 2);
+      poly(b, [[sx - 2.5, sy - 2], [sx + 2.5, sy - 2], [sx, sy + len]], c[2]);
+      seg(b, [sx - 1.5, sy - 1], [sx, sy + len - 2], "rgba(150,175,215,.08)", .5);
     }
-    for (let x = OFFICE_W; x <= W; x += 2) seg(b, P(x, 0, 0), P(x, D, 0), "rgba(0,0,0,.3)");
-    for (let y = 0; y <= D; y += 2) seg(b, P(OFFICE_W, y, 0), P(W, y, 0), "rgba(0,0,0,.3)");
+  }
+  function floorTile(b, x, y, c) {
+    const odd = (x + y) % 2;
+    const color = c === "g" ? ((Math.floor(x / 2) + Math.floor(y / 2)) % 2 ? "#15181e" : "#13161b")
+      : c === "v" ? (odd ? "#18150e" : "#120f0a") : c === "t" ? (odd ? "#1b1713" : "#17130f") : c === "p" ? (odd ? "#181c23" : "#14181e")
+      : x >= 6 ? (odd ? "#111827" : "#0f1522") : (odd ? "#171b22" : "#14181f");
+    poly(b, [P(x, y), P(x + 1, y), P(x + 1, y + 1), P(x, y + 1)], color);
+    if (c === "v") { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(201,162,39,.3)", .5); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(201,162,39,.3)", .5); }
+    else if (c === "t") for (let i = 1; i < 4; i++) seg(b, P(x + i / 4, y), P(x + i / 4, y + 1), "rgba(0,0,0,.28)", .5);
+    else if (c === "p") for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) dot(b, ...P(x + .2 + i * .3, y + .2 + j * .3), "rgba(170,185,210,.1)");
+  }
+  // the river's channel: the near bank (the office side) and the water a little below the floor
+  function water(b, x, y) {
+    poly(b, [P(x, y, 0), P(x, y + 1, 0), P(x, y + 1, -4), P(x, y, -4)], "#0a0f17");
+    const [, top] = P(x, y, -3), gr = b.createLinearGradient(0, top - 8, 0, top + 16);
+    gr.addColorStop(0, "#16588f"); gr.addColorStop(1, "#0a2c4c");
+    poly(b, [P(x, y, -3), P(x + 1, y, -3), P(x + 1, y + 1, -3), P(x, y + 1, -3)], gr);
+    seg(b, P(x + .05, y, -3), P(x + .05, y + 1, -3), "rgba(150,220,255,.25)", .5);
+  }
+  function room(b) {
+    const order = [];
+    for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) if (solid(x, y)) order.push([x, y]);
+    order.sort((p, q) => p[0] + p[1] - (q[0] + q[1]) || p[0] - q[0]);
+    for (const [x, y] of order) {
+      const c = tile(x, y);
+      if (c === "~" || c === "b") water(b, x, y); else floorTile(b, x, y, c);
+      if (!solid(x, y + 1)) drop(b, x, y, "front", c === "~" || c === "b");
+      if (!solid(x + 1, y)) drop(b, x, y, "right", false);
+    }
+    for (let x = OFFICE_W; x <= W; x += 2) seg(b, P(x, 0, 0), P(x, GD, 0), "rgba(0,0,0,.3)");
+    for (let y = 0; y <= GD; y += 2) seg(b, P(OFFICE_W, y, 0), P(W, y, 0), "rgba(0,0,0,.3)");
     poly(b, [P(1, 3), P(5, 3), P(5, 9), P(1, 9)], "#2c2410");
     poly(b, [P(1.12, 3.12), P(4.88, 3.12), P(4.88, 8.88), P(1.12, 8.88)], "#0d0e12");
     poly(b, [P(1.3, 3.3), P(4.7, 3.3), P(4.7, 8.7), P(1.3, 8.7)], "#b38f1a");
@@ -507,8 +767,7 @@
     b.strokeStyle = "#0d0e12"; b.lineWidth = 2; b.stroke();
     b.fillStyle = "#0d0e12"; batPath(b, 0, .5, 24, 20); b.fill();
     b.restore();
-    for (let y = 0; y < D; y += .5) poly(b, [P(OFFICE_W - .12, y), P(OFFICE_W + .12, y), P(OFFICE_W + .12, y + .5), P(OFFICE_W - .12, y + .5)], (y * 2) % 2 ? "#0d0e12" : "#c9a227");
-    const leftTop = wallTop([...Array(23).keys()].map((i) => i * .5), (y, z) => P(0, y, z));
+    const leftTop = wallTop([...Array(D * 2 + 1).keys()].map((i) => i * .5), (y, z) => P(0, y, z));
     const backTop = wallTop([...Array(63).keys()].map((i) => i * .5), (x, z) => P(x, 0, z));
     rockWall(b, [P(0, 0), P(0, D), ...leftTop.slice().reverse()], "#121722", 11);
     rockWall(b, [P(0, 0), P(W, 0), ...backTop.slice().reverse()], "#161c28", 23);
@@ -522,6 +781,12 @@
     }
     poly(b, [P(0, 0), P(W, 0), P(W, .8), P(.8, .8)], "rgba(0,0,0,.22)");
     poly(b, [P(0, 0), P(.8, .8), P(.8, D), P(0, D)], "rgba(0,0,0,.22)");
+    // the bridges' decks over the river, planks across
+    for (const [y0, y1] of BRIDGES) {
+      box(b, 15.75, y0, 1.5, y1 - y0, 0, 2, ["#2a303b", "#11151c", "#0d1016"]);
+      for (let x = 15.85; x < 17.25; x += .2) seg(b, P(x, y0, 2), P(x, y1, 2), "rgba(0,0,0,.35)", .4);
+    }
+    for (const [x, y] of BEACONS) dot(b, ...P(x, y, .5), "#5a0d18", 1.5, 1);
   }
   // on top of the grain: the Gotham feed
   function roomDetails(b) {
@@ -640,7 +905,7 @@
   function settle(a, s) {
     a.dir = s.dir; a.pose = s.pose; a.timer = 8 + Math.random() * 14;
     a.chairAt = s.chair ? k2(s.x, s.y) : null;
-    if (s.pose === "drink") a.brewUntil = clock + 3;
+    if (s.pose === "drink" && !s.bar) a.brewUntil = clock + 3;
     if (s.sofa && a.idleFor > 45 && Math.random() < .55) { a.pose = "sleep"; a.timer += 12; }
   }
   function wander(a, prefer) {
@@ -677,7 +942,7 @@
   function finish(a, ok) {
     a.done = ok ? "ok" : "bad"; a.mode = "done"; a.timer = 2.6;
     a.bubble = { g: ok ? "check" : "x", until: clock + 2.6, c: ok ? NEON.green : NEON.red };
-    if (ok) confetti(a);
+    if (ok) { confetti(a); deposit(a); }
     panelFollows(a);
   }
   function leaveDesk(a) {
@@ -714,6 +979,22 @@
     const cols = [NEON.yellow, NEON.blue, NEON.green, NEON.amber, NEON.violet, "#ffffff"];
     for (let i = 0; i < 40; i++) emit("bit", a.head[0], a.head[1] - 2, { vx: (Math.random() - .5) * 60, vy: -28 - Math.random() * 40, life: 1.3 + Math.random() * .7, c: cols[i % cols.length], grav: 80 });
   }
+  // a mission done: seven coins fly from the agent's head to the vault, and it flashes gold when they land
+  function deposit(a) {
+    if (!a.head) return;
+    const [ex, ey] = P(2.5, 12.55, 13);
+    for (let i = 0; i < 7; i++) particles.push({ kind: "coin", x: a.head[0], y: a.head[1], sx: a.head[0] + (Math.random() - .5) * 6, sy: a.head[1] - 2,
+      ex: ex + (Math.random() - .5) * 8, ey: ey + (Math.random() - .5) * 3, age: -i * .08, life: 1.25, vx: 0, vy: 0, grav: 0, c: "#ffd86b" });
+  }
+  // where the motes rise from: under every drop of the island, gold under the vault
+  const EDGES = [];
+  for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) {
+    if (!solid(x, y)) continue;
+    const c = tile(x, y) === "v" ? "rgba(255,214,130,.6)" : "rgba(150,195,255,.45)";
+    if (!solid(x, y + 1)) EDGES.push([x + .5, y + 1, c]);
+    if (!solid(x + 1, y)) EDGES.push([x + 1, y + .5, c]);
+  }
+  let moteAt = 0;
   function tickParticles(dt) {
     mistAt += dt;
     if (mistAt > .2) {
@@ -725,14 +1006,38 @@
       if (a.path.length || !a.head) continue;
       a.emit += dt;
       if (a.pose === "sleep" && a.emit > 1.5) { a.emit = 0; emit("z", a.head[0] + 3, a.head[1] - 2, { vx: 3, vy: -6, life: 2.4, c: "#cfd8ff" }); }
-      if (a.pose === "drink" && a.mode === "idle" && a.emit > .45) { a.emit = 0; const [sx, sy] = clock < a.brewUntil ? P(4.34, .48, 22) : [a.head[0] + 2, a.head[1] + 6]; emit("bit", sx, sy, { vx: (Math.random() - .5) * 2, vy: -7, life: 1.1, c: "rgba(255,255,255,.55)" }); }
+      if (a.pose === "drink" && a.mode === "idle" && a.emit > .45 && !(a.spot && a.spot.bar)) { a.emit = 0; const [sx, sy] = clock < a.brewUntil ? P(4.34, .48, 22) : [a.head[0] + 2, a.head[1] + 6]; emit("bit", sx, sy, { vx: (Math.random() - .5) * 2, vy: -7, life: 1.1, c: "rgba(255,255,255,.55)" }); }
       if (a.pose === "train" && a.mode === "idle" && a.emit > .55) { a.emit = 0; const [bx, by] = P(1.5, 1.5, 24); emit("bit", bx + 3, by, { vx: 8, vy: -10, life: .5, c: "rgba(255,255,255,.7)" }); }
     }
-    for (const p of particles) { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.grav * dt; }
+    moteAt += dt;
+    if (moteAt > .35) {
+      moteAt = 0;
+      const e = EDGES[Math.floor(Math.random() * EDGES.length)], [mx, my] = P(e[0], e[1], -26 - Math.random() * 34);
+      emit("bit", mx, my, { vx: (Math.random() - .5) * 2, vy: -2.5 - Math.random() * 2.5, life: 5 + Math.random() * 3, c: e[2] });
+    }
+    for (const p of particles) {
+      p.age += dt;
+      if (p.kind === "coin") {
+        const u = clamp(p.age / p.life, 0, 1), cx = (p.sx + p.ex) / 2, cy = Math.min(p.sy, p.ey) - 46;
+        p.x = (1 - u) * (1 - u) * p.sx + 2 * (1 - u) * u * cx + u * u * p.ex;
+        p.y = (1 - u) * (1 - u) * p.sy + 2 * (1 - u) * u * cy + u * u * p.ey;
+        if (u >= 1 && !p.landed) {
+          p.landed = true; vaultFlash = clock;
+          for (let i = 0; i < 6; i++) emit("bit", p.ex, p.ey, { vx: (Math.random() - .5) * 30, vy: -10 - Math.random() * 20, life: .7, c: "#ffe9a0", grav: 60 });
+        }
+        continue;
+      }
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.grav * dt;
+    }
     particles = particles.filter((p) => p.age < p.life);
   }
   function drawParticles(g) {
     for (const p of particles) {
+      if (p.kind === "coin") {
+        if (p.age < 0) continue;
+        g.globalAlpha = 1; g.fillStyle = "#ffd86b"; g.fillRect(p.x - 1, p.y - .5, 2, 1.2); g.fillStyle = "#fff6d0"; g.fillRect(p.x - 1, p.y - .5, 1, .5);
+        continue;
+      }
       g.globalAlpha = Math.max(0, Math.min(1, (1 - p.age / p.life) * 1.6));
       if (p.kind === "bit") { g.fillStyle = p.c; g.fillRect(p.x, p.y, p.grav ? 1 : .5, p.grav && Math.floor(p.age * 12) % 2 ? 1.5 : .5); }
       else glyph(g, p.kind, Math.round(p.x), Math.round(p.y), p.c);
@@ -840,6 +1145,7 @@
     const sky = g.createRadialGradient(bg.width * .45, bg.height * .35, 0, bg.width * .45, bg.height * .4, bg.width * .75);
     sky.addColorStop(0, "#0d1424"); sky.addColorStop(.6, "#070a12"); sky.addColorStop(1, "#030407");
     g.fillStyle = sky; g.fillRect(0, 0, bg.width, bg.height);
+    abyss(g);
     g.imageSmoothingEnabled = false;
     g.drawImage(base, 0, 0, bg.width, bg.height);
     g.imageSmoothingEnabled = true;
@@ -863,12 +1169,35 @@
     };
     tube([0, 0, 1.5], [W, 0, 1.5], NEON.blue);
     tube([0, 0, 1.5], [0, D, 1.5], NEON.blue);
-    for (const x of [1.15, 6.7, 15.6, 17.3, 23.2, 25.1, 30.6]) tube([x, 0, 8], [x, 0, 46], "rgba(79,180,255,.75)", .9);
-    for (const y of [1.7, 10.5]) tube([0, y, 8], [0, y, 46], "rgba(79,180,255,.75)", .9);
-    tube([0, D, 0], [W, D, 0], "rgba(79,180,255,.5)", .7);
-    tube([W, 0, 0], [W, D, 0], "rgba(79,180,255,.5)", .7);
-    tube([6, 1.3, .2], [6, D - .4, .2], "rgba(127,227,255,.45)", .6);
-    for (let y = .5; y < D; y += 1) { const [fx, fy] = QB(OFFICE_W + .3, y, .5); g.save(); g.shadowColor = NEON.yellow; g.shadowBlur = 6 * BS; g.fillStyle = "#ffe9a0"; g.beginPath(); g.arc(fx, fy, .9 * BS, 0, Math.PI * 2); g.fill(); g.restore(); }
+    for (const x of [1.15, 6.7, 15.82, 17.18, 22.6, 30.6]) tube([x, 0, 8], [x, 0, 46], "rgba(79,180,255,.75)", .9);
+    for (const y of [1.7, 10.5, 16.85]) tube([0, y, 8], [0, y, 46], "rgba(79,180,255,.75)", .9);
+    tube([6, 1.3, .2], [6, GD - .4, .2], "rgba(127,227,255,.45)", .6);
+    // every edge of the island has a light along it, the colour of the wing it belongs to
+    const EDGE = { v: "rgba(255,207,90,.75)", t: "rgba(255,191,60,.65)", p: "rgba(255,45,79,.6)" };
+    for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) {
+      if (!solid(x, y)) continue;
+      const c = EDGE[tile(x, y)] || "rgba(79,180,255,.55)";
+      if (!solid(x, y + 1)) tube([x, y + 1, 0], [x + 1, y + 1, 0], c, .7);
+      if (!solid(x + 1, y)) tube([x + 1, y, 0], [x + 1, y + 1, 0], c, .7);
+      if (x > 0 && !solid(x - 1, y)) tube([x, y, 0], [x, y + 1, 0], c, .7);
+      if (y > 0 && !solid(x, y - 1)) tube([x, y, 0], [x + 1, y, 0], c, .7);
+    }
+    // the river's banks; the bridge: glass on its far side, a light under its near edge
+    for (const [y0, y1] of [[0, 4.06], [5.94, 10.06]]) { tube([16, y0, 0], [16, y1, 0], "rgba(127,227,255,.4)", .5); tube([17, y0, 0], [17, y1, 0], "rgba(127,227,255,.4)", .5); }
+    for (const [y0, y1] of BRIDGES) {
+      tube([15.75, y1 + .03, 1.2], [17.25, y1 + .03, 1.2], "rgba(127,227,255,.8)", .6);
+      const A = QB(15.75, y0, 2), B = QB(17.25, y0, 2), C = QB(17.25, y0, 10), E = QB(15.75, y0, 10);
+      g.fillStyle = "rgba(150,205,255,.1)"; g.beginPath(); g.moveTo(...A); g.lineTo(...B); g.lineTo(...C); g.lineTo(...E); g.closePath(); g.fill();
+      g.strokeStyle = "rgba(235,242,250,.8)"; g.lineWidth = .5 * BS; g.beginPath(); g.moveTo(...E); g.lineTo(...C); g.stroke();
+    }
+    vaultWall(g);
+    // the lookout's landing ring with the bat in it
+    { g.save(); const [lx, ly] = QB(27.4, 12.7, 0);
+      g.setTransform(BS, 0, 0, BS * .5, lx, ly); g.rotate(Math.PI / 4);
+      g.strokeStyle = "rgba(255,210,80,.5)"; g.lineWidth = 1.4; g.beginPath(); g.arc(0, 0, 38, 0, Math.PI * 2); g.stroke();
+      g.lineWidth = .6; g.beginPath(); g.arc(0, 0, 33, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = "rgba(255,210,80,.2)"; batPath(g, 0, .6, 24, 20); g.fill();
+      g.restore(); }
     g.save(); g.globalCompositeOperation = "lighter";
     const pool = (x, y, r, c, a) => {
       const [cx, cy] = QB(x, y, 0), gr = g.createRadialGradient(cx, cy, 0, cx, cy, r * BS);
@@ -878,6 +1207,7 @@
     };
     pool(11, 5, 120, "#2a5bb8", .2); pool(3, 6, 80, "#c9a227", .08); pool(1, 9, 50, "#8fa8ff", .1);
     for (const c of CARS) pool(c.cx, c.cy, 70, "#9fc4ff", .2);
+    pool(3.2, 14, 95, "#ffb84d", .2); pool(11.4, 12.4, 70, "#ffbf3c", .12); pool(27.5, 12.6, 70, "#ff4f6a", .07); pool(16.5, 5.5, 80, "#3fa9ff", .12);
     g.restore();
     // the bat thrown on the garage floor by a lamp, between the four stands
     g.save(); g.globalCompositeOperation = "lighter"; g.globalAlpha = .16;
@@ -903,6 +1233,93 @@
       g.shadowColor = "rgba(230,240,255,.9)"; g.shadowBlur = 10 * BS;
       g.drawImage(star, 0, -10, 12, 12); g.restore();
     }
+  }
+  // ================================================================ the vault on the left wall, and the abyss (sharp, once per size)
+  // u runs along the wall from VAULT.y1 towards the corner, v down from VAULT.z1, in the cave's pixels. The hole is the
+  // strongroom going back into the rock, shelves of gold lit from the end; its door is swung open flat against the wall
+  // beside it: a steel disc as thick as a wheel, its bolts out, the wheel in the middle.
+  const VAULT = { y1: 16.9, z1: 62, hole: [31, 35, 19.5], door: [71, 35, 19.5] };
+  function chromeRing(g, cx, cy, r0, r1, bolts) {
+    const gr = g.createLinearGradient(cx, cy - r1, cx, cy + r1);
+    gr.addColorStop(0, "#f7f8fa"); gr.addColorStop(.38, "#c4cbd4"); gr.addColorStop(.52, "#6f7a88"); gr.addColorStop(.7, "#dfe3e7"); gr.addColorStop(1, "#8d96a3");
+    g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, r1, 0, Math.PI * 2); g.moveTo(cx + r0, cy); g.arc(cx, cy, r0, 0, Math.PI * 2, true); g.fill();
+    g.strokeStyle = "rgba(10,12,16,.6)"; g.lineWidth = .3;
+    for (const r of [r0, r1]) { g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke(); }
+    for (let i = 0; i < bolts; i++) { const a = (i / bolts) * Math.PI * 2, m = (r0 + r1) / 2; g.fillStyle = "#3a404b"; g.beginPath(); g.arc(cx + Math.cos(a) * m, cy + Math.sin(a) * m, .55, 0, Math.PI * 2); g.fill(); }
+  }
+  function vaultWall(g) {
+    const [ox, oy] = P(0, VAULT.y1, VAULT.z1);
+    g.save(); g.setTransform(BS, -.5 * BS, 0, BS, ox * BS, oy * BS);
+    rr(g, 3, 0, 88, 9, 2); g.fillStyle = "#050608"; g.fill(); g.lineWidth = .7; g.strokeStyle = "#8d96a3"; g.stroke();   // the marquee's housing
+    const [hu, hv, r] = VAULT.hole, [du, dv, dr] = VAULT.door, T = 5.6;   // T: how far the open door stands out of the wall
+    g.save(); g.beginPath(); g.arc(hu, hv, r, 0, Math.PI * 2); g.clip();
+    const tunnel = g.createRadialGradient(hu + 2, hv + 1, 0, hu, hv, r);
+    tunnel.addColorStop(0, "#fff2b8"); tunnel.addColorStop(.22, "#ffcf5a"); tunnel.addColorStop(.6, "#6b4a12"); tunnel.addColorStop(1, "#120b02");
+    g.fillStyle = tunnel; g.fillRect(hu - r, hv - r, 2 * r, 2 * r);
+    for (let k = 3; k >= 0; k--) {        // the shelves, smaller the further back
+      const s = 1 - k * .2, rk = r * s, cx = hu + k * .7, cy = hv + k * .35;
+      for (const dd of [-7, 0, 7]) {
+        const y = cy + dd * s, x0 = cx - rk * .72, x1 = cx + rk * .72;
+        g.fillStyle = `rgba(28,18,4,${(.85 - k * .12).toFixed(2)})`; g.fillRect(x0, y + 1.7 * s, x1 - x0, .9 * s);
+        for (let bx = x0 + .4, i = 0; bx < x1 - 2.4 * s; bx += 2.8 * s, i++) {
+          g.fillStyle = i % 3 ? "#ffd86b" : "#e8b44a"; g.fillRect(bx, y, 2.3 * s, 1.7 * s);
+          g.fillStyle = "rgba(255,250,220,.7)"; g.fillRect(bx, y, 2.3 * s, .35 * s);
+        }
+      }
+      g.strokeStyle = `rgba(40,26,6,${(.6 - k * .1).toFixed(2)})`; g.lineWidth = 1.1 * s; g.beginPath(); g.arc(cx, cy, rk, 0, Math.PI * 2); g.stroke();
+    }
+    g.restore();
+    chromeRing(g, hu, hv, r, r + 3.4, 18);
+    for (let o = 0; o < T; o += .6) { g.fillStyle = o < .7 ? "#0b0d11" : sh("#5b626f", -.45 + o * .04); g.beginPath(); g.arc(du + o, dv + o, dr, 0, Math.PI * 2); g.fill(); }
+    const fu = du + T, fv = dv + T;
+    g.fillStyle = "#a9b1bc";                // the hinges, back to the frame
+    for (const s of [-9, 9]) { g.beginPath(); g.moveTo(hu + r + 2.8, hv + s - 1.6); g.lineTo(fu - dr + 2.5, fv + s - 1.6); g.lineTo(fu - dr + 2.5, fv + s + 1.6); g.lineTo(hu + r + 2.8, hv + s + 1.6); g.closePath(); g.fill(); }
+    for (let i = 0; i < 16; i++) {          // the locking bolts, out of its edge
+      g.save(); g.translate(fu, fv); g.rotate((i / 16) * Math.PI * 2);
+      g.fillStyle = "#d9dee5"; g.fillRect(dr - 1.5, -.8, 3.8, 1.6); g.fillStyle = "#6f7a88"; g.fillRect(dr - 1.5, .25, 3.8, .55);
+      g.restore();
+    }
+    const face = g.createRadialGradient(fu - 6, fv - 7, 2, fu, fv, dr);
+    face.addColorStop(0, "#f4f6f8"); face.addColorStop(.45, "#b9c1cb"); face.addColorStop(.82, "#7d8794"); face.addColorStop(1, "#4a5260");
+    g.fillStyle = face; g.beginPath(); g.arc(fu, fv, dr, 0, Math.PI * 2); g.fill();
+    for (const k of [.93, .76, .57, .34]) {
+      g.lineWidth = .35; g.strokeStyle = "rgba(20,24,30,.38)"; g.beginPath(); g.arc(fu, fv, dr * k, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = "rgba(255,255,255,.28)"; g.beginPath(); g.arc(fu - .25, fv - .25, dr * k, Math.PI * .9, Math.PI * 1.6); g.stroke();
+    }
+    for (let i = 0; i < 3; i++) {           // the wheel
+      const a = (i / 3) * Math.PI * 2 - Math.PI / 2, ex = fu + Math.cos(a) * 9.5, ey = fv + Math.sin(a) * 9.5;
+      g.strokeStyle = "#2a2f38"; g.lineWidth = 1.9; g.beginPath(); g.moveTo(fu, fv); g.lineTo(ex, ey); g.stroke();
+      g.strokeStyle = "#eef1f4"; g.lineWidth = 1.1; g.beginPath(); g.moveTo(fu, fv); g.lineTo(ex, ey); g.stroke();
+      g.fillStyle = "#f7f8fa"; g.beginPath(); g.arc(ex, ey, 1.5, 0, Math.PI * 2); g.fill();
+    }
+    const hub = g.createRadialGradient(fu - 1, fv - 1, 0, fu, fv, 3); hub.addColorStop(0, "#ffffff"); hub.addColorStop(1, "#7d8794");
+    g.fillStyle = hub; g.beginPath(); g.arc(fu, fv, 3, 0, Math.PI * 2); g.fill();
+    const cu = fu + 9.5, cv = fv - 9.5;     // the combination dial
+    g.fillStyle = "#1d2129"; g.beginPath(); g.arc(cu, cv, 3.2, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#c9ced6"; g.lineWidth = .5; g.stroke();
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; g.beginPath(); g.moveTo(cu + Math.cos(a) * 2.2, cv + Math.sin(a) * 2.2); g.lineTo(cu + Math.cos(a) * 2.9, cv + Math.sin(a) * 2.9); g.stroke(); }
+    g.fillStyle = NEON.red; g.fillRect(cu - .25, cv - 3.2, .5, 1);
+    g.font = `700 3.1px ${DISPLAY}`; g.textAlign = "center";
+    g.fillStyle = "rgba(20,24,30,.5)"; g.fillText("AGENTE AMG", fu, fv + 15.5);
+    g.fillStyle = "rgba(255,255,255,.35)"; g.fillText("AGENTE AMG", fu - .2, fv + 15.3);
+    g.textAlign = "left";
+    g.restore();
+  }
+  // under the island: stalagmites rising out of the dark far below, and fog over them
+  function abyss(g) {
+    const pillars = [[20, 15, 118], [22.5, 18.5, 150], [15, 17.5, 132], [32, 14.5, 120], [8.5, 19.5, 104], [27, 20, 160], [34, 9, 140], [12, 21, 120]];
+    for (const [x, y, h] of pillars) {
+      const [bx, by] = QB(x, y, -170), [tx, ty] = QB(x, y, -170 + h), w = (7 + rnd(x * y) * 7) * BS;
+      const gr = g.createLinearGradient(0, ty, 0, by); gr.addColorStop(0, "#152036"); gr.addColorStop(.55, "#0a1120"); gr.addColorStop(1, "rgba(4,6,10,0)");
+      g.fillStyle = gr; g.beginPath(); g.moveTo(bx - w, by); g.lineTo(tx - w * .18, ty + 3 * BS); g.lineTo(tx, ty); g.lineTo(tx + w * .22, ty + 4 * BS); g.lineTo(bx + w, by); g.closePath(); g.fill();
+      g.strokeStyle = "rgba(127,180,255,.08)"; g.lineWidth = .6 * BS; g.beginPath(); g.moveTo(tx, ty); g.lineTo(bx - w, by); g.stroke();
+    }
+    g.save(); g.globalCompositeOperation = "lighter";
+    for (const [x, y, z, r, c, a] of [[16, 16, -50, 230, "#1d4f8f", .22], [4, 19, -60, 150, "#8a6a1d", .14], [27, 17, -60, 170, "#1d4f8f", .16], [16.5, 12, -40, 60, "#3fa9ff", .18], [22, 22, -120, 260, "#0f2d5a", .2]]) {
+      const [cx, cy] = QB(x, y, z), gr = g.createRadialGradient(cx, cy, 0, cx, cy, r * BS);
+      gr.addColorStop(0, c); gr.addColorStop(1, "rgba(0,0,0,0)"); g.globalAlpha = a; g.fillStyle = gr; g.fillRect(cx - r * BS, cy - r * BS, 2 * r * BS, 2 * r * BS);
+    }
+    g.restore();
   }
   // over the stands: a beam from the dark onto each car, and the glow of the cars' own lamps
   function beams(g) {
@@ -957,6 +1374,70 @@
     }
     g.globalAlpha = alpha; g.drawImage(s, SX(x - r), SY(y - r), 2 * r * S, 2 * r * S); g.globalAlpha = 1;
   }
+  // the vault's marquee: the text turned into LEDs once (each pixel of a 7 px line becomes a dot), scrolled along the wall
+  const ledCache = { text: "", c: null, w: 0 };
+  function ledStrip(text) {
+    if (ledCache.text === text) return ledCache;
+    const font = "700 7px Arial, sans-serif", m = document.createElement("canvas").getContext("2d");
+    m.font = font; const w = Math.ceil(m.measureText(text).width) + 2;
+    const src = document.createElement("canvas"); src.width = w; src.height = 7;
+    const s = src.getContext("2d", { willReadFrequently: true });
+    s.font = font; s.textBaseline = "top"; s.fillStyle = "#fff"; s.fillText(text, 1, 0);
+    const d = s.getImageData(0, 0, w, 7).data, K = 6, c = document.createElement("canvas"); c.width = w * K; c.height = 7 * K;
+    const q = c.getContext("2d");
+    for (let y = 0; y < 7; y++) for (let x = 0; x < w; x++) {
+      const on = d[(y * w + x) * 4 + 3] > 110;
+      q.fillStyle = on ? "#ffc35a" : "rgba(255,170,60,.07)";
+      q.beginPath(); q.arc(x * K + K / 2, y * K + K / 2, on ? K * .42 : K * .3, 0, Math.PI * 2); q.fill();
+    }
+    return Object.assign(ledCache, { text, c, w });
+  }
+  function marquee(g, vs) {
+    const text = `${t("Cofre da equipa")}  ·  ${t("{n} barras de ouro", { n: vs.total })}  ·  ${t("{n} esta semana", { n: vs.week })}  ·  ${t("{n} hoje", { n: vs.today })}  ·  ${t("Cada missão concluída é uma barra")}  ·  `;
+    const led = ledStrip(text.toUpperCase()), [sx, sy] = P(0, VAULT.y1, VAULT.z1);
+    g.save(); g.setTransform(S, -.5 * S, 0, S, SX(sx), SY(sy));
+    g.beginPath(); g.rect(4, 1, 86, 7); g.clip();
+    const off = (clock * 12) % led.w;
+    g.drawImage(led.c, 4 - off, 1, led.w, 7); g.drawImage(led.c, 4 - off + led.w, 1, led.w, 7);
+    g.restore();
+  }
+  // a star of light on a gold bar now and then
+  function glints(g, vs) {
+    if (!vs.total) return;
+    const n = Math.floor(clock * 1.3), a = 1 - ((clock * 1.3) % 1);
+    for (let i = 0; i < 2; i++) {
+      const k = n * 2 + i, onB = vs.total > 30 && rnd(k) > .5;
+      const [px, py] = P(onB ? 4.85 + (rnd(k + 1) - .5) * 1 : 2.5 + (rnd(k + 1) - .5) * 1.2, onB ? 13.7 : 12.5, 5 + rnd(k + 2) * 6);
+      const X = SX(px), Y = SY(py), r = 3.2 * S * a;
+      g.globalAlpha = a * .9; g.strokeStyle = "#fff6d0"; g.lineWidth = .5 * S;
+      g.beginPath(); g.moveTo(X - r, Y); g.lineTo(X + r, Y); g.moveTo(X, Y - r); g.lineTo(X, Y + r); g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+  // the searchlight: it follows its aim softly; when a mission comes in it swings to the office wall and turns gold
+  function beamGoal() {
+    if (clock - signal < 3.4) return [3.7, 0, 50];
+    const s = Math.sin(clock * .21) * .5 + .5;
+    return [7 + s * 23, 0, 56 + Math.sin(clock * .5) * 4];
+  }
+  function stepBeam(dt) {
+    const lit = clock - signal < 3.4, goal = beamGoal(), k = 1 - Math.exp(-dt * (lit ? 6 : 1.5));
+    LAMP.aim = LAMP.aim.map((v, i) => v + (goal[i] - v) * k);
+    LAMP.gold += ((lit ? 1 : 0) - LAMP.gold) * k;
+  }
+  function searchBeam(g) {
+    const [lx, ly] = P(LAMP.x, LAMP.y, 13), [tx, ty] = P(...LAMP.aim);
+    const X0 = SX(lx), Y0 = SY(ly), X1 = SX(tx), Y1 = SY(ty), len = Math.hypot(X1 - X0, Y1 - Y0) || 1;
+    const nx = -(Y1 - Y0) / len, ny = (X1 - X0) / len, w0 = 2.2 * S, w1 = 28 * S;
+    const c = LAMP.gold > .5 ? "255,226,140" : "195,218,255", a = .17 + LAMP.gold * .17;
+    const gr = g.createLinearGradient(X0, Y0, X1, Y1);
+    gr.addColorStop(0, `rgba(${c},${a.toFixed(3)})`); gr.addColorStop(.85, `rgba(${c},${(a * .3).toFixed(3)})`); gr.addColorStop(1, `rgba(${c},0)`);
+    g.fillStyle = gr; g.beginPath();
+    g.moveTo(X0 + nx * w0, Y0 + ny * w0); g.lineTo(X1 + nx * w1, Y1 + ny * w1); g.lineTo(X1 - nx * w1, Y1 - ny * w1); g.lineTo(X0 - nx * w0, Y0 - ny * w0);
+    g.closePath(); g.fill();
+    glow(g, tx, ty, 22, LAMP.gold > .5 ? "#ffe28c" : "#c3daff", a * 1.4);
+    glow(g, lx, ly, 7, "#ffffff", .55);
+  }
   const LIGHT = { work: NEON.cyan, start: NEON.cyan, wait: NEON.amber, help: NEON.red, pause: "#7d8590", done: NEON.green, fail: NEON.red };
   function lights(g) {
     g.globalCompositeOperation = "lighter";
@@ -981,7 +1462,23 @@
       if (on) { g.globalAlpha = .45; g.lineWidth = 1.2 * S; g.beginPath(); out.forEach(([x, y], i) => { const [px, py] = P(x, y, STAND.h); i ? g.lineTo(SX(px), SY(py)) : g.moveTo(SX(px), SY(py)); }); g.closePath(); g.stroke(); }
       g.globalAlpha = 1;
     });
-    // the bat-signal, thrown on the office wall when a mission comes in
+    // the vault: gold from the strongroom on the wall and the floor, the gold on the pallets, the marquee, a glint now and then
+    const vs = vaultStats(), hot = hoverVault || (panel && panel.kind === "vault"), dep = clock - vaultFlash;
+    const gold = .3 + Math.sin(clock * 1.7) * .05 + (dep < 1.4 ? .4 * (1 - dep / 1.4) : 0) + (hot ? .14 : 0);
+    glow(g, ...P(.2, 14.95, 27), 36, "#ffcf5a", gold);
+    glow(g, ...P(1.5, 14.6, 0), 30, "#ffb84d", gold * .5);
+    if (vs.total) glow(g, ...P(2.5, 12.55, 8), 20, "#ffcf5a", .14 + Math.min(.12, vs.total / 300));
+    if (vs.total > 30) glow(g, ...P(4.85, 13.75, 8), 18, "#ffcf5a", .14);
+    marquee(g, vs);
+    glints(g, vs);
+    for (const x of [.1, 6.9]) glow(g, ...P(x, GD, 12), 9, vaultOpen ? NEON.green : NEON.red, .45);
+    // the bar's light under its lip and its lamps; the river glowing from below; the lookout's beacons and its searchlight
+    for (const x of BAR.lamps) { glow(g, ...P(x, 11.9, 2), 13, NEON.amber, .2); glow(g, ...P(x, 11.45, 33), 16, "#ffe2a8", .3); }
+    for (let y = 1; y < GD; y += 2) glow(g, ...P(16.5, y, -3), 12, "#3fa9ff", .1 + Math.sin(clock * 2 + y) * .025);
+    glow(g, ...P(16.5, GD, -38), 24, "#9fd8ff", .15);
+    BEACONS.forEach(([x, y], i) => { if (Math.floor(clock * 1.4 + i * .5) % 2) glow(g, ...P(x, y, 1), 6, NEON.red, .75); });
+    searchBeam(g);
+    // the bat-signal, thrown on the office wall by the searchlight when a mission comes in
     const since = clock - signal;
     if (since < 3.4) {
       const a = Math.min(1, since / .35) * Math.min(1, (3.4 - since) / .8) * (Math.floor(since * 14) % 7 === 0 ? .6 : 1);
@@ -991,10 +1488,6 @@
       const gr = g.createRadialGradient(34, 8, 0, 34, 8, 30); gr.addColorStop(0, "rgba(255,240,170,.85)"); gr.addColorStop(.7, "rgba(255,220,110,.45)"); gr.addColorStop(1, "rgba(255,210,80,0)");
       g.fillStyle = gr; g.beginPath(); g.ellipse(34, 8, 30, 15, 0, 0, Math.PI * 2); batPath(g, 34, 8.5, 22, 20, true); g.fill("evenodd");
       g.restore();
-      const [ox, oy] = P(.4, 5, 30), [tx, ty] = P(3.7, 0, 50);
-      g.save(); g.globalAlpha = a * .5; const bgr = g.createLinearGradient(SX(ox), SY(oy), SX(tx), SY(ty));
-      bgr.addColorStop(0, "rgba(255,230,140,0)"); bgr.addColorStop(1, "rgba(255,230,140,.35)"); g.fillStyle = bgr;
-      g.beginPath(); g.moveTo(SX(ox), SY(oy)); g.lineTo(SX(tx) - 30 * S, SY(ty) - 6 * S); g.lineTo(SX(tx) + 30 * S, SY(ty) + 20 * S); g.closePath(); g.fill(); g.restore();
     }
     for (const a of agents) {
       if (!a.head) continue;
@@ -1149,19 +1642,67 @@
       c.plate = { x: bx, y: by, w, h };
       placed.push(c.plate);
     }
+    const vs = vaultStats(), [vx, vy] = P(1.6, 17.2, -24);
+    vaultPlate = plateAt(g, SX(vx), SY(vy), t("Agente AMG"), t("Cofre"), t("{n} barras · {w} esta semana", { n: vs.total, w: vs.week }), hoverVault || (panel && panel.kind === "vault"));
+    if (vaultPlate) placed.push(vaultPlate);
+  }
+  // a plate hanging under a point (x, y on the big canvas): small capitals, a name, a gold line
+  function plateAt(g, x, y, maker, name, line, on) {
+    const k = dpr * LS, accent = "#ffcf5a";
+    if (x < -140 * k || x > cv.width + 140 * k || y < -40 * k || y > cv.height + 40 * k) return null;
+    g.font = `700 ${11 * k}px ${DISPLAY}`; const nw = g.measureText(name).width;
+    g.font = `700 ${7.5 * k}px ${FONT}`; const mw = g.measureText(maker.toUpperCase()).width;
+    g.font = `500 ${9 * k}px ${FONT}`; const lw = g.measureText(line).width;
+    const w = Math.ceil(Math.max(nw, mw + 8 * k, lw) + 26 * k), h = Math.round(46 * k), bx = Math.round(x - w / 2), by = Math.round(y + 4 * k);
+    g.save(); g.shadowColor = accent; g.shadowBlur = (on ? 18 : 8) * k;
+    rr(g, bx, by, w, h, 8 * k); g.fillStyle = "rgba(10,8,4,.92)"; g.fill(); g.restore();
+    const edge = g.createLinearGradient(bx, by, bx + w, by);
+    edge.addColorStop(0, "rgba(255,207,90,.1)"); edge.addColorStop(.5, "rgba(255,226,150,.7)"); edge.addColorStop(1, "rgba(255,207,90,.1)");
+    rr(g, bx, by, w, h, 8 * k); g.strokeStyle = edge; g.lineWidth = k; g.stroke();
+    g.fillStyle = accent; g.fillRect(bx + 12 * k, by + 7 * k, 3 * k, 8 * k);
+    g.textBaseline = "alphabetic";
+    g.font = `700 ${7.5 * k}px ${FONT}`; g.fillStyle = "#b9a46a"; g.fillText(maker.toUpperCase(), bx + 19 * k, by + 14 * k);
+    g.font = `700 ${11 * k}px ${DISPLAY}`; g.fillStyle = "#ffffff"; g.fillText(name, bx + 12 * k, by + 28 * k);
+    g.font = `500 ${9 * k}px ${FONT}`; g.fillStyle = accent; g.fillText(line, bx + 12 * k, by + 40 * k);
+    return { x: bx, y: by, w, h };
   }
 
   // ================================================================ one frame
   const FURN = [];
   const furn = (x, y, draw) => FURN.push({ k: x + y + 1, x, draw });
   DESKS.forEach((d) => { furn(d.x, d.y, (g) => desk(g, d)); furn(d.x, d.y + 1, (g) => chair(g, d)); });
-  SOFA.forEach((y) => furn(0, y, (g) => sofa(g, y)));
+  // what never changes is drawn once into its own picture (the area: x0, y0, x1, y1 on the floor and how high it goes)
+  const still = (key, area, paint) => (g) => cachedDraw(g, key, area, paint);
+  SOFA.forEach((y) => furn(0, y, still("sofa" + y, [0, y, 1, y + 1, 22], (q) => sofa(q, y))));
   CHAIRS.forEach(([x, y]) => furn(x, y, (g) => armchair(g, x, y)));
-  ROCKS.forEach(([x, y]) => furn(x, y, (g) => rock(g, x, y)));
-  furn(2, 0, suitCase); furn(4, 0, coffee); furn(5, 0, penny); furn(1, 1, bag); furn(2, 5, table); furn(6, 0, rack);
+  ROCKS.forEach(([x, y]) => furn(x, y, still(`rock${x},${y}`, [x, y, x + 1, y + 1, 38], (q) => rock(q, x, y))));
+  furn(2, 0, still("suit", [2, 0, 3, 1, 42], suitCase)); furn(4, 0, coffee); furn(5, 0, still("penny", [5, 0, 6, 1, 40], penny));
+  furn(1, 1, bag); furn(2, 5, still("chess", [2, 5, 3, 6, 12], table)); furn(6, 0, rack);
+  // the wings: k is the x + y of the point that decides what covers what (a wide piece is cut in slices, one per tile)
+  const item = (k, x, draw) => FURN.push({ k, x, draw });
+  item(15.95, 2.5, (g) => { const n = Math.min(30, vaultStats().total); cachedDraw(g, "goldA" + n, [1.6, 12.05, 3.4, 13.05, 16], (q) => goldPile(q, 2.5, 12.55, n)); });
+  item(19.5, 4.85, (g) => { const n = clamp(vaultStats().total - 30, 0, 30); cachedDraw(g, "goldB" + n, [3.95, 13.25, 5.75, 14.25, 16], (q) => goldPile(q, 4.85, 13.75, n)); });
+  item(18.3, 2.4, (g) => { const n = Math.min(24, vaultStats().week); cachedDraw(g, "cash" + n, [1.55, 14.5, 3.25, 15.5, 14], (q) => cashPile(q, 2.4, 15, n)); });
+  item(18, 5.9, counter);
+  for (let x = 0; x < 7; x++) item(x + .5 + GD + .02, x + .5, (g) => laser(g, x));
+  for (let i = 0; i < 5; i++) { const x0 = i ? 9 + i : BAR.x0, x1 = i === 4 ? BAR.x1 : 10 + i; item((x0 + x1) / 2 + 11.5, (x0 + x1) / 2, still("bar" + i, [x0 - .1, 11, x1 + .1, 11.9, 134], (q) => barSlice(q, x0, x1))); }
+  item(25.5, 11.5, still("champagne", [11, 13, 12, 14, 24], cocktailTable));
+  item(41.5, 27.5, searchlight);
+  item(37.7, 25.6, telescope);
+  for (const [, y1] of BRIDGES) item(16.5 + y1 + .3, 16.5, (g) => bridgeRail(g, y1));
+  for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) {
+    const c = tile(x, y), r = RAIL[c];
+    if (!r) continue;
+    const add = (a, b) => item((a[0] + b[0]) / 2 + (a[1] + b[1]) / 2 + .02, (a[0] + b[0]) / 2,
+      still(`pane${a},${b}`, [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1]), 11], (q) => pane(q, a, b, c === "p" ? 6 : 9, r[0], r[1])));
+    if (!solid(x, y + 1)) add([x, y + 1], [x + 1, y + 1]);
+    if (!solid(x + 1, y)) add([x + 1, y], [x + 1, y + 1]);
+    if (x > 0 && !solid(x - 1, y)) add([x, y], [x, y + 1]);
+    if (y > 0 && !solid(x, y - 1)) add([x, y], [x + 1, y]);
+  }
 
   function drawAgent(g, a) {
-    const [fx, fy] = P(a.x, a.y);
+    const [fx, fy] = P(a.x, a.y, tile(Math.floor(a.x), Math.floor(a.y)) === "b" ? 2 : 0);   // on the bridge they walk on its deck
     let pose = a.path.length && !a.wait ? "walk" : a.pose, dir = a.dir;
     let seat = 0;
     if (a.seated) {
@@ -1197,6 +1738,9 @@
     g.imageSmoothingEnabled = false;
     batcomputer(g); g.setTransform(WS, 0, 0, WS, 0, 0);
     waterfall(g); g.setTransform(WS, 0, 0, WS, 0, 0);
+    mouthFall(g); g.setTransform(WS, 0, 0, WS, 0, 0);
+    riverFlow(g);
+    vaultOpen = agents.some((a) => a.x < 7.6 && Math.abs(a.y - GD) < 1.3);
     const items = FURN.slice();
     for (const a of agents) if (!a.seated && !(a.chairAt && !a.path.length)) items.push({ k: a.x + a.y, x: a.x + .01, draw: () => drawAgent(g, a) });
     items.sort((p, q) => p.k - q.k || p.x - q.x);
@@ -1234,10 +1778,11 @@
     const dt = last ? Math.min(.25, (now - last) / 1000) : 0;
     last = now; clock += dt;
     stepCamera(dt);
+    stepBeam(dt);
     for (const a of agents) step(a, dt);
     tickParticles(dt);
     if (bg) draw();
-    const busy = camAnim.to || agents.some((a) => a.path.length || a.hop > 0) || particles.some((p) => p.grav) || clock - signal < 3.4;
+    const busy = camAnim.to || agents.some((a) => a.path.length || a.hop > 0) || particles.some((p) => p.grav || p.kind === "coin") || clock - signal < 3.4;
     timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(frame); }, busy ? 1000 / 26 : 1000 / 12);
   }
   function wake() {
@@ -1292,10 +1837,27 @@
       const p = c.plate; if (p && mx >= p.x && mx <= p.x + p.w && my >= p.y && my <= p.y + p.h) return { car: c };
       const b = c.bounds; if (b && mx >= SX(b[0]) && mx <= SX(b[2]) && my >= SY(b[1]) && my <= SY(b[3])) return { car: c };
     }
+    const vp = vaultPlate;
+    if ((vp && mx >= vp.x && mx <= vp.x + vp.w && my >= vp.y && my <= vp.y + vp.h) || inVault(mx, my)) return { vault: true };
     return {};
+  }
+  // a point of the canvas on the vault: its floor (looked at a little above, where the gold is) or its wall
+  function inVault(mx, my) {
+    const sx = mx / S + cam.x, sy = my / S + cam.y, wy = (OX - sx) / 16, wz = OY + 8 * wy - sy;
+    if (wy >= GD && wy <= D && wz >= 0 && wz <= WALL) return true;
+    for (const h of [0, 8, 16]) {
+      const u = (sx - OX) / 16, v = (sy + h - OY) / 8;
+      if (tile(Math.floor((u + v) / 2), Math.floor((v - u) / 2)) === "v") return true;
+    }
+    return false;
   }
   const row = (label, value) => `<div><dt>${esc(t(label))}</dt><dd>${esc(value)}</dd></div>`;
   function tipHtml(hit) {
+    if (hit.vault) {
+      const vs = vaultStats();
+      return `<div class="cr-tip-h"><div><span>${esc(t("Agente AMG"))}</span><b>${esc(t("Cofre"))}</b></div></div>
+        <p class="cr-tip-idle"><i style="--c:#ffcf5a"></i>${esc(t("{n} barras de ouro · {w} esta semana", { n: vs.total, w: vs.week }))}</p><small>${esc(t("Clica para abrir o cofre"))}</small>`;
+    }
     if (hit.car) {
       const c = hit.car;
       return `<div class="cr-tip-h"><div><span>${esc(c.maker)}</span><b>${esc(c.name)}</b></div></div>
@@ -1321,8 +1883,8 @@
         return;
       }
     }
-    const hit = hitTest(e), tip = $("cr-tip"), target = hit.agent || hit.car || null;
-    hovered = hit.agent || null; hoverCar = hit.car || null;
+    const hit = hitTest(e), tip = $("cr-tip"), target = hit.agent || hit.car || hit.vault || null;
+    hovered = hit.agent || null; hoverCar = hit.car || null; hoverVault = !!hit.vault;
     stage.classList.toggle("point", !!target);
     if (!target) { tip.hidden = true; return; }
     tip.innerHTML = tipHtml(hit); tip.hidden = false;
@@ -1344,6 +1906,7 @@
     const hit = hitTest(e);
     if (hit.agent) openPanel({ kind: "agent", ref: hit.agent });
     else if (hit.car) openPanel({ kind: "car", ref: hit.car });
+    else if (hit.vault) openPanel({ kind: "vault", ref: "vault" });
     else closePanel();
   }
   function onKey(e) { if (e.key === "Escape" && panel) closePanel(); }
@@ -1424,6 +1987,44 @@
       <footer class="cp-foot">${j.href ? `<button class="btn primary" data-href="${esc(j.href)}">${icon("arrow")}${esc(t(j.type === "task" ? "Abrir a tarefa" : "Ver no Escritório"))}</button>` : ""}
         ${ctl.map(([act, label, ic]) => `<button class="btn ${act === "stop" ? "danger" : ""}" data-control="${act}">${icon(ic)}${esc(t(label))}</button>`).join("")}</footer>`;
   }
+  // the vault, opened: the missions as gold, who filled it most, the shop's sales and what the AI cost
+  let vaultExtra = null, vaultExtraAt = 0;
+  function fetchVaultExtra() {
+    if (Date.now() - vaultExtraAt < 60e3) return;
+    vaultExtraAt = Date.now();
+    Promise.all([api("/api/store/summary").catch(() => null), api("/api/usage/summary").catch(() => null)])
+      .then(([store, usage]) => { vaultExtra = { store, usage }; if (panel && panel.kind === "vault") refreshPanel(false); });
+  }
+  const money = (n, cur) => { try { return new Intl.NumberFormat("pt-PT", { style: "currency", currency: cur || "EUR", maximumFractionDigits: 0 }).format(n || 0); } catch { return `${Math.round(n || 0)} ${cur || "EUR"}`; } };
+  const INGOT = `<svg class="cp-ingot" viewBox="0 0 64 40" aria-hidden="true"><defs><linearGradient id="cp-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3c4"/>
+    <stop offset=".45" stop-color="#ffcf5a"/><stop offset=".56" stop-color="#c9922a"/><stop offset="1" stop-color="#ffe29a"/></linearGradient></defs>
+    <path d="M14 6h36l12 28H2z" fill="url(#cp-gold)" stroke="#7a5212" stroke-width="1.4"/><path d="M14 6h36l-4 9H18z" fill="#fff6d6" opacity=".5"/>
+    <text x="32" y="29" text-anchor="middle" font-size="7" font-weight="700" fill="#7a5212" letter-spacing="1">999.9</text></svg>`;
+  function vaultPanel() {
+    const vs = vaultStats(), people = {};
+    for (const x of vs.done) { const who = nameOf(x.completed_by || x.assignee); people[who] = (people[who] || 0) + 1; }
+    const top = Object.entries(people).sort((p, q) => q[1] - p[1]), max = top.length ? top[0][1] : 1;
+    const crewTop = agents.map((a) => [a, vs.done.filter((x) => x.crew === a.id).length]).filter(([, n]) => n).sort((p, q) => q[1] - p[1]);
+    const shop = vaultExtra && vaultExtra.store && vaultExtra.store.shopify, usage = vaultExtra && vaultExtra.usage, live = shop && shop.source === "live";
+    const busy = agents.filter((a) => a.job && a.mode !== "done").length;
+    return `<header class="cp-head car" style="--c:#ffcf5a">
+        <div class="cp-id"><small>${esc(t("Agente AMG · Batcave"))}</small><h3>${esc(t("Cofre"))}</h3>
+          <span class="cp-state" style="--s:#ffcf5a"><i></i>${esc(t(vs.total === 1 ? "1 barra de ouro" : "{n} barras de ouro", { n: vs.total }))}</span></div>
+        <button class="cp-x" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>${stripes()}
+      <div class="cp-vault">${INGOT}<div><b>${vs.total}</b><span>${esc(t("Missões concluídas, desde sempre"))}</span></div></div>
+      <section class="cp-specs">${[["Hoje", vs.today], ["Esta semana", vs.week], ["Este mês", vs.month], ["Em missão agora", busy]]
+        .map(([k, v]) => `<div><small>${esc(t(k))}</small><b>${v}</b></div>`).join("")}</section>
+      <section class="cp-sec"><small class="cp-k">${esc(t("Quem mais encheu o cofre"))}</small>${top.length
+        ? top.slice(0, 5).map(([who, n]) => `<div class="cp-who"><b>${esc(who)}</b><span class="cp-who-bar"><i style="width:${Math.max(4, (n / max) * 100).toFixed(0)}%"></i></span><em>${n}</em></div>`).join("")
+        : `<p class="cp-empty">${esc(t("Ainda vazio. A primeira missão concluída deposita a primeira barra."))}</p>`}
+        ${crewTop.length ? `<div class="cp-crewtop">${crewTop.slice(0, 4).map(([a, n]) => `<span style="--c:${a.color}"><img class="cr-px" src="${a.portrait}" alt="">${esc(a.name)}<b>${n}</b></span>`).join("")}</div>` : ""}</section>
+      <section class="cp-sec"><small class="cp-k">${esc(t("Loja BareDesk"))}</small>${live
+        ? `<div class="cp-money">${[["Hoje", shop.today], ["7 dias", shop.week], ["30 dias", shop.month]].map(([k, w]) => `<div><small>${esc(t(k))}</small><b>${esc(money(w && w.revenue, shop.currency))}</b><span>${esc(t(w && w.orders === 1 ? "1 encomenda" : "{n} encomendas", { n: (w && w.orders) || 0 }))}</span></div>`).join("")}</div>`
+        : `<p class="cp-bio">${esc(t(vaultExtra ? "A Shopify ainda não está ligada ao Hub. Quando estiver, as vendas da loja entram aqui ao lado do ouro." : "A ler a loja…"))}</p>`}</section>
+      <section class="cp-sec"><small class="cp-k">${esc(t("O que a IA custou · 7 dias"))}</small>
+        <p class="cp-bio">${usage && usage.cost_usd != null ? `<b class="cp-cost">≈ $${usage.cost_usd.toFixed(2)}</b> ${esc(t("em {n} sessões (estimativa do SDK, não é fatura)", { n: usage.runs }))}` : esc(t(vaultExtra ? "Sem uso de IA registado nos últimos 7 dias." : "A ler…"))}</p></section>
+      <div class="cp-mind">${icon("bolt")}<div><b>${esc(t("Cada missão concluída é uma barra de ouro"))}</b><span>${esc(t("As notas no carrinho são as desta semana. Quando um agente acaba uma missão, as moedas voam para o cofre."))}</span></div></div>`;
+  }
   function carPanel(c) {
     return `<header class="cp-head car" style="--c:${c.accent}">
         <div class="cp-id"><small>${esc(c.maker)}</small><h3>${esc(c.name)}</h3><span class="cp-state" style="--s:${c.project ? NEON.green : "#9aa2ab"}"><i></i>${esc(c.project || t("Projeto por atribuir"))}</span></div>
@@ -1452,7 +2053,7 @@
     }
     const keep = el.querySelector(".cp-send input");
     const typed = keep ? keep.value : "", focused = keep && document.activeElement === keep;
-    paint(el, `<div class="cp-in">${panel.kind === "car" ? carPanel(panel.ref) : agentPanel(panel.ref)}</div>`);
+    paint(el, `<div class="cp-in">${panel.kind === "car" ? carPanel(panel.ref) : panel.kind === "vault" ? vaultPanel() : agentPanel(panel.ref)}</div>`);
     const input = el.querySelector(".cp-send input");
     if (input && typed) input.value = typed;
     if (input && focused) input.focus();
@@ -1463,6 +2064,7 @@
     el.hidden = false; requestAnimationFrame(() => el.classList.add("open"));
     $("cr-tip").hidden = true;
     refreshPanel(true);
+    if (p.kind === "vault") fetchVaultExtra();
     if (!memoryNotes) api("/api/memory").then((m) => { memoryNotes = m; refreshPanel(false); }).catch(() => {});
     clearInterval(panelTimer);
     panelTimer = setInterval(() => { document.querySelectorAll("#cr-panel [data-elapsed]").forEach((b) => (b.textContent = elapsed(b.dataset.elapsed))); }, 1000);
@@ -1553,6 +2155,7 @@
     firstLoad = false;
     paintLists();
     if (panel && panel.kind === "agent" && panel.ref.job && panel.ref.job.type === "task") refreshPanel(true);
+    if (panel && panel.kind === "vault") refreshPanel(false);
   }
 
   async function sendTask(title, crewId, button) {
@@ -1607,7 +2210,7 @@
     stage.onpointermove = onMove;
     stage.onpointerdown = onDown;
     stage.onpointerup = onUp;
-    stage.onpointerleave = () => { if (!drag) { $("cr-tip").hidden = true; hovered = null; hoverCar = null; stage.classList.remove("point"); } };
+    stage.onpointerleave = () => { if (!drag) { $("cr-tip").hidden = true; hovered = null; hoverCar = null; hoverVault = false; stage.classList.remove("point"); } };
     stage.querySelector(".cr-views").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) goView(b.dataset.view); };
     const el = $("cr-panel");
     el.onclick = panelClick; el.onsubmit = panelSubmit;
@@ -1629,7 +2232,7 @@
     await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/crew-cars.js")]);
     const users = me.lead ? await api("/api/users").catch(() => []) : [];
     if (!agents.length) { agents = CREW.map(makeAgent); agents.forEach(placeIdle); }
-    page(`${ui.head("Agentes", "My Niggaz", t("A Batcave da equipa. Cada agente é a sua própria conversa do Claude, com a Memória da equipa desbloqueada. Manda uma missão a um deles e vê-o ir para o computador; clica nele para ver a missão. Ao lado, o stand: cada carro vai representar um projeto."))}
+    page(`${ui.head("Agentes", "My Niggaz", t("A Batcave da equipa. Cada agente é a sua própria conversa do Claude, com a Memória da equipa desbloqueada. Manda uma missão a um deles e vê-o ir para o computador; clica nele para ver a missão. Ao lado, o stand: cada carro vai representar um projeto. No cofre, cada missão concluída é uma barra de ouro."))}
       <form class="cr-send" id="cr-send" autocomplete="off">
         <label class="cr-in">${icon("bolt")}<input id="cr-title" maxlength="200" placeholder="${esc(t("Qual é a missão?"))}"></label>
         <div class="cr-pick" role="radiogroup" aria-label="${esc(t("Quem faz"))}">
@@ -1641,7 +2244,7 @@
       <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>
         <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>
         <div class="cr-crew" id="cr-crew"></div>
-        <div class="cr-views" role="tablist">${[["office", "Escritório"], ["garage", "Stand"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
+        <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
         <div class="cr-tip" id="cr-tip" hidden></div>
         <aside class="cr-panel" id="cr-panel" hidden></aside></section>
       <div class="cr-lists">

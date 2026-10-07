@@ -84,6 +84,34 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
 - **A empresa de agentes:** o rumo do Agente AMG está em `docs/empresa-amg.md` (visão de Deus, departamentos, fases 2D → controlo → 3D). Lê-o antes de construir algo grande.
 - **Regras de peso:** o Hub guarda o estado e não cada passo; o widget só mostra resumos e só anima quando algo muda; cada secção da central carrega só quando se entra nela. Limites parados: widget e Hub abaixo de 1% de CPU, central aberta abaixo de 3%. Mede antes do push: se pesar, não entra.
 
+### A My Niggaz (a Batcave)
+
+A página `#/niggaz`: a equipa de agentes em pixel art isométrica, com escritório e stand de carros. Quatro ficheiros, cada um com a sua parte:
+
+- `frontend/hub/crew.js`: o motor. O mundo, a câmara (Escritório · Stand · Tudo, ou arrastar), os agentes a andar e a trabalhar, as
+  missões (lê `/api/tasks` e `/api/office`, cria com `POST /api/tasks` e `crew`), o painel de missão AMG, os rótulos e as placas.
+- `frontend/hub/crew-people.js`: as personagens, com o dobro do detalhe da cave, luz, sombra e contorno. Cada imagem de uma pose
+  desenha-se uma vez e fica guardada (`sprite`, `portrait`).
+- `frontend/hub/crew-cars.js`: os carros em 3D (G 63, 911 GT3 RS, Aventador SVJ, SF90). Carroçaria feita de secções ao longo do
+  carro a partir de números tirados do carro verdadeiro (`MODELS`), mais os pormenores de cada um (`DETAILS`); desenham-se uma vez
+  por tamanho para dentro do fundo.
+- `backend/app/crew.py`: as personagens do lado do Hub (papel, personalidade), o briefing que o agente lê e as notas TAREFAS.
+
+Coisas que custaram tempo e não se devem repetir:
+
+- **O fundo fica sempre por baixo.** A cave, os stands e os carros estão no fundo (estático); a mobília do escritório e os agentes
+  estão na camada que mexe, por cima. Por isso nada do escritório pode ficar, no ecrã, por cima de um carro (o armário de servidores
+  estava em x=16 e aparecia à frente do G 63: passou para x=6). Pela mesma razão os agentes só vão ver os carros da fila da frente.
+- **A camada que mexe é desenhada a dobrar** (`WS = 2`). Desenhar numa parede é com `onBackWall`/`onLeftWall`, que respeitam a
+  escala do canvas (`g.k`); um `setTransform` à mão perde-a.
+- **Um carro novo**: modelo em `MODELS` e `DETAILS` no `crew-cars.js`, e o lugar num stand em `CARS` no `crew.js` (com `project`).
+  Os pormenores da frente e da traseira têm de caber na largura da ponta do carro, que é mais estreita do que o carro (`plan`).
+- **Uma personagem nova**: `CREW` no `crew.py` e no `crew.js`; o fato é o `look` (o que cada campo faz está no `crew-people.js`).
+- **Testar no painel do browser**: escondido, o browser não corre `requestAnimationFrame` nem o `ResizeObserver`, por isso a página
+  fica parada. Para testar, juntar um gancho temporário no fim do `crew.js` (`window.__crew = { tick, resize, goView, ... }` com
+  `// DEBUG` no fim da linha) e tirá-lo antes do commit. Os screenshots desse painel às vezes chegam um passo atrasados: tirar dois.
+- **Peso**: ~2,3 ms por imagem a 1600 px; o fundo com os carros ~130 ms, só ao abrir e ao mudar de tamanho (espera 160 ms).
+
 ### Testar uma mudança no Hub
 
 1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".

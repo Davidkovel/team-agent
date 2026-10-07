@@ -42,6 +42,15 @@ def one_line(text, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def _request(prompt) -> str:
+    """The start of what was asked, as a person would say it: a message from another Claude session is named as such,
+    and tags that Claude Code wraps around things are taken out."""
+    text = str(prompt or "")
+    if text.lstrip().startswith("<cross-session-message"):
+        return "(mensagem de outra sessão do Claude)"
+    return one_line(re.sub(r"<[^>]{1,200}>", " ", text), 160)
+
+
 def _file(inp: dict, *keys) -> str:
     for key in keys:
         if inp.get(key):
@@ -164,7 +173,7 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
     elif event == "UserPromptSubmit":
         _status(row, "working", when)
         row.since = when  # a new request starts the clock again
-        row.prompt, row.action = one_line(body.get("prompt"), 160), "a pensar"
+        row.prompt, row.action = _request(body.get("prompt")), "a pensar"
     elif event == "PreToolUse":
         _status(row, "waiting" if tool == "AskUserQuestion" else "working", when)
         row.action = describe(tool, inp)

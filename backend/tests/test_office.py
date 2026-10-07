@@ -150,3 +150,11 @@ def test_tokens_and_model_come_from_the_transcripts(client, tmp_path):
     assert w["agents"][0]["tokens"] == 120 and w["agents"][0]["model"] == "claude-haiku-4-5"
     step(client, "Stop", session="s6", transcript_path="C:\Windows\win.ini")  # never anything but Claude Code's own files
     assert window(client, owner, "s6")["tokens"] == 150
+
+
+def test_a_message_from_another_claude_session_is_not_shown_as_a_request(client):
+    owner = login(client, "owner")
+    step(client, "UserPromptSubmit", session="s7", prompt='<cross-session-message from="uds:pipe" from-name="marco-6a">Olá</cross-session-message>')
+    assert window(client, owner, "s7")["prompt"] == "(mensagem de outra sessão do Claude)"
+    step(client, "UserPromptSubmit", session="s7", prompt="<command-name>/effort</command-name> Faz o push")
+    assert window(client, owner, "s7")["prompt"] == "/effort Faz o push"

@@ -17,6 +17,8 @@ if ($LASTEXITCODE -ne 0) { Write-Host "O pip falhou; ve o erro acima." -Foregrou
 if (-not (Get-NetFirewallRule -DisplayName "Agente AMG Hub" -ErrorAction SilentlyContinue)) {
     New-NetFirewallRule -DisplayName "Agente AMG Hub" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -RemoteAddress 26.0.0.0/8 -ErrorAction SilentlyContinue | Out-Null
 }
+# o atalho no ambiente de trabalho e no menu Iniciar, para abrir como uma app da proxima vez
+& (Join-Path $PSScriptRoot "atalho.ps1")
 # um widget antigo ficaria com o codigo de antes do git pull
 Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "-m team_widget" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Process (Join-Path $venv "Scripts\pythonw.exe") -ArgumentList "-m", "team_widget" -WorkingDirectory (Join-Path $repo "widget")

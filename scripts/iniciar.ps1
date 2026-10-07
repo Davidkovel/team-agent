@@ -20,6 +20,10 @@ if (-not (Get-NetFirewallRule -DisplayName "Agente AMG Hub" -ErrorAction Silentl
 # o atalho no ambiente de trabalho e no menu Iniciar, para abrir como uma app da proxima vez
 & (Join-Path $PSScriptRoot "atalho.ps1")
 # um widget antigo ficaria com o codigo de antes do git pull
-Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "-m team_widget" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+$old = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "-m team_widget" -and $_.Name -match "^pythonw?\.exe$" })
+$old | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+# esperar que o antigo feche mesmo: um widget a meio de morrer ainda responde ao novo, que lhe passa a vez e sai,
+# e a seguir o antigo morre e nao fica nenhum (7 out, 14:15)
+if ($old) { Wait-Process -Id $old.ProcessId -Timeout 10 -ErrorAction SilentlyContinue }
 Start-Process (Join-Path $venv "Scripts\pythonw.exe") -ArgumentList "-m", "team_widget" -WorkingDirectory (Join-Path $repo "widget")
 Write-Host "Agente AMG aberto." -ForegroundColor Green

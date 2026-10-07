@@ -82,9 +82,16 @@ com o ecrã. A arquitetura acima (um registo, secções independentes) deixa faz
   (`GET /api/agent/tasks/{id}/briefing`): quem é, a Memória, as empresas e os projetos, o trabalho aberto, o que a equipa
   acabou e o que ela própria fez. **Cada tarefa acabada pelo agente deixa uma nota na Memória** (categoria TAREFAS), por isso
   todos sabem tudo a partir da tarefa seguinte; o pedido de cada tarefa leva só as 15 mais recentes dessas notas.
-- **A garagem**: quatro carros em pratos giratórios (Mercedes-AMG G 63, Porsche 911 GT3 RS, Lamborghini Aventador SVJ,
-  Ferrari SF90 Stradale), com placa e painel próprio. **Cada carro vai representar um projeto**: por agora estão todos
-  «por atribuir» (`CARS[].project` no `crew.js`).
+- **O stand (a garagem)**: quatro carros modelados em 3D (`frontend/hub/crew-cars.js`) com as medidas dos verdadeiros:
+  Mercedes-AMG G 63, Porsche 911 GT3 RS (asa pescoço-de-cisne, barra de luz), Lamborghini Aventador SVJ e Ferrari SF90
+  Stradale. Cada carroçaria é feita de secções ao longo do carro (vidros, pilares, cavas das rodas, jantes com raios,
+  pinças, faróis, grelhas, espelhos) e pintada com reflexos de estúdio e verniz. Estão em stands pretos espelhados com LED,
+  o morcego à frente e cordões nos da frente; desenham-se uma vez por tamanho (~130 ms). **Cada carro vai representar um
+  projeto**: por agora estão «por atribuir» (`CARS[].project` no `crew.js`).
+- **As personagens** têm o dobro do detalhe da cave, com luz, sombra e contorno (`frontend/hub/crew-people.js`); cada
+  imagem desenha-se uma vez e fica guardada. Quando entra uma missão, o **bat-sinal** acende na parede do escritório; o
+  Batcomputador mostra as missões a decorrer; os livres às vezes vão ao stand ver os carros; na equipa, cada um mostra as
+  missões que já fez. Peso medido a 7 out: ~2,3 ms por imagem.
 - **Secções carregadas só ao abrir**: `lazyView(id, ficheiro.js, ficheiro.css)` em `frontend/hub/ui.js`.
 - **5 agentes partilhados** em `.claude/agents/` e as regras de modelos e budget no `CLAUDE.md`.
 

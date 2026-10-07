@@ -58,6 +58,37 @@ function shFunnel(a) {
       <span>${t("Valor das compras")} <b>${a.purchase_value == null ? "—" : shMoney(a.purchase_value, "EUR")}</b></span></div></section>`;
 }
 
+// How the ads were delivered and what a click cost: eight small figures in a row, each with what it means under it.
+function shAds(a) {
+  const buy = a.purchases && a.clicks ? a.purchases / a.clicks * 100 : null;
+  const cells = [
+    ["Impressões", shInt(a.impressions), "vezes que o anúncio apareceu"],
+    ["Alcance", shInt(a.reach), "pessoas diferentes que o viram"],
+    ["Frequência", a.frequency == null ? "—" : a.frequency.toFixed(2).replace(".", ",") + "×", "vezes por pessoa; acima de 3 cansa"],
+    ["CPM", shMoney(a.cpm, "EUR"), "custo de mil impressões"],
+    ["Cliques", shInt(a.clicks), "cliques na ligação para a loja"],
+    ["CTR", a.ctr == null ? "—" : shPct(a.ctr), "cliques por impressão; bom acima de 1%"],
+    ["CPC", shMoney(a.cpc, "EUR"), "custo de cada clique"],
+    ["Compra por clique", buy == null ? "—" : shPct(buy), "cliques que acabam em compra"],
+  ];
+  return `<section class="panel pad">${shHead("Anúncios · entrega e cliques", "Meta Ads")}
+    <div class="bd-stats">${cells.map(([label, value, hint]) => `<div><span class="bd-l">${t(label)}</span><b class="mono">${value}</b><small>${t(hint)}</small></div>`).join("")}</div></section>`;
+}
+
+// Campaign by campaign, the one that spends most first: where the money goes and what it brings back.
+function shCampaigns(a) {
+  const rows = a.campaigns || [];
+  if (!rows.length) return `<section class="panel pad">${shHead("Campanhas")}<p class="faint bd-none">${t("Nenhuma campanha gastou neste período.")}</p></section>`;
+  const top = Math.max(...rows.map((c) => c.spend));
+  return `<section class="panel pad">${shHead("Campanhas", t("por gasto"))}
+    <div class="bd-scroll"><table class="bd-camp"><thead><tr><th>${t("Campanha")}</th><th>${t("Gasto")}</th><th>${t("Cliques")}</th><th>CTR</th><th>CPC</th>
+      <th>${t("Compras")}</th><th>${t("Custo por compra")}</th><th>ROAS</th></tr></thead>
+    <tbody>${rows.map((c) => `<tr><td><span class="ell" title="${esc(c.name)}">${esc(c.name)}</span><i><em style="width:${c.spend / top * 100}%"></em></i></td>
+      <td>${shMoney(c.spend, "EUR")}</td><td>${shInt(c.clicks)}</td><td>${c.ctr == null ? "—" : shPct(c.ctr)}</td><td>${shMoney(c.cpc, "EUR")}</td>
+      <td>${shInt(c.purchases)}</td><td>${c.purchases ? shMoney(c.spend / c.purchases, "EUR") : "—"}</td>
+      <td class="${c.roas == null ? "" : c.roas >= 2 ? "good" : c.roas < 1 ? "bad" : ""}">${c.roas == null ? "—" : shRoas(c.roas)}</td></tr>`).join("")}</tbody></table></div></section>`;
+}
+
 // The shop in one page: the numbers that matter, then the sales, then what sells and what the ads bring.
 function drawShop(s, p) {
   const shop = s.shopify, ads = s.meta, shopOn = shop.source === "live", adsOn = ads.source === "live";
@@ -67,11 +98,13 @@ function drawShop(s, p) {
       ${shKpi("Vendas", shopOn ? w.orders : null)}
       ${shKpi("Ticket médio", shopOn && w.aov != null ? shMoney(w.aov, shop.currency) : null)}
       ${shKpi("Gasto em anúncios", adsOn ? shMoney(a.spend, "EUR") : null)}
-      ${shKpi("ROAS", adsOn && a.roas != null ? shRoas(a.roas) : null)}</div>
+      ${shKpi("ROAS", adsOn && a.roas != null ? shRoas(a.roas) : null)}
+      ${shKpi("Faturação ÷ anúncios", shopOn && adsOn && a.spend ? shRoas(w.revenue / a.spend) : null)}</div>
     ${shopOn ? `<div class="bd-cols">
       <section class="panel pad">${shHead("Faturação por dia", t("últimos 14 dias"))}${shBars(shop.days, shop.currency)}</section>
       <section class="panel pad">${shHead("Últimas vendas")}${shOrders(shop)}</section></div>` : ""}
-    <div class="bd-cols even">${shopOn ? shTop(shop) : shMissing("Shopify", shop)}${adsOn ? shFunnel(a) : shMissing("Meta Ads", ads)}</div>`;
+    <div class="bd-cols even">${shopOn ? shTop(shop) : shMissing("Shopify", shop)}${adsOn ? shFunnel(a) : shMissing("Meta Ads", ads)}</div>
+    ${adsOn ? shAds(a) + shCampaigns(a) : ""}`;
 }
 
 // A section of the company (Tema, Fotos, Vídeos...): the same lists and galleries as in Empresas, inside this page.

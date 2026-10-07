@@ -280,27 +280,48 @@ def _funnel(actions: list[dict] | None) -> dict:
     return out
 
 
+def _meta_row(row: dict) -> dict:
+    """One row of Meta's insights (the whole account or one campaign) as the page shows it. The rates are worked out here
+    from Meta's own counts, on link clicks, so they agree with the clicks beside them; None when there is nothing to divide by."""
+    funnel = _funnel(row.get("actions"))
+    value = _funnel(row.get("action_values")).get("purchases")
+    spend = float(row.get("spend", 0) or 0)
+    shown, reach = int(row.get("impressions", 0) or 0), int(row.get("reach", 0) or 0)
+    clicks = int(row.get("inline_link_clicks", row.get("clicks", 0)) or 0)
+    return {"spend": spend, "impressions": shown, "reach": reach, "clicks": clicks,
+            "ctr": round(clicks / shown * 100, 2) if shown else None, "cpc": round(spend / clicks, 2) if clicks else None,
+            "cpm": round(spend / shown * 1000, 2) if shown else None, "frequency": round(shown / reach, 2) if reach else None,
+            **funnel, "purchase_value": value, "roas": round(value / spend, 2) if value and spend else None}
+
+
 async def _meta() -> dict:
     if not (settings.meta_access_token and settings.meta_ad_account):
         return {"source": "not_connected", "missing": "META_ACCESS_TOKEN" if not settings.meta_access_token else "META_AD_ACCOUNT"}
     account = settings.meta_ad_account if settings.meta_ad_account.startswith("act_") else "act_" + settings.meta_ad_account
-    fields = "spend,impressions,reach,clicks,inline_link_clicks,ctr,cpc,actions,action_values,purchase_roas"
+    fields = "spend,impressions,reach,clicks,inline_link_clicks,actions,action_values"
+    periods = (("today", "today"), ("last_7d", "week"), ("last_30d", "month"))
+
+    async def ask(client: httpx.AsyncClient, preset: str, campaigns: bool) -> list[dict]:
+        extra = {"level": "campaign", "limit": 100, "fields": "campaign_name," + fields} if campaigns else {"fields": fields}
+        r = await client.get(f"https://graph.facebook.com/v21.0/{account}/insights", timeout=15,
+                             params={"date_preset": preset, "access_token": settings.meta_access_token, **extra})
+        body = r.json()
+        if r.status_code != 200:
+            raise ValueError((body.get("error") or {}).get("message", f"Meta respondeu {r.status_code}")[:300])
+        return body.get("data") or []
+
     out = {"source": "live"}
     try:
         async with httpx.AsyncClient() as client:
-            for preset, key in (("today", "today"), ("last_7d", "week"), ("last_30d", "month")):
-                r = await client.get(f"https://graph.facebook.com/v21.0/{account}/insights", timeout=15,
-                                     params={"fields": fields, "date_preset": preset, "access_token": settings.meta_access_token})
-                body = r.json()
-                if r.status_code != 200:
-                    return {"source": "error", "error": (body.get("error") or {}).get("message", f"Meta respondeu {r.status_code}")[:300]}
-                row = (body.get("data") or [{}])[0]
-                funnel = _funnel(row.get("actions"))
-                value = _funnel(row.get("action_values")).get("purchases")
-                spend = float(row.get("spend", 0) or 0)
-                out[key] = {"spend": spend, "impressions": int(row.get("impressions", 0) or 0), "reach": int(row.get("reach", 0) or 0),
-                            "clicks": int(row.get("inline_link_clicks", row.get("clicks", 0)) or 0), "ctr": float(row.get("ctr", 0) or 0),
-                            **funnel, "purchase_value": value, "roas": round(value / spend, 2) if value and spend else None}
+            got = await asyncio.gather(*[ask(client, preset, campaigns) for preset, _ in periods for campaigns in (False, True)])
+        for i, (_, key) in enumerate(periods):
+            total, rows = got[2 * i], got[2 * i + 1]
+            # the campaigns that spent in the period, the dearest first
+            spent = sorted((r for r in rows if float(r.get("spend", 0) or 0) > 0), key=lambda r: -float(r["spend"]))
+            out[key] = {**_meta_row((total or [{}])[0]),
+                        "campaigns": [{"name": r.get("campaign_name", ""), **_meta_row(r)} for r in spent[:8]]}
+    except ValueError as e:
+        return {"source": "error", "error": str(e)}
     except httpx.HTTPError as e:
         return {"source": "error", "error": f"Meta não respondeu ({type(e).__name__})"}
     return out

@@ -302,6 +302,7 @@ class ClaudeSession(Base):
     action: Mapped[str] = mapped_column(String(160), default="")  # what it is doing now, in words ("a editar pages.js")
     model: Mapped[str] = mapped_column(String(60), default="")
     tokens: Mapped[int] = mapped_column(Integer, default=0)  # used so far, from its transcript (transcripts.py)
+    skills: Mapped[str] = mapped_column(String(400), default="")  # the skills it used, comma-separated (the arsenal of Empresa AMG)
     since: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # when the current status began
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
@@ -325,6 +326,7 @@ class ClaudeAgent(Base):
     status: Mapped[str] = mapped_column(String(10), default="working")  # working | done | failed
     result: Mapped[str] = mapped_column(String(240), default="")
     tokens: Mapped[int] = mapped_column(Integer, default=0)  # as Claude Code reports them when it finishes
+    skills: Mapped[str] = mapped_column(String(400), default="")  # the skills it used itself, comma-separated
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

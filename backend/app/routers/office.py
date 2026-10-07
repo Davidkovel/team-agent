@@ -10,14 +10,14 @@ import asyncio
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from pathlib import PureWindowsPath
+from pathlib import Path, PureWindowsPath
 
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
-from .. import health, transcripts
+from .. import commits, health, transcripts
 from ..models import ClaudeAgent, ClaudeSession, PcHealth, User
 from ..realtime import rt
 from ..security import current_user
@@ -93,6 +93,28 @@ def describe(tool: str, inp: dict | None) -> str:
     return one_line(f"a usar {tool}", 80)
 
 
+def _skill_name(name) -> str:
+    return one_line(str(name or "").strip().lstrip("/").replace(",", " "), 60)
+
+
+def _add_skill(used: str | None, name) -> str:
+    """The skills a window (or a subagent) used, in the order it first used them; the oldest go if the list gets long."""
+    name = _skill_name(name)
+    names = [s for s in (used or "").split(",") if s]
+    if name and name not in names:
+        names.append(name)
+    while len(",".join(names)) > 400:
+        names.pop(0)
+    return ",".join(names)
+
+
+def _typed_skill(prompt) -> str:
+    """A skill the person called by its name ("/boa", or the <command-name> Claude Code wraps around it)."""
+    text = str(prompt or "")
+    found = re.search(r"<command-name>/?([\w:.-]{2,60})</command-name>", text) or re.match(r"\s*/([A-Za-z][\w:.-]{1,59})(?=\s|$)", text)
+    return found.group(1) if found else ""
+
+
 def _project(cwd: str) -> str:
     path = PureWindowsPath(cwd or "")
     return "pasta pessoal" if not path.name or path.parent.name.lower() == "users" else path.name  # C:\Users\<person> itself
@@ -140,7 +162,8 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
         return {"ok": False}
     clock = time.time()
     inside = str(body.get("agent_id") or "") if event != "SubagentStop" and event != "SubagentStart" else ""  # a step a subagent takes itself
-    routine = event == "PreToolUse" and tool not in SUBAGENT_TOOLS and tool != "AskUserQuestion"
+    # a skill is never lost in the 2 s between two writes: the arsenal keeps every one (_add_skill)
+    routine = event == "PreToolUse" and tool not in SUBAGENT_TOOLS and tool not in ("AskUserQuestion", "Skill")
     throttle_key = f"{key}/{inside}" if inside else key
     if routine and clock - _last_write.get(throttle_key, 0) < THROTTLE:
         return {"ok": True, "written": False}  # a burst of steps: the row already says it is working
@@ -161,6 +184,8 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
         agent = (await db.execute(select(ClaudeAgent).where(ClaudeAgent.session_id == row.id, ClaudeAgent.agent_id == inside[:80]))).scalars().first()
         if agent and event == "PreToolUse":
             agent.action = describe(tool, inp)
+            if tool == "Skill":
+                agent.skills = _add_skill(agent.skills, inp.get("skill"))
             await db.commit()
             _last_write[throttle_key] = clock
             await rt.publish("office", user.id, "team")
@@ -176,9 +201,13 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
         _status(row, "working", when)
         row.since = when  # a new request starts the clock again
         row.prompt, row.action = _request(body.get("prompt")), "a pensar"
+        if _typed_skill(body.get("prompt")):
+            row.skills = _add_skill(row.skills, _typed_skill(body.get("prompt")))
     elif event == "PreToolUse":
         _status(row, "waiting" if tool == "AskUserQuestion" else "working", when)
         row.action = describe(tool, inp)
+        if tool == "Skill":
+            row.skills = _add_skill(row.skills, inp.get("skill"))
         if tool in SUBAGENT_TOOLS:
             db.add(ClaudeAgent(session_id=row.id, user_id=user.id, tool_use_id=str(body.get("tool_use_id") or "")[:80],
                                kind=one_line(inp.get("subagent_type") or "general-purpose", 60), model=one_line(inp.get("model") or "", 30),
@@ -280,10 +309,77 @@ def _state(row: ClaudeSession) -> str:
     return row.status
 
 
+def _skills(text: str | None) -> list[str]:
+    return [s for s in (text or "").split(",") if s]  # None: a row from a PC still on schema 13
+
+
 def _agent_out(a: ClaudeAgent) -> dict:
     state = a.status if a.status != "working" or _age(a.started_at) < GONE else "lost"
     return {"id": a.id, "kind": a.kind, "model": a.model, "description": a.description, "action": a.action if state == "working" else "",
-            "state": state, "result": a.result, "tokens": a.tokens, "started_at": iso(a.started_at), "finished_at": iso(a.finished_at)}
+            "state": state, "result": a.result, "tokens": a.tokens, "skills": _skills(a.skills), "started_at": iso(a.started_at),
+            "finished_at": iso(a.finished_at)}
+
+
+_folders: tuple[float, dict] = (0.0, {})
+
+
+def _about(skill_md: Path) -> str:
+    """The description in a SKILL.md's frontmatter: what the skill is for, in its author's words."""
+    try:
+        head = skill_md.read_text(encoding="utf-8", errors="replace")[:3000]
+    except OSError:
+        return ""
+    found = re.search(r"^description:\s*(.+)$", head, re.M) if head.startswith("---") else None
+    return one_line(found.group(1).strip().strip("\"'"), 220) if found else ""
+
+
+def skill_folders() -> dict[str, dict]:
+    """The skills that exist on this PC, by name: this person's own (~/.claude/skills) and those of each team repository
+    checked out here (<repo>/.claude/skills). Read at most every five minutes."""
+    global _folders
+    if time.time() - _folders[0] < 300:
+        return _folders[1]
+    places = [("pessoal", Path.home() / ".claude" / "skills")]
+    for repo in commits.repos():
+        root = commits._local_path(repo)
+        if root:
+            places.append((repo["name"], Path(root) / ".claude" / "skills"))
+    out: dict[str, dict] = {}
+    for where, folder in places:
+        try:
+            found = sorted(p for p in folder.glob("*/SKILL.md"))
+        except OSError:
+            continue
+        for md in found:
+            name = _skill_name(md.parent.name)
+            if name and name not in out:
+                out[name] = {"about": _about(md), "where": where}
+    _folders = (time.time(), out)
+    return out
+
+
+async def arsenal(db: AsyncSession) -> list[dict]:
+    """Every skill the team's Claudes used this week (kept with each window and subagent) and every skill found in the
+    folders: how often, by whom, when last, and what it is for."""
+    users = {u.id: u.display_name for u in (await db.execute(select(User))).scalars()}
+    used: dict[str, dict] = {}
+    rows = (await db.execute(select(ClaudeSession.user_id, ClaudeSession.skills, ClaudeSession.updated_at).where(ClaudeSession.skills != ""))).all()
+    rows += (await db.execute(select(ClaudeAgent.user_id, ClaudeAgent.skills, ClaudeAgent.started_at).where(ClaudeAgent.skills != ""))).all()
+    for user_id, skills, when in rows:
+        for name in _skills(skills):
+            s = used.setdefault(name, {"uses": 0, "last": None, "by": set()})
+            s["uses"] += 1
+            s["by"].add(users.get(user_id, ""))
+            if when and (s["last"] is None or when > s["last"]):
+                s["last"] = when
+    folders = await asyncio.to_thread(skill_folders)
+    out = []
+    for name in set(used) | set(folders):
+        u, f = used.get(name, {}), folders.get(name, {})
+        out.append({"name": name, "uses": u.get("uses", 0), "last": iso(u.get("last")), "by": sorted(b for b in u.get("by", ()) if b),
+                    "about": f.get("about", ""), "where": f.get("where", "")})
+    out.sort(key=lambda s: (-s["uses"], s["name"]))
+    return out[:24]
 
 
 @router.get("/office")
@@ -297,7 +393,8 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
         by_session.setdefault(a.session_id, []).append(a)
     sessions = [{"id": r.id, "key": r.key, "user": r.user.username, "name": r.user.display_name, "project": r.project, "state": _state(r),
                  "prompt": _request(r.prompt), "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
-                 "updated_at": iso(r.updated_at), "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]} for r in rows]
+                 "updated_at": iso(r.updated_at), "skills": _skills(r.skills), "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]}
+                for r in rows]
     names = {r.id: (r.user.display_name, r.project) for r in rows}
     film = []
     for a in agents[:60]:
@@ -308,7 +405,7 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
     for r in rows:
         film.append({"at": iso(r.started_at), "who": r.user.display_name, "project": r.project, "kind": "window_open", "agent": "", "text": r.prompt})
     film.sort(key=lambda f: f["at"] or "", reverse=True)
-    return {"sessions": sessions, "film": film[:40]}
+    return {"sessions": sessions, "film": film[:40], "arsenal": await arsenal(db)}
 
 
 @router.get("/health")

@@ -1,20 +1,22 @@
-// Empresa AMG (formerly My Niggaz): the crew's Batcave (docs/empresa-amg.md, the 2D phase with characters). Two rooms side by side in one
-// isometric world, seen through a camera that pans between them:
-// - the office, where the crew lives: eight Batman characters (crew-people.js), four of them in suit and tie. With
-//   nothing to do they hang around the lounge (the sofa, the Batcomputer, the suit in its case, Alfred's coffee, the
-//   punching bag, chess) or go and look at the cars; when work comes in (a task sent from here or from the board, a
-//   Claude working on one of the three PCs, a subagent it launched) the bat-signal lights up and one of them walks to a
-//   free computer and works there until it is done. Clicking one opens their mission panel. Each of them is their own
-//   Claude conversation on the agent (backend/app/crew.py, agent/.../core/agent.py);
-// - the garage, a Batcave showroom: four cars modelled in 3D (crew-cars.js) on mirror-black stands, each waiting to
-//   stand for a project (CARS[].project);
-// - around them the cave is an island over an abyss (MAP): an underground river with its bridge between the two, the
-//   vault (every mission completed is a gold bar on its floor; click it for the numbers), the bar terrace and the lookout,
-//   whose searchlight sweeps the cave and throws the bat-signal when a mission comes in.
-// It only reads /api/tasks, /api/office and /api/memory, and creates tasks (POST /api/tasks with `crew`).
-// Its own files, fetched the first time the page opens (lazyView in ui.js). Weight rules: it only animates while the
-// page is open, on screen and in the front tab (12 frames a second, 26 while somebody walks or the camera moves); the
-// cave, the stands and the cars are drawn once per size into one picture the camera crops.
+// Empresa AMG (formerly My Niggaz): the crew's Batcave (docs/empresa-amg.md, the 2D phase with characters; the redesign
+// Marco asked for on 7 Oct is docs/batcave-redesenho.md). One isometric world, seen through a camera that pans:
+// - the office: eight posts, one per sector, always the same agent's (DESKS), with the sector written on the floor. Work
+//   goes to the post of its sector by one rule (routeOf: a subagent by its kind, a request by its words, the rest to
+//   Operations; busy, the most alike free colleague; nobody free, the queue). Over each busy post a card says who asked
+//   (in that partner's colour), the request, what is being done now, the skills and subagents, the model, the tokens and
+//   since when. A line of light joins the post of a Claude to the post of the subagent it launched;
+// - the lounge: sofas in a U round the table with the team's Memória on it, its notes as points grouped by theme. Free
+//   agents sit and talk there, in turns, about what the team finished. A mission starts at the table (its agent takes the
+//   notes) and ends there (the note drops on it; the coins fly to the vault). Reunião sends Gordon a real mission;
+// - the walls: the partners' screens on the back one (lit in their colour while a Claude of theirs works), the arsenal of
+//   skills and the Memória's board on the left one. A Claude that uses a skill has the agent of its post fetch it;
+// - the garage with its cars, and around it all the island over the abyss (MAP): the river, the vault, the bar, the lookout.
+// Under the cave, the command wall: a column per partner with their open Claudes and their automatic agent's missions.
+// Everything says what it is when the pointer is on it; clicking an agent brings the camera to their post.
+// It only reads /api/tasks, /api/office (with the arsenal) and /api/memory, and creates tasks (POST /api/tasks with
+// `crew`). Its own files, fetched the first time the page opens (lazyView in ui.js). Weight rules: it only animates while
+// the page is open, on screen and in the front tab (12 frames a second, 26 while somebody walks or the camera moves); the
+// cave, the stands and the cars are drawn once per size, the walls once per content, into pictures the camera crops.
 (function () {
   // ================================================================ the world, in tiles
   // x runs to the right and down, y to the left and down; z is height in pixels. P() is where a point lands on the small
@@ -128,17 +130,23 @@
   const DESKS = [["batman", 5, 2], ["lucius", 8, 2], ["riddler", 11, 2], ["catwoman", 14, 2], ["joker", 5, 6], ["alfred", 8, 6], ["robin", 11, 6], ["gordon", 14, 6]]
     .map(([crew, x, y], i) => ({ i, crew, x, y, deco: ["batarang", "mug", "cowl", "phones", "mug", "mug", "batarang", "phones"][i], agent: null, boot: -9 }));
   const deskOf = (a) => DESKS.find((d) => d.crew === a.id);
-  const SOFA = [4, 5, 6];
+  const seatOf = (d) => ({ x: d.x, y: d.y + 1, at: [d.x + 1, d.y + 1.42] });
+  // the lounge (sala de estar): sofas in a U round the table with the team's Memória on it, open towards the posts. Free
+  // agents sit there and talk about what the team finished; whoever starts a mission passes by the table for the notes.
+  const LOUNGE = { west: [5, 6, 7], north: [1, 2, 3], south: [1, 2, 3], table: [2, 6] };
+  const TABLE = { x: 2.5, y: 6.5 };                               // the middle of the Memória's table
+  const TABLE_SPOT = { x: 3, y: 6, at: [3.18, 6.5] };              // where a mission's agent stands to take the notes
+  // the arsenal: the skills on the left wall, between these y; whoever fetches one stands here
+  const ARSENAL = { y0: 1.1, y1: 3.9, z0: 12, z1: 56 }, ARSENAL_SPOT = { x: 1, y: 2, at: [.92, 2.5] };
   const ROCKS = [[0, 0], [0, 10]];
-  const CHAIRS = [[3, 4], [3, 7]];
   const SPOTS = [
-    ...SOFA.map((y) => ({ x: 0, y, at: [.62, y + .5], pose: "sit", dir: "se", seat: 7, sofa: true, word: "no sofá" })),
-    ...CHAIRS.map(([x, y]) => ({ x, y, at: [x + .45, y + .5], pose: "sit", dir: "nw", seat: 6, chair: true, word: "no Batcomputador" })),
+    ...LOUNGE.west.map((y) => ({ x: 0, y, at: [.62, y + .5], pose: "sit", dir: "se", seat: 7, chair: true, lounge: true, word: "na sala" })),
+    ...LOUNGE.north.map((x) => ({ x, y: 4, at: [x + .5, 4.62], pose: "sit", dir: "sw", seat: 7, chair: true, lounge: true, word: "na sala" })),
+    ...LOUNGE.south.map((x) => ({ x, y: 8, at: [x + .5, 8.38], pose: "sit", dir: "ne", seat: 7, chair: true, lounge: true, word: "na sala" })),
+    { x: 4, y: 5, at: [4.4, 5.5], pose: "talk", dir: "nw", lounge: true, word: "na conversa" },
+    { x: 4, y: 7, at: [4.4, 7.4], pose: "talk", dir: "nw", lounge: true, word: "na conversa" },
     { x: 2, y: 1, pose: "look", dir: "ne", word: "a ver o fato" },
     { x: 4, y: 1, pose: "drink", dir: "ne", word: "no café" },
-    { x: 1, y: 8, pose: "look", dir: "nw", word: "a vigiar Gotham" },
-    { x: 2, y: 4, pose: "think", dir: "sw", word: "no xadrez" },
-    { x: 3, y: 9, pose: "phone", dir: "sw", word: "no telemóvel" },
     { x: 5, y: 9, pose: "phone", dir: "se", word: "no telemóvel" },
     { x: 18, y: 10, at: [18.6, 10.35], pose: "look", dir: "ne", word: "a ver o Aventador SVJ", far: true },
     { x: 25, y: 10, at: [25.6, 10.35], pose: "look", dir: "ne", word: "a ver o SF90", far: true },
@@ -152,8 +160,11 @@
   const FIXED = [[1, 12], [2, 12], [3, 12], [4, 13], [5, 13], [4, 14], [5, 14], [1, 14], [2, 14], [3, 14], [1, 15], [2, 15], [3, 15], [5, 11], [6, 11],
     [9, 11], [10, 11], [11, 11], [12, 11], [13, 11], [11, 13], [27, 13], [25, 11]];
   const blocked = new Set([
-    ...DESKS.flatMap((d) => [k2(d.x, d.y), k2(d.x + 1, d.y), k2(d.x, d.y + 1), k2(d.x + 1, d.y + 1)]), ...SOFA.map((y) => k2(0, y)), ...CHAIRS.map(([x, y]) => k2(x, y)),
-    ...ROCKS.map(([x, y]) => k2(x, y)), k2(2, 0), k2(4, 0), k2(2, 5), ...FIXED.map(([x, y]) => k2(x, y)),
+    ...DESKS.flatMap((d) => [k2(d.x, d.y), k2(d.x + 1, d.y), k2(d.x, d.y + 1), k2(d.x + 1, d.y + 1)]),
+    // the lounge: the U, its two corner tables, the table, the console behind the north sofa and the planters behind the south one
+    ...LOUNGE.west.map((y) => k2(0, y)), ...LOUNGE.north.map((x) => k2(x, 4)), ...LOUNGE.south.map((x) => k2(x, 8)), k2(0, 4), k2(0, 8),
+    k2(...LOUNGE.table), ...[1, 2, 3].flatMap((x) => [k2(x, 3), k2(x, 9)]),
+    ...ROCKS.map(([x, y]) => k2(x, y)), k2(2, 0), k2(4, 0), ...FIXED.map(([x, y]) => k2(x, y)),
   ]);
   for (let x = 0; x < W; x++) for (let y = 0; y < D; y++) if (!"ogvtpb".includes(tile(x, y))) blocked.add(k2(x, y)); // the drop and the water
   for (const c of CARS) for (let x = OFFICE_W; x < W; x++) for (let y = 0; y < D; y++) {
@@ -286,9 +297,9 @@
   }
 
   const SCREEN_BG = { off: "#05070b", work: "#06132a", start: "#06132a", wait: "#1f1504", help: "#220610", pause: "#101318", done: "#04200f", fail: "#220610" };
-  const CODE = [NEON.cyan, NEON.yellow, "#c9d4e6", NEON.green, NEON.blue, NEON.violet, "#c9d4e6"];
+  const CODE = ["#dfe8f2", "#9fb0c4", "#c9d4e6", "#7f8ea3", "#eef3f8", "#aab6c5", "#c9d4e6"];
   function deskMode(d) {
-    const a = d.agent && d.agent.seated ? d.agent : null;
+    const a = d.agent && (d.agent.seated || d.agent.mode === "fetch") ? d.agent : null;
     if (!a) return "off";
     if (a.mode === "done") return a.done === "ok" ? "done" : "fail";
     return a.job ? a.job.state : "off";
@@ -298,7 +309,7 @@
     if (k) d = { i: d.i + k * 17 };
     const flash = mode !== "off" && since < .35;
     const f = face(g, x0 + .07, x1 - .07, y, z0 + 1, z1 - 1, flash ? "#dfe9ff" : SCREEN_BG[mode]);
-    if (mode === "off") { glyphOn(f, "bat", "#10161f"); f.px(f.wpx - 2, f.hpx - 2, Math.floor(clock * .8) % 3 ? "#0a2238" : NEON.blue); return; }
+    if (mode === "off") { glyphOn(f, "bat", "#10161f"); f.px(f.wpx - 2, f.hpx - 2, Math.floor(clock * .8) % 3 ? "#1a2230" : "#8fa0b5"); return; }
     if (flash) return;
     if (since < 1.1) { const w = f.wpx - 4, p = Math.floor((since - .35) / .75 * w); for (let u = 0; u < w; u++) f.px(2 + u, Math.floor(f.hpx / 2), u <= p ? NEON.white : "#1a2a40"); return; }
     if (mode === "work") {
@@ -311,8 +322,8 @@
       if (Math.floor(clock * 3) % 2) f.px(1, f.hpx - 2, "#ffffff", 2);
     } else if (mode === "start") {
       const w = f.wpx - 4, p = Math.floor((clock * 5) % w);
-      for (let u = 0; u < w; u++) f.px(2 + u, Math.floor(f.hpx / 2), Math.abs(u - p) < 2 ? NEON.cyan : "#16304a");
-      glyphOn({ ...f, hpx: f.hpx - 6 }, "dots", NEON.cyan);
+      for (let u = 0; u < w; u++) f.px(2 + u, Math.floor(f.hpx / 2), Math.abs(u - p) < 2 ? "#dfe8f2" : "#1e2836");
+      glyphOn({ ...f, hpx: f.hpx - 6 }, "dots", "#dfe8f2");
     } else {
       const blink = (mode === "wait" || mode === "help") && Math.floor(clock * 2) % 2;
       if (!blink) glyphOn(f, { wait: "?", help: "!", pause: "pause", done: "check", fail: "x" }[mode], { wait: NEON.amber, help: NEON.red, pause: "#9aa2ab", done: NEON.green, fail: NEON.red }[mode]);
@@ -330,27 +341,112 @@
     seg(g, P(x + .36, Y + .72, a ? 12.5 : 16.5), P(x + .9, Y + .72, a ? 12.5 : 16.5), STITCH, .5);
   }
 
-  // the Chesterfield: black leather, buttoned
-  function sofa(g, y) {
-    const first = y === SOFA[0], last = y === SOFA[SOFA.length - 1];
-    box(g, .06, y + .02, .3, .96, 0, 19, LEATHER);
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { const [bx, by] = P(.36, y + .14 + i * .24, 12 + j * 4); g.fillStyle = "#0c0d10"; g.fillRect(bx, by, .8, .8); }
-    if (first) box(g, .06, y, .88, .16, 0, 11, LEATHER);
-    box(g, .32, y + (first ? .16 : .03), .62, first || last ? .81 : .94, 0, 7, mat("#2b2f37"));
-    seg(g, P(.36, y + .5, 7.5), P(.92, y + .5, 7.5), "rgba(0,0,0,.35)", .5);
-    seg(g, P(.33, y + .1, 7.2), P(.93, y + .1, 7.2), "rgba(255,255,255,.07)", .5);
-    if (last) box(g, .06, y + .84, .88, .16, 0, 11, LEATHER);
+  // The lounge's sofas: black leather, buttoned, one slice per tile. side: where the back is (w against the left wall,
+  // n on the -y side, s on the +y side, towards us). Whoever sits on a slice is drawn inside it, between what is behind
+  // them and what is in front; both parts are pictures drawn once.
+  const SOFA_SKIN = mat("#33373f"), SEAT = mat("#40454f"), EDGE_LIT = "rgba(228,234,242,.32)";
+  function loungeSofa(g, x, y, side, first, last) {
+    const sitter = agents.find((a) => a.chairAt === k2(x, y) && !a.path.length), id = `${side}${x},${y}`, area = [x, y, x + 1, y + 1, 22];
+    const buttons = (q, at) => { q.fillStyle = "#0c0d10"; for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { const [bx, by] = at(i, j); q.fillRect(bx, by, .8, .8); } };
+    cachedDraw(g, "sofaB" + id, area, (q) => {
+      if (side === "w") {
+        box(q, x + .06, y + .02, .3, .96, 0, 19, SOFA_SKIN);
+        seg(q, P(x + .36, y + .02, 19), P(x + .36, y + .98, 19), EDGE_LIT, .4);
+        buttons(q, (i, j) => P(x + .36, y + .14 + i * .24, 12 + j * 4));
+        if (first) { box(q, x + .06, y, .88, .16, 0, 11, SOFA_SKIN); seg(q, P(x + .06, y + .16, 11), P(x + .94, y + .16, 11), EDGE_LIT, .35); }
+        box(q, x + .32, y + (first ? .16 : .03), .62, first || last ? .81 : .94, 0, 7, SEAT);
+        seg(q, P(x + .94, y + (first ? .16 : .03), 7), P(x + .94, y + (last ? .84 : .97), 7), "rgba(228,234,242,.2)", .35);
+      } else if (side === "n") {
+        box(q, x + .02, y + .06, .96, .3, 0, 19, SOFA_SKIN);
+        seg(q, P(x + .02, y + .36, 19), P(x + .98, y + .36, 19), EDGE_LIT, .4);
+        buttons(q, (i, j) => P(x + .14 + i * .24, y + .36, 12 + j * 4));
+        if (first) { box(q, x, y + .06, .16, .88, 0, 11, SOFA_SKIN); seg(q, P(x + .16, y + .06, 11), P(x + .16, y + .94, 11), EDGE_LIT, .35); }
+        box(q, x + (first ? .16 : .03), y + .32, first || last ? .81 : .94, .62, 0, 7, SEAT);
+        seg(q, P(x + (first ? .16 : .03), y + .94, 7), P(x + (last ? .84 : .97), y + .94, 7), "rgba(228,234,242,.2)", .35);
+      } else {
+        if (first) { box(q, x, y + .06, .16, .88, 0, 11, SOFA_SKIN); seg(q, P(x + .16, y + .06, 11), P(x + .16, y + .94, 11), EDGE_LIT, .35); }
+        box(q, x + (first ? .16 : .03), y + .06, first || last ? .81 : .94, .62, 0, 7, SEAT);
+      }
+    });
+    if (sitter) drawAgent(g, sitter);
+    cachedDraw(g, "sofaF" + id, area, (q) => {
+      if (side === "s") { box(q, x + .02, y + .64, .96, .3, 0, 12, SOFA_SKIN); seg(q, P(x + .02, y + .94, 12), P(x + .98, y + .94, 12), EDGE_LIT, .4); }
+      if (last) {
+        if (side === "w") { box(q, x + .06, y + .84, .88, .16, 0, 11, SOFA_SKIN); seg(q, P(x + .06, y + 1, 11), P(x + .94, y + 1, 11), EDGE_LIT, .35); }
+        else { box(q, x + .84, y + .06, .16, .88, 0, 11, SOFA_SKIN); seg(q, P(x + 1, y + .06, 11), P(x + 1, y + .94, 11), EDGE_LIT, .35); }
+      }
+    });
+  }
+  // the corners of the U: a low table with a lamp of cold light
+  function endTable(g, x, y) {
+    box(g, x + .2, y + .2, .6, .6, 0, 9, mat("#1c1f26"));
+    seg(g, P(x + .2, y + .8, 9.2), P(x + .8, y + .8, 9.2), "#aeb7c3", .4);
+    box(g, x + .46, y + .46, .08, .08, 9, 8, METAL);
+    box(g, x + .34, y + .34, .32, .32, 17, 6, ["#f3f6fa", "#cfd6df", "#b6bfca"]);
+  }
+  // behind the north sofa, the arsenal's long console; behind the south one, low planters
+  function bench(g, x) {
+    box(g, x + .02, 3.2, .96, .55, 0, 9, mat("#1a1d24"));
+    seg(g, P(x + .02, 3.75, 9.2), P(x + .98, 3.75, 9.2), "#b9c2cd", .4);
+    seg(g, P(x + .5, 3.75, 1), P(x + .5, 3.75, 8), "rgba(0,0,0,.5)", .4);
+  }
+  function planter(g, x) {
+    box(g, x + .08, 9.25, .84, .5, 0, 6, mat("#1c1f26"));
+    for (let i = 0; i < 7; i++) { const [lx, ly] = P(x + .16 + i * .11, 9.5, 6); poly(g, [[lx - 1.2, ly], [lx + 1.2, ly], [lx + (rnd(i + x) - .5) * 3, ly - 6 - rnd(i * 3 + x) * 6]], i % 2 ? "#26392e" : "#1f2f26"); }
   }
 
-  // the armchairs facing the Batcomputer; whoever sits in one is drawn inside it, between the seat and the back
-  function armchair(g, x, y) {
-    const sitter = agents.find((a) => a.chairAt === k2(x, y) && !a.path.length);
-    box(g, x + .15, y + .06, .74, .14, 0, 10, LEATHER);
-    box(g, x + .15, y + .2, .6, .6, 0, 6, mat("#2b2f37"));
-    if (sitter) drawAgent(g, sitter);
-    box(g, x + .72, y + .14, .18, .74, 0, 17, LEATHER);
-    for (let i = 0; i < 2; i++) dot(g, ...P(x + .9, y + .35 + i * .3, 13), "#0c0d10");
-    box(g, x + .15, y + .78, .74, .14, 0, 10, LEATHER);
+  // The Memória's table: graphite and a chrome ring; over it, in cold light, every note of the team's Memória is a point,
+  // grouped by theme and joined to the others of its theme. A mission's agent takes the notes from here; a finished
+  // task drops its note on it (memLand).
+  let memDots = [], memLayout = null, memLand = -9;
+  function memoryLayout() {
+    if (memLayout && memLayout.ref === memoryNotes) return memLayout;
+    const notes = memoryNotes || [], cats = [...new Set(notes.map((m) => catOf(m)))].sort();
+    const out = [];
+    cats.forEach((c, ci) => {
+      const mine = notes.filter((m) => catOf(m) === c), span = Math.min(.5, (Math.PI * 2 / Math.max(1, cats.length)) * .7);
+      mine.forEach((m, j) => out.push({ m, cat: c, first: j === 0, a: (ci / cats.length) * Math.PI * 2 + (mine.length > 1 ? (j / (mine.length - 1) - .5) * span : 0),
+        r: .2 + rnd(m.id || j) * .34, z: 13 + rnd((m.id || j) + .5) * 16, fresh: Date.now() - Date.parse(m.updated_at || 0) < 864e5 }));
+    });
+    return (memLayout = { ref: memoryNotes, dots: out, cats });
+  }
+  const catOf = (m) => String(m.category || "GERAL").trim().toUpperCase();
+  function memTable(g) {
+    const { x, y } = TABLE;
+    cachedDraw(g, "memtable", [x - .5, y - .5, x + .5, y + .5, 12], (q) => {
+      const [cx, cy] = P(x, y, 0), disc = (z, r, c) => { q.fillStyle = c; q.beginPath(); q.ellipse(cx, cy - z, r * 22.6, r * 11.3, 0, 0, Math.PI * 2); q.fill(); };
+      disc(0, .4, "rgba(0,0,0,.45)");
+      box(q, x - .07, y - .07, .14, .14, 0, 8, METAL);
+      disc(8, .45, "#0d0f13"); disc(9, .45, "#22262e");
+      q.strokeStyle = "#dfe6ee"; q.lineWidth = .6; q.beginPath(); q.ellipse(cx, cy - 9, .45 * 22.6, .45 * 11.3, 0, 0, Math.PI * 2); q.stroke();
+      disc(9.2, .32, "#0a0d12");
+      q.strokeStyle = "rgba(223,232,242,.55)"; q.lineWidth = .35; q.beginPath(); q.ellipse(cx, cy - 9.25, .32 * 22.6, .32 * 11.3, 0, 0, Math.PI * 2); q.stroke();
+    });
+    // the cone of light and the notes over it, turning slowly
+    const L = memoryLayout(), [cx, cy] = P(x, y, 9.4), spin = clock * .1, lit = clock - memLand < 2.2;
+    const gr = g.createLinearGradient(cx, cy, cx, cy - 26);
+    gr.addColorStop(0, `rgba(223,232,242,${lit ? .3 : .16})`); gr.addColorStop(1, "rgba(223,232,242,0)");
+    g.fillStyle = gr; g.beginPath(); g.moveTo(cx - 7, cy); g.lineTo(cx + 7, cy); g.lineTo(cx + 15, cy - 31); g.lineTo(cx - 15, cy - 31); g.closePath(); g.fill();
+    // a scan line going up through the notes
+    const sy = cy - 2 - ((clock * 7) % 28);
+    g.fillStyle = "rgba(223,232,242,.12)"; g.fillRect(cx - 9, sy, 18, .5);
+    memDots = [];
+    const reading = agents.filter((a) => a.reading), hot = new Set(reading.map((a) => String(a.job && a.job.project || "").toLowerCase()).filter(Boolean));
+    let prev = null, firsts = [];
+    for (const d of L.dots) {
+      const a = d.a + spin, [px, py] = P(x + Math.cos(a) * d.r, y + Math.sin(a) * d.r, d.z);
+      if (prev && prev.cat === d.cat) seg(g, [prev.px, prev.py], [px, py], "rgba(223,232,242,.22)", .3);
+      const mark = hot.has(String(d.m.scope_id || "").toLowerCase()) || (reading.length && (d.m.scope === "team" || d.m.scope === "global"));
+      const sz = mark ? 1.5 : d.fresh ? 1.25 : .9;
+      g.fillStyle = mark ? "rgba(255,255,255,.28)" : "rgba(223,232,242,.12)"; g.fillRect(px - sz, py - sz, sz * 2, sz * 2);
+      g.fillStyle = mark || (lit && d.fresh) ? "#ffffff" : d.fresh ? "rgba(244,247,251,.98)" : "rgba(220,229,239,.78)";
+      g.fillRect(px - sz / 2, py - sz / 2, sz, sz);
+      memDots.push({ px, py, d });
+      prev = { cat: d.cat, px, py };
+      if (d.first) firsts.push([px, py]);
+    }
+    // the themes joined in a ring: the team's ideas, connected
+    for (let i = 0; i < firsts.length && firsts.length > 2; i++) seg(g, firsts[i], firsts[(i + 1) % firsts.length], "rgba(223,232,242,.1)", .3);
   }
 
   function rock(g, x, y) {
@@ -385,53 +481,6 @@
     dot(g, ...P(x + .4, y + .48, 25), NEON.green);
     box(g, x + .66, y + .38, .1, .1, 15, 3, ["#ffffff", "#e3e3e3", "#c7c7c7"]);
     box(g, x + .8, y + .3, .1, .1, 15, 3, ["#ffffff", "#e3e3e3", "#c7c7c7"]);
-  }
-
-  function table(g) {
-    const x = 2, y = 5;
-    for (const [lx, ly] of [[.16, .2], [.8, .2], [.16, .76], [.8, .76]]) box(g, x + lx, y + ly, .05, .05, 0, 5, LEG);
-    box(g, x + .1, y + .12, .8, .76, 5, 1, mat("#2b2119"));
-    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
-      const s = .075, a = P(x + .2 + i * s, y + .22 + j * s, 6.2), b = P(x + .2 + (i + 1) * s, y + .22 + j * s, 6.2), c = P(x + .2 + (i + 1) * s, y + .22 + (j + 1) * s, 6.2), dd = P(x + .2 + i * s, y + .22 + (j + 1) * s, 6.2);
-      poly(g, [a, b, c, dd], (i + j) % 2 ? "#e9e2cf" : "#3a2c22");
-    }
-    for (const [i, j, c] of [[1, 1, "#f4f4f4"], [3, 2, "#111"], [2, 5, "#f4f4f4"], [5, 3, "#111"], [0, 6, "#111"], [6, 6, "#f4f4f4"]]) {
-      const [px, py] = P(x + .24 + i * .075, y + .26 + j * .075, 6.2);
-      g.fillStyle = c; g.fillRect(px - .75, py - 3, 1.5, 3); g.fillRect(px - 1, py - .5, 2, .5);
-    }
-  }
-
-  // the Batcomputer: three screens on the left wall, over the sofa. The middle one shows the missions running now.
-  function batcomputer(g) {
-    const panels = [[6.9, 5.55], [5.45, 4.1], [4.0, 2.65]];
-    g.save();
-    for (const [y1, y0] of panels) {
-      const w = Math.round((y1 - y0) * 16);
-      onLeftWall(g, y1, 50);
-      g.fillStyle = "#1a1f29"; g.fillRect(-1, -1, w + 2, 26);
-      g.fillStyle = "#020812"; g.fillRect(0, 0, w, 24);
-    }
-    onLeftWall(g, 6.9, 50);
-    { const cx = 10.5, cy = 12, a = clock * 1.8, busy = agents.filter((x) => x.job && x.mode !== "done");
-      g.strokeStyle = "rgba(79,180,255,.35)"; g.lineWidth = .5;
-      g.beginPath(); g.arc(cx, cy, 9, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.arc(cx, cy, 5, 0, Math.PI * 2); g.stroke();
-      g.strokeStyle = NEON.cyan; g.lineWidth = .7; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * 9, cy + Math.sin(a) * 9); g.stroke();
-      busy.forEach((x, i) => { const b = rnd(i + x.i) * 6.28, r = 3 + rnd(i + 4) * 6; g.fillStyle = x.color; g.fillRect(cx + Math.cos(b) * r - .5, cy + Math.sin(b) * r - .5, 1.2, 1.2); }); }
-    onLeftWall(g, 5.45, 50);
-    { g.fillStyle = NEON.yellow; g.beginPath(); g.ellipse(10.5, 4.5, 5.5, 3, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = "#05070b"; batPath(g, 10.5, 4.6, 4.5, 4); g.fill();
-      const busy = agents.filter((x) => x.job && x.mode !== "done").slice(0, 5);
-      busy.forEach((x, r) => {
-        const p = x.job.type === "task" && x.job.progress ? x.job.progress / 100 : .3 + .25 * (Math.sin(clock * 1.5 + r) + 1);
-        g.fillStyle = "rgba(127,227,255,.15)"; g.fillRect(4, 10 + r * 3, 15, 2);
-        g.fillStyle = x.color; g.fillRect(1, 10 + r * 3, 2, 2); g.fillRect(4, 10 + r * 3, Math.max(1, 15 * p), 2);
-      });
-      if (!busy.length) for (let r = 0; r < 4; r++) { const len = 4 + Math.floor(rnd(Math.floor(clock * 2) + r) * 14); g.fillStyle = "rgba(127,227,255,.45)"; g.fillRect(2, 11 + r * 3, len, 1); } }
-    onLeftWall(g, 4.0, 50);
-    { g.strokeStyle = NEON.green; g.lineWidth = .7; g.beginPath();
-      for (let u = 0; u <= 21; u += .5) { const v = 12 + Math.sin(u * .7 + clock * 4) * 4 * Math.sin(clock * 1.3 + u * .15); u ? g.lineTo(u, v) : g.moveTo(u, v); }
-      g.stroke(); g.fillStyle = "rgba(77,255,154,.18)"; for (let u = 0; u < 21; u += 4) g.fillRect(u, 1, .5, 22); }
-    g.restore();
   }
 
   // the waterfall at the back of the garage: a strip of falling water scrolled down the wall, and the pool at its foot
@@ -707,8 +756,9 @@
     const odd = (x + y) % 2;
     const color = c === "g" ? ((Math.floor(x / 2) + Math.floor(y / 2)) % 2 ? "#15181e" : "#13161b")
       : c === "v" ? (odd ? "#18150e" : "#120f0a") : c === "t" ? (odd ? "#1b1713" : "#17130f") : c === "p" ? (odd ? "#181c23" : "#14181e")
-      : x >= 6 ? (odd ? "#111827" : "#0f1522") : (odd ? "#171b22" : "#14181f");
+      : x >= 5 ? (odd ? "#15181e" : "#13161b") : (odd ? "#1a1d23" : "#171a20");
     poly(b, [P(x, y), P(x + 1, y), P(x + 1, y + 1), P(x, y + 1)], color);
+    if (c === "o" && x >= 5) { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(0,0,0,.32)", .4); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(0,0,0,.32)", .4); }
     if (c === "v") { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(201,162,39,.3)", .5); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(201,162,39,.3)", .5); }
     else if (c === "t") for (let i = 1; i < 4; i++) seg(b, P(x + i / 4, y), P(x + i / 4, y + 1), "rgba(0,0,0,.28)", .5);
     else if (c === "p") for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) dot(b, ...P(x + .2 + i * .3, y + .2 + j * .3), "rgba(170,185,210,.1)");
@@ -733,17 +783,12 @@
     }
     for (let x = OFFICE_W; x <= W; x += 2) seg(b, P(x, 0, 0), P(x, GD, 0), "rgba(0,0,0,.3)");
     for (let y = 0; y <= GD; y += 2) seg(b, P(OFFICE_W, y, 0), P(W, y, 0), "rgba(0,0,0,.3)");
-    poly(b, [P(1, 3), P(5, 3), P(5, 9), P(1, 9)], "#2c2410");
-    poly(b, [P(1.12, 3.12), P(4.88, 3.12), P(4.88, 8.88), P(1.12, 8.88)], "#0d0e12");
-    poly(b, [P(1.3, 3.3), P(4.7, 3.3), P(4.7, 8.7), P(1.3, 8.7)], "#b38f1a");
-    poly(b, [P(1.36, 3.36), P(4.64, 3.36), P(4.64, 8.64), P(1.36, 8.64)], "#101116");
-    b.save();
-    const [rx, ry] = P(3, 6);
-    b.setTransform(1, 0, 0, .5, rx, ry); b.rotate(Math.PI / 4);
-    b.fillStyle = "#c9a227"; b.beginPath(); b.ellipse(0, 0, 30, 17, 0, 0, Math.PI * 2); b.fill();
-    b.strokeStyle = "#0d0e12"; b.lineWidth = 2; b.stroke();
-    b.fillStyle = "#0d0e12"; batPath(b, 0, .5, 24, 20); b.fill();
-    b.restore();
+    // the lounge's rug under the U: graphite with a chrome border
+    poly(b, [P(.9, 3.9), P(4.06, 3.9), P(4.06, 9.06), P(.9, 9.06)], "#1d2129");
+    poly(b, [P(1, 4), P(3.96, 4), P(3.96, 8.96), P(1, 8.96)], "#101318");
+    poly(b, [P(1.12, 4.12), P(3.84, 4.12), P(3.84, 8.84), P(1.12, 8.84)], "#7d8693");
+    poly(b, [P(1.17, 4.17), P(3.79, 4.17), P(3.79, 8.79), P(1.17, 8.79)], "#20242c");
+    for (let i = 1; i < 5; i++) seg(b, P(1.17, 4.17 + i * .92), P(3.79, 4.17 + i * .92), "rgba(255,255,255,.025)", .5);
     const leftTop = wallTop([...Array(D * 2 + 1).keys()].map((i) => i * .5), (y, z) => P(0, y, z));
     const backTop = wallTop([...Array(63).keys()].map((i) => i * .5), (x, z) => P(x, 0, z));
     rockWall(b, [P(0, 0), P(0, D), ...leftTop.slice().reverse()], "#121722", 11);
@@ -765,26 +810,6 @@
     }
     for (const [x, y] of BEACONS) dot(b, ...P(x, y, .5), "#5a0d18", 1.5, 1);
   }
-  // on top of the grain: the Gotham feed
-  function roomDetails(b) {
-    b.save();
-    onLeftWall(b, 10.1, 50, 1);
-    const w = 37, h = 34;
-    b.fillStyle = "#1a1f29"; b.fillRect(-2, -2, w + 4, h + 4);
-    const sky = b.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, "#0a1020"); sky.addColorStop(.7, "#1c2540"); sky.addColorStop(1, "#33405e");
-    b.fillStyle = sky; b.fillRect(0, 0, w, h);
-    b.fillStyle = "rgba(255,240,170,.18)"; b.beginPath(); b.moveTo(30, h); b.lineTo(15, 4); b.lineTo(22, 4); b.closePath(); b.fill();
-    b.fillStyle = "#f2e7b0"; b.beginPath(); b.ellipse(17, 7, 7, 4, 0, 0, Math.PI * 2); b.fill();
-    b.fillStyle = "#0a1020"; batPath(b, 17, 7.2, 5.5, 5); b.fill();
-    for (let i = 0, x = 0; x < w; i++) {
-      const bw = 3 + Math.floor(rnd(i * 3 + 1) * 5), bh = 6 + Math.floor(rnd(i * 5 + 2) * 16);
-      b.fillStyle = i % 2 ? "#070a14" : "#0b0f1c"; b.fillRect(x, h - bh, bw, bh);
-      for (let k = 0; k < 5; k++) if (rnd(i * 17 + k) > .55) { b.fillStyle = rnd(k + i) > .5 ? "#ffd27a" : "#7ae8ff"; b.fillRect(x + 1 + Math.floor(rnd(k * 3 + i) * (bw - 1)), h - bh + 2 + Math.floor(rnd(k + i * 7) * (bh - 3)), 1, 1); }
-      x += bw;
-    }
-    b.restore();
-  }
-
   // ================================================================ the showroom (drawn sharp, once per size, over the cave)
   // A stand: a mirror-black plinth with a light along its edge and the bat on its front; the car stands on it and is
   // seen again in its top; ropes on chrome posts in front of the front row.
@@ -794,7 +819,7 @@
     for (const c of CARS) {
       const out = standOutline(c), H = STAND.h;
       // the glow it throws on the floor
-      g.save(); g.filter = `blur(${6 * BS}px)`; path(standOutline(c, .25), 0); g.fillStyle = "rgba(79,180,255,.28)"; g.fill(); g.restore();
+      g.save(); g.filter = `blur(${6 * BS}px)`; path(standOutline(c, .25), 0); g.fillStyle = "rgba(223,232,242,.14)"; g.fill(); g.restore();
       // its sides: the outline on the floor, then the top over it
       path(out, 0);
       const [sx0, sy0] = Q(c.cx, c.cy + STAND.hy, 0), [, sy1] = Q(c.cx, c.cy + STAND.hy, H);
@@ -814,7 +839,7 @@
       const L = window.CrewCars.length(c.model) / 2 - .15;
       path([[c.cx - L, c.cy - .82], [c.cx + L, c.cy - .82], [c.cx + L, c.cy + .82], [c.cx - L, c.cy + .82]], H); g.fill(); g.restore();
       // the light along the edge, and a chrome line
-      g.save(); path(out, H); g.strokeStyle = NEON.blue; g.lineWidth = 1.1 * BS; g.shadowColor = NEON.blue; g.shadowBlur = 10 * BS; g.stroke(); g.restore();
+      g.save(); path(out, H); g.strokeStyle = COLD; g.lineWidth = 1.1 * BS; g.shadowColor = COLD; g.shadowBlur = 10 * BS; g.stroke(); g.restore();
       g.save(); path(out, H - .8); g.strokeStyle = "rgba(220,235,255,.35)"; g.lineWidth = .5 * BS; g.stroke(); g.restore();
       // the bat on the front of the stand
       g.save(); const [ex, ey] = P(c.cx - .55, c.cy + STAND.hy, H * .52);
@@ -880,22 +905,24 @@
   }
   function release(a) { if (a.spot && a.spot.taken === a) a.spot.taken = null; a.spot = null; a.chairAt = null; }
   function settle(a, s) {
-    a.dir = s.dir; a.pose = s.pose; a.timer = 8 + Math.random() * 14;
+    a.dir = s.dir; a.pose = s.pose; a.timer = s.lounge ? 14 + Math.random() * 22 : 8 + Math.random() * 14;
     a.chairAt = s.chair ? k2(s.x, s.y) : null;
     if (s.pose === "drink" && !s.bar) a.brewUntil = clock + 3;
-    if (s.sofa && a.idleFor > 45 && Math.random() < .55) { a.pose = "sleep"; a.timer += 12; }
+    if (s.chair && a.idleFor > 90 && Math.random() < .25) { a.pose = "sleep"; a.timer += 12; }
   }
+  // free agents spend most of their time in the lounge, talking; now and then the coffee, the bar, the cars or the view
   function wander(a, prefer) {
     release(a);
-    // the garage is a treat: not every time
-    const free = SPOTS.filter((s) => !s.taken && s !== a.lastSpot && (!s.far || Math.random() < .35));
+    a.reading = false; a.fetching = null;
+    const open = SPOTS.filter((s) => !s.taken && s !== a.lastSpot && (!s.far || Math.random() < .35));
+    const lounge = open.filter((s) => s.lounge), free = lounge.length && Math.random() < .72 ? lounge : open;
     const s = prefer && !prefer.taken ? prefer : free[Math.floor(Math.random() * free.length)];
     if (!s) { a.timer = 3; return; }
     s.taken = a; a.spot = s; a.lastSpot = s; a.mode = "idle"; a.seated = false;
     goTo(a, s, () => settle(a, s));
   }
   function placeIdle(a) {
-    const free = SPOTS.filter((s) => !s.taken && !s.far);
+    const lounge = SPOTS.filter((s) => !s.taken && s.lounge), free = lounge.length ? lounge : SPOTS.filter((s) => !s.taken && !s.far);
     const s = free[(a.i * 5 + 3) % free.length];
     s.taken = a; a.spot = s; a.lastSpot = s;
     const at = s.at || [s.x + .5, s.y + .5];
@@ -906,27 +933,42 @@
   function assign(a, job, d, instant) {
     release(a);
     a.job = job; a.desk = d; d.agent = a; a.mode = "toDesk"; a.idleFor = 0; a.done = null; a.seated = false;
-    const seat = { x: d.x, y: d.y + 1, at: [d.x + 1, d.y + 1.42] };
+    const seat = seatOf(d);
     if (instant) { a.x = seat.at[0]; a.y = seat.at[1]; a.path = []; sit(a); d.boot = -9; return; }
     signal = clock;
     a.bubble = { g: "!", until: clock + 1.2, c: NEON.amber }; a.hop = .35; a.wait = .75; a.path = []; a.pose = "stand";
     if (a.dir === "ne" || a.dir === "nw") a.dir = "se";
-    goTo(a, seat, () => sit(a));
+    // first the Memória's table, for the notes of the company or the project; then the post
+    goTo(a, TABLE_SPOT, () => {
+      if (!a.job || a.job.key !== job.key) return;
+      a.dir = "nw"; a.pose = "look"; a.wait = 1.3; a.reading = true; memLand = Math.max(memLand, clock - 1.6);
+      goTo(a, seat, () => { a.reading = false; sit(a); a.notesAt = clock; });
+    });
   }
   function sit(a) { a.mode = "work"; a.seated = true; a.dir = "ne"; a.pose = "desk"; a.desk.boot = clock; panelFollows(a); }
+  // a Claude used a skill: the agent of the post goes to the arsenal for it and brings it back to the desk
+  function fetchSkill(a, name) {
+    if (!a.desk || a.mode !== "work" || !a.seated) return;
+    a.seated = false; a.mode = "fetch"; a.pose = "stand"; a.dir = "sw"; a.fetching = name;
+    goTo(a, ARSENAL_SPOT, () => {
+      a.dir = "nw"; a.pose = "look"; a.wait = .9; arsenalHit = { name, at: clock + .5 };
+      goTo(a, seatOf(a.desk), () => { a.fetching = null; sit(a); });
+    });
+  }
   // the mission panel says what the agent is doing now, as they sit down, finish and leave
   function panelFollows(a) { if (panel && panel.kind === "agent" && panel.ref === a) refreshPanel(false); }
   function finish(a, ok) {
+    if (a.mode === "fetch" || a.reading) { a.path = []; a.onArrive = null; a.reading = false; a.fetching = null; }
     a.done = ok ? "ok" : "bad"; a.mode = "done"; a.timer = 2.6;
     a.bubble = { g: ok ? "check" : "x", until: clock + 2.6, c: ok ? NEON.green : NEON.red };
-    if (ok) { confetti(a); deposit(a); }
+    if (ok) { deposit(a); if (a.job && a.job.type === "task") dropNote(a); }
     panelFollows(a);
   }
   function leaveDesk(a) {
     if (a.desk && a.desk.agent === a) a.desk.agent = null;
     a.desk = null; a.job = null; a.done = null; a.seated = false; a.mode = "idle"; a.idleFor = 0;
     const coffee = SPOTS.find((s) => s.pose === "drink");
-    wander(a, Math.random() < .6 ? coffee : null);
+    wander(a, Math.random() < .35 ? coffee : null);
     paintLists();
     panelFollows(a);
   }
@@ -951,10 +993,12 @@
   // ================================================================ particles: sleep, coffee, confetti, the mist of the fall
   let mistAt = 0;
   function emit(kind, x, y, o) { if (particles.length < 160) particles.push({ kind, x, y, vx: 0, vy: -8, life: 2, age: 0, c: "#fff", grav: 0, ...o }); }
-  function confetti(a) {
+  // a task done: its note flies from the agent to the Memória's table, and the table lights up when it lands
+  function dropNote(a) {
     if (!a.head) return;
-    const cols = [NEON.yellow, NEON.blue, NEON.green, NEON.amber, NEON.violet, "#ffffff"];
-    for (let i = 0; i < 40; i++) emit("bit", a.head[0], a.head[1] - 2, { vx: (Math.random() - .5) * 60, vy: -28 - Math.random() * 40, life: 1.3 + Math.random() * .7, c: cols[i % cols.length], grav: 80 });
+    const [ex, ey] = P(TABLE.x, TABLE.y, 18);
+    particles.push({ kind: "note", x: a.head[0], y: a.head[1], sx: a.head[0], sy: a.head[1] - 3, ex, ey, age: -.2, life: 1.4, vx: 0, vy: 0, grav: 0 });
+    setTimeout(() => { memoryAt = 0; loadMemory(); }, 4000);
   }
   // a mission done: seven coins fly from the agent's head to the vault, and it flashes gold when they land
   function deposit(a) {
@@ -993,6 +1037,13 @@
     }
     for (const p of particles) {
       p.age += dt;
+      if (p.kind === "note") {
+        const u = clamp(p.age / p.life, 0, 1), cx = (p.sx + p.ex) / 2, cy = Math.min(p.sy, p.ey) - 30;
+        p.x = (1 - u) * (1 - u) * p.sx + 2 * (1 - u) * u * cx + u * u * p.ex;
+        p.y = (1 - u) * (1 - u) * p.sy + 2 * (1 - u) * u * cy + u * u * p.ey;
+        if (u >= 1 && !p.landed) { p.landed = true; memLand = clock; }
+        continue;
+      }
       if (p.kind === "coin") {
         const u = clamp(p.age / p.life, 0, 1), cx = (p.sx + p.ex) / 2, cy = Math.min(p.sy, p.ey) - 46;
         p.x = (1 - u) * (1 - u) * p.sx + 2 * (1 - u) * u * cx + u * u * p.ex;
@@ -1009,6 +1060,11 @@
   }
   function drawParticles(g) {
     for (const p of particles) {
+      if (p.kind === "note") {
+        if (p.age < 0) continue;
+        g.globalAlpha = 1; g.fillStyle = "#f4f7fb"; g.fillRect(p.x - 1.5, p.y - 1, 3, 2); g.fillStyle = "#9aa4b1"; g.fillRect(p.x - 1, p.y - .4, 2, .3);
+        continue;
+      }
       if (p.kind === "coin") {
         if (p.age < 0) continue;
         g.globalAlpha = 1; g.fillStyle = "#ffd86b"; g.fillRect(p.x - 1, p.y - .5, 2, 1.2); g.fillStyle = "#fff6d0"; g.fillRect(p.x - 1, p.y - .5, 1, .5);
@@ -1051,7 +1107,7 @@
           subagents: (s.agents || []).map((x) => ({ kind: x.kind, state: x.state, description: x.description })), skills: s.skills || [], href: "#/escritorio" });
       }
       for (const ag of s.agents || []) if (ag.state === "working") {
-        out.push({ key: "a" + ag.id, type: "sub", kind: ag.kind, title: ag.description || ag.kind, who: s.name, state: "work", action: ag.action || "",
+        out.push({ key: "a" + ag.id, type: "sub", parent: "c" + s.id, kind: ag.kind, title: ag.description || ag.kind, who: s.name, state: "work", action: ag.action || "",
           since: ag.started_at, project: s.project, model: ag.model, skills: ag.skills || [], href: "#/escritorio" });
       }
     }
@@ -1099,7 +1155,7 @@
     for (const a of agents) {
       if (!a.job || a.mode === "done") continue;
       if (!want.has(a.job.key)) {
-        if (a.seated) finish(a, outcome(a.job));
+        if (a.seated || a.mode === "fetch") finish(a, outcome(a.job));
         else { if (a.desk) a.desk.agent = null; a.desk = null; a.job = null; wander(a); }
         continue;
       }
@@ -1108,12 +1164,24 @@
         if (j.state === "work") a.bubble = { g: "!", until: clock + 1, c: NEON.green };
         if (j.state === "help") a.hop = .35;
       }
+      const fresh = (j.skills || []).filter((x) => !(a.job.skills || []).includes(x));
+      if (fresh.length && !instant) fetchSkill(a, fresh[fresh.length - 1]);
       a.job = j;
     }
+    // A task given to a member of the crew is that member's own conversation running, so it comes first: if they are
+    // only mirroring a Claude window or a subagent, the mirror moves to the most alike free colleague (or the queue).
     queue = [];
-    for (const j of list) {
+    const own = (j) => j.type === "task" && j.crew;
+    for (const j of [...list.filter(own), ...list.filter((x) => !own(x))]) {
       if (agents.some((a) => a.job && a.mode !== "done" && a.job.key === j.key)) continue;
-      const a = pick(j), d = a && deskOf(a);
+      let a = pick(j);
+      const named = own(j) && !a && agents.find((x) => x.id === j.crew);
+      if (named && named.job && named.job.type !== "task" && named.mode !== "done" && named.mode !== "fetch") {
+        if (named.desk && named.desk.agent === named) named.desk.agent = null;
+        named.desk = null; named.job = null; named.seated = false; named.reading = false; named.mode = "idle"; named.path = []; named.onArrive = null;
+        a = named;
+      }
+      const d = a && deskOf(a);
       if (!a || !d) { queue.push(j); continue; }
       assign(a, j, d, instant);
     }
@@ -1121,7 +1189,7 @@
 
   // ================================================================ the screen: camera, background, lights
   let stage = null, cv = null, g2 = null, world = null, wg = null, bg = null, sign = null, S = 1, BS = 1, dpr = 1, star = null;
-  let LS = 1; // labels shrink with a small room
+  let LS = 1, narrow = false; // labels shrink with a small room; on a phone the cards keep only who, what and for whom
   let timer = 0, raf = 0, last = 0, onScreen = true, ro = null, io = null, hovered = null, focus = null, hoverCar = null, vignette = null;
   let panel = null; // what the mission panel shows: { kind: "agent" | "car", ref }
   let view = sessionStorage.getItem("crew.view") || "office";
@@ -1133,7 +1201,7 @@
     const base = document.createElement("canvas"); base.width = LW; base.height = LH;
     const b = base.getContext("2d", { willReadFrequently: true });
     b.k = 1;
-    room(b); grain(b, 13); roomDetails(b);
+    room(b); grain(b, 13);
     BS = Math.min(4, cv.width / VIEWS.garage.w);
     bg = document.createElement("canvas"); bg.width = Math.round(LW * BS); bg.height = Math.round(LH * BS);
     const g = bg.getContext("2d");
@@ -1165,6 +1233,14 @@
       if ("letterSpacing" in g) g.letterSpacing = ".9px";
       g.fillStyle = "rgba(214,224,236,.55)"; g.fillText(t(c.what).toUpperCase(), 0, 0);
     }
+    // the two other zones: the arsenal, in front of its console; the lounge, along its open side
+    const zone = (text, x, y, alongY) => {
+      const [sx, sy] = P(x, y);
+      g.setTransform(BS, (alongY ? -.5 : .5) * BS, alongY ? BS : -BS, .5 * BS, sx * BS, sy * BS);
+      g.fillStyle = "rgba(214,224,236,.42)"; g.fillText(text, 0, 0);
+    };
+    zone(t("ARSENAL"), 2.45, 2.86, false);
+    zone(t("SALA DE ESTAR"), 4.86, 6.5, true);
     g.restore();
   }
   // light that never moves, painted sharp over the pixel cave
@@ -1176,16 +1252,17 @@
       g.shadowBlur = 2 * BS; g.globalAlpha = .7; g.strokeStyle = "#ffffff"; g.lineWidth = w * BS * .35; g.stroke();
       g.restore();
     };
-    tube([0, 0, 1.5], [W, 0, 1.5], NEON.blue);
-    tube([0, 0, 1.5], [0, D, 1.5], NEON.blue);
-    for (const x of [1.15, 6.7, 15.82, 17.18, 22.6, 30.6]) tube([x, 0, 8], [x, 0, 46], "rgba(79,180,255,.75)", .9);
-    for (const y of [1.7, 10.5, 16.85]) tube([0, y, 8], [0, y, 46], "rgba(79,180,255,.75)", .9);
-    tube([6, 1.3, .2], [6, GD - .4, .2], "rgba(127,227,255,.45)", .6);
+    // the bunker's light is cold white: along the foot of the walls, a few uprights, and the line between the lounge and the posts
+    tube([0, 0, 1.5], [W, 0, 1.5], "rgba(223,232,242,.55)", 1);
+    tube([0, 0, 1.5], [0, D, 1.5], "rgba(223,232,242,.55)", 1);
+    for (const x of [15.82, 17.18, 22.6, 30.6]) tube([x, 0, 8], [x, 0, 46], "rgba(223,232,242,.45)", .8);
+    for (const y of [.75, 10.5, 16.85]) tube([0, y, 8], [0, y, 46], "rgba(223,232,242,.45)", .8);
+    tube([4.6, .4, .2], [4.6, GD - .4, .2], "rgba(223,232,242,.3)", .5);
     // every edge of the island has a light along it, the colour of the wing it belongs to
     const EDGE = { v: "rgba(255,207,90,.75)", t: "rgba(255,191,60,.65)", p: "rgba(255,45,79,.6)" };
     for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) {
       if (!solid(x, y)) continue;
-      const c = EDGE[tile(x, y)] || "rgba(79,180,255,.55)";
+      const c = EDGE[tile(x, y)] || "rgba(214,224,236,.42)";
       if (!solid(x, y + 1)) tube([x, y + 1, 0], [x + 1, y + 1, 0], c, .7);
       if (!solid(x + 1, y)) tube([x + 1, y, 0], [x + 1, y + 1, 0], c, .7);
       if (x > 0 && !solid(x - 1, y)) tube([x, y, 0], [x, y + 1, 0], c, .7);
@@ -1214,7 +1291,7 @@
       g.globalAlpha = a; g.fillStyle = gr; g.save(); g.translate(cx, cy); g.scale(1, .5); g.translate(-cx, -cy);
       g.beginPath(); g.arc(cx, cy, r * BS, 0, Math.PI * 2); g.fill(); g.restore();
     };
-    pool(11, 5, 120, "#2a5bb8", .2); pool(3, 6, 80, "#c9a227", .08); pool(1, 9, 50, "#8fa8ff", .1);
+    pool(10.5, 5, 120, "#9fb0c8", .13); pool(2.5, 6.5, 75, "#dfe8f2", .13); pool(1.6, 2.2, 55, "#dfe8f2", .08);
     for (const c of CARS) pool(c.cx, c.cy, 70, "#9fc4ff", .2);
     pool(3.2, 14, 95, "#ffb84d", .2); pool(11.4, 12.4, 70, "#ffbf3c", .12); pool(27.5, 12.6, 70, "#ff4f6a", .07); pool(16.5, 5.5, 80, "#3fa9ff", .12);
     g.restore();
@@ -1232,7 +1309,7 @@
     g.restore();
     g.save(); const [gx, gy] = P(26.0, 0, 55);
     g.setTransform(BS, BS * .5, 0, BS, gx * BS, gy * BS);
-    chromeText(g, "GARAGEM", 0, 0, `700 9px ${DISPLAY}`, NEON.blue, 1);
+    chromeText(g, "GARAGEM", 0, 0, `700 9px ${DISPLAY}`, COLD, .6);
     g.fillStyle = "#c9ced6"; for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(52 + i * 5, -7); g.lineTo(55 + i * 5, -7); g.lineTo(52 + i * 5, 0); g.lineTo(49 + i * 5, 0); g.closePath(); g.fill(); }
     g.fillStyle = NEON.red; g.beginPath(); g.moveTo(67, -7); g.lineTo(70, -7); g.lineTo(67, 0); g.lineTo(64, 0); g.closePath(); g.fill();
     g.restore();
@@ -1356,21 +1433,145 @@
     g.lineWidth = 1.2; g.strokeStyle = "#0a0d12"; g.strokeText(text, x, y);
     g.fillStyle = gr; g.fillText(text, x, y);
   }
-  // the crew's sign on the office wall: the bat in its yellow oval, the name in chrome lit blue from behind
-  function buildSign() {
-    const x0 = 6.7, x1 = 15.4, z0 = 14, z1 = 60;
-    const [ax, ay] = P(x0, 0, z1), [bx2, by2] = P(x1, 0, z0);
-    const area2 = { x: ax - 4, y: ay - 4, w: bx2 - ax + 8, h: by2 - ay + 8 };
-    const c = document.createElement("canvas"); c.width = Math.round(area2.w * BS); c.height = Math.round(area2.h * BS);
+  // ================================================================ the walls: pictures drawn sharp, kept until what they show changes
+  // A picture flat on a wall: (u, v) in wall pixels, u along the wall as it is read (the back wall from x0 to x1, the left
+  // wall from y1 towards the corner), v down from z1. Drawn at the cave's own scale (BS) and laid under the moving world.
+  function wallPicture(side, a0, a1, z0, z1, paint) {
+    const left = side === "left", o = left ? P(0, a1, z1) : P(a0, 0, z1);
+    const ends = left ? [P(0, a1, z1), P(0, a0, z1), P(0, a1, z0), P(0, a0, z0)] : [P(a0, 0, z1), P(a1, 0, z1), P(a0, 0, z0), P(a1, 0, z0)];
+    const xs = ends.map((q) => q[0]), ys = ends.map((q) => q[1]);
+    const box = { x: Math.min(...xs) - 2, y: Math.min(...ys) - 2, w: Math.max(...xs) - Math.min(...xs) + 4, h: Math.max(...ys) - Math.min(...ys) + 4 };
+    const c = document.createElement("canvas"); c.width = Math.ceil(box.w * BS); c.height = Math.ceil(box.h * BS);
     const g = c.getContext("2d");
-    const [sx, sy] = P(7.0, 0, 32);
-    g.setTransform(BS, BS * .5, 0, BS, (sx - area2.x) * BS, (sy - area2.y) * BS);
-    emblem(g, 8, -7, 8.5, 5.2, 12 * BS);
-    chromeText(g, "EMPRESA AMG", 20, 0, `700 17px ${DISPLAY}`, COLD, .8);
-    g.font = `600 5.4px ${FONT}`; if ("letterSpacing" in g) g.letterSpacing = "2.4px";
-    g.shadowColor = COLD; g.shadowBlur = 5 * BS; g.fillStyle = "#c9d3df";
-    g.fillText("OS AGENTES  ·  BATCAVE", 21, 9);
-    return { c, box: area2 };
+    g.setTransform(BS, (left ? -.5 : .5) * BS, 0, BS, (o[0] - box.x) * BS, (o[1] - box.y) * BS);
+    g.textBaseline = "alphabetic";
+    paint(g, (a1 - a0) * 16, z1 - z0);
+    return { c, box };
+  }
+  const walls = {};
+  function wallPic(key, sig, make) {
+    const w = walls[key];
+    if (w && w.sig === sig && w.bs === BS) return w.pic;
+    const pic = make();
+    walls[key] = { sig, bs: BS, pic };
+    return pic;
+  }
+  const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  function plate(g, w, h) {
+    rr(g, 0, 0, w, h, 1.6); g.fillStyle = "#0c0f14"; g.fill();
+    const edge = g.createLinearGradient(0, 0, w, h); edge.addColorStop(0, "#8a939f"); edge.addColorStop(.5, "#eef2f6"); edge.addColorStop(1, "#5f6875");
+    g.strokeStyle = edge; g.lineWidth = .4; g.stroke();
+  }
+  function spaced(g, px) { if ("letterSpacing" in g) g.letterSpacing = px; }
+
+  // the crew's sign, high on the office wall: the bat in chrome and the name in chrome, lit cold white
+  function buildSign() {
+    return wallPicture("back", 5.3, 15.75, 45, 62, (g) => {
+      g.save(); g.shadowColor = COLD; g.shadowBlur = 3 * BS;
+      g.fillStyle = "#d9e0e8"; g.beginPath(); g.ellipse(7, 8.2, 5.4, 3.3, 0, 0, Math.PI * 2); g.fill(); g.restore();
+      g.fillStyle = "#0a0b0e"; batPath(g, 7, 8.35, 4.5, 4.4); g.fill();
+      chromeText(g, "EMPRESA AMG", 15, 11.2, `700 9.5px ${DISPLAY}`, COLD, .5);
+      g.font = `700 9.5px ${DISPLAY}`; const tw = g.measureText("EMPRESA AMG").width;
+      g.font = `600 3.3px ${FONT}`; spaced(g, "1.3px"); g.fillStyle = "#a9b3bf";
+      g.fillText(t("OS AGENTES · BATCAVE"), 15 + tw + 5, 10.8);
+    });
+  }
+
+  // The partners' screens on the back wall, one each, lit in their colour while a Claude of theirs works: their Claudes
+  // and their automatic agent's missions, a line each. The same wall, readable, is under the cave (paintWall).
+  const SCREENS = [[5.3, 8.65], [8.95, 12.3], [12.6, 15.75]], SCREEN_Z = [6, 40];
+  let partnerModel = [];
+  function screensPic() {
+    return wallPic("screens", partnerModel.map((p) => p.sig).join("|"), () => wallPicture("back", SCREENS[0][0], SCREENS[2][1], SCREEN_Z[0], SCREEN_Z[1], (g) => {
+      partnerModel.forEach((p, i) => {
+        const [x0, x1] = SCREENS[i], w = (x1 - x0) * 16, h = SCREEN_Z[1] - SCREEN_Z[0];
+        g.save(); g.translate((x0 - SCREENS[0][0]) * 16, 0);
+        rr(g, -1.3, -1.3, w + 2.6, h + 2.6, 1.8); g.fillStyle = "#1b1f27"; g.fill();
+        const edge = g.createLinearGradient(0, 0, w, 0); edge.addColorStop(0, "#5d6672"); edge.addColorStop(.5, "#e3e9ef"); edge.addColorStop(1, "#5d6672");
+        g.strokeStyle = edge; g.lineWidth = .35; g.stroke();
+        g.fillStyle = "#04060a"; g.fillRect(0, 0, w, h);
+        if (p.working) { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, hexA(p.color, .2)); gr.addColorStop(1, hexA(p.color, .03)); g.fillStyle = gr; g.fillRect(0, 0, w, h); }
+        g.fillStyle = p.working ? p.color : "#343b46"; g.fillRect(0, 0, w, .8);
+        g.font = `700 5.4px ${DISPLAY}`; g.fillStyle = "#f2f5f9"; g.fillText(p.name.toUpperCase(), 2.2, 7.6);
+        g.font = `700 2.6px ${FONT}`; spaced(g, ".3px"); g.textAlign = "right"; g.fillStyle = p.working ? p.color : "#7d8692";
+        g.fillText((p.working ? t("{n} a trabalhar", { n: p.working }) : t("nada a correr")).toUpperCase(), w - 2, 7.2);
+        g.textAlign = "left"; spaced(g, "0px");
+        let y = 14.2;
+        for (const line of p.lines.slice(0, 4)) {
+          g.fillStyle = line.c; g.save(); g.translate(3, y - 1.2); g.rotate(Math.PI / 4); g.fillRect(-.8, -.8, 1.6, 1.6); g.restore();
+          let x = 5.4;
+          if (line.who) { g.font = `700 3.3px ${FONT}`; g.fillStyle = line.dim ? "#9aa2ad" : "#ffffff"; g.fillText(line.who, x, y); x += g.measureText(line.who).width + 1.4; }
+          g.font = `500 3.3px ${FONT}`; g.fillStyle = line.dim ? "#7f8894" : "#d3dae3"; g.fillText(clip(g, line.text, w - x - 1.6), x, y);
+          y += 5.2;
+        }
+        if (!p.lines.length) { g.font = `500 3.3px ${FONT}`; g.fillStyle = "#5f6874"; g.fillText(t("Nenhum Claude aberto"), 3, y); }
+        if (p.lines.length > 4) { g.font = `600 2.6px ${FONT}`; g.fillStyle = "#8b939e"; g.textAlign = "right"; g.fillText(t("+{n} na parede de comando", { n: p.lines.length - 4 }), w - 2, h - 1.8); g.textAlign = "left"; }
+        g.restore();
+      });
+    }));
+  }
+
+  // The arsenal on the left wall: every skill the team's Claudes used this week and every one in the skills folders.
+  // In use now: a green mark; never used yet: dim. When a Claude uses one, the agent of its post fetches it from here.
+  let arsenalList = [], arsenalSlots = [], arsenalHit = null;
+  const inUseSkills = () => new Set(agents.filter((a) => a.job && a.mode !== "done").flatMap((a) => a.job.skills || []));
+  function arsenalPic() {
+    const live = inUseSkills(), sig = arsenalList.map((x) => `${x.name}:${x.uses}:${live.has(x.name) ? 1 : 0}`).join(",");
+    return wallPic("arsenal", sig, () => wallPicture("left", ARSENAL.y0, ARSENAL.y1, ARSENAL.z0, ARSENAL.z1, (g, w, h) => {
+      plate(g, w, h);
+      g.font = `700 4px ${DISPLAY}`; spaced(g, ".8px"); g.fillStyle = "#eef2f6"; g.fillText(t("ARSENAL"), 2.4, 6);
+      g.font = `600 2.2px ${FONT}`; spaced(g, ".4px"); g.fillStyle = "#8b939e"; g.textAlign = "right"; g.fillText(t("SKILLS"), w - 2.2, 5.8); g.textAlign = "left"; spaced(g, "0px");
+      arsenalSlots = [];
+      const sw = (w - 6.4) / 2, shh = 4.4;
+      arsenalList.slice(0, 12).forEach((sk, i) => {
+        const x = 2.4 + (i % 2) * (sw + 1.6), y = 8.4 + Math.floor(i / 2) * 5.6, on = live.has(sk.name);
+        rr(g, x, y, sw, shh, .8); g.fillStyle = on ? "#0f1d15" : "#090b0f"; g.fill(); g.strokeStyle = on ? hexA(NEON.green, .55) : "rgba(214,224,236,.22)"; g.lineWidth = .25; g.stroke();
+        g.fillStyle = on ? NEON.green : sk.uses ? "#cfd6df" : "#46505b"; g.fillRect(x, y + .6, .7, shh - 1.2);
+        g.font = `600 2.4px ${FONT}`; g.fillStyle = sk.uses ? "#e3e8ef" : "#848d98";
+        g.fillText(clip(g, "/" + sk.name, sw - (sk.uses ? 5.6 : 2.4)), x + 1.6, y + 3.1);
+        if (sk.uses) { g.font = `500 2px ${FONT}`; g.fillStyle = "#8b939e"; g.textAlign = "right"; g.fillText(`${sk.uses}×`, x + sw - .9, y + 3); g.textAlign = "left"; }
+        arsenalSlots.push({ u: x, v: y, w: sw, h: shh, sk });
+      });
+      if (!arsenalList.length) { g.font = `500 2.6px ${FONT}`; g.fillStyle = "#6b7480"; g.fillText(t("Ainda sem skills"), 2.4, 12); }
+      if (arsenalList.length > 12) { g.font = `500 2.2px ${FONT}`; g.fillStyle = "#8b939e"; g.fillText(t("+{n} no painel", { n: arsenalList.length - 12 }), 2.4, h - 1.6); }
+    }));
+  }
+  // where a skill's slot is, as a point of the cave (for its flash when it is fetched)
+  function arsenalSlotAt(name) {
+    const r = arsenalSlots.find((x) => x.sk.name === name);
+    return r ? P(0, ARSENAL.y1 - (r.u + r.w / 2) / 16, ARSENAL.z1 - (r.v + r.h / 2)) : null;
+  }
+
+  // The Memória's board on the wall over the lounge: its themes and how many notes each has
+  const BOARD = { y0: 4.4, y1: 8.7, z0: 25, z1: 56 };
+  let boardRows = [];
+  let catsMemo = { ref: undefined, v: [] };
+  function memCats() {
+    if (catsMemo.ref === memoryNotes) return catsMemo.v;
+    const by = {};
+    for (const m of memoryNotes || []) { const c = catOf(m); (by[c] = by[c] || []).push(m); }
+    return (catsMemo = { ref: memoryNotes, v: Object.entries(by).sort((p, q) => q[1].length - p[1].length || p[0].localeCompare(q[0])) }).v;
+  }
+  function boardPic() {
+    const cats = memCats(), sig = (memoryNotes ? "" : "…") + cats.map(([c, l]) => c + l.length).join(",");
+    return wallPic("board", sig, () => wallPicture("left", BOARD.y0, BOARD.y1, BOARD.z0, BOARD.z1, (g, w, h) => {
+      plate(g, w, h);
+      const total = cats.reduce((n, [, l]) => n + l.length, 0), max = cats.length ? cats[0][1].length : 1;
+      g.font = `700 3.6px ${DISPLAY}`; spaced(g, ".6px"); g.fillStyle = "#eef2f6"; g.fillText(t("MEMÓRIA DA EQUIPA"), 2.4, 5.6);
+      g.font = `600 2.3px ${FONT}`; spaced(g, ".3px"); g.fillStyle = "#8b939e"; g.textAlign = "right";
+      g.fillText(t(total === 1 ? "1 nota" : "{n} notas", { n: total }).toUpperCase(), w - 2.4, 5.4); g.textAlign = "left"; spaced(g, "0px");
+      boardRows = [];
+      cats.slice(0, 7).forEach(([c, l], i) => {
+        const y = 10.4 + i * 3.1;
+        g.font = `600 2.3px ${FONT}`; g.fillStyle = "#d3dae3"; g.fillText(clip(g, c, 20), 2.4, y);
+        const bx = 24, bw = w - bx - 9;
+        g.fillStyle = "rgba(214,224,236,.1)"; g.fillRect(bx, y - 1.7, bw, 1.4);
+        g.fillStyle = "rgba(223,232,242,.62)"; g.fillRect(bx, y - 1.7, Math.max(.8, bw * l.length / max), 1.4);
+        g.font = `500 2.2px ${FONT}`; g.fillStyle = "#8b939e"; g.textAlign = "right"; g.fillText(String(l.length), w - 2.4, y); g.textAlign = "left";
+        boardRows.push({ v0: y - 2.6, v1: y + .6, cat: c, notes: l });
+      });
+      if (!cats.length) { g.font = `500 2.6px ${FONT}`; g.fillStyle = "#6b7480"; g.fillText(t(memoryNotes ? "Ainda sem notas" : "A ler…"), 2.4, 11); }
+    }));
   }
 
   const glowCache = {};
@@ -1447,6 +1648,14 @@
     glow(g, tx, ty, 22, LAMP.gold > .5 ? "#ffe28c" : "#c3daff", a * 1.4);
     glow(g, lx, ly, 7, "#ffffff", .55);
   }
+  // a line of light from one point of the cave to another, arched over the floor, with a spark running along it
+  function arcLine(g, a, b, color, alpha) {
+    const [ax, ay] = P(...a), [bx, by] = P(...b), [mx, my] = P((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Math.max(a[2], b[2]) + 24);
+    g.globalAlpha = alpha; g.strokeStyle = color; g.lineWidth = 1.5 * S; g.lineCap = "round";
+    g.beginPath(); g.moveTo(SX(ax), SY(ay)); g.quadraticCurveTo(SX(mx), SY(my), SX(bx), SY(by)); g.stroke();
+    const u = (clock * .55) % 1, px = (1 - u) * (1 - u) * ax + 2 * (1 - u) * u * mx + u * u * bx, py = (1 - u) * (1 - u) * ay + 2 * (1 - u) * u * my + u * u * by;
+    g.globalAlpha = 1; glow(g, px, py, 5, color, alpha);
+  }
   const LIGHT = { work: NEON.green, start: "#dfe8f2", wait: NEON.amber, help: NEON.red, pause: "#7d8590", done: NEON.green, fail: NEON.red };
   const COLD = "#dfe8f2";   // the bunker's light: cold white, colour only for the states and the partners
   function lights(g) {
@@ -1457,8 +1666,24 @@
       glow(g, ...P(d.x + 1, d.y + .45, 24), 30, COLD, .26 + Math.sin(clock * 6 + d.i) * .03);
       glow(g, ...P(d.x + 1, d.y + 1.1, 0), 24, LIGHT[mode], .2);
     }
-    glow(g, ...P(.1, 4.8, 38), 34, COLD, .16 + (Math.floor(clock * 2) % 2) * .03);
-    glow(g, ...P(.1, 9, 30), 26, "#ffe9a0", .12 + Math.sin(clock * .7) * .03);
+    // lines of light: from the post of a Claude to the post of the subagent it launched, in the colour of whose Claude it
+    // is; and from the Memória's table to a post, just after its agent took the notes
+    for (const a of agents) {
+      if (!a.job || !a.desk || a.mode === "done") continue;
+      if (a.job.type === "sub" && a.job.parent) {
+        const b = agents.find((x) => x.job && x.job.key === a.job.parent && x.desk && x.mode !== "done");
+        if (b && b !== a) arcLine(g, [b.desk.x + 1, b.desk.y + .5, 31], [a.desk.x + 1, a.desk.y + .5, 31], partnerOf(a.job.who).color, .8);
+      }
+      const since = clock - (a.notesAt || -9);
+      if (since < 3.5) arcLine(g, [TABLE.x, TABLE.y, 20], [a.desk.x + 1, a.desk.y + .5, 31], COLD, .75 * (1 - since / 3.5));
+    }
+    if (arsenalHit && clock > arsenalHit.at && clock - arsenalHit.at < 1.4) { const r = arsenalSlotAt(arsenalHit.name); if (r) glow(g, ...r, 10, COLD, .7 * (1 - (clock - arsenalHit.at) / 1.4)); }
+    glow(g, ...P(.1, 6.5, 40), 30, COLD, .1);
+    glow(g, ...P(.1, 2.5, 34), 24, COLD, .1);
+    for (const y of [4, 8]) glow(g, ...P(.5, y + .5, 20), 12, "#f3f6fa", .3);
+    const ml = clock - memLand;
+    glow(g, ...P(TABLE.x, TABLE.y, 16), 18, COLD, .16 + (ml < 2.2 ? .45 * (1 - ml / 2.2) : 0) + (agents.some((a) => a.reading) ? .15 : 0));
+    partnerModel.forEach((p, i) => { if (p.working) glow(g, ...P((SCREENS[i][0] + SCREENS[i][1]) / 2, .05, 30), 34, p.color, .16 + Math.sin(clock * 2 + i) * .03); });
     glow(g, ...P(2.5, .4, 30), 20, "#dbe9ff", .22);
     glow(g, ...P((FALL.x0 + FALL.x1) / 2, .2, 26), 28, "#9fd8ff", .18 + Math.sin(clock * 3) * .02);
     // the stands: a light running round each edge
@@ -1504,7 +1729,7 @@
       const [fx, fy] = P(a.x, a.y), on = a === hovered || a === focus || (panel && panel.ref === a), busy = a.job && a.mode !== "done";
       if ((a.seated || a.chairAt) && !on) continue;
       g.globalAlpha = on ? .95 : busy ? .6 : .3;
-      g.strokeStyle = a.color; g.lineWidth = (on ? 1.6 : 1.1) * S;
+      g.strokeStyle = DIAMOND[stateOf(a)]; g.lineWidth = (on ? 1.6 : 1.1) * S;
       g.beginPath(); g.ellipse(SX(fx), SY(fy), 7.5 * S, 3.2 * S, 0, 0, Math.PI * 2); g.stroke();
       g.globalAlpha = 1;
     }
@@ -1512,9 +1737,9 @@
   }
 
   // ================================================================ labels (sharp, on the big canvas)
-  const WORD = { work: ["a trabalhar", NEON.green], start: ["a começar", NEON.cyan], wait: ["à tua espera", NEON.amber], help: ["precisa de ajuda", NEON.red],
-    pause: ["em pausa", "#9aa2ab"], go: ["vai trabalhar", NEON.cyan], done: ["feito", NEON.green], fail: ["falhou", NEON.red] };
-  const idleWord = (a) => (a.path.length ? "a caminho" : a.pose === "sleep" ? "a dormir" : a.spot ? a.spot.word : "livre");
+  const WORD = { work: ["a trabalhar", NEON.green], start: ["a começar", COLD], wait: ["à tua espera", NEON.amber], help: ["precisa de ajuda", NEON.red],
+    pause: ["em pausa", "#9aa2ab"], go: ["vai trabalhar", NEON.green], done: ["feito", NEON.green], fail: ["falhou", NEON.red] };
+  const idleWord = (a) => (a.path.length ? "a caminho" : a.pose === "sleep" ? "a dormir" : a === talker ? "a conversar" : a.spot ? a.spot.word : "livre");
   function stateOf(a) { return !a.job ? "idle" : a.mode === "done" ? (a.done === "ok" ? "done" : "fail") : a.mode === "toDesk" ? "go" : a.job.state; }
   // each partner has a quiet colour of their own, apart from the colours of the states
   const PARTNERS = [["kovel", "Kovel", "#a99bff"], ["marco", "Marco", "#69b4ff"], ["david", "David", "#f28fb8"]];
@@ -1525,10 +1750,16 @@
   const shortModel = (m) => { const x = String(m || "").match(/opus|sonnet|haiku|fable/i); return x ? x[0][0].toUpperCase() + x[0].slice(1).toLowerCase() : ""; };
   const kTokens = (n) => (n > 0 ? (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.max(1, Math.round(n / 1e3))}k`) + " tok" : "");
   function labelOf(a) {
-    if (!a.job) return { pill: true, name: a.name, word: t(idleWord(a)), color: a.color };
+    if (!a.job) {
+      const say = a === hovered || a === focus || a === talker || (panel && panel.ref === a);
+      return { pill: true, name: a.name, word: say ? t(idleWord(a)) : "", color: "#8b95a1" };
+    }
     const st = stateOf(a), [word, color] = WORD[st], j = a.job;
     const chips = [...(j.skills || []).map((s) => "/" + s), ...(j.subagents || []).filter((x) => x.state === "working").map((x) => x.kind), ...(j.type === "sub" ? [j.kind] : [])];
-    return { name: a.name, sector: t(a.what), word: t(st === j.state && j.word ? j.word : word), color, title: j.title, now: j.action || "",
+    const now = a.fetching ? t("a buscar /{s} ao arsenal", { s: a.fetching }) : a.reading ? t("a levar as notas da Memória") : j.action || "";
+    // on a phone a card would hide the cave: one line, the state's dot, the name and the start of the request
+    if (narrow) { const s = String(j.title || ""); return { pill: true, name: a.name, word: s.length > 22 ? s.slice(0, 21).trimEnd() + "…" : s, color }; }
+    return { name: a.name, sector: t(a.what), word: t(st === j.state && j.word ? j.word : word), color, title: j.title, now,
       ask: partnerOf(j.who), meta: [j.project, j.since ? ago(j.since) : "", shortModel(j.model), kTokens(j.tokens)].filter(Boolean).join(" · "),
       chips: [...new Set(chips.filter(Boolean))], progress: j.type === "task" && j.progress > 0 ? j.progress : null };
   }
@@ -1562,8 +1793,8 @@
     const k = dpr * LS;
     if (L.pill) {
       g.font = `600 ${10.5 * k}px ${FONT}`; const nw = g.measureText(L.name).width;
-      g.font = `500 ${9.5 * k}px ${FONT}`; const ww = g.measureText(L.word).width;
-      return { w: Math.ceil(nw + ww + 30 * k), h: Math.round(19 * k), nw };
+      g.font = `500 ${9.5 * k}px ${FONT}`; const ww = L.word ? g.measureText(L.word).width : 0;
+      return { w: Math.ceil(nw + (L.word ? ww + 30 * k : 24 * k)), h: Math.round(19 * k), nw };
     }
     const maxW = 200 * k, pad = 10 * k, inner = maxW - 2 * pad;
     g.font = `500 ${10.5 * k}px ${FONT}`; const lines = wrap(g, L.title, inner, 2);
@@ -1590,7 +1821,7 @@
   function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
   function paintLabel(g, it, m, x, y) {
     const k = dpr * LS, L = it.L;
-    g.strokeStyle = L.pill ? "rgba(255,255,255,.16)" : L.color; g.globalAlpha = L.pill ? 1 : .55; g.lineWidth = k;
+    g.strokeStyle = L.pill ? (it.a.job ? L.color : "rgba(255,255,255,.16)") : L.color; g.globalAlpha = L.pill ? (it.a.job ? .6 : 1) : .55; g.lineWidth = k;
     g.beginPath(); g.moveTo(it.ax, y + m.h); g.lineTo(it.ax, it.ay); g.stroke(); g.globalAlpha = 1;
     if (L.pill) {
       rr(g, x, y, m.w, m.h, m.h / 2); g.fillStyle = "rgba(6,8,13,.8)"; g.fill();
@@ -1598,7 +1829,7 @@
       g.fillStyle = L.color; g.beginPath(); g.arc(x + 9.5 * k, y + m.h / 2, 2.6 * k, 0, Math.PI * 2); g.fill();
       g.textBaseline = "middle";
       g.font = `600 ${10.5 * k}px ${FONT}`; g.fillStyle = "#e9edf3"; g.fillText(L.name, x + 16 * k, y + m.h / 2 + .5 * k);
-      g.font = `500 ${9.5 * k}px ${FONT}`; g.fillStyle = "#8b929c"; g.fillText(L.word, x + 21 * k + m.nw, y + m.h / 2 + .5 * k);
+      if (L.word) { g.font = `500 ${9.5 * k}px ${FONT}`; g.fillStyle = "#8b929c"; g.fillText(L.word, x + 21 * k + m.nw, y + m.h / 2 + .5 * k); }
       return;
     }
     const pad = 10 * k;
@@ -1644,9 +1875,11 @@
   function labels(g) {
     const list = [];
     for (const a of agents) if (a.head) list.push({ a, L: labelOf(a), ax: SX(a.head[0]), ay: SY(a.head[1] - 2) });
-    list.sort((p, q) => (p.L.pill ? 1 : 0) - (q.L.pill ? 1 : 0) || q.ay - p.ay);
+    const idle = (it) => (it.L.pill && !it.a.job ? 1 : 0);
+    list.sort((p, q) => idle(p) - idle(q) || q.ay - p.ay);
     const placed = [], k = dpr * LS;
     carPlates(g, placed);
+    if (talker && talker.head) { const text = chatLine(); if (text) placed.push(speech(g, text, SX(talker.head[0]), SY(talker.head[1] - 7))); }
     for (const it of list) {
       it.a.label = null;
       if (it.ax < -40 * k || it.ax > cv.width + 40 * k || it.ay < -20 * k || it.ay > cv.height + 60 * k) continue;
@@ -1660,11 +1893,48 @@
         y = hit.y - m.h - 5 * k;
       }
       y = Math.max(3 * k, y);
-      if (it.L.pill && home - y > 26 * k && it.a !== hovered && it.a !== focus) continue;
+      if (idle(it) && home - y > 26 * k && it.a !== hovered && it.a !== focus) continue;
       placed.push({ x, y, w: m.w, h: m.h });
       it.a.label = { x, y, w: m.w, h: m.h };
       paintLabel(g, it, m, x, y);
     }
+  }
+  // Who is talking in the lounge now: one at a time, in turns of a few seconds, while at least two are there. What they
+  // say is what the team finished lately (the TAREFAS notes), or else the newest notes of the Memória.
+  let talker = null;
+  function pickTalker() {
+    const here = agents.filter((a) => !a.job && !a.path.length && a.spot && a.spot.lounge && a.pose !== "sleep");
+    talker = here.length > 1 ? here[Math.floor(clock / 4.5) % here.length] : null;
+  }
+  let chatMemo = { ref: undefined, pool: [] };
+  function chatLine() {
+    if (chatMemo.ref !== memoryNotes) {
+      const notes = (memoryNotes || []).slice().sort((p, q) => String(q.updated_at).localeCompare(String(p.updated_at)));
+      const done = notes.filter((m) => catOf(m) === "TAREFAS");
+      chatMemo = { ref: memoryNotes, pool: (done.length ? done : notes).slice(0, 8) };
+    }
+    const pool = chatMemo.pool;
+    if (!pool.length) return "";
+    const m = pool[Math.floor(clock / 4.5) % pool.length], cut = String(m.title).indexOf(": ");
+    if (catOf(m) === "TAREFAS" && cut > 0) return t("{w} acabou: {t}", { w: m.title.slice(0, cut), t: m.title.slice(cut + 2) });
+    return t("Nota nova em {c}: {t}", { c: catOf(m), t: m.title });
+  }
+  let speechMemo = { id: "", lines: [], w: 0 };
+  function speech(g, text, ax, ay) {
+    const k = dpr * LS, pad = 8 * k;
+    g.font = `500 ${10 * k}px ${FONT}`;
+    if (speechMemo.id !== text + k) {
+      const lines = wrap(g, text, 180 * k - 2 * pad, 2);
+      speechMemo = { id: text + k, lines, w: Math.ceil(Math.max(...lines.map((x) => g.measureText(x).width)) + 2 * pad) };
+    }
+    const { lines, w } = speechMemo, h = Math.round((lines.length * 13 + 9) * k);
+    const x = Math.round(Math.max(4 * k, Math.min(cv.width - w - 4 * k, ax - w / 2))), y = Math.round(Math.max(3 * k, ay - h - 9 * k));
+    g.fillStyle = "rgba(238,242,247,.96)";
+    rr(g, x, y, w, h, 9 * k); g.fill();
+    g.beginPath(); g.moveTo(ax - 5 * k, y + h - 1); g.lineTo(ax, y + h + 7 * k); g.lineTo(ax + 3 * k, y + h - 1); g.closePath(); g.fill();
+    g.fillStyle = "#15181d"; g.textBaseline = "alphabetic";
+    lines.forEach((x2, i) => g.fillText(x2, x + pad, y + (14 + i * 13) * k));
+    return { x, y, w, h };
   }
   // the cars' plates: what each one is, and the project it stands for
   function carPlates(g, placed) {
@@ -1727,11 +1997,15 @@
   DESKS.forEach((d) => { item(d.x + d.y + 2, d.x + 1, (g) => desk(g, d)); item(d.x + d.y + 2.6, d.x + 1, (g) => chair(g, d)); });
   // what never changes is drawn once into its own picture (the area: x0, y0, x1, y1 on the floor and how high it goes)
   const still = (key, area, paint) => (g) => cachedDraw(g, key, area, paint);
-  SOFA.forEach((y) => furn(0, y, still("sofa" + y, [0, y, 1, y + 1, 22], (q) => sofa(q, y))));
-  CHAIRS.forEach(([x, y]) => furn(x, y, (g) => armchair(g, x, y)));
+  // the lounge: the U of sofas, its corners, the console behind it, the planters, and the Memória's table in the middle
+  LOUNGE.west.forEach((y, i, l) => furn(0, y, (g) => loungeSofa(g, 0, y, "w", i === 0, i === l.length - 1)));
+  LOUNGE.north.forEach((x, i, l) => furn(x, 4, (g) => loungeSofa(g, x, 4, "n", i === 0, i === l.length - 1)));
+  LOUNGE.south.forEach((x, i, l) => furn(x, 8, (g) => loungeSofa(g, x, 8, "s", i === 0, i === l.length - 1)));
+  for (const y of [4, 8]) furn(0, y, still("end" + y, [0, y, 1, y + 1, 24], (q) => endTable(q, 0, y)));
+  for (const x of [1, 2, 3]) { furn(x, 3, still("bench" + x, [x, 3, x + 1, 4, 10], (q) => bench(q, x))); furn(x, 9, still("plant" + x, [x, 9, x + 1, 10, 20], (q) => planter(q, x))); }
+  furn(2, 6, memTable);
   ROCKS.forEach(([x, y]) => furn(x, y, still(`rock${x},${y}`, [x, y, x + 1, y + 1, 38], (q) => rock(q, x, y))));
   furn(2, 0, still("suit", [2, 0, 3, 1, 42], suitCase)); furn(4, 0, coffee);
-  furn(2, 5, still("chess", [2, 5, 3, 6, 12], table));
   item(15.95, 2.5, (g) => { const n = Math.min(30, vaultStats().total); cachedDraw(g, "goldA" + n, [1.6, 12.05, 3.4, 13.05, 16], (q) => goldPile(q, 2.5, 12.55, n)); });
   item(19.5, 4.85, (g) => { const n = clamp(vaultStats().total - 30, 0, 30); cachedDraw(g, "goldB" + n, [3.95, 13.25, 5.75, 14.25, 16], (q) => goldPile(q, 4.85, 13.75, n)); });
   item(18.3, 2.4, (g) => { const n = Math.min(24, vaultStats().week); cachedDraw(g, "cash" + n, [1.55, 14.5, 3.25, 15.5, 14], (q) => cashPile(q, 2.4, 15, n)); });
@@ -1760,7 +2034,9 @@
     if (a.seated) {
       seat = 9; dir = "ne";
       pose = a.mode === "done" ? (a.done === "ok" ? "deskDone" : "deskWait") : !a.job || a.job.state === "work" || a.job.state === "start" ? "desk" : "deskWait";
-    } else if (!a.path.length && a.spot && a.spot.seat && (pose === "sit" || pose === "sleep")) seat = a.spot.seat;
+    } else if (!a.path.length && a.spot && a.spot.seat && /^(sit|sleep)/.test(pose)) seat = a.spot.seat;
+    if (a === talker && !a.path.length) pose = pose === "sit" ? "sitTalk" : pose === "stand" || pose === "talk" ? "talk" : pose;
+    else if (pose === "talk" && !a.path.length) pose = "stand";
     if (pose === "drink") { if (clock < a.brewUntil) { pose = "play"; dir = "ne"; } else dir = "sw"; }
     if (!seat) oval(g, fx, fy, 5, 2, "rgba(0,0,0,.45)");
     const fr = window.CrewPeople.sprite(a.look, a.id, { dir, pose, tm: a.phase, hop: a.hop, seat });
@@ -1778,21 +2054,20 @@
         g.fillStyle = "rgba(255,255,255,.55)"; g.beginPath(); g.moveTo(cx, cy - 2.6); g.lineTo(cx + 1.6, cy); g.lineTo(cx, cy); g.closePath(); g.fill(); }
       let b = a.bubble && a.bubble.until > clock ? a.bubble : null;
       if (!b && a.seated && a.mode === "work" && a.job) {
-        b = { wait: { g: "?", c: NEON.amber }, help: { g: "!", c: NEON.red }, start: { g: "dots", c: NEON.cyan }, pause: { g: "pause", c: "#6b7380" } }[a.job.state];
+        b = { wait: { g: "?", c: NEON.amber }, help: { g: "!", c: NEON.red }, start: { g: "dots", c: "#9fb0c4" }, pause: { g: "pause", c: "#6b7380" } }[a.job.state];
         if (b && (a.job.state === "wait" || a.job.state === "help") && Math.floor(clock * 2) % 4 === 3) b = null;
       }
       if (b) bubble(g, a.head[0] + 5, a.head[1] + 5, b.g, b.c);
     }
   }
-  const flicker = () => { const c = clock % 13; return (c > 11.6 && c < 11.72) || (c > 11.84 && c < 11.9); };
 
   function draw() {
     const g = wg;
+    pickTalker();
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, world.width, world.height);
     g.setTransform(WS, 0, 0, WS, 0, 0);
     g.imageSmoothingEnabled = false;
-    batcomputer(g); g.setTransform(WS, 0, 0, WS, 0, 0);
     waterfall(g); g.setTransform(WS, 0, 0, WS, 0, 0);
     mouthFall(g); g.setTransform(WS, 0, 0, WS, 0, 0);
     riverFlow(g);
@@ -1808,9 +2083,7 @@
     g2.fillStyle = "#030407"; g2.fillRect(0, 0, cv.width, cv.height);
     g2.imageSmoothingEnabled = cam.w * BS > cv.width * 1.02;
     g2.drawImage(bg, cam.x * BS, cam.y * BS, cam.w * BS, cam.h * BS, 0, 0, cv.width, cv.height);
-    g2.globalAlpha = flicker() ? .45 : 1;
-    g2.drawImage(sign.c, SX(sign.box.x), SY(sign.box.y), sign.box.w * S, sign.box.h * S);
-    g2.globalAlpha = 1;
+    for (const pic of [sign, screensPic(), arsenalPic(), boardPic()]) g2.drawImage(pic.c, SX(pic.box.x), SY(pic.box.y), pic.box.w * S, pic.box.h * S);
     g2.imageSmoothingEnabled = false;
     g2.drawImage(world, cam.x * WS, cam.y * WS, cam.w * WS, cam.h * WS, 0, 0, cv.width, cv.height);
     lights(g2);
@@ -1838,7 +2111,7 @@
     for (const a of agents) step(a, dt);
     tickParticles(dt);
     if (bg) draw();
-    const busy = camAnim.to || agents.some((a) => a.path.length || a.hop > 0) || particles.some((p) => p.grav || p.kind === "coin") || clock - signal < 3.4;
+    const busy = camAnim.to || agents.some((a) => a.path.length || a.hop > 0) || particles.some((p) => p.grav || p.kind === "coin" || p.kind === "note") || clock - signal < 3.4;
     timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(frame); }, busy ? 1000 / 26 : 1000 / 12);
   }
   function wake() {
@@ -1873,7 +2146,7 @@
     if (cv.width === w && cv.height === h && bg) return;
     cv.width = w; cv.height = h; cv.style.height = `${Math.round(cssW / ASPECT)}px`;
     S = w / cam.w;
-    LS = Math.max(.8, Math.min(1, cssW / 1000));
+    LS = Math.max(.8, Math.min(1, cssW / 1000)); narrow = cssW < 640;
     buildBg();
     draw();
     wake();
@@ -1889,6 +2162,29 @@
     for (const a of agents) { const b = a.label; if (b && mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) return { agent: a }; }
     const front = [...agents].sort((p, q) => q.x + q.y - (p.x + p.y));
     for (const a of front) { const b = a.box; if (b && mx >= SX(b[0]) && mx <= SX(b[2]) && my >= SY(b[1]) && my <= SY(b[3])) return { agent: a }; }
+    const wx = mx / S + cam.x, wy = my / S + cam.y;   // the same point on the cave
+    let near = null;
+    for (const d of memDots) { const r = Math.hypot(d.px - wx, d.py - wy); if (r < 2.4 && (!near || r < near.r)) near = { r, d: d.d }; }
+    if (near) return { note: near.d.m };
+    const [tx, ty] = P(TABLE.x, TABLE.y, 0);
+    if (Math.abs(wx - tx) < 14 && wy < ty + 6 && wy > ty - 34) return { table: true };
+    for (const d of DESKS) {
+      const x0 = OX + (d.x - d.y - 1) * 16, x1 = OX + (d.x + 2 - d.y) * 16, y0 = OY + (d.x + d.y) * 8 - 31, y1 = OY + (d.x + d.y + 4) * 8 - 4;
+      if (wx >= x0 && wx <= x1 && wy >= y0 && wy <= y1) return { desk: d };
+    }
+    const w = wallAt(wx, wy);
+    if (w && w.side === "back" && w.z >= SCREEN_Z[0] && w.z <= SCREEN_Z[1]) {
+      const i = SCREENS.findIndex(([x0, x1]) => w.a >= x0 && w.a <= x1);
+      if (i >= 0 && partnerModel[i]) return { screen: partnerModel[i] };
+    }
+    if (w && w.side === "left" && w.a >= ARSENAL.y0 && w.a <= ARSENAL.y1 && w.z >= ARSENAL.z0 && w.z <= ARSENAL.z1) {
+      const u = (ARSENAL.y1 - w.a) * 16, v = ARSENAL.z1 - w.z, slot = arsenalSlots.find((r) => u >= r.u && u <= r.u + r.w && v >= r.v && v <= r.v + r.h);
+      return slot ? { skill: slot.sk } : { arsenal: true };
+    }
+    if (w && w.side === "left" && w.a >= BOARD.y0 && w.a <= BOARD.y1 && w.z >= BOARD.z0 && w.z <= BOARD.z1) {
+      const v = BOARD.z1 - w.z, r = boardRows.find((x) => v >= x.v0 && v <= x.v1);
+      return r ? { cat: r } : { board: true };
+    }
     for (const c of [...CARS].reverse()) {
       const p = c.plate; if (p && mx >= p.x && mx <= p.x + p.w && my >= p.y && my <= p.y + p.h) return { car: c };
       const b = c.bounds; if (b && mx >= SX(b[0]) && mx <= SX(b[2]) && my >= SY(b[1]) && my <= SY(b[3])) return { car: c };
@@ -1896,6 +2192,14 @@
     const vp = vaultPlate;
     if ((vp && mx >= vp.x && mx <= vp.x + vp.w && my >= vp.y && my <= vp.y + vp.h) || inVault(mx, my)) return { vault: true };
     return {};
+  }
+  // where on the office's walls a point of the cave is: the back wall (y = 0) or the left one (x = 0), and how high
+  function wallAt(sx, sy) {
+    const bx = (sx - OX) / 16, bz = OY + 8 * bx - sy;
+    if (bx >= 0 && bx <= OFFICE_W && bz >= 0 && bz <= WALL) return { side: "back", a: bx, z: bz };
+    const ly = (OX - sx) / 16, lz = OY + 8 * ly - sy;
+    if (ly >= 0 && ly <= GD && lz >= 0 && lz <= WALL) return { side: "left", a: ly, z: lz };
+    return null;
   }
   // a point of the canvas on the vault: its floor (looked at a little above, where the gold is) or its wall
   function inVault(mx, my) {
@@ -1908,7 +2212,50 @@
     return false;
   }
   const row = (label, value) => `<div><dt>${esc(t(label))}</dt><dd>${esc(value)}</dd></div>`;
+  // what each post is for, said when the pointer is on it
+  const WHY = {
+    batman: "Aqui chega o código: erros, correções, implementar. E os subagentes gerais.",
+    lucius: "Aqui chega o «onde está» e o «explica»: perceber o código. E o subagente explorador.",
+    riddler: "Aqui chega a pesquisa: preços, procurar, concorrência, fornecedores. E o subagente pesquisador.",
+    catwoman: "Aqui chega o design: páginas, cores, ecrãs, logótipos. E o subagente designer-hub.",
+    joker: "Aqui chega o marketing: anúncios, posts, campanhas. E o subagente de marketing.",
+    alfred: "Aqui chega a revisão: rever uma mudança antes de ir para todos. E o subagente revisor-hub.",
+    robin: "Aqui chegam os testes: correr, tentar os casos difíceis, dizer o que falhou.",
+    gordon: "Aqui chega tudo o resto: organizar, planear, pontas soltas. E as reuniões.",
+  };
+  const tipHead = (kind, title, color) => `<div class="cr-tip-h"><div><span>${esc(t(kind))}</span><b${color ? ` style="color:${color}"` : ""}>${esc(title)}</b></div></div>`;
   function tipHtml(hit) {
+    if (hit.desk) {
+      const d = hit.desk, c = crewById(d.crew), busy = c.job && c.mode !== "done" ? c : null;
+      return `<div class="cr-tip-h"><img class="cr-px" src="${c.portrait}" alt=""><div><span>${esc(t("Posto"))} · ${esc(c.name)}</span><b>${esc(t(c.what))}</b></div></div>
+        <p class="cr-tip-idle"><i style="--c:${busy ? LIGHT[busy.job.state] || COLD : "#7d8794"}"></i>${esc(busy ? `${busy.job.title}` : t("Livre: o {n} está {w}", { n: c.name, w: t(idleWord(c)) }))}</p>
+        <small>${esc(t(WHY[d.crew]))}</small>`;
+    }
+    if (hit.screen) {
+      const p = hit.screen;
+      return `${tipHead("Ecrã de sócio", p.name, p.color)}${p.lines.length ? `<ul class="cr-tip-list">${p.lines.slice(0, 6).map((l) => `<li><i style="--c:${l.c}"></i><span>${l.who ? `<b>${esc(l.who)}</b> · ` : ""}${esc(l.text)}</span></li>`).join("")}</ul>`
+        : `<p class="cr-tip-idle"><i style="--c:#7d8794"></i>${esc(t("Nenhum Claude aberto agora"))}</p>`}
+        <small>${esc(t("Acende na cor do {n} quando um Claude dele trabalha. Clica para ver a coluna dele na parede de comando.", { n: p.name }))}</small>`;
+    }
+    if (hit.skill) {
+      const k = hit.skill, users = agents.filter((a) => a.job && a.mode !== "done" && (a.job.skills || []).includes(k.name));
+      return `${tipHead(k.where ? `Skill · ${k.where}` : "Skill", "/" + k.name)}${k.about ? `<p class="cr-tip-t">${esc(k.about)}</p>` : ""}
+        <dl>${row("Usada", k.uses ? t("{n}× esta semana", { n: k.uses }) : t("ainda não"))}${k.by.length ? row("Por", k.by.join(", ")) : ""}${k.last ? row("Última", fmt.ago(k.last)) : ""}${users.length ? row("Agora", users.map((a) => a.name).join(", ")) : ""}</dl>
+        <small>${esc(t("Clica para ver o arsenal todo"))}</small>`;
+    }
+    if (hit.arsenal) return `${tipHead("Escritório", t("Arsenal de skills"))}<p class="cr-tip-t">${esc(t("As skills que os Claudes da equipa usaram esta semana e as que estão nas pastas .claude/skills. Quando um Claude usa uma, o agente do posto vem buscá-la."))}</p><small>${esc(t("Clica para ver o arsenal todo"))}</small>`;
+    if (hit.cat) {
+      const r = hit.cat;
+      return `${tipHead("Memória da equipa", r.cat)}<ul class="cr-tip-list">${r.notes.slice(-3).reverse().map((m) => `<li><i style="--c:${COLD}"></i>${esc(m.title)}</li>`).join("")}</ul><small>${esc(t(r.notes.length === 1 ? "1 nota · clica para abrir" : "{n} notas · clica para abrir", { n: r.notes.length }))}</small>`;
+    }
+    if (hit.note) {
+      const m = hit.note;
+      return `${tipHead(`${t("Nota")} · ${catOf(m)}`, m.title)}${m.content ? `<p class="cr-tip-t">${esc(String(m.content).slice(0, 160))}</p>` : ""}<small>${esc([m.scope_id || t(m.scope), m.updated_at ? fmt.ago(m.updated_at) : ""].filter(Boolean).join(" · "))}</small>`;
+    }
+    if (hit.table || hit.board) {
+      const n = (memoryNotes || []).length, k = memCats().length;
+      return `${tipHead("Sala de estar", t("Memória da equipa"))}<p class="cr-tip-t">${esc(t("{n} notas em {k} temas. Quem recebe uma missão passa por aqui e leva as notas da empresa ou do projeto; quando acaba, a nota dele cai na mesa.", { n, k }))}</p><small>${esc(t("Clica para abrir · lá dentro há o botão Reunião"))}</small>`;
+    }
     if (hit.vault) {
       const vs = vaultStats();
       return `<div class="cr-tip-h"><div><span>${esc(t("Agente AMG"))}</span><b>${esc(t("Cofre"))}</b></div></div>
@@ -1921,10 +2268,10 @@
     }
     const a = hit.agent;
     const head = `<div class="cr-tip-h"><img class="cr-px" src="${a.portrait}" alt=""><div><b>${esc(a.name)}</b><span>${esc(t(a.what))}</span></div></div>`;
-    if (!a.job) return `${head}<p class="cr-tip-idle"><i style="--c:${a.color}"></i>${esc(t("À espera de trabalho"))} · ${esc(t(idleWord(a)))}</p><small>${esc(t("Clica para lhe dar uma missão"))}</small>`;
+    if (!a.job) return `${head}<p class="cr-tip-idle"><i style="--c:#7d8794"></i>${esc(t("À espera de trabalho"))} · ${esc(t(idleWord(a)))}</p><small>${esc(t("Clica para lhe dar uma missão"))}</small>`;
     const j = a.job, L = labelOf(a);
     return `${head}<em class="cr-tip-st" style="--c:${L.color}">${esc(L.word)}</em><p class="cr-tip-t">${esc(j.title)}</p>
-      <dl>${row("Para", j.who)}${j.project ? row("Onde", j.project) : ""}${j.action ? row("Agora", j.action) : ""}${j.since ? row("Desde", fmt.ago(j.since)) : ""}</dl>
+      <dl>${row("Pediu", j.who)}${j.project ? row("Onde", j.project) : ""}${L.now ? row("Agora", L.now) : ""}${L.chips.length ? row("Usa", L.chips.join(", ")) : ""}${j.since ? row("Desde", fmt.ago(j.since)) : ""}</dl>
       <small>${esc(t("Clica para abrir a missão"))}</small>`;
   }
   let drag = null;
@@ -1939,7 +2286,7 @@
         return;
       }
     }
-    const hit = hitTest(e), tip = $("cr-tip"), target = hit.agent || hit.car || hit.vault || null;
+    const hit = hitTest(e), tip = $("cr-tip"), target = Object.keys(hit).length ? hit : null;
     hovered = hit.agent || null; hoverCar = hit.car || null; hoverVault = !!hit.vault;
     stage.classList.toggle("point", !!target);
     if (!target) { tip.hidden = true; return; }
@@ -1961,6 +2308,10 @@
     if (!was || was.moved) return;
     const hit = hitTest(e);
     if (hit.agent) openPanel({ kind: "agent", ref: hit.agent });
+    else if (hit.desk) openPanel({ kind: "agent", ref: crewById(hit.desk.crew) });
+    else if (hit.screen) showColumn(hit.screen.id);
+    else if (hit.skill || hit.arsenal) openPanel({ kind: "arsenal", ref: "arsenal" });
+    else if (hit.table || hit.board || hit.cat || hit.note) openPanel({ kind: "memory", ref: "memory" });
     else if (hit.car) openPanel({ kind: "car", ref: hit.car });
     else if (hit.vault) openPanel({ kind: "vault", ref: "vault" });
     else closePanel();
@@ -1999,9 +2350,9 @@
     return t("Lê {n} notas da Memória antes de cada missão · {d} tarefas da equipa já lá estão", { n: memoryNotes.length, d: done });
   }
   function agentPanel(a) {
-    const j = a.job, st = stateOf(a), color = st === "idle" ? a.color : (WORD[st] || [0, a.color])[1];
+    const j = a.job, st = stateOf(a), color = st === "idle" ? "#8b95a1" : (WORD[st] || [0, COLD])[1];
     const word = st === "idle" ? t("À espera de trabalho") : labelOf(a).word, done = doneBy(a);
-    const head = `<header class="cp-head" style="--c:${a.color}">
+    const head = `<header class="cp-head" style="--c:${color}">
         <div class="cp-portrait"><img class="cr-px" src="${a.figure}" alt=""></div>
         <div class="cp-id"><small>${esc(t("Agente"))} · ${esc(t(a.what))}</small><h3>${esc(a.name)}</h3><span class="cp-real">${esc(a.full)}${done.length ? ` · ${esc(t(done.length === 1 ? "1 missão feita" : "{n} missões feitas", { n: done.length }))}` : ""}</span>
           <span class="cp-state" style="--s:${color}"><i></i>${esc(word)}</span></div>
@@ -2037,6 +2388,7 @@
         <div><small>${esc(t("Agora"))}</small><p>${esc((tk && tk.current_action) || j.action || t("a pensar…"))}</p></div>
         ${(tk && tk.last_action) || j.last ? `<div><small>${esc(t("Último"))}</small><p>${esc((tk && tk.last_action) || j.last)}</p></div>` : ""}
         ${(tk && tk.next_action) || j.next ? `<div><small>${esc(t("A seguir"))}</small><p>${esc((tk && tk.next_action) || j.next)}</p></div>` : ""}</section>
+      ${j.skills && j.skills.length ? `<section class="cp-sec"><small class="cp-k">${esc(t("Skills"))}</small><div class="cp-chips">${j.skills.map((k) => `<span>/${esc(k)}</span>`).join("")}</div></section>` : ""}
       ${j.subagents && j.subagents.length ? `<section class="cp-sec"><small class="cp-k">${esc(t("Subagentes"))}</small>${j.subagents.map((s) => `<div class="cp-sub ${s.state === "working" ? "on" : ""}"><i></i><b>${esc(s.kind)}</b><span>${esc(s.description || "")}</span></div>`).join("")}</section>` : ""}
       ${events.length ? `<section class="cp-sec"><small class="cp-k">${esc(t("Registo"))}</small><div class="cp-log">${events.map((e) => `<div class="cp-ev ${esc(e.kind)}"><time>${esc(fmt.hhmm(e.created_at))}</time><span>${esc(e.message)}</span></div>`).join("")}</div></section>` : ""}
       ${mind}
@@ -2073,13 +2425,37 @@
       <section class="cp-sec"><small class="cp-k">${esc(t("Quem mais encheu o cofre"))}</small>${top.length
         ? top.slice(0, 5).map(([who, n]) => `<div class="cp-who"><b>${esc(who)}</b><span class="cp-who-bar"><i style="width:${Math.max(4, (n / max) * 100).toFixed(0)}%"></i></span><em>${n}</em></div>`).join("")
         : `<p class="cp-empty">${esc(t("Ainda vazio. A primeira missão concluída deposita a primeira barra."))}</p>`}
-        ${crewTop.length ? `<div class="cp-crewtop">${crewTop.slice(0, 4).map(([a, n]) => `<span style="--c:${a.color}"><img class="cr-px" src="${a.portrait}" alt="">${esc(a.name)}<b>${n}</b></span>`).join("")}</div>` : ""}</section>
+        ${crewTop.length ? `<div class="cp-crewtop">${crewTop.slice(0, 4).map(([a, n]) => `<span style="--c:${COLD}"><img class="cr-px" src="${a.portrait}" alt="">${esc(a.name)}<b>${n}</b></span>`).join("")}</div>` : ""}</section>
       <section class="cp-sec"><small class="cp-k">${esc(t("Loja BareDesk"))}</small>${live
         ? `<div class="cp-money">${[["Hoje", shop.today], ["7 dias", shop.week], ["30 dias", shop.month]].map(([k, w]) => `<div><small>${esc(t(k))}</small><b>${esc(money(w && w.revenue, shop.currency))}</b><span>${esc(t(w && w.orders === 1 ? "1 encomenda" : "{n} encomendas", { n: (w && w.orders) || 0 }))}</span></div>`).join("")}</div>`
         : `<p class="cp-bio">${esc(t(vaultExtra ? "A Shopify ainda não está ligada ao Hub. Quando estiver, as vendas da loja entram aqui ao lado do ouro." : "A ler a loja…"))}</p>`}</section>
       <section class="cp-sec"><small class="cp-k">${esc(t("O que a IA custou · 7 dias"))}</small>
         <p class="cp-bio">${usage && usage.cost_usd != null ? `<b class="cp-cost">≈ $${usage.cost_usd.toFixed(2)}</b> ${esc(t("em {n} sessões (estimativa do SDK, não é fatura)", { n: usage.runs }))}` : esc(t(vaultExtra ? "Sem uso de IA registado nos últimos 7 dias." : "A ler…"))}</p></section>
       <div class="cp-mind">${icon("bolt")}<div><b>${esc(t("Cada missão concluída é uma barra de ouro"))}</b><span>${esc(t("As notas no carrinho são as desta semana. Quando um agente acaba uma missão, as moedas voam para o cofre."))}</span></div></div>`;
+  }
+  function memoryPanel() {
+    const cats = memCats(), notes = memoryNotes || [], recent = notes.slice().sort((p, q) => String(q.updated_at).localeCompare(String(p.updated_at))).slice(0, 6);
+    return `<header class="cp-head car" style="--c:${COLD}">
+        <div class="cp-id"><small>${esc(t("Sala de estar"))}</small><h3>${esc(t("Memória da equipa"))}</h3>
+          <span class="cp-state" style="--s:${COLD}"><i></i>${esc(t(notes.length === 1 ? "1 nota" : "{n} notas", { n: notes.length }))} · ${esc(t(cats.length === 1 ? "1 tema" : "{n} temas", { n: cats.length }))}</span></div>
+        <button class="cp-x" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>${stripes()}
+      <section class="cp-sec"><small class="cp-k">${esc(t("Por tema"))}</small>${cats.length ? `<div class="cp-cats">${cats.map(([c, l]) => `<div><b>${esc(c)}</b><span>${l.length}</span></div>`).join("")}</div>`
+        : `<p class="cp-empty">${esc(t(memoryNotes ? "Ainda sem notas." : "A ler a Memória…"))}</p>`}</section>
+      ${recent.length ? `<section class="cp-sec"><small class="cp-k">${esc(t("As mais recentes"))}</small>${recent.map((m) => `<div class="cp-note"><small>${esc(catOf(m))}${m.updated_at ? ` · ${esc(fmt.ago(m.updated_at))}` : ""}</small><b>${esc(m.title)}</b></div>`).join("")}</section>` : ""}
+      <section class="cp-sec"><small class="cp-k">${esc(t("Reunião"))}</small><p class="cp-bio">${esc(t("O Gordon lê a Memória toda, liga as ideias e propõe o que fazer a seguir. É uma missão a sério: gasta como qualquer outra, e o resultado fica como nota."))}</p>
+        <button class="btn primary cp-meet" data-meet>${icon("users")}${esc(t("Fazer uma reunião"))}</button></section>
+      <div class="cp-mind">${icon("layers")}<div><b>${esc(t("Antes de cada missão, a mesa"))}</b><span>${esc(t("Quem recebe uma missão passa pela mesa e leva as notas da empresa ou do projeto; quando acaba, a nota dele cai na mesa e acende."))}</span></div></div>
+      <footer class="cp-foot"><button class="btn" data-href="#/memoria">${icon("arrow")}${esc(t("Abrir a Memória"))}</button></footer>`;
+  }
+  function arsenalPanel() {
+    const live = inUseSkills();
+    return `<header class="cp-head car" style="--c:${COLD}">
+        <div class="cp-id"><small>${esc(t("Escritório"))}</small><h3>${esc(t("Arsenal de skills"))}</h3>
+          <span class="cp-state" style="--s:${live.size ? NEON.green : COLD}"><i></i>${esc(t(arsenalList.length === 1 ? "1 skill" : "{n} skills", { n: arsenalList.length }))}${live.size ? ` · ${esc(t("{n} em uso", { n: live.size }))}` : ""}</span></div>
+        <button class="cp-x" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>${stripes()}
+      <section class="cp-sec">${arsenalList.length ? arsenalList.map((k) => `<div class="cp-skill ${live.has(k.name) ? "on" : ""}"><div><b>/${esc(k.name)}</b><em>${esc(k.uses ? t("{n}× esta semana", { n: k.uses }) : t("por usar"))}</em></div>${k.about ? `<span>${esc(k.about)}</span>` : ""}<small>${esc([k.where, k.by.join(", "), k.last ? fmt.ago(k.last) : ""].filter(Boolean).join(" · "))}</small></div>`).join("")
+        : `<p class="cp-empty">${esc(t("Ainda nenhuma skill usada esta semana nem encontrada nas pastas."))}</p>`}</section>
+      <div class="cp-mind">${icon("bolt")}<div><b>${esc(t("Como chega aqui"))}</b><span>${esc(t("Cada skill que um Claude da equipa usa fica guardada no Hub com a janela dele. Quando acontece, o agente do posto vem buscá-la e ela fica no cartão dele."))}</span></div></div>`;
   }
   function carPanel(c) {
     return `<header class="cp-head car" style="--c:${c.accent}">
@@ -2109,7 +2485,8 @@
     }
     const keep = el.querySelector(".cp-send input");
     const typed = keep ? keep.value : "", focused = keep && document.activeElement === keep;
-    paint(el, `<div class="cp-in">${panel.kind === "car" ? carPanel(panel.ref) : panel.kind === "vault" ? vaultPanel() : agentPanel(panel.ref)}</div>`);
+    const body = { car: () => carPanel(panel.ref), vault: vaultPanel, memory: memoryPanel, arsenal: arsenalPanel }[panel.kind] || (() => agentPanel(panel.ref));
+    paint(el, `<div class="cp-in">${body()}</div>`);
     const input = el.querySelector(".cp-send input");
     if (input && typed) input.value = typed;
     if (input && focused) input.focus();
@@ -2121,20 +2498,35 @@
     $("cr-tip").hidden = true;
     refreshPanel(true);
     if (p.kind === "vault") fetchVaultExtra();
-    if (!memoryNotes) api("/api/memory").then((m) => { memoryNotes = m; refreshPanel(false); }).catch(() => {});
+    if (p.kind === "agent") focusPost(p.ref);
+    loadMemory();
     clearInterval(panelTimer);
     panelTimer = setInterval(() => { document.querySelectorAll("#cr-panel [data-elapsed]").forEach((b) => (b.textContent = elapsed(b.dataset.elapsed))); }, 1000);
     wake();
   }
+  // clicking an agent brings the camera to their post, left of the panel; closing the panel goes back to the view
+  let focused = false;
+  function focusPost(a) {
+    const d = a && deskOf(a);
+    if (!d || !stage || !cv.width) return;
+    const [px, py] = P(d.x + 1, d.y + 1, 16), w = 300, h = w / ASPECT, sw = stage.clientWidth || 1;
+    const covered = sw > 900 ? (Math.min(392, sw - 20) + 10) / sw : 0;
+    camAnim.from = { x: cam.x, y: cam.y, w: cam.w }; camAnim.to = { x: px - w * (1 - covered) / 2, y: py - h * .55, w }; camAnim.t = 0;
+    stage.querySelectorAll("[data-view]").forEach((b) => b.classList.remove("on"));
+    focused = true; wake();
+  }
   function closePanel() {
     const el = $("cr-panel");
     panel = null; clearInterval(panelTimer); panelTimer = 0;
+    if (focused) { focused = false; goView(view); }
     if (!el) return;
     el.classList.remove("open");
     setTimeout(() => { if (!panel) el.hidden = true; }, 260);
   }
   async function panelClick(e) {
     if (e.target.closest("[data-close]")) { closePanel(); return; }
+    const m = e.target.closest("[data-meet]");
+    if (m) { meet(m); return; }
     const link = e.target.closest("[data-href]");
     if (link) { location.hash = link.dataset.href; return; }
     const ctl = e.target.closest("[data-control]");
@@ -2159,19 +2551,71 @@
   // ================================================================ the page around it
   const ago = (iso) => (iso ? fmt.ago(iso) : "");
   function stat(n, label, c) { return `<div class="cr-stat ${n ? "lit" : ""}" style="--c:${c}"><i></i><b>${n}</b><span>${esc(t(label))}</span></div>`; }
-  function jobRow(a) {
-    const j = a.job, L = labelOf(a);
-    return `<button class="cr-job" data-agent="${a.i}" style="--c:${a.color}">
-      <span class="cr-face"><img class="cr-px" src="${a.portrait}" alt=""></span>
-      <div class="cr-job-t"><div><b>${esc(a.name)}</b><span class="cr-sec">${esc(t(a.what))}</span><em style="--s:${L.color}">${esc(L.word)}</em></div><p>${esc(j.title)}</p>
-        <small><span class="cr-ask" style="--p:${partnerOf(j.who).color}">${esc(j.who)}</span>${j.project ? ` · ${esc(j.project)}` : ""}${j.since ? ` · ${esc(ago(j.since))}` : ""}</small>
-        ${L.progress != null ? `<span class="cr-bar"><i style="width:${Math.min(100, L.progress)}%"></i></span>` : ""}</div>
-      <span class="cr-go-ic">${icon("chevron")}</span></button>`;
-  }
   function queueRow(j) {
     const named = j.crew && crewById(j.crew) ? crewById(j.crew).name : "";
     const why = j.stale ? t("à espera do agente automático de {n}", { n: j.who }) : named ? t("{c} está ocupado", { c: named }) : t("estão todos ocupados");
     return `<button class="cr-q" data-href="${esc(j.href)}"><i></i><div><p>${esc(j.title)}</p><small>${esc(t("para"))} ${esc(j.who)} · ${esc(why)}</small></div>${icon("chevron")}</button>`;
+  }
+  // The command wall under the cave: a column per partner with each Claude of theirs that is open (the request, the
+  // state, the agent doing it, the skills, the subagents, the model, the tokens, since when) and the missions of their
+  // automatic agent. The partners' screens in the cave show the same (screensPic).
+  const CLAUDE_STATE = { working: ["a trabalhar", NEON.green], waiting: ["à tua espera", NEON.amber], stalled: ["parado", "#7d8794"], idle: ["aberto", "#5f6874"] };
+  const CLAUDE_RANK = { working: 0, waiting: 1, stalled: 2, idle: 3 };
+  function buildPartners() {
+    partnerModel = PARTNERS.map(([id, name, color], i) => {
+      const claudes = (office.sessions || []).filter((s) => partnerOf(s.name).id === id && s.state !== "ended")
+        .sort((p, q) => (CLAUDE_RANK[p.state] ?? 9) - (CLAUDE_RANK[q.state] ?? 9) || String(q.since).localeCompare(String(p.since)))
+        .map((s) => ({ s, agent: agents.find((a) => a.job && a.job.key === "c" + s.id) || null }));
+      const missions = tasks.filter((x) => !x.trashed_at && partnerOf(nameOf(x.assignee)).id === id && (TASK_STATE[x.status] || x.status === "ASSIGNED"))
+        .map((x) => ({ x, agent: agents.find((a) => a.job && a.job.key === "t" + x.id) || null }));
+      const working = claudes.filter((c) => c.s.state === "working").length + missions.filter((m) => m.x.status === "IN_PROGRESS").length;
+      const crewName = (x, agent) => (agent ? agent.name : x.crew && crewById(x.crew) ? crewById(x.crew).name : "");
+      const lines = [
+        ...claudes.map(({ s, agent }) => ({ who: agent ? agent.name : "", text: cleanPrompt(s.prompt) || t("Claude em {p}", { p: s.project }),
+          c: (CLAUDE_STATE[s.state] || CLAUDE_STATE.idle)[1], dim: s.state === "idle" || s.state === "stalled" })),
+        ...missions.map(({ x, agent }) => ({ who: crewName(x, agent) || t("auto"), text: `${t("auto")} · ${x.title}`, c: LIGHT[TASK_STATE[x.status]] || "#7d8794", dim: !TASK_STATE[x.status] })),
+      ];
+      return { i, id, name, color, claudes, missions, working, lines, sig: `${id}:${working}:${lines.map((l) => l.c + l.who + l.text).join("¦")}` };
+    });
+  }
+  function claudeCard(s, agent) {
+    const [word, c] = CLAUDE_STATE[s.state] || CLAUDE_STATE.idle, subs = (s.agents || []).filter((x) => x.state === "working");
+    const chips = [...(s.skills || []).map((k) => `<span class="cr-chip">/${esc(k)}</span>`), ...subs.map((x) => `<span class="cr-chip sub">${esc(x.kind)}</span>`)].join("");
+    const meta = [s.project, shortModel(s.model), kTokens(s.tokens), s.since ? ago(s.since) : ""].filter(Boolean).join(" · ");
+    return `<button class="cr-cl" ${agent ? `data-agent="${agent.i}"` : `data-href="#/escritorio"`}>
+      <div class="cr-cl-h"><em style="--s:${c}">${esc(t(word))}</em>${agent ? `<span class="cr-cl-ag"><img class="cr-px" src="${agent.portrait}" alt="">${esc(agent.name)} · ${esc(t(agent.what))}</span>` : ""}</div>
+      <p>${esc(cleanPrompt(s.prompt) || t("(sem pedido)"))}</p>
+      ${s.action && s.state === "working" ? `<small class="cr-cl-now">↳ ${esc(s.action)}</small>` : ""}
+      ${chips ? `<div class="cr-chips">${chips}</div>` : ""}
+      ${meta ? `<small>${esc(meta)}</small>` : ""}</button>`;
+  }
+  function missionCard(x, agent) {
+    const st = TASK_STATE[x.status], who = agent || (x.crew && crewById(x.crew)) || null;
+    const meta = [x.project_name || x.company || x.project, ago(x.started_at || x.created_at)].filter(Boolean).join(" · ");
+    return `<button class="cr-cl" ${agent ? `data-agent="${agent.i}"` : `data-href="#task-${x.id}"`}>
+      <div class="cr-cl-h"><em style="--s:${st ? LIGHT[st] : "#7d8794"}">${esc(t(st ? WORD[st][0] : "na fila"))}</em>${who ? `<span class="cr-cl-ag"><img class="cr-px" src="${who.portrait}" alt="">${esc(who.name)} · ${esc(t(who.what))}</span>` : ""}</div>
+      <p>${esc(x.title)}</p>
+      ${x.current_action ? `<small class="cr-cl-now">↳ ${esc(x.current_action)}</small>` : ""}
+      ${x.progress > 0 ? `<span class="cr-bar" style="--c:${COLD}"><i style="width:${Math.min(100, x.progress)}%"></i></span>` : ""}
+      ${meta ? `<small>${esc(meta)}</small>` : ""}</button>`;
+  }
+  function paintWall() {
+    const el = $("cr-wall");
+    if (!el) return;
+    paint(el, partnerModel.map((p) => `<section class="cr-col" id="cr-col-${p.id}" style="--p:${p.color}">
+      <header><i></i><b>${esc(p.name)}</b><span>${esc(p.working ? t("{n} a trabalhar", { n: p.working }) : t("nada a correr"))}</span></header>
+      <small class="cr-col-k">${esc(t("Claudes abertos"))}</small>
+      ${p.claudes.length ? p.claudes.map(({ s, agent }) => claudeCard(s, agent)).join("") : `<p class="cr-quiet">${esc(t("Nenhum Claude aberto."))}</p>`}
+      <small class="cr-col-k">${esc(t("Agente automático"))}</small>
+      ${p.missions.length ? p.missions.map(({ x, agent }) => missionCard(x, agent)).join("") : `<p class="cr-quiet">${esc(t("Sem missões."))}</p>`}
+    </section>`).join(""));
+  }
+  // a partner's screen clicked in the cave: their column of the command wall
+  function showColumn(id) {
+    const col = $(`cr-col-${id}`);
+    if (!col) return;
+    col.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    col.classList.remove("flash"); void col.offsetWidth; col.classList.add("flash");
   }
   function paintLists() {
     if (!$("cr-stats")) return;
@@ -2180,14 +2624,13 @@
     const stale = tasks.filter((x) => !x.trashed_at && x.status === "ASSIGNED" && !jobs.some((j) => j.key === `t${x.id}`)).map((x) => ({ ...taskJob(x, "start"), stale: true }));
     const fila = [...queue, ...stale];
     paint($("cr-stats"), stat(n((s) => s === "work" || s === "start"), "a trabalhar", NEON.green) + stat(n((s) => s === "wait" || s === "help" || s === "pause"), "à tua espera", NEON.amber)
-      + stat(agents.length - busy.length, "à espera de trabalho", "#9aa2ab") + stat(fila.length, "na fila", NEON.violet));
+      + stat(agents.length - busy.length, "à espera de trabalho", "#9aa2ab") + stat(fila.length, "na fila", COLD));
     paint($("cr-crew"), agents.map((a) => {
       const st = !a.job || a.mode === "done" ? "idle" : a.job.state === "work" || a.job.state === "start" ? "work" : "wait", done = doneBy(a).length;
-      return `<button class="cr-mate st-${st}" data-mate="${a.i}" style="--c:${a.color}" title="${esc(a.name)} · ${esc(t(a.what))}${done ? ` · ${esc(t("{n} missões feitas", { n: done }))}` : ""}"><img class="cr-px" src="${a.portrait}" alt=""><i></i>${done ? `<b class="cr-medal">${done}</b>` : ""}<span>${esc(a.name)}</span></button>`;
+      return `<button class="cr-mate st-${st}" data-mate="${a.i}" style="--c:${{ work: NEON.green, wait: NEON.amber }[st] || "#8b95a1"}" title="${esc(a.name)} · ${esc(t(a.what))}${done ? ` · ${esc(t("{n} missões feitas", { n: done }))}` : ""}"><img class="cr-px" src="${a.portrait}" alt=""><i></i>${done ? `<b class="cr-medal">${done}</b>` : ""}<span>${esc(a.name)}</span></button>`;
     }).join(""));
-    const order = { work: 0, help: 1, start: 2, wait: 3, pause: 4 };
-    paint($("cr-jobs"), busy.length ? busy.sort((p, q) => order[p.job.state] - order[q.job.state]).map(jobRow).join("")
-      : `<p class="cr-quiet">${esc(t("Ninguém em missão agora. Escreve lá em cima o que é para fazer, ou clica num agente e dá-lhe uma missão."))}</p>`);
+    buildPartners();
+    paintWall();
     paint($("cr-queue"), fila.length ? fila.map(queueRow).join("") : `<p class="cr-quiet">${esc(t("Nada na fila."))}</p>`);
     if (panel && panel.kind === "agent") refreshPanel(false);
   }
@@ -2200,9 +2643,9 @@
     lastLoad = Date.now();
     try {
       const [o, ts] = await Promise.all([api("/api/office"), api("/api/tasks")]);
-      office = o; tasks = ts;
+      office = o; tasks = ts; arsenalList = o.arsenal || [];
     } catch (e) {
-      if (e.message !== "unauthorized" && $("cr-jobs") && firstLoad) $("cr-jobs").innerHTML = ui.error(e.message);
+      if (e.message !== "unauthorized" && $("cr-wall") && firstLoad) $("cr-wall").innerHTML = ui.error(e.message);
       return;
     }
     if (!stage || !stage.isConnected) return;
@@ -2210,15 +2653,30 @@
     reconcile(jobs, firstLoad);
     firstLoad = false;
     paintLists();
+    loadMemory();
     if (panel && panel.kind === "agent" && panel.ref.job && panel.ref.job.type === "task") refreshPanel(true);
     if (panel && panel.kind === "vault") refreshPanel(false);
   }
 
-  async function sendTask(title, crewId, button) {
+  // the Memória, read when the page opens and again every five minutes, or a little after a task drops its note
+  let memoryAt = 0;
+  function loadMemory() {
+    if (Date.now() - memoryAt < 5 * 60e3) return;
+    memoryAt = Date.now();
+    api("/api/memory").then((m) => { memoryNotes = m; if (panel && (panel.kind === "agent" || panel.kind === "memory")) refreshPanel(false); }).catch(() => { memoryAt = 0; });
+  }
+  // the meeting: a real mission for Gordon (it costs like any other) to read the Memória, join the ideas and propose
+  // what to do next; crew.remember_task keeps the result as a note
+  async function meet(button) {
+    if (!window.confirm(t("Reunião: o Gordon lê a Memória toda, liga as ideias e propõe o que fazer a seguir. É uma missão a sério e gasta como qualquer outra. Avançar?"))) return;
+    await sendTask(t("Reunião da equipa: ligar as ideias da Memória e propor o que fazer a seguir"), "gordon", button,
+      t("Lê a Memória da equipa toda (está no teu briefing) e as tarefas abertas e acabadas. Liga as ideias: o que se repete, o que se contradiz, o que ficou a meio. Propõe as 3 a 5 coisas mais importantes a fazer a seguir, cada uma com o porquê e com quem da equipa a deve fazer. Não mudes código nem publiques nada: é uma reunião, o resultado é a proposta."));
+  }
+  async function sendTask(title, crewId, button, description = "") {
     const who = $("cr-who") ? $("cr-who").value : me.username;
     if (button) button.disabled = true;
     try {
-      const task = await api("/api/tasks", { method: "POST", body: { title, assignee: who, crew: crewId || "", for_ai: true } });
+      const task = await api("/api/tasks", { method: "POST", body: { title, description, assignee: who, crew: crewId || "", for_ai: true } });
       tasks = [task, ...tasks.filter((x) => x.id !== task.id)];
       jobs = jobsOf();
       reconcile(jobs, false);
@@ -2288,7 +2746,12 @@
     $("cr-send").onsubmit = send;
     $("cr-title").oninput = routeHint;
     $("cr-send").onchange = routeHint;
-    $("cr-jobs").onclick = (e) => { const b = e.target.closest("[data-agent]"); if (b) { if (view !== "office") goView("office"); openPanel({ kind: "agent", ref: agents[Number(b.dataset.agent)] }); } };
+    $("cr-wall").onclick = (e) => {
+      const b = e.target.closest("[data-agent]"), h = e.target.closest("[data-href]");
+      if (b) { stage.scrollIntoView({ behavior: "smooth", block: "nearest" }); openPanel({ kind: "agent", ref: agents[Number(b.dataset.agent)] }); }
+      else if (h) location.hash = h.dataset.href;
+    };
+    $("cr-meet").onclick = (e) => meet(e.currentTarget);
     $("cr-queue").onclick = (e) => { const b = e.target.closest("[data-href]"); if (b) location.hash = b.dataset.href; };
     const crew = $("cr-crew");
     crew.onmouseover = (e) => { const b = e.target.closest("[data-mate]"); focus = b ? agents[Number(b.dataset.mate)] : null; };
@@ -2309,8 +2772,9 @@
         <label class="cr-in">${icon("bolt")}<input id="cr-title" maxlength="200" placeholder="${esc(t("Qual é a missão?"))}"></label>
         <div class="cr-pick" role="radiogroup" aria-label="${esc(t("Quem faz"))}">
           <label title="${esc(t("Vai para o setor do pedido: design, pesquisa, testes, revisão, marketing, código, engenharia; o resto, Operações"))}"><input type="radio" name="cr-crew" value="" checked><span class="any">${icon("bolt")}${esc(t("Automático"))}</span></label>
-          ${agents.map((a) => `<label title="${esc(a.name)} · ${esc(t(a.what))}"><input type="radio" name="cr-crew" value="${a.id}"><span style="--c:${a.color}"><img class="cr-px" src="${a.portrait}" alt="">${esc(a.name)}</span></label>`).join("")}</div>
+          ${agents.map((a) => `<label title="${esc(a.name)} · ${esc(t(a.what))}"><input type="radio" name="cr-crew" value="${a.id}"><span style="--c:${COLD}"><img class="cr-px" src="${a.portrait}" alt="">${esc(a.name)}</span></label>`).join("")}</div>
         ${users.length ? `<label class="cr-who">${icon("users")}<select id="cr-who" title="${esc(t("No agente automático de quem"))}">${options(users.map((u) => [u.username, u.display_name]), me.username)}</select></label>` : ""}
+        <button type="button" class="btn cr-meet" id="cr-meet" title="${esc(t("O Gordon lê a Memória, liga as ideias e propõe o que fazer a seguir"))}">${icon("users")}${t("Reunião")}</button>
         <button class="btn primary cr-go" id="cr-go">${t("Mandar")}${icon("arrow")}</button>
         <p class="cr-route" id="cr-route" aria-live="polite" hidden></p>
       </form>
@@ -2318,10 +2782,13 @@
         <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>
         <div class="cr-crew" id="cr-crew"></div>
         <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
+        <div class="cr-legend" aria-label="${esc(t("Legenda"))}">${[["a trabalhar", NEON.green], ["à espera", NEON.amber], ["precisa de ajuda", NEON.red], ["livre", "#8b95a1"]]
+          .map(([l, c]) => `<span><i class="st" style="--c:${c}"></i>${esc(t(l))}</span>`).join("")}<b></b>${PARTNERS.map(([, n, c]) => `<span><i style="--c:${c}"></i>${esc(n)}</span>`).join("")}</div>
         <div class="cr-tip" id="cr-tip" hidden></div>
         <aside class="cr-panel" id="cr-panel" hidden></aside></section>
-      <div class="cr-lists">
-        <section><div class="cr-h">${icon("bolt")}<b>${t("Em missão")}</b></div><div id="cr-jobs">${ui.skeleton(3)}</div></section>
+      <div class="cr-h cr-wall-h">${icon("bolt")}<b>${t("Parede de comando")}</b><span>${esc(t("O que cada sócio tem a correr: os Claudes abertos e as missões do agente automático"))}</span></div>
+      <section class="cr-wall" id="cr-wall">${ui.skeleton(3)}</section>
+      <div class="cr-lists one">
         <section><div class="cr-h">${icon("inbox")}<b>${t("Na fila")}</b></div><div id="cr-queue"></div></section>
       </div>`);
     mount();

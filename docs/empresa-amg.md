@@ -68,17 +68,19 @@ com o ecrã. A arquitetura acima (um registo, secções independentes) deixa faz
   O Hub instala os hooks sozinho em `~/.claude/settings.json` ao arrancar (`backend/app/claude_hooks.py`; `CLAUDE_OFFICE=0` tira-os).
 - **Saúde** (Sistema; telemóvel em Mais): cada Hub mede-se de minuto a minuto (Hub, widget, janela grande) com as contas do
   Windows (`backend/app/health.py`), tabela `pc_health` sincronizada.
-- **Empresa AMG** (antiga My Niggaz; `#/empresa`, o `#/niggaz` ainda abre; menu do PC, a seguir ao Escritório; telemóvel em Mais, a toda a largura): a Batcave da equipa, em pixel art
+- **Empresa AMG** (antiga My Niggaz; `#/empresa`, o `#/niggaz` ainda abre; menu do PC, a seguir ao Escritório; telemóvel em Mais,
+  a toda a largura; redesenhada a 7 out, ver `docs/batcave-redesenho.md`): a Batcave da equipa, em pixel art
   isométrica (`frontend/hub/crew.js` + `crew.css`), com uma câmara que vai do escritório à garagem (Escritório · Garagem · Tudo,
   ou arrastar). **Os agentes são personagens do Batman** e cada um tem um papel: Batman (código), Lucius Fox (engenharia),
   Riddler (pesquisa), Catwoman (design), Joker (marketing), Alfred (revisão), Robin (testes) e Gordon (operações); o Lucius,
-  o Riddler, o Alfred e o Gordon andam de fato e gravata. Sem trabalho ficam no lounge (sofá, Batcomputador, o fato na
-  vitrine, café, saco de boxe, xadrez); uma missão mandada daqui (a um deles pelo nome, ou a qualquer um), uma tarefa do
-  quadro, um Claude a trabalhar ou um subagente põe um deles a caminho de um dos 6 computadores. Clicar num agente abre o
+  o Riddler, o Alfred e o Gordon andam de fato e gravata. Sem trabalho ficam na sala de estar, à volta da mesa com a Memória,
+  a conversar sobre o que a equipa acabou; uma missão mandada daqui (pelo nome, ou «Automático», que escolhe pelo setor), uma
+  tarefa do quadro, um Claude a trabalhar ou um subagente põe um deles a caminho do posto do seu setor, passando pela mesa
+  para levar as notas. Clicar num agente leva a câmara ao posto dele e abre o
   **painel de missão** (acabamento AMG: carbono, cromado, conta-rotações do progresso, tempo, custo, agora/último/a seguir,
   registo, pausar/parar); num agente livre, dá-lhe uma missão ali mesmo. Peso medido a 7 out: ~3,6 ms por imagem a 3000 px,
-  12 imagens/s parado e 26 a mexer, só com a página aberta e à vista. A 7 out o Marco pediu para a refazer e mudar-lhe o
-  nome: o plano está em `docs/batcave-redesenho.md`.
+  12 imagens/s parado e 26 a mexer, só com a página aberta e à vista. Por baixo da gruta, a parede de comando: uma coluna por
+  sócio com os Claudes abertos dele e as missões do agente automático.
 - **Cada personagem é a sua própria conversa do Claude** (`tasks.crew`, `backend/app/crew.py`): o agente automático de quem
   recebe a tarefa corre-a como essa personagem, retomando sempre a mesma conversa (guardada em
   `~/.team-agent/<perfil>/crew/<id>`, recomeça ao fim de 12 tarefas) e começa cada missão com o briefing do Hub

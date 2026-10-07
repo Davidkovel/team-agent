@@ -25,7 +25,9 @@ log = logging.getLogger("team.backend")
 # 6: users.phone_topic, for notifications on the phone (push.py).
 # 12: tasks.doing_since, the "Estou a fazer" button.
 # 13: tasks.crew, the member of the crew (crew.py) a task is given to.
-SCHEMA_VERSION = 13
+# 14: claude_sessions.skills and claude_agents.skills, the skills each Claude window and subagent used (the arsenal of
+#     Empresa AMG). A PC still on 13 syncs its rows without them: they arrive empty.
+SCHEMA_VERSION = 14
 
 
 def current_version(conn) -> int:

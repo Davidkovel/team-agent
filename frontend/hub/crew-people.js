@@ -17,7 +17,8 @@ window.CrewPeople = (function () {
 
   // ------------------------------------------------------------------ one figure
   // dir: se/sw face us (sw is se mirrored), ne/nw turn their back. pose: stand, walk, sit, sleep, desk, deskWait,
-  // deskDone, train, think, phone, drink, play, look. f: the step of the pose's animation. seat: height of the seat, px.
+  // deskDone, train, think, phone, drink, play, look, talk (talking with the hands), sitTalk (the same, seated).
+  // f: the step of the pose's animation. seat: height of the seat, px.
   function draw(g, L, o) {
     const back = o.dir === "ne" || o.dir === "nw", flip = o.dir === "sw" || o.dir === "nw";
     const pose = o.pose, f = o.f || 0;
@@ -136,6 +137,15 @@ window.CrewPeople = (function () {
         break;
       case "play": R(0, 24 - (f % 2) * 2, 4, 4, sleeveD); R(16, 22 + (f % 2) * 2, 4, 4, sleeveL); break;
       case "sit": case "sleep": arm(0, 24, 6); arm(1, 24, 6); break;
+      // talking: a hand up to make the point, listening, the other hand, both palms open
+      case "talk": case "sitTalk": {
+        const low = pose === "sitTalk" ? 24 : 22, len = pose === "sitTalk" ? 6 : 10;
+        if (f === 0) { arm(0, low, len); R(16, 20, 2, 4, sleeveD); R(18, 17, 2, 4, sleeveD); hand(18, 15); }
+        else if (f === 2) { arm(1, low, len); R(2, 20, 2, 4, sleeveL); R(0, 17, 2, 4, sleeveL); hand(0, 15); }
+        else if (f === 3) { R(0, 23, 4, 3, sleeveL); R(16, 23, 4, 3, sleeveD); hand(0, 26); hand(18, 26); }
+        else { arm(0, low, len); arm(1, low, len); }
+        break;
+      }
       default: arm(0, 22, 10); arm(1, 22, 10);
     }
     // ---- the cape seen from behind: over the back and the arms, folds, a scalloped hem
@@ -268,6 +278,7 @@ window.CrewPeople = (function () {
       case "desk": return Math.floor(tm * 11) % 2 + (Math.floor(tm * 1.3) % 5 === 0 ? 2 : 0);
       case "train": case "play": return Math.floor(tm * 4.5) % 2;
       case "drink": return tm % 3 < 1 ? 1 : 0;
+      case "talk": case "sitTalk": return [0, 1, 1, 3, 1, 2, 1, 1][Math.floor(tm * 1.7) % 8];
       default: return 0;
     }
   }

@@ -86,25 +86,42 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
 
 ### A Empresa AMG (a Batcave, antiga My Niggaz)
 
-**Em redesenho (7 out):** o Marco pediu para a refazer (nome novo Empresa AMG, um posto fixo por setor, a parede de comando com
-uma coluna por sócio, a sala de estar com a Memória, o arsenal de skills). O plano aceite, o que falta e quem mexe no quê estão em
-`docs/batcave-redesenho.md`: lê-o antes de mexer nesta página.
+**Redesenhada a 7 out** a pedido do Marco (`docs/batcave-redesenho.md`: o que ele pediu, o que se fez e o que fica para a fase
+de controlo). Antes de mudar alguma coisa grande nesta página, lê esse ficheiro.
 
 A página `#/empresa` (o `#/niggaz` antigo continua a abrir): a equipa de agentes em pixel art isométrica, com escritório e stand de carros. Quatro ficheiros, cada um com a sua parte:
 
-- `frontend/hub/crew.js`: o motor. O mundo, a câmara (Escritório · Stand · Tudo, ou arrastar), os agentes a andar e a trabalhar, as
-  missões (lê `/api/tasks` e `/api/office`, cria com `POST /api/tasks` e `crew`), o painel de missão AMG, os rótulos e as placas.
+- `frontend/hub/crew.js`: o motor. O mundo, a câmara (Escritório · Cofre · Stand · Tudo, ou arrastar; clicar num agente leva-a ao
+  posto dele), os agentes a andar e a trabalhar, as missões (lê `/api/tasks`, `/api/office` e `/api/memory`, cria com
+  `POST /api/tasks` e `crew`), os painéis (agente, Memória, arsenal, cofre, carro), os cartões, as dicas e a parede de comando.
 - `frontend/hub/crew-people.js`: as personagens, com o dobro do detalhe da cave, luz, sombra e contorno. Cada imagem de uma pose
   desenha-se uma vez e fica guardada (`sprite`, `portrait`).
 - `frontend/hub/crew-cars.js`: os carros em 3D (G 63, 911 GT3 RS, Aventador SVJ, SF90). Carroçaria feita de secções ao longo do
   carro a partir de números tirados do carro verdadeiro (`MODELS`), mais os pormenores de cada um (`DETAILS`); desenham-se uma vez
   por tamanho para dentro do fundo.
 - `backend/app/crew.py`: as personagens do lado do Hub (papel, personalidade), o briefing que o agente lê e as notas TAREFAS.
+- `backend/app/routers/office.py`: as janelas do Claude e os subagentes, e o **arsenal** (`arsenal()`): as skills que cada janela e
+  cada subagente usou (colunas `skills` de `claude_sessions` e `claude_agents`, versão 14 da base de dados) mais as que há nas pastas
+  `.claude/skills` deste PC e dos repositórios da equipa (`skill_folders()`, lidas de 5 em 5 minutos).
 
 - **Postos e encaminhamento** (`DESKS`, `WORDS`, `NEAR` no `crew.js`): um posto de dois ladrilhos por setor, sempre do mesmo
   agente, com o setor escrito no chão (`sectorFloor`, no fundo). Quem vai é o `routeOf()`: nome pedido → tipo de subagente → palavras
   do pedido → papel → Operações; ocupado, o colega de `NEAR`. O «Automático» do formulário usa o mesmo `routeOf()` e manda já com `crew`.
   Um posto ordena-se pelo meio (`x + y + 2`), a cadeira logo a seguir: assim quem passa atrás fica por baixo e quem passa à frente, por cima.
+  Uma missão dada a uma personagem (`crew`) passa à frente de um espelho de janela: se ela só estava a mostrar um Claude ou um
+  subagente, esse espelho passa para o colega de `NEAR`, porque a missão é a conversa dela a correr de verdade.
+- **Sala de estar** (`LOUNGE`, `TABLE`): sofás em U à volta da mesa da Memória (cada nota é um ponto, os temas em grupos ligados).
+  Quem se senta num sofá é desenhado dentro da fatia do sofá (`chairAt`), entre o que fica atrás e o que fica à frente, como nos
+  cadeirões antigos. Os livres conversam à vez (`talker`, um de cada vez, 4,5 s cada) e o balão diz o que a equipa acabou (notas
+  TAREFAS). Uma missão começa na mesa (`TABLE_SPOT`, «a levar as notas da Memória») e acaba lá (`dropNote`). Reunião = missão a
+  sério para o Gordon, com descrição; a nota sai do `crew.remember_task` como as outras.
+- **Paredes** (`wallPicture`/`wallPic`): o letreiro, os três ecrãs dos sócios (`SCREENS`), o arsenal (`ARSENAL`) e o quadro da
+  Memória (`BOARD`) são imagens nítidas desenhadas uma vez e refeitas só quando a assinatura do conteúdo muda; ficam por baixo da
+  camada que mexe. As dicas e os cliques sabem onde se está numa parede com `wallAt()`; quem mexer no tamanho de uma delas mexe
+  também nos limites usados no `hitTest`.
+- **Cor só para os estados e para os sócios** (`LIGHT`, `DIAMOND`, `PARTNERS`): a luz do bunker é branco frio (`COLD`). As cores
+  próprias das personagens já não pintam nada na gruta.
+- **No telemóvel** (`narrow`, menos de 640 px) os cartões são pastilhas de uma linha, senão tapam a gruta toda.
 
 Coisas que custaram tempo e não se devem repetir:
 
@@ -117,8 +134,12 @@ Coisas que custaram tempo e não se devem repetir:
   Os pormenores da frente e da traseira têm de caber na largura da ponta do carro, que é mais estreita do que o carro (`plan`).
 - **Uma personagem nova**: `CREW` no `crew.py` e no `crew.js`; o fato é o `look` (o que cada campo faz está no `crew-people.js`).
 - **Testar no painel do browser**: escondido, o browser não corre `requestAnimationFrame` nem o `ResizeObserver`, por isso a página
-  fica parada. Para testar, juntar um gancho temporário no fim do `crew.js` (`window.__crew = { tick, resize, goView, ... }` com
-  `// DEBUG` no fim da linha) e tirá-lo antes do commit. Os screenshots desse painel às vezes chegam um passo atrasados: tirar dois.
+  fica parada. Para testar, juntar um gancho temporário no fim do `crew.js` **da cópia de teste** (nunca no repositório):
+  `window.__crew = { draw, run: (s, dt = 1 / 26) => { for (...) { clock += dt; stepCamera(dt); stepBeam(dt); agents.forEach((a) =>
+  step(a, dt)); tickParticles(dt); } draw(); }, load: () => { lastLoad = 0; return load(); }, ... }`. Para ver de perto, copiar
+  um bocado do canvas para um canvas por cima da página e tirar o screenshot desse. Os screenshots desse painel às vezes chegam um
+  passo atrasados: tirar dois. Para ver um agente a ir à mesa, à parede das skills ou a acabar: criar a tarefa ou o passo do hook
+  no Hub de teste **com a página já aberta** (num primeiro carregamento tudo aparece já sentado).
 - **Peso**: 3,5–5 ms por imagem a 1600 px (melhor de vários lotes; as medições soltas variam o dobro com o PC ocupado); o fundo
   com os carros ~300 ms, só ao abrir e ao mudar de tamanho (espera 160 ms).
 - **O mundo é o `MAP`** (7 out): uma letra por ladrilho (o escritório, `~` o rio, `b` as pontes, `g` o stand, `v` o cofre, `t` a

@@ -1,8 +1,7 @@
 # Redesenho da página dos agentes (a Batcave, antiga «My Niggaz»)
 
-Pedido do Marco a 7 de outubro de 2026. **Estado (7 out, fim do dia): fase 1 feita** — pontos 1 a 5 e o losango do 10.
-Falta: 6 (parede de comando), 7 (sala de estar com a Memória e o botão Reunião), 8 (arsenal; precisa da coluna de skills no Hub),
-9 (ligações), o resto do 10 (luz toda branca fria, animações) e 11 (dicas ao passar o rato, legenda, câmara ao clicar).
+Pedido do Marco a 7 de outubro de 2026. **Estado: feito a 7 out** (os doze pontos do plano). O que fica para depois está em
+«Fora por agora». Como cada coisa está feita e onde mexer: secção «A Empresa AMG» do `CLAUDE.md`.
 
 Este ficheiro é o contexto todo da conversa em que o Marco o pediu. Quem pegar nisto (o Marco, o Kovel, o David ou
 qualquer Claude, em qualquer conta ou PC) lê isto e continua sem precisar dessa conversa. As decisões curtas estão também
@@ -88,6 +87,29 @@ sobre a versão mais recente.
     missão.
 12. **Peso.** As regras de sempre (`docs/empresa-amg.md`): só anima com a página aberta e à vista, o fundo desenha-se uma
     vez por tamanho, menos de 3% de CPU parada. Medir antes do push.
+
+## O que ficou feito (7 out)
+
+- **Nome**: Empresa AMG em todo o lado (menu, telemóvel, título, letreiro, `crew.py`, documentos); `#/niggaz` abre `#/empresa`.
+- **Postos**: oito, de dois ladrilhos, carbono com aresta cromada, três ecrãs, cadeira de pele e a luz de estado por baixo do tampo;
+  o setor escrito no chão. Cada agente trabalha sempre no seu.
+- **Encaminhamento** (`routeOf`): subagente pelo tipo, pedido pelas palavras, o resto Operações; ocupado, o colega mais parecido;
+  ninguém livre, a fila. Uma missão dada a uma personagem passa à frente de um espelho de janela do Claude.
+- **Automático** no formulário: diz quem vai fazer enquanto se escreve e manda já com essa personagem.
+- **Cartões**: quem pediu (cor do sócio), o pedido, o que faz agora, skills e subagentes, modelo, tokens e há quanto tempo. No
+  telemóvel, pastilhas de uma linha para se verem as animações.
+- **Parede de comando**: três ecrãs na parede de trás (Kovel, Marco, David), acesos na cor de cada um; por baixo da cave, uma
+  coluna por sócio com cada Claude aberto e as missões do agente automático. Clicar num ecrã leva à coluna dele.
+- **Sala de estar**: sofás em U, a mesa com a Memória (pontos por tema, ligados), os livres a conversar à vez com balões sobre o
+  que a equipa acabou; a missão começa na mesa e acaba lá; botão **Reunião** (no formulário e no painel da Memória).
+- **Arsenal**: a parede das skills; o Hub guarda as skills de cada janela e subagente (base de dados versão 14) e lê as pastas;
+  quando um Claude usa uma, o agente do posto vai buscá-la.
+- **Ligações**: linha de luz entre o posto de um Claude e o do subagente que lançou, na cor do sócio.
+- **Aspeto**: preto, grafite e cromado, luz branca fria; saíram o néon azul, o Batcomputador, o ecrã de Gotham, a moeda gigante, o
+  saco de boxe, o xadrez e o armário de servidores. Gestos a conversar, losango de estado por cima de cada agente.
+- **Explicado**: dica em tudo (posto, ecrã de sócio, skill, nota, tema, mesa, cofre), legenda das cores na gruta, clicar num agente
+  leva a câmara ao posto dele e abre o painel.
+- **Peso**: igual ao de antes (≈3,3 ms por imagem a 1300 px no melhor lote); as paredes só se redesenham quando mudam.
 
 ## Fora por agora (a seguir, na fase de controlo)
 

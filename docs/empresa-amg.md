@@ -75,7 +75,8 @@ com o ecrã. A arquitetura acima (um registo, secções independentes) deixa faz
   quadro, um Claude a trabalhar ou um subagente põe um deles a caminho de um dos 6 computadores. Clicar num agente abre o
   **painel de missão** (acabamento AMG: carbono, cromado, conta-rotações do progresso, tempo, custo, agora/último/a seguir,
   registo, pausar/parar); num agente livre, dá-lhe uma missão ali mesmo. Peso medido a 7 out: ~3,6 ms por imagem a 3000 px,
-  12 imagens/s parado e 26 a mexer, só com a página aberta e à vista.
+  12 imagens/s parado e 26 a mexer, só com a página aberta e à vista. A 7 out o Marco pediu para a refazer e mudar-lhe o
+  nome: o plano está em `docs/batcave-redesenho.md`.
 - **Cada personagem é a sua própria conversa do Claude** (`tasks.crew`, `backend/app/crew.py`): o agente automático de quem
   recebe a tarefa corre-a como essa personagem, retomando sempre a mesma conversa (guardada em
   `~/.team-agent/<perfil>/crew/<id>`, recomeça ao fim de 12 tarefas) e começa cada missão com o briefing do Hub

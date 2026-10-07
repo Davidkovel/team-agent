@@ -86,6 +86,10 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
 
 ### A My Niggaz (a Batcave)
 
+**Em redesenho (7 out):** o Marco pediu para a refazer (nome novo Empresa AMG, um posto fixo por setor, a parede de comando com
+uma coluna por sócio, a sala de estar com a Memória, o arsenal de skills). O plano aceite, o que falta e quem mexe no quê estão em
+`docs/batcave-redesenho.md`: lê-o antes de mexer nesta página.
+
 A página `#/niggaz`: a equipa de agentes em pixel art isométrica, com escritório e stand de carros. Quatro ficheiros, cada um com a sua parte:
 
 - `frontend/hub/crew.js`: o motor. O mundo, a câmara (Escritório · Stand · Tudo, ou arrastar), os agentes a andar e a trabalhar, as

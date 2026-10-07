@@ -1,4 +1,5 @@
 [
   {"name": "Agente AMG", "github": "Davidkovel/team-agent", "source": "self"},
-  {"name": "BareDesk (tema)", "github": "Baredesk/baredesk-theme", "source": "theme"}
+  {"name": "BareDesk (tema)", "github": "Baredesk/baredesk-theme", "source": "theme"},
+  {"name": "Dipfare", "github": "Davidkovel/dipfare", "source": "dipfare"}
 ]

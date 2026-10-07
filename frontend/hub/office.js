@@ -75,7 +75,7 @@
     const place = d.online ? (d.where.includes("phone") && !d.where.includes("pc") ? t("no telemóvel") : d.where.includes("phone") ? t("no PC e no telemóvel") : t("no computador")) : t("offline");
     return `<section class="of-desk ${d.online ? "on" : "off"} ${d.screens.some((s) => s.state === "working") ? "busy" : ""}">
       <header><span class="of-face">${ui.avatar(d.name)}<i></i></span><div><b>${esc(d.name)}</b><span>${esc(place)}</span></div>
-        <em>${d.screens.length ? t(d.screens.length === 1 ? "1 Claude aberto" : "{n} Claudes abertos", { n: d.screens.length }) : t("nenhum Claude aberto")}</em></header>
+        <em title="${esc(t("Claudes abertos"))}">${d.screens.length ? `${icon("bolt")}${d.screens.length}` : ""}</em></header>
       <div class="of-screens">${d.screens.map(screen).join("") || `<p class="of-quiet">${t(d.online ? "Secretária livre: quando abrir um Claude, aparece aqui." : "Fora do escritório.")}</p>`}</div>
       ${d.closed.length ? `<p class="of-closed">${t(d.closed.length === 1 ? "1 janela fechada hoje" : "{n} janelas fechadas hoje", { n: d.closed.length })}</p>` : ""}
     </section>`;

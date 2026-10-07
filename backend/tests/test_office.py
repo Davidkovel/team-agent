@@ -158,3 +158,9 @@ def test_a_message_from_another_claude_session_is_not_shown_as_a_request(client)
     assert window(client, owner, "s7")["prompt"] == "(mensagem de outra sessão do Claude)"
     step(client, "UserPromptSubmit", session="s7", prompt="<command-name>/effort</command-name> Faz o push")
     assert window(client, owner, "s7")["prompt"] == "/effort Faz o push"
+
+
+def test_an_agent_notice_is_not_shown_as_a_request(client):
+    owner = login(client, "owner")
+    step(client, "UserPromptSubmit", session="s8", prompt="<task-notification> <task-id>abc</task-id> <status>completed</status></task-notification>")
+    assert window(client, owner, "s8")["prompt"] == "(aviso: um agente acabou)"

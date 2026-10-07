@@ -46,7 +46,9 @@
 .of-desk > header div b, .of-desk > header div span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .of-desk > header b { color: #f4f6f8; font: 600 15px var(--ui); }
 .of-desk > header span { color: #6b727b; font-size: 12px; }
-.of-desk > header em { flex: none; color: #8f969f; font: 600 9px var(--ui); font-style: normal; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+.of-desk > header em { flex: none; display: inline-flex; align-items: center; gap: 4px; color: #8f969f; font: 600 13px var(--mono); font-style: normal; white-space: nowrap; }
+.of-desk > header em svg.i { width: 13px; height: 13px; }
+.of-desk.busy > header em { color: #fff; }
 .of-screens { display: grid; gap: 8px; }
 .of-quiet { margin: 4px 2px; color: #59606a; font-size: 12.5px; }
 .of-closed { margin: 0 2px; color: #59606a; font: 600 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; }

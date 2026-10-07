@@ -25,7 +25,7 @@ EVERY = 120
 
 
 def git(*args: str) -> str:
-    return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True, timeout=60, env=ENV,
+    return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, env=ENV,
                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip()
 
 

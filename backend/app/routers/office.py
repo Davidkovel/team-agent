@@ -45,9 +45,11 @@ def one_line(text, limit: int) -> str:
 def _request(prompt) -> str:
     """The start of what was asked, as a person would say it: a message from another Claude session is named as such,
     and tags that Claude Code wraps around things are taken out."""
-    text = str(prompt or "")
-    if text.lstrip().startswith("<cross-session-message"):
+    text = str(prompt or "").lstrip()
+    if text.startswith("<cross-session-message") or text.startswith("(mensagem de outra"):
         return "(mensagem de outra sessão do Claude)"
+    if text.startswith("<task-notification"):
+        return "(aviso: um agente acabou)"
     return one_line(re.sub(r"<[^>]{1,200}>", " ", text), 160)
 
 
@@ -294,7 +296,7 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
     for a in agents:
         by_session.setdefault(a.session_id, []).append(a)
     sessions = [{"id": r.id, "key": r.key, "user": r.user.username, "name": r.user.display_name, "project": r.project, "state": _state(r),
-                 "prompt": r.prompt, "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
+                 "prompt": _request(r.prompt), "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
                  "updated_at": iso(r.updated_at), "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]} for r in rows]
     names = {r.id: (r.user.display_name, r.project) for r in rows}
     film = []

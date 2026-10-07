@@ -87,6 +87,22 @@ async function drawPanel() {
   };
 }
 
+// The Claude windows of this computer's person, always in sight at the foot of the sidebar: the panel has the rest.
+// Read once a minute and only while the Hub is on screen; with no reading on this computer it stays hidden.
+async function drawSideLimits() {
+  const box = $("side-lim");
+  if (!box || !me?.username || document.hidden) return;
+  const plan = (await api("/api/limits").catch(() => null))?.claude;
+  box.hidden = !plan;
+  if (!plan) return;
+  const row = (label, short, pct, reset, week) => {
+    const known = pct != null, when = reset ? ` · ${t("renova")} ${week ? `${panelDay(reset)} ` : ""}${t("às")} ${panelClock(reset)}` : "";
+    return `<span class="sl ${known ? panelTone(pct) : "none"}" title="Claude · ${esc(t(label))}${known ? `: ${t("restam")} ${100 - Math.round(pct)}%${when}` : ""}">
+      <em data-short="${esc(t(short))}">${esc(t(label))}</em><i><u style="width:${known ? Math.min(100, Math.max(2, pct)) : 0}%"></u></i><b>${known ? `${Math.round(pct)}%` : "—"}</b></span>`;
+  };
+  box.innerHTML = row("5 horas", "5h", plan.five, plan.five_reset) + row("Semana", "Sem", plan.week, plan.week_reset, true);
+}
+
 function setPanel(open) {
   $("app").classList.toggle("paneled", open);
   localStorage.setItem(PANEL_KEY, open ? "open" : "closed");
@@ -104,6 +120,10 @@ window.addEventListener("DOMContentLoaded", function startPanel() { // app.js, w
   const wait = setInterval(() => { // the panel needs to know who is signed in, and that happens after this file loads
     if (!me?.username) return;
     clearInterval(wait);
+    $("side-lim").onclick = () => setPanel(true);
+    drawSideLimits();
+    setInterval(drawSideLimits, 60000);
+    document.addEventListener("visibilitychange", drawSideLimits);
     setPanel(localStorage.getItem(PANEL_KEY) !== "closed" || new URLSearchParams(location.search).has("painel")); // open until somebody closes it; ?painel=1 opens it again
   }, 400);
 });

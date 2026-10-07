@@ -1023,38 +1023,56 @@ function memText(text) {
   return out + esc(text.slice(last));
 }
 const memPeek = (text) => (text || "").replace(MEM_URL, (u) => memSite(u)).split("\n").map((l) => l.trim()).filter(Boolean).join(" · ");
+// The Memória has dozens of notes written by several Claudes: newest first by default, grouped by day with the
+// time on each note, so what a session just saved is at the top; "Por tema" groups them by category instead.
+let memoryView = "recent", memoryCat = "all", memoryQuery = "", memoryAll = [], memoryNames = {};
+const MEM_TOPICS = ["REGRAS", "EMPRESA", "HUB", "WIDGET", "TELEMÓVEL", "DESIGN"];   // the usual ones, in this order; others follow
+const memCat = (m) => (m.category || "").trim().toUpperCase() || t("GERAL");
+const memFold = (text) => String(text || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const memAge = (iso) => Date.now() - new Date(iso).getTime();
 function memRow(m) {
-  const cat = (m.category || "").trim();
+  const place = m.scope === "team" ? "" : `${t(MEMORY_SCOPES.find(([s]) => s === m.scope)?.[1] || m.scope)}${m.scope_id ? ` · ${memoryNames[`${m.scope}:${m.scope_id}`] || m.scope_id}` : ""}`;
+  const when = memoryView === "recent" ? fmt.hhmm(m.updated_at) : `${fmt.day(m.updated_at)} ${fmt.hhmm(m.updated_at)}`;
   return `<div class="mem-row ${memoryOpen.has(m.id) ? "open" : ""}" data-memory="${m.id}">
-    <button class="mem-head" data-toggle-memory>${cat ? ui.tag(cat) : ""}<b class="mem-title">${esc(m.title.trim())}</b>
-      <span class="mem-peek">${esc(memPeek(m.content))}</span><span class="mem-chev">${icon("chevron")}</span></button>
+    <button class="mem-head" data-toggle-memory>${memAge(m.updated_at) < 108e5 ? '<i class="mem-new" title="Guardada nas últimas 3 horas"></i>' : ""}
+      ${memoryView === "recent" || memoryCat === "all" ? ui.tag(memCat(m)) : ""}<b class="mem-title">${esc(m.title.trim())}</b>
+      <span class="mem-peek">${esc(memPeek(m.content))}</span>${place ? `<span class="mem-place">${esc(place)}</span>` : ""}
+      <time class="mem-when">${esc(when)}</time><span class="mem-chev">${icon("chevron")}</span></button>
     <div class="mem-body">${m.content ? `<p>${memText(m.content.trim())}</p>` : `<p class="faint">${t("Sem texto.")}</p>`}
-      <div class="mem-foot"><span class="faint">${t("Atualizada")} ${fmt.day(m.updated_at)}</span><button class="btn quiet sm" data-edit-memory>${t("Editar")}</button></div></div></div>`;
+      <div class="mem-foot"><span class="faint">${t("Atualizada")} ${fmt.day(m.updated_at)} ${fmt.hhmm(m.updated_at)}</span><button class="btn quiet sm" data-edit-memory>${t("Editar")}</button></div></div></div>`;
+}
+function renderMemory() {
+  const cats = [...new Set(memoryAll.map(memCat))].sort((a, b) => ((MEM_TOPICS.indexOf(a) + 1 || 99) - (MEM_TOPICS.indexOf(b) + 1 || 99)) || a.localeCompare(b));
+  const n = (c) => memoryAll.filter((m) => memCat(m) === c).length;
+  paint($("memory-cats"), [["all", t("Tudo"), memoryAll.length], ...cats.map((c) => [c, c.charAt(0) + c.slice(1).toLowerCase(), n(c)])]
+    .map(([id, label, k]) => `<button class="chp ${id === memoryCat ? "on" : ""}" data-cat="${esc(id)}">${esc(label)} <span class="mem-n">${k}</span></button>`).join(""));
+  for (const b of document.querySelectorAll("#memory-view [data-view]")) b.classList.toggle("on", b.dataset.view === memoryView);
+  const words = memFold(memoryQuery).split(/\s+/).filter(Boolean);
+  const items = memoryAll.filter((m) => (memoryCat === "all" || memCat(m) === memoryCat)
+    && words.every((w) => memFold(`${m.title} ${m.content} ${m.category}`).includes(w)))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const box = $("memory");
+  if (!memoryAll.length) { box.innerHTML = `<div class="panel">${ui.empty("layers", "Memória vazia", "O que escreveres aqui é dado ao agente antes de ele começar uma tarefa deste âmbito.",
+    `<button class="btn sm primary" data-new-memory>${t("Adicionar à memória")}</button>`)}</div>`; return; }
+  if (!items.length) { box.innerHTML = `<div class="panel">${ui.empty("search", "Nada encontrado", "Nenhuma nota tem estas palavras nesta categoria.")}</div>`; return; }
+  const groups = new Map();
+  for (const m of items) {
+    const key = memoryView === "recent" ? fmt.day(m.updated_at) : memCat(m);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  }
+  const order = memoryView === "recent" ? [...groups] : [...groups].sort(([a], [b]) => cats.indexOf(a) - cats.indexOf(b));
+  box.innerHTML = order.map(([key, list]) => `<section class="mem-group"><div class="sec"><span>${esc(key)}</span><span class="faint">${list.length}</span></div>
+    <div class="panel mem-list">${list.map(memRow).join("")}</div></section>`).join("");
 }
 async function loadMemory() {
   await mount($("memory"), async () => {
-    const all = await api("/api/memory");
-    const count = (id) => all.filter((m) => m.scope === id).length;
-    paint($("memory-scopes"), [["all", "Tudo", all.length], ...MEMORY_SCOPES.map(([id, label]) => [id, label, count(id)])]
-      .filter(([id, , n]) => id === "all" || n || id === memoryScope || id === "team")
-      .map(([id, label, n]) => `<button class="chp ${id === memoryScope ? "on" : ""}" data-s="${id}">${t(label)}${n ? ` <span class="mem-n">${n}</span>` : ""}</button>`).join(""));
-    const items = memoryScope === "all" ? all : all.filter((m) => m.scope === memoryScope);
-    if (!items.length) return `<div class="panel">${ui.empty("layers", "Memória vazia", "O que escreveres aqui é dado ao agente antes de ele começar uma tarefa deste âmbito.",
-      `<button class="btn sm primary" data-new-memory>${t("Adicionar à memória")}</button>`)}</div>`;
-    // one block per place (Equipa, Empresa · Bare Desk, ...), the notes inside ordered by category
-    const names = {};
-    for (const scope of new Set(items.map((m) => m.scope))) for (const [id, name] of await memoryTargets(scope).catch(() => [])) names[`${scope}:${id}`] = name;
-    const rank = (m) => MEMORY_SCOPES.findIndex(([s]) => s === m.scope);
-    const groups = new Map();
-    for (const m of [...items].sort((a, b) => rank(a) - rank(b) || (a.category || "").localeCompare(b.category || "") || a.title.localeCompare(b.title))) {
-      const label = t(MEMORY_SCOPES.find(([s]) => s === m.scope)?.[1] || m.scope);
-      const key = m.scope_id ? `${label} · ${names[`${m.scope}:${m.scope_id}`] || m.scope_id}` : label;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(m);
-    }
-    return [...groups].map(([key, list]) => `<section class="mem-group"><div class="sec"><span>${esc(key)}</span><span class="faint">${list.length}</span></div>
-      <div class="panel mem-list">${list.map(memRow).join("")}</div></section>`).join("");
+    memoryAll = await api("/api/memory");
+    memoryNames = {};
+    for (const scope of new Set(memoryAll.filter((m) => m.scope_id).map((m) => m.scope))) for (const [id, name] of await memoryTargets(scope).catch(() => [])) memoryNames[`${scope}:${id}`] = name;
+    return "";
   }, 5);
+  if (!$("memory")?.querySelector(".err")) renderMemory();   // a failed load keeps its error and Tentar outra vez
 }
 async function editMemory(existing) {
   // where a new note goes: one list of every place, starting on the tab that is open
@@ -1073,20 +1091,25 @@ async function editMemory(existing) {
       const [scope, scope_id] = v.place.split("|");
       memoryOpen.add((await api("/api/memory", { method: "POST", body: { ...body, scope, scope_id } })).id);
     }
-    $("memory")._html = null; loadMemory();
-  }, existing ? { danger: { label: "Apagar", run: async () => { await api(`/api/memory/${existing.id}`, { method: "DELETE" }); $("memory")._html = null; loadMemory(); } } } : {});
+    loadMemory();
+  }, existing ? { danger: { label: "Apagar", run: async () => { await api(`/api/memory/${existing.id}`, { method: "DELETE" }); loadMemory(); } } } : {});
 }
 HUB_VIEWS.memoria = async function () {
-  page(`${ui.head("Sistema", t("Memória"), t("O que a IA deve saber antes de começar: factos e decisões, por âmbito. Clica numa nota para a abrir."), ui.btn("Adicionar à memória", "data-new-memory", "primary", "plus"))}
-    <div class="chipbar" id="memory-scopes"></div><div class="mem" id="memory"></div>`);
+  memoryScope = "team";   // where a new note goes by default
+  page(`${ui.head("Sistema", t("Memória"), t("O que a IA deve saber antes de começar. As mais recentes em cima; clica numa nota para a abrir."), ui.btn("Adicionar à memória", "data-new-memory", "primary", "plus"))}
+    <div class="mem-bar"><div class="mem-seg" id="memory-view"><button class="chp" data-view="recent">${t("Mais recentes")}</button><button class="chp" data-view="topic">${t("Por tema")}</button></div>
+      <label class="mem-search">${icon("search")}<input id="memory-q" type="search" placeholder="${esc(t("Procurar na memória"))}" value="${esc(memoryQuery)}"></label></div>
+    <div class="chipbar" id="memory-cats"></div><div class="mem" id="memory"></div>`);
+  $("memory-q").oninput = (e) => { memoryQuery = e.target.value; renderMemory(); };
   $("view").onclick = async (e) => {
     if (e.target.closest("a.mem-link")) return;   // the link opens; the note stays as it is
-    const scope = e.target.closest("#memory-scopes [data-s]"), row = e.target.closest("[data-memory]");
-    if (scope) { memoryScope = scope.dataset.s; $("memory")._html = null; return loadMemory(); }
+    const view = e.target.closest("#memory-view [data-view]"), cat = e.target.closest("#memory-cats [data-cat]"), row = e.target.closest("[data-memory]");
+    if (view) { memoryView = view.dataset.view; return renderMemory(); }
+    if (cat) { memoryCat = cat.dataset.cat; return renderMemory(); }
     if (e.target.closest("[data-new-memory]")) return editMemory();
     if (!row) return;
     const id = Number(row.dataset.memory);
-    if (e.target.closest("[data-edit-memory]")) return editMemory((await api("/api/memory")).find((m) => m.id === id));
+    if (e.target.closest("[data-edit-memory]")) return editMemory(memoryAll.find((m) => m.id === id));
     if (e.target.closest("[data-toggle-memory]")) { row.classList.toggle("open"); memoryOpen[row.classList.contains("open") ? "add" : "delete"](id); }
   };
   await loadMemory();

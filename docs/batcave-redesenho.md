@@ -135,9 +135,10 @@ versão do telemóvel como uma app do iPhone, com abas e tudo a um toque. Ficou 
 
 Falta, e é o passo seguinte: **o agente automático não está ligado no PC do Marco nem no do David** (não há `agent/.env` nem o
 `claude-agent-sdk` instalado), por isso uma missão mandada para eles fica na fila com «agente automático desligado». Ligá-lo põe um
-processo a gastar o plano do Claude sozinho: fica para o Marco decidir. Também por fazer: uma chapa «Empresa AMG» em cada linha
-da página Tarefas (hoje entrega-se dentro da tarefa, em «Entregar ao escritório»), e a fila arrancar sozinha quando o limite do
-Claude volta.
+processo a gastar o plano do Claude sozinho: fica para o Marco decidir. Na página Tarefas, cada tarefa que ainda está com uma
+pessoa tem a chapa «Empresa AMG» na própria linha: um toque passa-a ao escritório (o agente do setor). Também por fazer: a fila
+arrancar sozinha quando o limite do Claude volta, e resumir em português os pedidos escritos noutra língua (os do Kovel, em russo),
+o que pede uma chamada ao Claude por pedido.
 
 ## Fora por agora (a seguir, na fase de controlo)
 

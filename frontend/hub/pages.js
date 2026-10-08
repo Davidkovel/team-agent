@@ -150,7 +150,9 @@ function tlRow(x, inCol = false) {
     x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : done && x.completed_by && x.completed_by !== x.assignee ? `<span class="other">${esc(doneBy(x))}</span>` : "",
     !done && x.crew_name ? `<em class="ai">${esc(x.crew_name)}</em>` : "",
     done ? (x.completed_at ? `${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : "") : tlWhen(x),
-    x.stage === "in_progress" ? `<em class="ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="late">${t("Bloqueada")}</em>` : ""].filter(Boolean);
+    x.stage === "in_progress" ? `<em class="ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="late">${t("Bloqueada")}</em>` : "",
+    // a task still with a person goes to the office with one touch: the agent of its sector takes it (Marco, 9 out)
+    !done && !x.group && own && own.status === "TODO" ? `<button type="button" class="tl-office" data-office="${own.id}" title="${t("Passar para a Empresa AMG: o agente do setor pega nela")}">${icon("bot")}${t("Empresa AMG")}</button>` : ""].filter(Boolean);
   const check = done ? `<span class="tl-check">${icon("tick")}</span>`
     : own && own.stage !== "done" && !heldByAgent(own) ? `<button class="tl-check" data-done="${own.id}" title="${t("Concluir")}"></button>`
     : `<span class="tl-check ${own && own.stage === "done" ? "part" : "held"}">${own && own.stage === "done" ? icon("tick") : ""}</span>`;
@@ -738,6 +740,13 @@ HUB_VIEWS.tarefas = async function (r) {
     if (e.target.closest("[data-older-feitas]")) { showOlderFeitas = !showOlderFeitas; return loadBoard(); }
     const fold = e.target.closest("[data-tl-open]");
     if (fold) { tlOpen.has(fold.dataset.tlOpen) ? tlOpen.delete(fold.dataset.tlOpen) : tlOpen.add(fold.dataset.tlOpen); $("board")._html = null; return loadBoard(); }
+    const office = e.target.closest(".tl-row [data-office]");
+    if (office) {
+      office.disabled = true;
+      api(`/api/tasks/${office.dataset.office}/assign-ai`, { method: "POST", body: { crew: "" } })
+        .then((given) => flash(t("Passada para a Empresa AMG: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) })), (err) => flash(err.message)).finally(loadBoard);
+      return;
+    }
     const tick = e.target.closest(".tl-row [data-done]");
     if (tick) {
       tick.disabled = true; tick.closest(".tl-row").classList.add("finishing");

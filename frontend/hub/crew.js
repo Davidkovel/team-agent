@@ -11,12 +11,14 @@
 // - the walls: the partners' screens on the back one (lit in their colour while a Claude of theirs works), the arsenal of
 //   skills and the Memória's board on the left one. A Claude that uses a skill has the agent of its post fetch it;
 // - the garage with its cars, and around it all the island over the abyss (MAP): the river, the vault, the bar, the lookout.
-// Under the cave, the command wall: a column per partner with their open Claudes and their automatic agent's missions.
+// The page itself is the board (crew-board.js: who works on what, said in words, nothing moving); the cave is entered
+// from it and opens over everything, with the agent under the pointer read large at its side (8 out).
 // Everything says what it is when the pointer is on it; clicking an agent brings the camera to their post.
-// It only reads /api/tasks, /api/office (with the arsenal) and /api/memory, and creates tasks (POST /api/tasks with
-// `crew`). Its own files, fetched the first time the page opens (lazyView in ui.js). Weight rules: it only animates while
-// the page is open, on screen and in the front tab (12 frames a second, 26 while somebody walks or the camera moves); the
-// cave, the stands and the cars are drawn once per size, the walls once per content, into pictures the camera crops.
+// It only reads /api/tasks, /api/office (with the arsenal), /api/memory and /api/team, and creates tasks (POST
+// /api/tasks with `crew`). Its own files, fetched the first time the page opens (lazyView in ui.js). Weight rules:
+// nothing animates until the cave is entered, and then only while it is on screen and in the front tab (12 frames a
+// second, 26 while somebody walks or the camera moves); the cave, the stands and the cars are drawn once per size, the
+// walls once per content, into pictures the camera crops.
 (function () {
   // ================================================================ the world, in tiles
   // x runs to the right and down, y to the left and down; z is height in pixels. P() is where a point lands on the small
@@ -1102,7 +1104,7 @@
     }
     for (const s of office.sessions || []) {
       if (s.state === "working" || (s.state === "waiting" && now - Date.parse(s.since) < STILL_WAITING)) {
-        out.push({ key: "c" + s.id, type: "claude", title: cleanPrompt(s.prompt) || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait", request: s.request || "",
+        out.push({ key: "c" + s.id, type: "claude", goal: s.title || "", title: cleanPrompt(s.prompt) || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait", request: s.request || "",
           action: s.state === "working" ? s.action || "" : "", since: s.since, project: s.project, model: s.model, tokens: s.tokens,
           subagents: (s.agents || []).map((x) => ({ kind: x.kind, state: x.state, description: x.description })), skills: s.skills || [], href: "#/escritorio" });
       }
@@ -1192,7 +1194,8 @@
   // ================================================================ the screen: camera, background, lights
   let stage = null, cv = null, g2 = null, world = null, wg = null, bg = null, sign = null, S = 1, BS = 1, dpr = 1, star = null;
   let LS = 1, narrow = false; // labels shrink with a small room; on a phone the cards keep only who, what and for whom
-  let timer = 0, raf = 0, last = 0, onScreen = true, ro = null, io = null, hovered = null, focus = null, hoverCar = null, vignette = null;
+  let timer = 0, raf = 0, last = 0, onScreen = true, hovered = null, focus = null, hoverCar = null, vignette = null;
+  let caveOpen = false; // the cave is entered from the board: until then nothing is drawn and nothing moves
   let panel = null; // what the mission panel shows: { kind: "agent" | "car", ref }
   let view = sessionStorage.getItem("crew.view") || "office";
   if (!VIEWS[view]) view = "office";
@@ -1204,7 +1207,7 @@
     const b = base.getContext("2d", { willReadFrequently: true });
     b.k = 1;
     room(b); grain(b, 13);
-    BS = Math.min(4, cv.width / VIEWS.garage.w);
+    BS = Math.min(4, (cv.width || 1280) / VIEWS.garage.w);   // the cave not entered yet: the cameras film it all the same
     bg = document.createElement("canvas"); bg.width = Math.round(LW * BS); bg.height = Math.round(LH * BS);
     const g = bg.getContext("2d");
     const sky = g.createRadialGradient(bg.width * .45, bg.height * .35, 0, bg.width * .45, bg.height * .4, bg.width * .75);
@@ -1480,7 +1483,7 @@
   }
 
   // The partners' screens on the back wall, one each, lit in their colour while a Claude of theirs works: their Claudes
-  // and their automatic agent's missions, a line each. The same wall, readable, is under the cave (paintWall).
+  // and their automatic agent's missions, a line each. The same, readable, is the board's column per partner (crew-board.js).
   const SCREENS = [[5.3, 8.65], [8.95, 12.3], [12.6, 15.75]], SCREEN_Z = [6, 40];
   let partnerModel = [];
   function screensPic() {
@@ -2065,7 +2068,8 @@
     }
   }
 
-  function draw() {
+  // the layer that moves, into `world`: the water, the furniture and the crew in depth order, what flies, the bubbles
+  function drawWorld() {
     const g = wg;
     pickTalker();
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -2083,6 +2087,9 @@
     drawParticles(g);
     bubbles(g);
     bats(g);
+  }
+  function draw() {
+    drawWorld();
     g2.globalCompositeOperation = "source-over";
     g2.fillStyle = "#030407"; g2.fillRect(0, 0, cv.width, cv.height);
     g2.imageSmoothingEnabled = cam.w * BS > cv.width * 1.02;
@@ -2106,7 +2113,7 @@
   }
   function frame(now) {
     raf = 0;
-    if (!stage || !stage.isConnected) { stop(); return; }
+    if (!caveOpen || !stage || !stage.isConnected) { stop(); return; }
     if (document.hidden || !onScreen) { last = 0; return; }
     const dt = last ? Math.min(.25, (now - last) / 1000) : 0;
     last = now; clock += dt;
@@ -2119,17 +2126,12 @@
     timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(frame); }, busy ? 1000 / 26 : 1000 / 12);
   }
   function wake() {
-    if (raf || !stage || !stage.isConnected) return;
+    if (raf || !caveOpen || !stage || !stage.isConnected) return;
     clearTimeout(timer); timer = 0; last = 0;
     raf = requestAnimationFrame(frame);
   }
-  function stop() {
-    clearTimeout(timer); timer = 0; if (raf) cancelAnimationFrame(raf); raf = 0;
-    clearInterval(panelTimer); panelTimer = 0; clearTimeout(resizeLater);
-    if (ro) ro.disconnect(); if (io) io.disconnect(); ro = io = null;
-    document.removeEventListener("visibilitychange", wake);
-    document.removeEventListener("keydown", onKey);
-  }
+  // the cave stops moving (it was closed, or the page was left); what is bound to it stays, and it opens again as it was
+  function stop() { clearTimeout(timer); timer = 0; if (raf) cancelAnimationFrame(raf); raf = 0; clearTimeout(resizeLater); }
   function goView(name) {
     if (!VIEWS[name]) return;
     view = name; sessionStorage.setItem("crew.view", name);
@@ -2293,6 +2295,9 @@
     const hit = hitTest(e), tip = $("cr-tip"), target = Object.keys(hit).length ? hit : null;
     hovered = hit.agent || null; hoverCar = hit.car || null; hoverVault = !!hit.vault;
     stage.classList.toggle("point", !!target);
+    // an agent or a post under the pointer is read at the side of the cave, large; anything else, in the small tip
+    const who = hit.agent || (hit.desk ? crewById(hit.desk.crew) : null);
+    if (sideOn()) { if (who !== sideAgent) { sideAgent = who; paintSide(); } if (who) { tip.hidden = true; return; } }
     if (!target) { tip.hidden = true; return; }
     tip.innerHTML = tipHtml(hit); tip.hidden = false;
     const r = stage.getBoundingClientRect();
@@ -2320,7 +2325,20 @@
     else if (hit.vault) openPanel({ kind: "vault", ref: "vault" });
     else closePanel();
   }
-  function onKey(e) { if (e.key === "Escape" && panel) closePanel(); }
+  // the wheel brings the cave closer or takes it away, around the point under the pointer
+  function onWheel(e) {
+    e.preventDefault();
+    const [mx, my] = toLocal(e), wx = cam.x + mx / S, wy = cam.y + my / S;
+    camAnim.to = null;
+    cam.w = clamp(cam.w * (e.deltaY > 0 ? 1.14 : 1 / 1.14), 150, 860); cam.h = cam.w / ASPECT; S = cv.width / cam.w;
+    cam.x = clamp(wx - mx / S, -40, LW + 40 - cam.w); cam.y = clamp(wy - my / S, -60, LH + 40 - cam.h);
+    stage.querySelectorAll("[data-view]").forEach((b) => b.classList.remove("on"));
+    wake();
+  }
+  function onKey(e) {
+    if (e.key !== "Escape") return;
+    if (panel) closePanel(); else if (caveOpen) closeCave();
+  }
 
   // ================================================================ the mission panel (AMG)
   let panelTimer = 0, panelTask = null;
@@ -2513,9 +2531,9 @@
   let focused = false;
   function focusPost(a) {
     const d = a && deskOf(a);
-    if (!d || !stage || !cv.width) return;
-    const [px, py] = P(d.x + 1, d.y + 1, 16), w = 300, h = w / ASPECT, sw = stage.clientWidth || 1;
-    const covered = sw > 900 ? (Math.min(392, sw - 20) + 10) / sw : 0;
+    if (!d || !caveOpen || !stage || !cv.width) return;
+    const [px, py] = P(d.x + 1, d.y + 1, 16), w = 300, h = w / ASPECT, r = stage.getBoundingClientRect();
+    const covered = clamp((r.right - (window.innerWidth - 416)) / (r.width || 1), 0, .6);   // how much of the cave the panel is over
     camAnim.from = { x: cam.x, y: cam.y, w: cam.w }; camAnim.to = { x: px - w * (1 - covered) / 2, y: py - h * .55, w }; camAnim.t = 0;
     stage.querySelectorAll("[data-view]").forEach((b) => b.classList.remove("on"));
     focused = true; wake();
@@ -2554,16 +2572,13 @@
   }
 
   // ================================================================ the page around it
+  // The page is the board (crew-board.js): what the company is doing, said in order and in words, with nothing moving.
+  // The cave is entered from it and opens over everything; only then does anything animate, so the page costs the PC
+  // nothing while it is only being read (Marco, 8 out: «não roubar FPS», «as coisas muito grandes»).
   const ago = (iso) => (iso ? fmt.ago(iso) : "");
   function stat(n, label, c) { return `<div class="cr-stat ${n ? "lit" : ""}" style="--c:${c}"><i></i><b>${n}</b><span>${esc(t(label))}</span></div>`; }
-  function queueRow(j) {
-    const named = j.crew && crewById(j.crew) ? crewById(j.crew).name : "";
-    const why = j.stale ? t("à espera do agente automático de {n}", { n: j.who }) : named ? t("{c} está ocupado", { c: named }) : t("estão todos ocupados");
-    return `<button class="cr-q" data-href="${esc(j.href)}"><i></i><div><p>${esc(j.title)}</p><small>${esc(t("para"))} ${esc(j.who)} · ${esc(why)}</small></div>${icon("chevron")}</button>`;
-  }
-  // The command wall under the cave: a column per partner with each Claude of theirs that is open (the request, the
-  // state, the agent doing it, the skills, the subagents, the model, the tokens, since when) and the missions of their
-  // automatic agent. The partners' screens in the cave show the same (screensPic).
+  // The partners' screens in the cave: each Claude of theirs that is open and the missions of their automatic agent
+  // (screensPic draws these lines; the board says the same in words, a column per partner).
   const CLAUDE_STATE = { working: ["a trabalhar", NEON.green], waiting: ["à tua espera", NEON.amber], stalled: ["parado", "#7d8794"], idle: ["aberto", "#5f6874"] };
   const CLAUDE_RANK = { working: 0, waiting: 1, stalled: 2, idle: 3 };
   function buildPartners() {
@@ -2583,66 +2598,85 @@
       return { i, id, name, color, claudes, missions, working, lines, sig: `${id}:${working}:${lines.map((l) => l.c + l.who + l.text).join("¦")}` };
     });
   }
-  function claudeCard(s, agent) {
-    const [word, c] = CLAUDE_STATE[s.state] || CLAUDE_STATE.idle, subs = (s.agents || []).filter((x) => x.state === "working");
-    const chips = [...(s.skills || []).map((k) => `<span class="cr-chip">/${esc(k)}</span>`), ...subs.map((x) => `<span class="cr-chip sub">${esc(x.kind)}</span>`)].join("");
-    const meta = [s.project, shortModel(s.model), kTokens(s.tokens), s.since ? ago(s.since) : ""].filter(Boolean).join(" · ");
-    return `<button class="cr-cl" ${agent ? `data-agent="${agent.i}"` : `data-href="#/escritorio"`}>
-      <div class="cr-cl-h"><em style="--s:${c}">${esc(t(word))}</em>${agent ? `<span class="cr-cl-ag"><img class="cr-px" src="${agent.portrait}" alt="">${esc(agent.name)} · ${esc(t(agent.what))}</span>` : ""}</div>
-      <p>${esc(cleanPrompt(s.prompt) || t("(sem pedido)"))}</p>
-      ${s.action && s.state === "working" ? `<small class="cr-cl-now">↳ ${esc(s.action)}</small>` : ""}
-      ${chips ? `<div class="cr-chips">${chips}</div>` : ""}
-      ${meta ? `<small>${esc(meta)}</small>` : ""}</button>`;
-  }
-  function missionCard(x, agent) {
-    const st = TASK_STATE[x.status], who = agent || (x.crew && crewById(x.crew)) || null;
-    const meta = [x.project_name || x.company || x.project, ago(x.started_at || x.created_at)].filter(Boolean).join(" · ");
-    return `<button class="cr-cl" ${agent ? `data-agent="${agent.i}"` : `data-href="#task-${x.id}"`}>
-      <div class="cr-cl-h"><em style="--s:${st ? LIGHT[st] : "#7d8794"}">${esc(t(st ? WORD[st][0] : "na fila"))}</em>${who ? `<span class="cr-cl-ag"><img class="cr-px" src="${who.portrait}" alt="">${esc(who.name)} · ${esc(t(who.what))}</span>` : ""}</div>
-      <p>${esc(x.title)}</p>
-      ${x.current_action ? `<small class="cr-cl-now">↳ ${esc(x.current_action)}</small>` : ""}
-      ${x.progress > 0 ? `<span class="cr-bar" style="--c:${COLD}"><i style="width:${Math.min(100, x.progress)}%"></i></span>` : ""}
-      ${meta ? `<small>${esc(meta)}</small>` : ""}</button>`;
-  }
-  function paintWall() {
-    const el = $("cr-wall");
-    if (!el) return;
-    paint(el, partnerModel.map((p) => `<section class="cr-col" id="cr-col-${p.id}" style="--p:${p.color}">
-      <header><i></i><b>${esc(p.name)}</b><span>${esc(p.working ? t("{n} a trabalhar", { n: p.working }) : t("nada a correr"))}</span></header>
-      <small class="cr-col-k">${esc(t("Claudes abertos"))}</small>
-      ${p.claudes.length ? p.claudes.map(({ s, agent }) => claudeCard(s, agent)).join("") : `<p class="cr-quiet">${esc(t("Nenhum Claude aberto."))}</p>`}
-      <small class="cr-col-k">${esc(t("Agente automático"))}</small>
-      ${p.missions.length ? p.missions.map(({ x, agent }) => missionCard(x, agent)).join("") : `<p class="cr-quiet">${esc(t("Sem missões."))}</p>`}
-    </section>`).join(""));
-  }
-  // a partner's screen clicked in the cave: their column of the command wall
+  // a partner's screen clicked in the cave: out of the cave, to their column of the board
   function showColumn(id) {
-    const col = $(`cr-col-${id}`);
+    closeCave();
+    const col = $(`cb-col-${id}`);
     if (!col) return;
-    col.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    col.scrollIntoView({ behavior: "smooth", block: "center" });
     col.classList.remove("flash"); void col.offsetWidth; col.classList.add("flash");
   }
+  // ---- the cameras of the control room (crew-board.js)
+  // A camera per agent, following them: a piece of the cave copied into a small canvas a few times a second, like a
+  // security camera, and only while the wall of monitors is on screen. The cave itself stays closed: the page shows the
+  // crew at work without ever drawing the whole of it at full speed (a picture a second at rest, six while somebody
+  // walks). Measured 9 out, 1920 px, no graphics card: 3,7% of one core with the cameras on screen; the cave open, 42%.
+  let camTimer = 0, camLast = 0, camSeen = false, camWatch = null;
+  const camsLive = () => camSeen && !caveOpen && !document.hidden && !!$("cb-cams");
+  // where an agent's camera looks: their post while they sit at it, themselves anywhere else; it follows without jumping
+  function camAim(a) {
+    const [x, y] = a.seated && a.desk ? P(a.desk.x + 1, a.desk.y + .95, 17) : P(a.x, a.y, 11);
+    if (a.camX == null || Math.hypot(x - a.camX, y - a.camY) > 70) { a.camX = x; a.camY = y; }
+    else { a.camX += (x - a.camX) * .45; a.camY += (y - a.camY) * .45; }
+  }
+  // c: { el: the canvas, i: whose camera, w: how much of the cave fits across it }
+  function shoot(c) {
+    const a = agents[c.i], g = c.el.getContext("2d"), W = c.el.width, H = c.el.height, w = c.w, h = w * H / W, sx = a.camX - w / 2, sy = a.camY - h / 2, k = W / w;
+    g.imageSmoothingEnabled = false;
+    g.fillStyle = "#030407"; g.fillRect(0, 0, W, H);
+    g.drawImage(bg, sx * BS, sy * BS, w * BS, h * BS, 0, 0, W, H);
+    for (const pic of [sign, screensPic(), arsenalPic(), boardPic()]) g.drawImage(pic.c, (pic.box.x - sx) * k, (pic.box.y - sy) * k, pic.box.w * k, pic.box.h * k);
+    g.drawImage(world, sx * WS, sy * WS, w * WS, h * WS, 0, 0, W, H);
+    // whose camera it is: four corners round the agent it follows, as a camera that tracks somebody draws them
+    const b = a.box;
+    if (!b) return;
+    const x0 = (b[0] - 2 - sx) * k, y0 = (b[1] - 3 - sy) * k, x1 = (b[2] + 2 - sx) * k, y1 = (b[3] + 2 - sy) * k, n = Math.max(4, 3.2 * k);
+    g.strokeStyle = "rgba(223,232,242,.9)"; g.lineWidth = Math.max(1, k * .45);
+    g.beginPath();
+    for (const [x, y, dx, dy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { g.moveTo(x + dx * n, y); g.lineTo(x, y); g.lineTo(x, y + dy * n); }
+    g.stroke();
+  }
+  function camFrame() {
+    camTimer = 0;
+    if (!camsLive() || !window.CrewBoard) { camLast = 0; return; }
+    if (firstLoad) { camTimer = setTimeout(camFrame, 300); return; }   // nothing true to film before the Hub has answered
+    const now = performance.now(), dt = camLast ? Math.min(1, (now - camLast) / 1000) : 0;
+    camLast = now; clock += dt;
+    for (const a of agents) step(a, dt);
+    tickParticles(dt);
+    if (!bg) buildBg();
+    drawWorld();
+    for (const a of agents) camAim(a);
+    for (const c of window.CrewBoard.cams()) shoot(c);
+    camTimer = setTimeout(camFrame, agents.some((a) => a.path.length || a.hop > 0) ? 160 : 1000);
+  }
+  function film() { if (!camTimer && camsLive()) camTimer = setTimeout(camFrame, 0); }
+
+  // at the side of the cave: the agent under the pointer, read large; with the pointer on nobody, the whole team
+  let cave = null, side = null, sideAgent = null;
+  const sideOn = () => !!(side && side.offsetWidth);
+  function paintSide() { if (sideOn() && window.CrewBoard) paint(side, sideAgent ? window.CrewBoard.ficha(sideAgent) : window.CrewBoard.roster()); }
   function paintLists() {
-    if (!$("cr-stats")) return;
-    const busy = agents.filter((a) => a.job && a.mode !== "done");
-    const n = (f) => busy.filter((a) => f(a.job.state)).length;
-    const stale = tasks.filter((x) => !x.trashed_at && x.status === "ASSIGNED" && !jobs.some((j) => j.key === `t${x.id}`)).map((x) => ({ ...taskJob(x, "start"), stale: true }));
-    const fila = [...queue, ...stale];
-    paint($("cr-stats"), stat(n((s) => s === "work" || s === "start"), "a trabalhar", NEON.green) + stat(n((s) => s === "wait" || s === "help" || s === "pause"), "à tua espera", NEON.amber)
-      + stat(agents.length - busy.length, "à espera de trabalho", "#9aa2ab") + stat(fila.length, "na fila", COLD));
-    paint($("cr-crew"), agents.map((a) => {
-      const st = !a.job || a.mode === "done" ? "idle" : a.job.state === "work" || a.job.state === "start" ? "work" : "wait", done = doneBy(a).length;
-      return `<button class="cr-mate st-${st}" data-mate="${a.i}" style="--c:${{ work: NEON.green, wait: NEON.amber }[st] || "#8b95a1"}" title="${esc(a.name)} · ${esc(t(a.what))}${done ? ` · ${esc(t("{n} missões feitas", { n: done }))}` : ""}"><img class="cr-px" src="${a.portrait}" alt=""><i></i>${done ? `<b class="cr-medal">${done}</b>` : ""}<span>${esc(a.name)}</span></button>`;
-    }).join(""));
+    if (caveOpen) {
+      const busy = agents.filter((a) => a.job && a.mode !== "done"), n = (f) => busy.filter((a) => f(a.job.state)).length;
+      const waiting = queue.length + tasks.filter((x) => !x.trashed_at && x.status === "ASSIGNED" && !jobs.some((j) => j.key === `t${x.id}`)).length;
+      paint($("cr-stats"), stat(n((s) => s === "work" || s === "start"), "a trabalhar", NEON.green) + stat(n((s) => s === "wait" || s === "help" || s === "pause"), "à tua espera", NEON.amber)
+        + stat(agents.length - busy.length, "à espera de trabalho", "#9aa2ab") + stat(waiting, "na fila", COLD));
+      paint($("cr-crew"), agents.map((a) => {
+        const st = !a.job || a.mode === "done" ? "idle" : a.job.state === "work" || a.job.state === "start" ? "work" : "wait", done = doneBy(a).length;
+        return `<button class="cr-mate st-${st}" data-mate="${a.i}" style="--c:${{ work: NEON.green, wait: NEON.amber }[st] || "#8b95a1"}" title="${esc(a.name)} · ${esc(t(a.what))}${done ? ` · ${esc(t("{n} missões feitas", { n: done }))}` : ""}"><img class="cr-px" src="${a.portrait}" alt=""><i></i>${done ? `<b class="cr-medal">${done}</b>` : ""}<span>${esc(a.name)}</span></button>`;
+      }).join(""));
+      paintSide();
+    }
     buildPartners();
-    paintWall();
-    paint($("cr-queue"), fila.length ? fila.map(queueRow).join("") : `<p class="cr-quiet">${esc(t("Nada na fila."))}</p>`);
+    if (window.CrewBoard) window.CrewBoard.paint();
     if (panel && panel.kind === "agent") refreshPanel(false);
   }
 
   let lastLoad = 0, later = null;
+  const onPage = () => !!$("cr-board");
   async function load() {
-    if (!stage || !stage.isConnected) return;
+    if (!onPage()) return;
     const wait = 2500 - (Date.now() - lastLoad);
     if (wait > 0) { clearTimeout(later); later = setTimeout(load, wait); return; }
     lastLoad = Date.now();
@@ -2650,17 +2684,36 @@
       const [o, ts] = await Promise.all([api("/api/office"), api("/api/tasks")]);
       office = o; tasks = ts; arsenalList = o.arsenal || [];
     } catch (e) {
-      if (e.message !== "unauthorized" && $("cr-wall") && firstLoad) $("cr-wall").innerHTML = ui.error(e.message);
+      if (e.message !== "unauthorized" && $("cb-now") && firstLoad) $("cb-now").innerHTML = ui.error(e.message);
       return;
     }
-    if (!stage || !stage.isConnected) return;
+    if (!onPage()) return;
     jobs = jobsOf();
-    reconcile(jobs, firstLoad);
+    const watched = caveOpen || camsLive();   // somebody sees the crew move: in the cave, or on the cameras
+    reconcile(jobs, firstLoad || !watched);
     firstLoad = false;
+    if (!watched) settleAll();
     paintLists();
-    loadMemory();
+    film();
+    loadMemory(); loadTeam();
     if (panel && panel.kind === "agent" && panel.ref.job && panel.ref.job.type === "task") refreshPanel(true);
     if (panel && panel.kind === "vault") refreshPanel(false);
+  }
+  // Nobody is watching (the cave is closed and the cameras are off screen): what would take seconds of walking (to the
+  // post, to the arsenal, back to the lounge) happens at once, so the board never waits for an animation nobody sees.
+  function settleAll() {
+    for (let i = 0; i < 240 && agents.some((a) => a.mode === "done" || a.mode === "toDesk" || a.mode === "fetch" || a.reading); i++) {
+      clock += .25;
+      for (const a of agents) step(a, .25);
+    }
+    particles = [];
+  }
+  // who has their automatic agent connected (the board says why a task in the queue waits): asked for now and then
+  let teamInfo = [], teamAt = 0;
+  function loadTeam() {
+    if (Date.now() - teamAt < 30e3) return;
+    teamAt = Date.now();
+    api("/api/team").then((m) => { teamInfo = m; if (window.CrewBoard) window.CrewBoard.paint(); }).catch(() => { teamAt = 0; });
   }
 
   // the Memória, read when the page opens and again every five minutes, or a little after a task drops its note
@@ -2677,19 +2730,22 @@
     await sendTask(t("Reunião da equipa: ligar as ideias da Memória e propor o que fazer a seguir"), "gordon", button,
       t("Lê a Memória da equipa toda (está no teu briefing) e as tarefas abertas e acabadas. Liga as ideias: o que se repete, o que se contradiz, o que ficou a meio. Propõe as 3 a 5 coisas mais importantes a fazer a seguir, cada uma com o porquê e com quem da equipa a deve fazer. Não mudes código nem publiques nada: é uma reunião, o resultado é a proposta."));
   }
-  async function sendTask(title, crewId, button, description = "") {
+  // hold: it only goes into the queue (a task to do, already with the agent of its sector) and starts when somebody sends it
+  async function sendTask(title, crewId, button, description = "", hold = false) {
     const who = $("cr-who") ? $("cr-who").value : me.username;
     if (button) button.disabled = true;
     try {
-      const task = await api("/api/tasks", { method: "POST", body: { title, description, assignee: who, crew: crewId || "", for_ai: true } });
+      const task = await api("/api/tasks", { method: "POST", body: { title, description, assignee: who, crew: crewId || (hold ? sectorOf({ title, description }) : ""), for_ai: !hold } });
       tasks = [task, ...tasks.filter((x) => x.id !== task.id)];
       jobs = jobsOf();
-      reconcile(jobs, false);
+      const watched = caveOpen || camsLive();
+      reconcile(jobs, !watched);
+      if (!watched) settleAll();
       paintLists();
-      const a = agents.find((x) => x.job && x.job.key === `t${task.id}`);
-      const named = crewId && crewById(crewId);
-      flash(a ? t("{n} já vai para o computador.", { n: a.name }) : named ? t("{n} está ocupado: a missão fica na fila.", { n: named.name }) : t("Mandado. Fica na fila até haver um computador livre."));
-      if (a && view !== "office") goView("office");
+      film();
+      const a = agents.find((x) => x.job && x.job.key === `t${task.id}`), named = crewById(task.crew);
+      flash(hold ? t("Na fila de espera: arranca quando a mandares.") : a ? t("{n} já vai para o posto.", { n: a.name }) : named ? t("Mandada: fica à vez de {n}.", { n: named.name }) : t("Mandada."));
+      if (a && caveOpen && view !== "office") goView("office");
       if (a && panel && panel.kind === "agent" && panel.ref === a) refreshPanel(true);
       wake();
       return true;
@@ -2700,103 +2756,149 @@
       if (button) button.disabled = false;
     }
   }
-  async function send(e) {
+  // a task that waits in the queue is handed to the office: the agent it was kept for takes it
+  async function startQueued(id, button) {
+    const x = tasks.find((y) => y.id === id);
+    if (button) button.disabled = true;
+    try {
+      const given = await api(`/api/tasks/${id}/assign-ai`, { method: "POST", body: { crew: (x && x.crew) || "" } });
+      flash(t("A arrancar: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) }));
+      lastLoad = 0; await load();
+    } catch (err) {
+      flash(err.message);
+      if (button) button.disabled = false;
+    }
+  }
+  async function send(e, hold) {
     e.preventDefault();
     const input = $("cr-title"), title = input.value.trim();
     if (!title) { input.focus(); return; }
-    const crewId = (document.querySelector('input[name="cr-crew"]:checked') || {}).value || autoCrew(title);
-    if (await sendTask(title, crewId, $("cr-go"))) { input.value = ""; routeHint(); }
+    if (await sendTask(title, $("cr-does").value, hold ? $("cr-hold") : $("cr-go"), "", hold)) { input.value = ""; routeHint(); }
     input.focus();
   }
-  // "Automático": who would take it, said while it is being written, and sent already with that character
-  function autoCrew(title) { const r = routeOf({ title }); return (r.a || crewById(r.home)).id; }
+  // "Automático": whose sector the request belongs to, said while it is being written. The Hub chooses the same way
+  // when the task arrives with nobody named (crew.sector_of), so what is said here is what happens.
   const art = (a) => (a.id === "catwoman" ? "a" : "o");
   function routeHint() {
-    const el = $("cr-route"), title = $("cr-title").value.trim(), chosen = (document.querySelector('input[name="cr-crew"]:checked') || {}).value;
+    const el = $("cr-route"), title = $("cr-title").value.trim(), chosen = $("cr-does").value;
     if (!el) return;
     if (!title || chosen) { el.textContent = ""; el.hidden = true; return; }
-    const r = routeOf({ title }), home = crewById(r.home);
+    const home = crewById(sectorOf({ title })), busy = home.job && home.job.type === "task" && home.mode !== "done";
     el.hidden = false;
-    el.style.setProperty("--c", (r.a || home).color);
-    el.textContent = !r.a ? t("Fica na fila: estão todos ocupados. Vai para {a} {n} · {s} quando acabar.", { a: art(home), n: home.name, s: t(home.what) })
-      : r.a === home ? t("Vai para {a} {n} · {s}", { a: art(home), n: home.name, s: t(home.what) })
-      : t("Vai para {a} {n} · {s} ({h} está ocupado)", { a: art(r.a), n: r.a.name, s: t(r.a.what), h: home.name });
+    el.textContent = t(busy ? "Vai para {a} {n} · {s}, que tem outra missão: fica à vez." : "Vai para {a} {n} · {s}", { a: art(home), n: home.name, s: t(home.what) });
   }
 
-  function mount() {
-    stop();
-    stage = $("cr-stage"); cv = $("cr-canvas"); g2 = cv.getContext("2d");
-    if (!world) { world = document.createElement("canvas"); world.width = LW * WS; world.height = LH * WS; wg = world.getContext("2d"); wg.k = WS; }
-    if (!star) {
-      const img = new Image();
-      img.onload = () => { star = img; if (cv && cv.width && stage && stage.isConnected) { buildBg(); draw(); } };
-      img.src = "assets/mercedes-star.svg";
-    }
-    bg = null; cv.width = 0;
-    const v = camAnim.to || VIEWS[view];
-    Object.assign(cam, { x: v.x, y: v.y, w: v.w, h: v.w / ASPECT }); camAnim.to = null;
-    stage.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
-    ro = new ResizeObserver(() => resize()); ro.observe(stage);
-    io = new IntersectionObserver(([en]) => { onScreen = en.isIntersecting; if (onScreen) wake(); }); io.observe(stage);
-    document.addEventListener("visibilitychange", wake);
+  // ================================================================ the cave, entered
+  // Built once and kept: closing it only hides it and stops it, so it opens again at once and as it was. It takes all
+  // the room of the window at its own proportions; beside it, the agent under the pointer read large.
+  function buildCave() {
+    cave = Object.assign(document.createElement("div"), { className: "cr-cave", id: "cr-cave", hidden: true });
+    cave.innerHTML = `<div class="cr-cave-bar"><b>${esc(t("Empresa AMG"))}</b><span>${esc(t("A cave · arrasta para andar, roda do rato para aproximar, Esc para sair"))}</span>
+        <button type="button" class="btn" id="cr-cave-x">${icon("x")}${esc(t("Sair da cave"))}</button></div>
+      <div class="cr-cave-body" id="cr-cave-body">
+        <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>
+          <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>
+          <div class="cr-crew" id="cr-crew"></div>
+          <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
+          <div class="cr-legend" aria-label="${esc(t("Legenda"))}">${[["a trabalhar", NEON.green], ["à espera", NEON.amber], ["precisa de ajuda", NEON.red], ["livre", "#8b95a1"]]
+            .map(([l, c]) => `<span><i class="st" style="--c:${c}"></i>${esc(t(l))}</span>`).join("")}<b></b>${PARTNERS.map(([, n, c]) => `<span><i style="--c:${c}"></i>${esc(n)}</span>`).join("")}</div>
+          <div class="cr-tip" id="cr-tip" hidden></div></section>
+        <aside class="cr-side" id="cr-side"></aside></div>`;
+    const drawer = Object.assign(document.createElement("aside"), { className: "cr-panel", id: "cr-panel", hidden: true });
+    document.body.append(cave, drawer);
+    stage = $("cr-stage"); cv = $("cr-canvas"); g2 = cv.getContext("2d"); side = $("cr-side");
+    world = document.createElement("canvas"); world.width = LW * WS; world.height = LH * WS; wg = world.getContext("2d"); wg.k = WS;
+    const img = new Image();
+    img.onload = () => { star = img; if (bg) { buildBg(); if (caveOpen) draw(); } };
+    img.src = "assets/mercedes-star.svg";
+    new ResizeObserver(() => resize()).observe(stage);
+    new IntersectionObserver(([en]) => { onScreen = en.isIntersecting; if (onScreen) wake(); }).observe(stage);
+    document.addEventListener("visibilitychange", () => { wake(); film(); });
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", () => { if (caveOpen) fitCave(); });
+    window.addEventListener("hashchange", () => { if (!/^#\/(empresa|niggaz)/.test(location.hash)) { closeCave(); if (panel) closePanel(); } });
     stage.onpointermove = onMove;
     stage.onpointerdown = onDown;
     stage.onpointerup = onUp;
-    stage.onpointerleave = () => { if (!drag) { $("cr-tip").hidden = true; hovered = null; hoverCar = null; hoverVault = false; stage.classList.remove("point"); } };
-    stage.querySelector(".cr-views").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) goView(b.dataset.view); };
-    const el = $("cr-panel");
-    el.onclick = panelClick; el.onsubmit = panelSubmit;
-    for (const type of ["pointerdown", "pointerup", "pointermove"]) el.addEventListener(type, (e) => e.stopPropagation());
-    $("cr-send").onsubmit = send;
-    $("cr-title").oninput = routeHint;
-    $("cr-send").onchange = routeHint;
-    $("cr-wall").onclick = (e) => {
-      const b = e.target.closest("[data-agent]"), h = e.target.closest("[data-href]");
-      if (b) { stage.scrollIntoView({ behavior: "smooth", block: "nearest" }); openPanel({ kind: "agent", ref: agents[Number(b.dataset.agent)] }); }
-      else if (h) location.hash = h.dataset.href;
+    stage.onpointerleave = () => {
+      if (drag) return;
+      $("cr-tip").hidden = true; hovered = null; hoverCar = null; hoverVault = false; stage.classList.remove("point");
+      if (sideAgent) { sideAgent = null; paintSide(); }
     };
-    $("cr-meet").onclick = (e) => meet(e.currentTarget);
-    $("cr-queue").onclick = (e) => { const b = e.target.closest("[data-href]"); if (b) location.hash = b.dataset.href; };
+    cv.addEventListener("wheel", onWheel, { passive: false });
+    stage.querySelector(".cr-views").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) goView(b.dataset.view); };
+    stage.querySelector(".cr-views").addEventListener("pointerup", (e) => e.stopPropagation());
+    $("cr-cave-x").onclick = closeCave;
+    side.onclick = (e) => { const b = e.target.closest("[data-agent]"); if (b) openPanel({ kind: "agent", ref: agents[Number(b.dataset.agent)] }); };
+    drawer.onclick = panelClick; drawer.onsubmit = panelSubmit;
     const crew = $("cr-crew");
     crew.onmouseover = (e) => { const b = e.target.closest("[data-mate]"); focus = b ? agents[Number(b.dataset.mate)] : null; };
     crew.onmouseleave = () => { focus = null; };
     crew.onclick = (e) => { const b = e.target.closest("[data-mate]"); if (b) { if (view !== "office") goView("office"); openPanel({ kind: "agent", ref: agents[Number(b.dataset.mate)] }); } };
     for (const type of ["pointerdown", "pointerup"]) crew.addEventListener(type, (e) => e.stopPropagation());
-    stage.querySelector(".cr-views").addEventListener("pointerup", (e) => e.stopPropagation());
-    if (panel) { const p = panel; panel = null; openPanel(p); }
-    resize(true);
+  }
+  function fitCave() {
+    const body = $("cr-cave-body");
+    if (!body) return;
+    const room = body.clientWidth - (sideOn() ? side.offsetWidth + 12 : 0);
+    stage.style.width = `${Math.max(280, Math.floor(Math.min(room, body.clientHeight * ASPECT)))}px`;
+  }
+  function openCave() {
+    if (!cave || caveOpen) return;
+    caveOpen = true; cave.hidden = false; onScreen = true;
+    if (window.CrewBoard) window.CrewBoard.hideTip();
+    stage.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+    fitCave(); resize(true); paintLists(); wake();
+  }
+  function closeCave() {
+    if (!cave || !caveOpen) return;
+    caveOpen = false; cave.hidden = true; stop();
+    $("cr-tip").hidden = true; hovered = null; hoverCar = null; hoverVault = false; sideAgent = null; drag = null;
+    if (camsLive()) film(); else settleAll();
+  }
+
+  // what the board asks of the cave's engine: the state it draws, and the things only the engine can do
+  const boardHost = {
+    state: () => ({ agents, office, tasks, arsenal: arsenalList, memory: memoryNotes, team: teamInfo }),
+    partners: PARTNERS, partnerOf, clean: cleanPrompt, stateOf, doneBy,
+    ready: () => !firstLoad, film, openCave,
+    light: (st) => (st === "idle" ? "#8b95a1" : (WORD[st] || [0, COLD])[1]),
+    openAgent: (i) => openPanel({ kind: "agent", ref: agents[i] }),
+    openPanel: (kind) => openPanel({ kind, ref: kind }),
+    meet, release: startQueued,
+  };
+  function mount(composer) {
+    if (!cave) buildCave();
+    closeCave();
+    if (panel) closePanel();
+    window.CrewBoard.mount($("cr-board"), boardHost, composer);
+    $("cr-send").onsubmit = (e) => send(e, false);
+    $("cr-hold").onclick = (e) => send(e, true);
+    $("cr-title").oninput = routeHint;
+    $("cr-send").onchange = routeHint;
+    $("cr-enter").onclick = openCave;
+    if (camWatch) camWatch.disconnect();
+    camSeen = false;
+    camWatch = new IntersectionObserver(([en]) => { camSeen = en.isIntersecting; film(); });   // the cameras film only while their wall is on screen
+    camWatch.observe($("cb-cams"));
   }
 
   HUB_VIEWS.empresa = async function () {
-    await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/crew-cars.js")]);
+    await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/crew-cars.js"), lazyFile("hub/crew-board.js"), lazyFile("hub/crew-board.css").catch(() => {})]);
     const users = me.lead ? await api("/api/users").catch(() => []) : [];
     if (!agents.length) { agents = CREW.map(makeAgent); agents.forEach(placeIdle); }
-    page(`${ui.head("Agentes", "Empresa AMG", t("A Batcave da equipa: oito agentes, cada um com o seu posto e o seu setor. Escreve a missão e ela vai sozinha para o setor certo; por cima de cada posto vês quem pediu, o que está a fazer e com que skills. Clica num agente para ver a missão. No cofre, cada missão concluída é uma barra de ouro."))}
-      <form class="cr-send" id="cr-send" autocomplete="off">
+    page(`${ui.head("Agentes", "Empresa AMG", t("O que a empresa está a fazer, por ordem: quem trabalha em quê, o que espera por alguém, o que já ficou feito e o que está na fila. A cave animada abre à parte, para não pesar."),
+        `<button type="button" class="btn primary cr-enter" id="cr-enter" title="${esc(t("Os oito agentes na Batcave, ao vivo. Só mexe enquanto lá estiveres"))}">${icon("play")}${esc(t("Entrar na cave"))}</button>`)}
+      <div class="cb" id="cr-board"></div>`);
+    mount(`<form class="cr-send" id="cr-send" data-pane="queue" autocomplete="off">
         <label class="cr-in">${icon("bolt")}<input id="cr-title" maxlength="200" placeholder="${esc(t("Qual é a missão?"))}"></label>
-        <div class="cr-pick" role="radiogroup" aria-label="${esc(t("Quem faz"))}">
-          <label title="${esc(t("Vai para o setor do pedido: design, pesquisa, testes, revisão, marketing, código, engenharia; o resto, Operações"))}"><input type="radio" name="cr-crew" value="" checked><span class="any">${icon("bolt")}${esc(t("Automático"))}</span></label>
-          ${agents.map((a) => `<label title="${esc(a.name)} · ${esc(t(a.what))}"><input type="radio" name="cr-crew" value="${a.id}"><span style="--c:${COLD}"><img class="cr-px" src="${a.portrait}" alt="">${esc(a.name)}</span></label>`).join("")}</div>
-        ${users.length ? `<label class="cr-who">${icon("users")}<select id="cr-who" title="${esc(t("No agente automático de quem"))}">${options(users.map((u) => [u.username, u.display_name]), me.username)}</select></label>` : ""}
-        <button type="button" class="btn cr-meet" id="cr-meet" title="${esc(t("O Gordon lê a Memória, liga as ideias e propõe o que fazer a seguir"))}">${icon("users")}${t("Reunião")}</button>
+        <label class="cr-who" title="${esc(t("Quem faz. Automático: vai para o setor do pedido (design, pesquisa, testes, revisão, marketing, código, engenharia; o resto, Operações)"))}">${icon("bot")}<select id="cr-does">
+          ${options([["", t("Automático")], ...agents.map((a) => [a.id, `${a.name} · ${t(a.what)}`])], "")}</select></label>
+        ${users.length ? `<label class="cr-who" title="${esc(t("No agente automático de quem"))}">${icon("users")}<select id="cr-who">${options(users.map((u) => [u.username, u.display_name]), me.username)}</select></label>` : ""}
+        <button type="button" class="btn cr-hold" id="cr-hold" title="${esc(t("Fica na fila de espera, já com o agente do setor, e só arranca quando a mandares"))}">${esc(t("Pôr na fila"))}</button>
         <button class="btn primary cr-go" id="cr-go">${t("Mandar")}${icon("arrow")}</button>
         <p class="cr-route" id="cr-route" aria-live="polite" hidden></p>
-      </form>
-      <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>
-        <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>
-        <div class="cr-crew" id="cr-crew"></div>
-        <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
-        <div class="cr-legend" aria-label="${esc(t("Legenda"))}">${[["a trabalhar", NEON.green], ["à espera", NEON.amber], ["precisa de ajuda", NEON.red], ["livre", "#8b95a1"]]
-          .map(([l, c]) => `<span><i class="st" style="--c:${c}"></i>${esc(t(l))}</span>`).join("")}<b></b>${PARTNERS.map(([, n, c]) => `<span><i style="--c:${c}"></i>${esc(n)}</span>`).join("")}</div>
-        <div class="cr-tip" id="cr-tip" hidden></div>
-        <aside class="cr-panel" id="cr-panel" hidden></aside></section>
-      <div class="cr-h cr-wall-h">${icon("bolt")}<b>${t("Parede de comando")}</b><span>${esc(t("O que cada sócio tem a correr: os Claudes abertos e as missões do agente automático"))}</span></div>
-      <section class="cr-wall" id="cr-wall">${ui.skeleton(3)}</section>
-      <div class="cr-lists one">
-        <section><div class="cr-h">${icon("inbox")}<b>${t("Na fila")}</b></div><div id="cr-queue"></div></section>
-      </div>`);
-    mount();
+      </form>`);
     lastLoad = 0;
     await load();
   };

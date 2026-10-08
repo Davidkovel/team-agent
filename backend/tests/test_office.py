@@ -210,3 +210,12 @@ def test_a_machine_message_does_not_replace_what_the_person_asked(client):
     step(client, "UserPromptSubmit", session="s12", prompt="<task-notification> <task-id>abc</task-id> <status>completed</status></task-notification>")
     w = window(client, owner, "s12")
     assert w["state"] == "working" and w["prompt"] == "Refaz a página das tarefas" and w["request"] == "Refaz a página das tarefas"
+
+
+def test_a_reminder_that_a_window_is_idle_is_not_a_question(client):
+    owner = login(client, "owner")
+    step(client, "UserPromptSubmit", session="s13", prompt="Faz o push")
+    step(client, "Notification", session="s13", message="Claude is waiting for your input", notification_type="idle_prompt")
+    assert window(client, owner, "s13")["wait"] == "done"  # it only waits for the next request
+    step(client, "Notification", session="s13", message="A server asks for input", notification_type="elicitation_dialog")
+    assert window(client, owner, "s13")["wait"] == "answer"

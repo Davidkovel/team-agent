@@ -111,6 +111,34 @@ sobre a versão mais recente.
   leva a câmara ao posto dele e abre o painel.
 - **Peso**: igual ao de antes (≈3,3 ms por imagem a 1300 px no melhor lote); as paredes só se redesenham quando mudam.
 
+## A central de controlo (9 out)
+
+O Marco voltou a pedir, a 8 e 9 out: a página ainda parecia «um joguinho para crianças», o mapa roubava FPS no widget, não se
+lia nada ao passar o rato, a parede de comando estava «tudo baralhado» («à tua espera, à tua espera, à tua espera»), queria os
+pedidos de cada sócio resumidos em metas, uma fila de espera à vista, «as câmaras da empresa» como numa central de controlo, e a
+versão do telemóvel como uma app do iPhone, com abas e tudo a um toque. Ficou assim:
+
+- **A página é o quadro** (`crew-board.js`), sem nada a mexer; **a cave abre à parte**, por cima de tudo, só quando se entra nela
+  («Entrar na cave»), com a ficha do agente em grande ao lado, arrastar e roda do rato para aproximar.
+- **Agora**: uma frase por sócio («Marco está com «…» · Gordon · Operações») e quatro números (a trabalhar, à espera de alguém, na
+  fila, feitas em 24 h).
+- **Câmaras**: um monitor principal e uma câmara por agente, a segui-lo pela cave, com REC, hora e os cantos de quem é seguido.
+  Por baixo do monitor: para quem trabalha, a meta, o que pediu, o que faz agora e as skills. Em AUTO o monitor vai para quem
+  começou a trabalhar por último; um clique fixa uma câmara. Filmam uma vez por segundo (seis enquanto alguém anda).
+- **Metas em vez de pedidos em bruto**: a meta de cada janela é o título que o próprio Claude dá à conversa; ao acabar fica o
+  início da última resposta («o que fez»). Uma janela à espera diz porquê (autorização, pergunta) ou passa para «Feito».
+- **Os sócios**: uma coluna por sócio com A trabalhar · À espera dele · Feito · Na fila.
+- **Fila de espera**: «Pôr na fila» guarda a missão já com o agente do setor; «Arrancar» manda-a. Cada uma diz porque espera.
+- **Skills arrumadas**: a ficha de cada agente separa as que usa agora, as do setor, o que sabe fazer e os subagentes que faz.
+- **Telemóvel**: a Empresa está na barra de baixo; lá dentro quatro abas (Agora · Câmaras · Sócios · Fila), as câmaras numa fila
+  para deslizar, um sócio de cada vez, a ficha numa folha que sobe de baixo.
+
+Falta, e é o passo seguinte: **o agente automático não está ligado no PC do Marco nem no do David** (não há `agent/.env` nem o
+`claude-agent-sdk` instalado), por isso uma missão mandada para eles fica na fila com «agente automático desligado». Ligá-lo põe um
+processo a gastar o plano do Claude sozinho: fica para o Marco decidir. Também por fazer: uma chapa «Empresa AMG» em cada linha
+da página Tarefas (hoje entrega-se dentro da tarefa, em «Entregar ao escritório»), e a fila arrancar sozinha quando o limite do
+Claude volta.
+
 ## Fora por agora (a seguir, na fase de controlo)
 
 - Missões em cadeia, passadas sozinhas de agente para agente (design → código → testes).

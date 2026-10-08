@@ -80,6 +80,9 @@ def _file(inp: dict, *keys) -> str:
     return ""
 
 
+DONE, ASKED = "acabou: à tua espera", "à espera da tua resposta"
+
+
 def describe(tool: str, inp: dict | None) -> str:
     """A step in words, for the person watching: what kind of thing, and at most a file name."""
     inp = inp or {}
@@ -102,7 +105,7 @@ def describe(tool: str, inp: dict | None) -> str:
     if tool in ("TodoWrite", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet"):
         return "a organizar as tarefas"
     if tool == "AskUserQuestion":
-        return "à espera da tua resposta"
+        return ASKED
     if tool in ("SendMessage", "ListAgents"):
         return "a falar com outra sessão"
     if tool.startswith("mcp__claude-in-chrome__"):
@@ -277,7 +280,7 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
         asks = kind == "permission_prompt" or "permission" in str(body.get("message") or "")
         if asks or not (row.status == "waiting" and (row.action or "").startswith("acabou")):  # a reminder after it finished changes nothing
             _status(row, "waiting", when)
-            row.action = "precisa da tua autorização" if asks else "à espera de ti"
+            row.action = "precisa da tua autorização" if asks else ASKED if kind == "elicitation_dialog" else "à espera de ti"
     elif event == "Stop":
         _status(row, "waiting", when)
         row.action = DONE
@@ -337,16 +340,15 @@ def _state(row: ClaudeSession) -> str:
     return row.status
 
 
-DONE = "acabou: à tua espera"
 
 
 def _wait(row: ClaudeSession, state: str) -> str:
     """What a waiting window waits for: "permission" (it asked to run something), "answer" (it asked a question) or "done"
-    (it finished and waits for the next request). Empty when it is not waiting."""
+    (it finished, or was only reminded that it is idle, and waits for the next request). Empty when it is not waiting."""
     if state != "waiting":
         return ""
     action = row.action or ""
-    return "done" if action.startswith("acabou") else "permission" if action.startswith("precisa da tua autoriza") else "answer"
+    return "permission" if action.startswith("precisa da tua autoriza") else "answer" if action.startswith(ASKED) else "done"
 
 
 def _skills(text: str | None) -> list[str]:

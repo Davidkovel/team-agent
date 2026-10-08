@@ -87,14 +87,24 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
 
 ### A Empresa AMG (a Batcave, antiga My Niggaz)
 
-**Redesenhada a 7 out** a pedido do Marco (`docs/batcave-redesenho.md`: o que ele pediu, o que se fez e o que fica para a fase
-de controlo). Antes de mudar alguma coisa grande nesta página, lê esse ficheiro.
+**Redesenhada a 7 out** a pedido do Marco, e a 9 out passou a ser a **central de controlo** (`docs/batcave-redesenho.md`: o que
+ele pediu, o que se fez e o que fica para a fase de controlo). Antes de mudar alguma coisa grande nesta página, lê esse ficheiro.
 
-A página `#/empresa` (o `#/niggaz` antigo continua a abrir): a equipa de agentes em pixel art isométrica, com escritório e stand de carros. Quatro ficheiros, cada um com a sua parte:
+A página `#/empresa` (o `#/niggaz` antigo continua a abrir) **é o quadro**: nada mexe até se entrar na cave. Cada ficheiro com a sua parte:
 
-- `frontend/hub/crew.js`: o motor. O mundo, a câmara (Escritório · Cofre · Stand · Tudo, ou arrastar; clicar num agente leva-a ao
-  posto dele), os agentes a andar e a trabalhar, as missões (lê `/api/tasks`, `/api/office` e `/api/memory`, cria com
-  `POST /api/tasks` e `crew`), os painéis (agente, Memória, arsenal, cofre, carro), os cartões, as dicas e a parede de comando.
+- `frontend/hub/crew-board.js` + `crew-board.css`: **a página**. «Agora» (uma frase por sócio e quatro números), as **câmaras** (um
+  monitor principal e uma câmara por agente, a segui-lo, com quem pediu, a meta, o pedido e o que faz agora), uma coluna por sócio
+  (a trabalhar · à espera dele · feito · na fila) e as portas (Memória, arsenal, cofre, Reunião). Desenha o que o `crew.js` lhe dá
+  (`boardHost`) e só mexe no bocado que mudou. A ficha de um agente (`ficha()`, as skills arrumadas) aparece ao passar o rato numa
+  câmara e ao lado da cave. **No telemóvel** é uma app de quatro abas (Agora · Câmaras · Sócios · Fila, `data-tab`/`data-pane`),
+  um sócio de cada vez, a ficha numa folha que sobe de baixo; a Empresa está na barra de baixo (`TABS` no `mobile.js`).
+
+- `frontend/hub/crew.js`: o motor e **a cave**, que abre por cima de tudo (`openCave`/`closeCave`; é construída uma vez e fica).
+  O mundo, a câmara (Escritório · Cofre · Stand · Tudo, arrastar, roda do rato; clicar num agente leva-a ao posto dele), os agentes
+  a andar e a trabalhar, as missões (lê `/api/tasks`, `/api/office`, `/api/memory` e `/api/team`, cria com `POST /api/tasks` e
+  `crew`), os painéis (agente, Memória, arsenal, cofre, carro: uma gaveta à direita, por cima do quadro e da cave) e as câmaras do
+  quadro (`camFrame`: copia bocados da cave para os canvas do quadro uma vez por segundo, seis enquanto alguém anda, e só com a
+  parede de monitores à vista).
 - `frontend/hub/crew-people.js`: as personagens, com o dobro do detalhe da cave, luz, sombra e contorno. Cada imagem de uma pose
   desenha-se uma vez e fica guardada (`sprite`, `portrait`).
 - `frontend/hub/crew-cars.js`: os carros em 3D (G 63, 911 GT3 RS, Aventador SVJ, SF90). Carroçaria feita de secções ao longo do
@@ -122,6 +132,14 @@ A página `#/empresa` (o `#/niggaz` antigo continua a abrir): a equipa de agente
   também nos limites usados no `hitTest`.
 - **Cor só para os estados e para os sócios** (`LIGHT`, `DIAMOND`, `PARTNERS`): a luz do bunker é branco frio (`COLD`). As cores
   próprias das personagens já não pintam nada na gruta.
+- **A meta, o que fez e porque espera** (9 out): o hook manda o título que o próprio Claude Code dá à conversa (`ai-title` do
+  transcript) e, ao parar, o início da última resposta; o Hub guarda-os em `claude_sessions.title` e `.result` (versão 16) e diz em
+  `/api/office` o `wait` de uma janela à espera: `permission`, `answer` ou `done`. Um aviso de máquina (agente que acabou, mensagem
+  de outra sessão) já não apaga o pedido da pessoa. O quadro mostra a meta em grande e o pedido por baixo.
+- **Fila de espera**: uma tarefa `TODO` com `crew` está em espera para o escritório («Pôr na fila» na linha da missão); «Arrancar»
+  entrega-a (`assign-ai`). O quadro diz porque espera cada uma (em espera, agente automático desligado, à vez).
+- **Ninguém a ver = nada a mexer**: com a cave fechada e as câmaras fora do ecrã, o `settleAll()` faz de uma vez o que seriam
+  segundos a andar. Quem juntar animações novas confirma que o quadro não fica à espera delas.
 - **No telemóvel** (`narrow`, menos de 640 px) os cartões são pastilhas de uma linha, senão tapam a gruta toda.
 
 Coisas que custaram tempo e não se devem repetir:
@@ -142,7 +160,10 @@ Coisas que custaram tempo e não se devem repetir:
   passo atrasados: tirar dois. Para ver um agente a ir à mesa, à parede das skills ou a acabar: criar a tarefa ou o passo do hook
   no Hub de teste **com a página já aberta** (num primeiro carregamento tudo aparece já sentado).
 - **Peso**: 3,5–5 ms por imagem a 1600 px (melhor de vários lotes; as medições soltas variam o dobro com o PC ocupado); o fundo
-  com os carros ~300 ms, só ao abrir e ao mudar de tamanho (espera 160 ms).
+  com os carros ~300 ms, só ao abrir e ao mudar de tamanho (espera 160 ms). Medido a 9 out no Chrome sem placa gráfica, a 1920 px:
+  o quadro com as câmaras à vista 3,7% de um núcleo, a cave aberta 42%, outra página do Hub 0,1%. Por isso a cave só abre a pedido.
+- **Um nome que já existe no `crew.js` apaga o outro** (9 out): uma função nova chamada `release` substituiu a que liberta o sítio
+  de um agente, e cada passo de um agente passou a mandar um pedido errado ao Hub. Antes de juntar uma função, procurar o nome.
 - **O mundo é o `MAP`** (7 out): uma letra por ladrilho (o escritório, `~` o rio, `b` as pontes, `g` o stand, `v` o cofre, `t` a
   varanda do bar, `p` o miradouro, `.` o abismo). Só há paredes em y = 0 e x = 0; qualquer outra aresta é uma ravina com uma luz ao
   longo dela. Não pôr paredes noutras arestas: o fundo fica por baixo, e uma parede à frente não taparia quem está atrás dela.

@@ -27,7 +27,10 @@ log = logging.getLogger("team.backend")
 # 13: tasks.crew, the member of the crew (crew.py) a task is given to.
 # 14: claude_sessions.skills and claude_agents.skills, the skills each Claude window and subagent used (the arsenal of
 #     Empresa AMG). A PC still on 13 syncs its rows without them: they arrive empty.
-SCHEMA_VERSION = 15
+# 15: claude_sessions.request, the whole last request of a window.
+# 16: claude_sessions.title and claude_sessions.result: the goal of a window in a few words (Claude Code's own title of the
+#     conversation) and what it did (the start of its last answer), for the board of Empresa AMG.
+SCHEMA_VERSION = 16
 
 
 def current_version(conn) -> int:

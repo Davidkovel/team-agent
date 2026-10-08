@@ -304,6 +304,10 @@ class ClaudeSession(Base):
     model: Mapped[str] = mapped_column(String(60), default="")
     tokens: Mapped[int] = mapped_column(Integer, default=0)  # used so far, from its transcript (transcripts.py)
     skills: Mapped[str] = mapped_column(String(400), default="")  # the skills it used, comma-separated (the arsenal of Empresa AMG)
+    # The goal, in a few words: the title Claude Code itself gives the conversation (its "ai-title"), read by the hook.
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # What it did: the start of its last answer, kept when it stops (nothing from a Hub of before, nothing while it works).
+    result: Mapped[str | None] = mapped_column(String(300), nullable=True)
     since: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # when the current status began
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

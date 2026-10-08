@@ -165,3 +165,48 @@ def test_an_agent_notice_is_not_shown_as_a_request(client):
     owner = login(client, "owner")
     step(client, "UserPromptSubmit", session="s8", prompt="<task-notification> <task-id>abc</task-id> <status>completed</status></task-notification>")
     assert window(client, owner, "s8")["prompt"] == "(aviso: um agente acabou)"
+
+
+def test_a_window_keeps_the_title_claude_gave_the_conversation(client):
+    owner = login(client, "owner")
+    step(client, "UserPromptSubmit", session="s9", prompt="mete isto mais organizado", title="Agentes: organização visual")
+    assert window(client, owner, "s9")["title"] == "Agentes: organização visual"
+    step(client, "PreToolUse", session="s9", tool_name="Read", tool_input={"file_path": "a.py"})  # a step brings no title: it stays
+    assert window(client, owner, "s9")["title"] == "Agentes: organização visual"
+    step(client, "Stop", session="s9", title="Empresa AMG: quadro organizado " + "x" * 200)
+    title = window(client, owner, "s9")["title"]
+    assert title.startswith("Empresa AMG: quadro organizado") and len(title) <= 120
+
+
+def test_a_window_that_finishes_says_what_it_did(client):
+    owner = login(client, "owner")
+    step(client, "UserPromptSubmit", session="s10", prompt="Corrige o login")
+    w = window(client, owner, "s10")
+    assert w["wait"] == "" and w["result"] == ""
+    step(client, "Stop", session="s10", last_assistant_message="Corrigi o login no widget.\n\nA página tenta outra vez sozinha. " + "x" * 400)
+    w = window(client, owner, "s10")
+    assert w["state"] == "waiting" and w["wait"] == "done"
+    assert w["result"].startswith("Corrigi o login no widget. A página tenta outra vez sozinha.") and len(w["result"]) <= 300
+    step(client, "Notification", session="s10", message="Claude is waiting for your input", notification_type="idle_prompt")
+    assert window(client, owner, "s10")["wait"] == "done"  # still finished: the reminder is not a question
+    step(client, "UserPromptSubmit", session="s10", prompt="agora o push")
+    w = window(client, owner, "s10")
+    assert w["wait"] == "" and w["result"] == ""  # a new request: what the last one did is no longer the news
+
+
+def test_what_a_waiting_window_waits_for(client):
+    owner = login(client, "owner")
+    step(client, "UserPromptSubmit", session="s11", prompt="Faz o push")
+    step(client, "Notification", session="s11", message="Claude needs your permission to use Bash", notification_type="permission_prompt")
+    assert window(client, owner, "s11")["wait"] == "permission"
+    step(client, "PreToolUse", session="s11", tool_name="AskUserQuestion", tool_input={})
+    assert window(client, owner, "s11")["wait"] == "answer"
+
+
+def test_a_machine_message_does_not_replace_what_the_person_asked(client):
+    owner = login(client, "owner")
+    step(client, "UserPromptSubmit", session="s12", prompt="Refaz a página das tarefas")
+    step(client, "Stop", session="s12", last_assistant_message="Lancei um agente.")
+    step(client, "UserPromptSubmit", session="s12", prompt="<task-notification> <task-id>abc</task-id> <status>completed</status></task-notification>")
+    w = window(client, owner, "s12")
+    assert w["state"] == "working" and w["prompt"] == "Refaz a página das tarefas" and w["request"] == "Refaz a página das tarefas"

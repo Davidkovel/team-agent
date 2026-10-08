@@ -53,13 +53,20 @@ def _request(prompt) -> str:
     return one_line(re.sub(r"<[^>]{1,200}>", " ", text), 160)
 
 
+MACHINE = ("<cross-session-message", "(mensagem de outra", "<task-notification")  # what Claude Code sends by itself, not a person
+
+
+def _machine(prompt) -> bool:
+    return str(prompt or "").lstrip().startswith(MACHINE)
+
+
 WHOLE = 1500  # characters of a request kept for whoever opens it
 
 
 def _whole(prompt) -> str:
     """The whole request, cleaned like _request but with its lines kept. A machine message has nothing more to read."""
     text = str(prompt or "").lstrip()
-    if text.startswith(("<cross-session-message", "(mensagem de outra", "<task-notification")):
+    if text.startswith(MACHINE):
         return ""
     lines = [" ".join(line.split()) for line in re.sub(r"<[^>]{1,200}>", " ", text).splitlines()]
     text = "\n".join(line for line in lines if line)
@@ -213,7 +220,10 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
     elif event == "UserPromptSubmit":
         _status(row, "working", when)
         row.since = when  # a new request starts the clock again
-        row.prompt, row.request, row.action = _request(body.get("prompt")), _whole(body.get("prompt")), "a pensar"
+        row.action, row.result = "a pensar", ""
+        # an agent that finished or another session writing wakes the window up, but what the person asked stays
+        if not (_machine(body.get("prompt")) and row.prompt):
+            row.prompt, row.request = _request(body.get("prompt")), _whole(body.get("prompt"))
         if _typed_skill(body.get("prompt")):
             row.skills = _add_skill(row.skills, _typed_skill(body.get("prompt")))
     elif event == "PreToolUse":
@@ -263,12 +273,15 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
         _status(row, "waiting", when)
         row.action = "precisa da tua autorização"
     elif event == "Notification":
-        _status(row, "waiting", when)
         kind = str(body.get("notification_type") or "")
-        row.action = "precisa da tua autorização" if kind == "permission_prompt" or "permission" in str(body.get("message") or "") else "à espera de ti"
+        asks = kind == "permission_prompt" or "permission" in str(body.get("message") or "")
+        if asks or not (row.status == "waiting" and (row.action or "").startswith("acabou")):  # a reminder after it finished changes nothing
+            _status(row, "waiting", when)
+            row.action = "precisa da tua autorização" if asks else "à espera de ti"
     elif event == "Stop":
         _status(row, "waiting", when)
-        row.action = "acabou: à tua espera"
+        row.action = DONE
+        row.result = one_line(body.get("last_assistant_message"), 300)  # what it did, in its own words
     elif event == "PreCompact":
         row.action = "a resumir a conversa"
     elif event == "SessionEnd":
@@ -280,6 +293,8 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
             row.tokens = used["tokens"]
             if used["model"]:
                 body["model"] = used["model"]
+    if body.get("title") and not inside:
+        row.title = one_line(body["title"], 120)  # the goal: Claude Code's own title of the conversation
     if body.get("model"):
         model = body["model"]
         row.model = one_line(model.get("display_name") or model.get("id") if isinstance(model, dict) else model, 60)
@@ -320,6 +335,18 @@ def _state(row: ClaudeSession) -> str:
     if row.status == "working" and quiet > STALLED:
         return "stalled"
     return row.status
+
+
+DONE = "acabou: à tua espera"
+
+
+def _wait(row: ClaudeSession, state: str) -> str:
+    """What a waiting window waits for: "permission" (it asked to run something), "answer" (it asked a question) or "done"
+    (it finished and waits for the next request). Empty when it is not waiting."""
+    if state != "waiting":
+        return ""
+    action = row.action or ""
+    return "done" if action.startswith("acabou") else "permission" if action.startswith("precisa da tua autoriza") else "answer"
 
 
 def _skills(text: str | None) -> list[str]:
@@ -405,7 +432,8 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
     for a in agents:
         by_session.setdefault(a.session_id, []).append(a)
     sessions = [{"id": r.id, "key": r.key, "user": r.user.username, "name": r.user.display_name, "project": r.project, "state": _state(r),
-                 "prompt": _request(r.prompt), "request": r.request or "", "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
+                 "prompt": _request(r.prompt), "request": r.request or "", "title": r.title or "", "result": r.result or "",
+                 "wait": _wait(r, _state(r)), "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
                  "updated_at": iso(r.updated_at), "skills": _skills(r.skills), "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]}
                 for r in rows]
     names = {r.id: (r.user.display_name, r.project) for r in rows}

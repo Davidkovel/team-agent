@@ -2,7 +2,9 @@
 
 The Hub puts it in place itself (backend/app/claude_hooks.py) as an async hook, so Claude never waits for it. It sends
 names and ids only (which tool, which file name, which subagent), never what is inside a file, a command or a page;
-the start of the request and of a subagent's answer are cut short. It never fails: with no Hub it just stays quiet.
+the start of the request and of a subagent's answer are cut short. With a request and when the window stops it also sends
+the title Claude Code itself gave the conversation (the goal, in a few words) and the start of the window's last answer
+(what it did). It never fails: with no Hub it just stays quiet.
 """
 import json
 import sys
@@ -26,15 +28,54 @@ def answer_text(response) -> str:
     return str(content or "")
 
 
-def model_of(transcript: str) -> str:
-    """The model of the last reply, from the end of the window's transcript (only the last 64 KB are read)."""
+def tail(transcript, size: int = 65536) -> list[str]:
+    """The last lines of a window's transcript (only its end is ever read)."""
     try:
         with open(transcript, "rb") as f:
             f.seek(0, 2)
-            f.seek(max(0, f.tell() - 65536))
-            lines = f.read().decode("utf-8", "replace").splitlines()
+            f.seek(max(0, f.tell() - size))
+            return f.read().decode("utf-8", "replace").splitlines()
     except (OSError, TypeError):
-        return ""
+        return []
+
+
+def title_of(transcript) -> str:
+    """The title Claude Code gave the conversation: it writes it again every few turns (an "ai-title" record), so the newest
+    is near the end. A long turn can push it further back: look a little further, never the whole of a big file."""
+    for size in (262144, 2097152):
+        for line in reversed(tail(transcript, size)):
+            if '"ai-title"' not in line:
+                continue
+            try:
+                record = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(record, dict) and record.get("type") == "ai-title" and record.get("aiTitle"):
+                return cut(record["aiTitle"], 120)
+    return ""
+
+
+def answer_of(transcript) -> str:
+    """The start of the window's last answer: the newest text Claude itself wrote, never a request or what a tool returned."""
+    for line in reversed(tail(transcript, 262144)):
+        if '"assistant"' not in line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(record, dict) or record.get("type") != "assistant" or record.get("isSidechain"):
+            continue
+        content = (record.get("message") or {}).get("content")
+        text = " ".join(part.get("text", "") for part in content if isinstance(part, dict) and part.get("type") == "text") if isinstance(content, list) else ""
+        if text.strip():
+            return cut(text, 300)
+    return ""
+
+
+def model_of(transcript: str) -> str:
+    """The model of the last reply, from the end of the window's transcript (only the last 64 KB are read)."""
+    lines = tail(transcript)
     for line in reversed(lines):
         if '"model"' not in line:
             continue
@@ -72,6 +113,14 @@ def step(data: dict) -> dict:
         model = model_of(data.get("transcript_path"))
         if model:
             body["model"] = model
+    if event in ("UserPromptSubmit", "Stop", "SessionStart"):  # never at an ordinary step: a step reads nothing
+        title = title_of(data.get("transcript_path"))
+        if title:
+            body["title"] = title
+    if event == "Stop" and not body.get("last_assistant_message"):
+        answer = answer_of(data.get("transcript_path"))
+        if answer:
+            body["last_assistant_message"] = answer
     return body
 
 

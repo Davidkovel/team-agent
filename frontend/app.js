@@ -1340,8 +1340,16 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) hidde
 window.addEventListener("pageshow", (e) => { if (e.persisted) { hiddenAt = 0; wakeUp(); } });
 window.addEventListener("online", wakeUp);
 
+// A git pull restarts the Hub and the page reloads itself: if it lands while the Hub is still starting, try again for a
+// while instead of leaving the person on the password page (8 out). A token the Hub refuses: this PC signs in by itself.
+let startTries = 0;
 async function start() {
-  try { me = await api("/api/me"); } catch { return; }
+  try { me = await api("/api/me"); } catch (e) {
+    if (e.message === "unauthorized") return autoLogin();
+    if (++startTries < 60) setTimeout(start, 2000);
+    return;
+  }
+  startTries = 0;
   $("login").hidden = true;
   $("app").hidden = false;
   $("whoami").textContent = me.team_mode ? me.display_name : `${me.display_name} · ${me.role}`;
@@ -1364,6 +1372,7 @@ async function start() {
 async function autoLogin() {
   const res = await fetch("/api/auth/auto", { method: "POST" }).catch(() => null);
   if (res?.ok) { token = (await res.json()).token; sessionStorage.setItem("token", token); return start(); }
+  if ((!res || res.status >= 500) && ++startTries < 60) { setTimeout(autoLogin, 2000); return; }  // the Hub is restarting
   const ip = res ? (await res.json().catch(() => ({}))).detail?.ip : "";
   logout();
   if (ip) $("login-error").textContent = `Este computador (${ip}) ainda não está associado a ninguém. Entra como admin ou adiciona-o em IP_USERS.`;

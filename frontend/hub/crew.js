@@ -1104,7 +1104,9 @@
     }
     for (const s of office.sessions || []) {
       if (s.state === "working" || (s.state === "waiting" && now - Date.parse(s.since) < STILL_WAITING)) {
-        out.push({ key: "c" + s.id, type: "claude", goal: s.title || "", title: cleanPrompt(s.prompt) || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait", request: s.request || "",
+        // what Claude Code told the window by itself (an agent finished, another session wrote) is not what was asked
+        const asked = cleanPrompt(s.prompt), said = /^\((aviso|mensagem de outra)/.test(asked) ? "" : asked;
+        out.push({ key: "c" + s.id, type: "claude", goal: s.title || "", title: said || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait", request: s.request || "",
           action: s.state === "working" ? s.action || "" : "", since: s.since, project: s.project, model: s.model, tokens: s.tokens,
           subagents: (s.agents || []).map((x) => ({ kind: x.kind, state: x.state, description: x.description })), skills: s.skills || [], href: "#/escritorio" });
       }

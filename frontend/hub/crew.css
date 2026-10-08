@@ -377,3 +377,5 @@ html.is-phone .cp-send input { font-size: 16px; }
 .cp-mic svg.i { width: 18px; height: 18px; }
 .cp-mic.on { border-color: #ff453a; background: rgba(255, 69, 58, .16); color: #ff6961; animation: cp-mic 1.2s ease-in-out infinite; }
 @keyframes cp-mic { 50% { box-shadow: 0 0 0 7px rgba(255, 69, 58, .12); } }
+.cp-where { display: flex; align-items: center; gap: 8px; color: #868c95; font: 600 11px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.cp-where select { flex: 1; min-width: 0; height: 36px; padding: 0 10px; border-radius: 10px; background: #05060a; border: 1px solid rgba(255, 255, 255, .1); color: #eef1f4; font: 500 13px var(--ui); text-transform: none; letter-spacing: 0; }

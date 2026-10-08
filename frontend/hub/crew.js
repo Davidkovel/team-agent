@@ -2353,6 +2353,12 @@
     const done = memoryNotes.filter((m) => m.category === "TAREFAS").length;
     return t("Lê {n} notas da Memória antes de cada missão · {d} tarefas da equipa já lá estão", { n: memoryNotes.length, d: done });
   }
+  // the folders the agent on this PC works in (/api/workspaces): a mission that names one changes that project for real
+  let folders = null, lastFolder = "";
+  try { lastFolder = localStorage.getItem("crew.folder") || ""; } catch { /* private window */ }
+  api("/api/workspaces").then((w) => { folders = w.folders || []; }).catch(() => { folders = []; });
+  const folderOptions = () => [["", t("Pasta nova só para esta missão")], ...(folders || []).map((f) => [f, f])]
+    .map(([v, l]) => `<option value="${esc(v)}" ${v === lastFolder ? "selected" : ""}>${esc(l)}</option>`).join("");
   const SPEECH = window.SpeechRecognition || window.webkitSpeechRecognition;
   const MIC = '<svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
   function agentPanel(a) {
@@ -2370,6 +2376,7 @@
       return `${head}<section class="cp-sec"><small class="cp-k">${esc(t("Quem é"))}</small><p class="cp-bio">${esc(t(a.bio))}</p></section>
         <section class="cp-sec"><small class="cp-k">${esc(t("Nova missão"))}</small>
           <form class="cp-send" data-crew="${a.id}"><textarea name="what" rows="4" placeholder="${esc(t("Escreve ou dita o que tens na cabeça e o que é para o {n} fazer. A primeira linha é o título.", { n: a.name }))}"></textarea>
+          <label class="cp-where"><span>${esc(t("Onde"))}</span><select name="project">${folderOptions()}</select></label>
           <div class="cp-send-row">${SPEECH ? `<button type="button" class="cp-mic" data-mic aria-label="${esc(t("Ditar"))}" title="${esc(t("Ditar"))}">${MIC}</button>` : ""}
             <span class="cp-send-k">${esc(t("Ctrl + Enter manda"))}</span><button class="btn primary">${esc(t("Mandar"))}${icon("arrow")}</button></div></form></section>
         ${mind}
@@ -2557,7 +2564,9 @@
     // the first line is the title; a long first line is cut at a word and the whole text goes as the description
     const first = text.split("\n")[0].trim(), title = first.length > 120 ? `${first.slice(0, 117).replace(/\s+\S*$/, "")}…` : first;
     const description = text === first && first.length <= 120 ? "" : text;
-    if (await sendTask(title, form.dataset.crew, form.querySelector("button.primary"), description)) { const now = $("cr-panel").querySelector(".cp-send textarea"); if (now) now.value = ""; }
+    const project = form.querySelector("select[name=project]")?.value || "";
+    lastFolder = project; try { localStorage.setItem("crew.folder", project); } catch { /* private window */ }
+    if (await sendTask(title, form.dataset.crew, form.querySelector("button.primary"), description, project)) { const now = $("cr-panel").querySelector(".cp-send textarea"); if (now) now.value = ""; }
   }
   // dictating a mission (Chrome / Edge / Safari): what is said is written into the box, in Portuguese, until stopped
   let mic = null;
@@ -2704,11 +2713,11 @@
     await sendTask(t("Reunião da equipa: ligar as ideias da Memória e propor o que fazer a seguir"), "gordon", button,
       t("Lê a Memória da equipa toda (está no teu briefing) e as tarefas abertas e acabadas. Liga as ideias: o que se repete, o que se contradiz, o que ficou a meio. Propõe as 3 a 5 coisas mais importantes a fazer a seguir, cada uma com o porquê e com quem da equipa a deve fazer. Não mudes código nem publiques nada: é uma reunião, o resultado é a proposta."));
   }
-  async function sendTask(title, crewId, button, description = "") {
+  async function sendTask(title, crewId, button, description = "", project = "") {
     const who = $("cr-who") ? $("cr-who").value : me.username;
     if (button) button.disabled = true;
     try {
-      const task = await api("/api/tasks", { method: "POST", body: { title, description, assignee: who, crew: crewId || "", for_ai: true } });
+      const task = await api("/api/tasks", { method: "POST", body: { title, description, project, assignee: who, crew: crewId || "", for_ai: true } });
       tasks = [task, ...tasks.filter((x) => x.id !== task.id)];
       jobs = jobsOf();
       reconcile(jobs, false);

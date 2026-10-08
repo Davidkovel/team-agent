@@ -176,8 +176,10 @@ class TeamAgent:
         self._run = asyncio.create_task(self._execute(task, resume))
 
     def _workspace(self, task: dict) -> Path:
-        name = re.sub(r"[^A-Za-z0-9_.-]", "_", task.get("project") or "").strip(".") or f"task-{task['id']}"
-        path = self.cfg.workspace / name
+        # a mission for a project works in that project's folder (TEAM_AGENT_WORKSPACE/<project>, e.g. Documents/baredesk-theme);
+        # one with no project gets a folder of its own under the agent's data, so it never litters the projects folder
+        name = re.sub(r"[^A-Za-z0-9_.-]", "_", task.get("project") or "").strip(".")
+        path = self.cfg.workspace / name if name else self.cfg.data_dir / "missoes" / f"task-{task['id']}"
         path.mkdir(parents=True, exist_ok=True)
         return path
 

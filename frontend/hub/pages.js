@@ -575,60 +575,73 @@ function doingBanner(x, held) {
   const other = x.group && x.group.find((y) => y.doing_since && y.stage !== "done" && y.assignee !== x.assignee);
   return (other ? doingCard(nameOf(other.assignee), other.doing_since, false) : "") + (mine ? doingGo() : "");
 }
+// Opening a task you were sent reads the "new task" notice about it, so the big card on the home page goes away everywhere.
+function markTaskSeen(x) {
+  if (x.assignee !== me.username || !x.created_by || x.created_by === me.username) return;
+  request_("/api/notifications?limit=100").then((inbox) => {
+    const ids = inbox.items.filter((n) => !n.read && n.kind === "task_new" && n.href === `#/tarefas/${x.id}`).map((n) => n.id);
+    if (ids.length) return api("/api/notifications/read", { method: "POST", body: { ids } });
+  }).catch(() => { /* the card simply stays until the next time */ });
+}
 async function openTaskModal(id) {
   let x, all;
   try { [x, all] = await Promise.all([request_(`/api/tasks/${id}`), request_("/api/tasks")]); } catch (e) { flash(e.message); return; }
+  markTaskSeen(x);
   const group = groupAll(all.filter((y) => !y.trashed_at)).find((g) => g.group && g.group.some((y) => y.id === x.id))?.group;
   const held = heldByAgent(x), running = ["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status);
   // The window of a task, made to be read from top to bottom: the title, a line of facts that only says what the task has
   // (no table of dashes), what can be done with it, then its text. The deadline and the history are folded underneath.
   const late = x.stage !== "done" && x.deadline && new Date(x.deadline) < new Date();
   const company = companies.find((c) => c.id === x.company)?.name;
-  const fact = (ic, label, value, cls = "") => `<span class="tfact ${cls}">${ic}<em>${t(label)}</em><b>${value}</b></span>`;
-  const facts = [fact(group ? icon("users") : ui.avatar(nameOf(x.assignee), "sm"), "Para", group ? `${t("Todos")} (${group.length})` : esc(nameOf(x.assignee))),
-    x.deadline ? fact(icon("calendar"), late ? "Atrasada desde" : "Prazo", `${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}`, late ? "bad" : "") : x.stage !== "done" ? fact(icon("calendar"), "Prazo", t("sem prazo"), "dim") : "",
-    x.priority && x.priority !== "normal" ? fact(icon("flag"), "Prioridade", t(PRIORITY[x.priority]), x.priority === "urgent" ? "bad" : x.priority === "high" ? "warn" : "dim") : "",
-    x.project_name || x.project ? fact(icon("folder"), "Projeto", esc(x.project_name || x.project)) : "",
-    company ? fact(icon("building"), "Empresa", esc(company)) : "",
-    x.crew_name ? fact(icon(CREW_ICON[x.crew] || "bot"), "Agente", `${esc(x.crew_name)} · ${esc(t(x.crew_what))}`)
-      : x.agent_role ? fact(icon("bot"), "Agente", esc(t(ROLES[x.agent_role]))) : "",
-    x.created_by ? fact(icon("clock"), "Pedida por", `${esc(nameOf(x.created_by))} · ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}`, "dim") : "",
-    x.stage === "done" && !group && x.completed_by ? fact(icon("check"), "Concluída por", `${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : ""}`, "ok") : ""].filter(Boolean).join("");
+  // The facts are all there, but small, in one quiet line under the text: a late deadline or an urgent task is coloured, not bigger.
+  const meta = (ic, value, cls = "", label = "") => `<span class="tm ${cls}"${label ? ` title="${esc(t(label))}"` : ""}>${icon(ic)}${value}</span>`;
+  const metas = [
+    x.priority === "urgent" || x.priority === "high" ? meta("flag", t(PRIORITY[x.priority]), x.priority === "urgent" ? "bad" : "warn", "Prioridade") : "",
+    x.deadline ? meta("calendar", `${late ? `${t("Atrasada desde")} ` : ""}${fmt.date(x.deadline)} ${fmt.hhmm(x.deadline)}`, late ? "bad" : "", "Prazo")
+      : x.stage !== "done" ? meta("calendar", t("Sem prazo"), "dim", "Prazo") : "",
+    x.project_name || x.project ? meta("folder", esc(x.project_name || x.project), "", "Projeto") : "",
+    company ? meta("building", esc(company), "", "Empresa") : "",
+    x.crew_name ? meta(CREW_ICON[x.crew] || "bot", `${esc(x.crew_name)} · ${esc(t(x.crew_what))}`, "", "Agente")
+      : x.agent_role ? meta("bot", esc(t(ROLES[x.agent_role])), "", "Agente") : "",
+    group ? `<span class="tm">${whoFaces(group)}${esc(whoLeft(group))}</span>` : "",
+    x.stage === "done" && !group && x.completed_by ? meta("check", `${t("Concluída por")} ${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : ""}`, "ok") : "",
+    x.created_at ? meta("clock", `${t("Criada")} ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}`, "dim") : ""].filter(Boolean).join("");
   const steps = x.events.filter((e) => e.kind !== "note");
   const buttons = `${canGiveToAI(x) ? ui.btn("Entregar ao escritório", "data-act=ai", "", "bot") : ""}
     ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
     ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
     ${!held && x.stage !== "done" ? ui.btn("Concluir", "data-act=done", "ok", "check") : ""}
     ${ui.btn("Editar", "data-act=edit", "quiet")}`;
-  // whose it is comes first, in their colour: "Para ti", "Para Kovel", or the faces of everybody it was sent to
-  const asked = x.created_by && x.created_by !== x.assignee ? `<em>${t("pedida por {n}", { n: isMe(x.created_by) ? t("ti") : nameOf(x.created_by) })}</em>` : "";
-  const owner = group ? `<div class="tv-owner all">${whoFaces(group)}<span>${esc(groupLabel(group))}</span>${asked}</div>`
-    : `<div class="tv-owner ${isMe(x.assignee) ? "me" : ""}">${ui.avatar(nameOf(x.assignee), "sm")}<span>${esc(isMe(x.assignee) ? t("Para ti") : t("Para {n}", { n: nameOf(x.assignee) }))}</span>${asked}</div>`;
-  openModal(`<div class="tview" style="${group ? "" : whoVar(x.assignee)}">${owner}
-    <header class="tv-head"><h3>${esc(x.title)}</h3>
-      ${group ? ui.tag(t("{a} de {b} feito", { a: group.filter((y) => y.stage === "done").length, b: group.length }), group.every((y) => y.stage === "done") ? "ok" : "")
-        : x.doing_since && x.stage !== "done" ? ui.tag(t("A fazer"), "ok") : ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></header>
-    <div class="tv-facts">${facts}</div>
-    ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
+  // The window reads like a letter. On top, small: who sent it to whom ("KOVEL › TU", in their colours) and where it stands.
+  // Then what matters, big: the title and the text. Then the buttons. The facts and the folds come last, quietly.
+  const sender = x.created_by && (group || x.created_by !== x.assignee) ? x.created_by : "";
+  const from = sender ? `<span class="tv-sender" style="${whoVar(sender)}" title="${esc(t("Pedida por {n}", { n: nameOf(sender) }))}">${ui.avatar(nameOf(sender), "sm")}<b>${esc(isMe(sender) ? t("Tu") : nameOf(sender))}</b></span><i class="tv-arrow">${icon("chevron")}</i>` : "";
+  const stage = group ? [t("{a} de {b} feito", { a: group.filter((y) => y.stage === "done").length, b: group.length }), group.every((y) => y.stage === "done") ? "ok" : ""]
+    : x.doing_since && x.stage !== "done" ? [t("A fazer"), "ok"] : [t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage]];
+  const part = (label, html, cls = "") => `<section class="tv-part ${cls}"><small>${t(label)}</small><div class="tread">${html}</div></section>`;
+  openModal(`<article class="tview letter" style="${group ? "" : whoVar(x.assignee)}">
+    <header class="tv-top"><div class="tv-route">${from}${group ? allPlate(group) : whoPlate(x.assignee)}</div>${ui.tag(stage[0], stage[1])}
+      <button class="btn quiet sm" data-close aria-label="${t("Fechar")}">${icon("x")}</button></header>
+    <h2 class="tv-title">${x.priority === "urgent" ? '<i class="bang">!!</i>' : x.priority === "high" ? '<i class="bang high">!</i>' : ""}${esc(x.title)}</h2>
+    <section class="tv-msg">${x.description ? `<div class="tread">${richText(x.description)}</div>` : `<p class="tv-none">${t("Sem descrição: o título diz tudo.")}</p>`}
+      ${x.goal ? part("Objetivo", richText(x.goal)) : ""}
+      ${x.requirements?.length ? part("O que tem de ficar feito", `<ul>${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`) : ""}
+      ${x.result ? part("Resultado", richText(x.result), "ok") : ""}</section>
+    ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx tv-prog"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
     ${x.current_action && running ? `<div class="now">${esc(x.current_action)}</div>` : ""}
-    ${x.blocked_reason ? `<p class="msg note" style="margin:0">${esc(x.blocked_reason)}</p>` : ""}
+    ${x.blocked_reason ? `<p class="msg note tv-blocked">${esc(x.blocked_reason)}</p>` : ""}
     ${doingBanner(x, held)}
     <div class="tv-acts">${buttons}
       ${held ? "" : `<label class="tv-state">${t("Estado")}<select id="task-status">${options([["", t("mudar…")], ["TODO", t("Por fazer")], ["BLOCKED", t("Bloqueada")], ["REVIEW", t("Em revisão")], ["COMPLETED", t("Concluída")]], "")}</select></label>`}</div>
-    <section class="tv-text">
-      ${x.description ? `<div class="tread">${richText(x.description)}</div>` : `<p class="faint" style="margin:0">${t("Esta tarefa não tem descrição: o título diz tudo.")}</p>`}
-      ${x.goal ? `<div class="tv-goal"><small>${t("Objetivo")}</small><div class="tread">${richText(x.goal)}</div></div>` : ""}
-      ${x.requirements?.length ? `<div class="tv-goal"><small>${t("O que tem de ficar feito")}</small><div class="tread"><ul>${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></div></div>` : ""}
-      ${x.result ? `<div class="tv-goal ok"><small>${t("Resultado")}</small><div class="tread">${richText(x.result)}</div></div>` : ""}
-    </section>
-    ${group ? `<section class="tv-box"><small>${t("Quem já fez")} · ${esc(whoLeft(group))}</small>
-      <div class="who-list" style="padding:6px 0 0">${group.map((y) => {
+    <footer class="tv-meta">${metas}</footer>
+    ${group ? `<details class="tv-fold"><summary>${icon("users")}${t("Quem já fez")} · ${esc(whoLeft(group))}</summary>
+      <div class="who-list">${group.map((y) => {
         const on = y.doing_since && y.stage !== "done";
         return `<div class="who-line ${y.stage === "done" ? "did" : ""} ${on ? "doing" : ""}">${on ? `<span class="dl-ring">${ui.avatar(nameOf(y.assignee), "sm")}</span>` : whoFace(y, "")}<div><b>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` <small>${t("tu")}</small>` : ""}</b>
         <span>${y.stage === "done" ? `${t("Feito")}${y.completed_at ? ` · ${fmt.day(y.completed_at)} ${fmt.hhmm(y.completed_at)}` : ""}${y.completed_by && y.completed_by !== y.assignee ? ` · ${t("por")} ${esc(nameOf(y.completed_by))}` : ""}`
           : on ? `<em class="doing-txt">${t("A fazer agora")} · ${t("desde")} ${sinceOf(y.doing_since)}</em>` : esc(t(STAGE_LABEL[y.stage]))}</span></div></div>`;
-      }).join("")}</div></section>` : ""}
-    ${x.stage !== "done" ? `<details class="tv-fold tdue ${late ? "late" : ""}" ${x.deadline ? "" : "open"}><summary>${icon("calendar")}${t(x.deadline ? "Mudar o prazo" : "Dar um prazo")}</summary>
+      }).join("")}</div></details>` : ""}
+    ${x.stage !== "done" ? `<details class="tv-fold tdue ${late ? "late" : ""}"><summary>${icon("calendar")}${t(x.deadline ? "Mudar o prazo" : "Dar um prazo")}</summary>
       <div class="tdue-in"><input type="datetime-local" id="task-due" value="${x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}" aria-label="${t("Prazo")}">
         <div class="tdue-quick">${[["Hoje 18:00", 0], ["Amanhã 18:00", 1], ...((5 - new Date().getDay() + 7) % 7 > 1 ? [["Sexta 18:00", (5 - new Date().getDay() + 7) % 7]] : []), ["Daqui a 1 semana", 7]]
           .map(([label, days]) => `<button type="button" class="chp" data-due-days="${days}">${t(label)}</button>`).join("")}</div>
@@ -646,7 +659,7 @@ async function openTaskModal(id) {
         <span>${esc(s.model || "—")} · ${fmt.span(s.started_at, s.finished_at)}</span></div></div>`).join("")}</div>` : ""}
       ${x.approvals.length ? `<small class="tv-sub">${t("Aprovações")}</small><div class="panel">${x.approvals.slice(0, 4).map((a) => `<a class="rw" href="#/aprovacoes" data-close><div class="rw-main"><b>${esc(a.action)}</b>
         <span>${t({ PENDING: "pendente", APPROVED: "aprovado", REJECTED: "recusado" }[a.status])}</span></div></a>`).join("")}</div>` : ""}
-    </details></div>`);
+    </details></article>`);
   $("modal-box").classList.add("wide");
   $("modal-box").onclick = async (e) => {
     const quick = e.target.closest("[data-due-days]");

@@ -427,3 +427,62 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
   #in-team .p-ring .av { width: 74px; height: 74px; font-size: 26px; }
 }
 #in-team .people { padding: 2px 0 6px; }
+
+/* ---------------------------------------------------------------- Tarefa nova: what somebody sent you, big, until you open it
+   In the sender's colour (--who): their light from the top-left, a lit edge, a beating dot. It slides in and a light runs
+   across it once (.enter), the way the car's lights come on; after that it stays still. */
+.nt { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 30px; padding: 22px 28px 24px 30px; border-radius: 14px; overflow: hidden;
+  border: 1px solid rgba(var(--who-rgb, 238, 245, 255), .32);
+  background: radial-gradient(760px 260px at 0% 0%, rgba(var(--who-rgb, 238, 245, 255), .17), transparent 70%), linear-gradient(180deg, #171a1f, #08090b);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 30px 60px -34px rgba(var(--who-rgb, 238, 245, 255), .55), 0 24px 50px -30px rgba(0, 0, 0, .95); }
+.nt:has(.nt-more) { grid-template-columns: minmax(0, 1fr) minmax(220px, 290px); }
+.nt::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--who, #eef5ff); box-shadow: 0 0 18px rgba(var(--who-rgb, 238, 245, 255), .9); }
+.nt.hot { border-color: rgba(239, 111, 94, .45); }
+.nt.enter { animation: nt-in .65s cubic-bezier(.2, .9, .3, 1.1) both; }
+.nt.leaving { opacity: .3; transform: translateY(-4px); transition: opacity .25s, transform .25s; }
+.nt-light { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .08) 48%, transparent 61%); }
+.nt.enter .nt-light { animation: nt-sweep 1.5s .3s ease-out both; }
+.nt-eye { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; color: var(--who, #eef5ff); }
+.nt-eye b { font: 700 11px var(--ui); letter-spacing: .26em; text-transform: uppercase; }
+.nt-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--who, #eef5ff); animation: nt-ping 1.8s ease-out infinite; }
+.nt-n { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--who); color: #0b0c0e; font: 700 11px/22px var(--mono); text-align: center; }
+.nt-eye time { margin-left: auto; color: #6b727b; font: 500 12px var(--ui); white-space: nowrap; }
+.nt-main { min-width: 0; padding-top: 18px; }
+.nt-from { display: flex; align-items: center; gap: 10px; color: #a7aeb7; font: 500 14px var(--ui); }
+.nt-from .av { width: 30px; height: 30px; margin: 0; font-size: 12px; box-shadow: 0 0 0 2px #0b0c0e, 0 0 0 3.5px var(--who); }
+.nt-from b { color: #f4f6f8; font-weight: 600; }
+.nt-title { margin: 14px 0 0; color: #fff; font: 500 clamp(30px, 3vw, 44px)/1.08 var(--serif); letter-spacing: 0; overflow-wrap: anywhere; text-wrap: balance; }
+.nt-body { margin: 12px 0 0; max-width: 72ch; color: #b9bfc6; font: 400 16px/1.6 var(--ui); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.nt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.nt-chips em { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .09);
+  background: rgba(255, 255, 255, .035); color: #a7aeb7; font: 600 11.5px var(--ui); font-style: normal; white-space: nowrap; }
+.nt-chips em svg.i { width: 13px; height: 13px; }
+.nt-chips em.bad { color: #ffb0a5; border-color: rgba(239, 111, 94, .35); background: rgba(239, 111, 94, .1); }
+.nt-chips em.warn { color: #f0cf8a; border-color: rgba(226, 181, 92, .35); }
+.nt-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.nt-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .04); color: #eef1f4; font: 700 11.5px var(--ui); letter-spacing: .1em; text-transform: uppercase; cursor: pointer;
+  transition: transform .15s, filter .15s, background .15s, color .15s; }
+.nt-btn svg.i { width: 14px; height: 14px; }
+.nt-btn:hover { background: rgba(255, 255, 255, .08); }
+.nt-btn:active { transform: translateY(1px) scale(.98); }
+.nt-btn.main { border-color: transparent; background: var(--chrome); color: #0b0c0e; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 10px 24px -12px rgba(238, 245, 255, .7); }
+.nt-btn.main:hover { filter: brightness(1.06); }
+.nt-btn.quiet { border-color: transparent; background: none; color: #8f969f; }
+.nt-btn.quiet:hover { color: #fff; }
+.nt-more { min-width: 0; align-self: start; display: grid; gap: 6px; margin-top: 18px; padding-left: 24px; border-left: 1px solid rgba(255, 255, 255, .07); }
+.nt-more > small { margin-bottom: 4px; color: #6b727b; font: 700 9.5px var(--ui); letter-spacing: .2em; text-transform: uppercase; }
+.nt-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .05);
+  background: rgba(255, 255, 255, .025); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.nt-row:hover { background: rgba(255, 255, 255, .06); }
+.nt-row .av { width: 26px; height: 26px; margin: 0; box-shadow: 0 0 0 1.5px var(--who); }
+.nt-row > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.nt-row b { overflow: hidden; color: #eef1f4; font: 500 13px var(--ui); white-space: nowrap; text-overflow: ellipsis; }
+.nt-row em { color: #6b727b; font: 500 11.5px var(--ui); font-style: normal; }
+.nt-row > svg.i { flex: none; width: 14px; height: 14px; color: #59606a; }
+.nt-all { color: #8f969f; font: 600 11px var(--ui); }
+@keyframes nt-in { from { opacity: 0; transform: translateY(12px) scale(.99); } }
+@keyframes nt-sweep { 0% { opacity: 1; transform: translateX(-100%); } 100% { opacity: 1; transform: translateX(100%); } }
+@keyframes nt-ping { 0% { box-shadow: 0 0 0 0 rgba(var(--who-rgb, 238, 245, 255), .65); } 100% { box-shadow: 0 0 0 12px rgba(var(--who-rgb, 238, 245, 255), 0); } }
+@media (max-width: 900px) { .nt:has(.nt-more) { grid-template-columns: minmax(0, 1fr); } .nt-more { padding-left: 0; border-left: 0; } }
+@media (prefers-reduced-motion: reduce) { .nt.enter, .nt.enter .nt-light, .nt-dot { animation: none; } }

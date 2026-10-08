@@ -434,10 +434,38 @@ button.tl-check { cursor: pointer; } button.tl-check:hover { border-color: #f4f6
 .pcol > header i { color: var(--who); text-shadow: 0 0 18px rgba(var(--who-rgb), .45); }
 .tl-block h4.now { color: #4ee07a; } .tl-block h4.now i { background: #4ee07a; box-shadow: 0 0 8px #4ee07a; }
 
-/* the window of a task: whose it is on top, in their colour */
-.tv-owner { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(var(--who-rgb, 255, 255, 255), .22);
-  color: var(--who, #cfd5dc); font: 700 11px var(--ui); letter-spacing: .2em; text-transform: uppercase; }
-.tv-owner .av { width: 30px; height: 30px; margin: 0; font-size: 12px; box-shadow: 0 0 0 2px #0b0c0e, 0 0 0 3.5px var(--who); }
-.tv-owner.me > span { padding: 4px 8px 3px; border-radius: 4px; background: var(--who); color: #0b0c0e; box-shadow: 0 0 16px -3px rgba(var(--who-rgb), .75); }
-.tv-owner em { margin-left: auto; color: #6b727b; font: 500 11.5px var(--ui); font-style: normal; letter-spacing: 0; text-transform: none; }
-.tview[style*="--who"] .tfact .av { box-shadow: 0 0 0 1.5px var(--who); }
+/* The window of a task, read like a letter. On top, small: who sent it to whom ("KOVEL › TU") and its state. Then what matters,
+   big: the title in the catalogue serif and the text at reading size. Then the buttons. The facts last, in one quiet line. */
+.modal-box.wide:has(.tview.letter) { padding: 30px 38px 24px; }
+.tview.letter { gap: 0; max-width: 780px; }
+.tv-top { display: flex; align-items: center; gap: 10px; }
+.tv-route, .m-tv-route { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.tv-sender { display: inline-flex; align-items: center; gap: 7px; flex: none; color: var(--who); font: 700 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.tv-sender .av { width: 22px; height: 22px; margin: 0; font-size: 9px; box-shadow: 0 0 0 1.5px var(--who); }
+.tv-arrow { display: grid; place-items: center; font-style: normal; }
+.tv-arrow svg.i { width: 13px; height: 13px; color: #59606a; }
+.tv-top .tag { flex: none; }
+.tv-title { margin: 28px 0 0; color: #f6f7f9; font: 500 clamp(30px, 3.1vw, 42px)/1.1 var(--serif); letter-spacing: 0; overflow-wrap: anywhere; text-wrap: balance; }
+.tv-title .bang { margin-right: 10px; color: #ef6f5e; font: 700 .72em var(--ui); font-style: normal; vertical-align: .08em; }
+.tv-title .bang.high { color: #e2b55c; }
+.tv-msg { display: grid; gap: 24px; margin-top: 20px; }
+.tv-msg .tread { max-width: 66ch; color: #e2e6ea; font: 400 17px/1.72 var(--ui); }
+.tv-msg .tread > * + * { margin-top: 14px; }
+.tv-msg .tread li::marker { font-size: 14px; }
+.tv-none { margin: 0; color: #6b727b; font: italic 500 18px var(--serif); }
+.tv-part > small { display: block; margin-bottom: 8px; color: rgba(var(--who-rgb, 207, 213, 220), .9); font: 700 9.5px var(--ui); letter-spacing: .22em; text-transform: uppercase; }
+.tv-part.ok > small { color: #9be3b0; }
+.tview.letter > .tv-prog, .tview.letter > .now, .tview.letter > .tv-blocked, .tview.letter > .tv-doing { margin: 24px 0 0; }
+.tview.letter > .tv-acts { margin-top: 28px; padding: 18px 0; border-top: 1px solid rgba(255, 255, 255, .07); border-bottom: 0; }
+.tv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 14px 0 6px; border-top: 1px solid rgba(255, 255, 255, .06); color: #7d848d; font: 500 12px var(--ui); }
+.tv-meta:empty { display: none; }
+.tm { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tm svg.i { width: 13px; height: 13px; color: #59606a; }
+.tm.bad { color: #ef8a7c; } .tm.bad svg.i { color: #ef6f5e; }
+.tm.warn, .tm.warn svg.i { color: #e2b55c; }
+.tm.ok, .tm.ok svg.i { color: #9be3b0; }
+.tm.dim { color: #5d646d; }
+.tm .doer-row { margin-right: 4px; }
+.tview.letter > .tv-fold { margin-top: 10px; padding-top: 10px; border-top-color: rgba(255, 255, 255, .05); }
+.tview.letter > .tv-fold > summary { color: #6b727b; font-size: 12px; }
+.tview.letter > .tv-fold > summary:hover { color: #eef1f4; }

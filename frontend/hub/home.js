@@ -192,11 +192,58 @@ async function progressBody() {
       .map(([n, label]) => `<div><b>${n}</b><span>${t(label)}</span></div>`).join("")}</div>`;
 }
 
+/* ---------- a task somebody sent you: big, above everything, until you open it ---------- */
+// It comes from the Hub's notices (a "task_new" meant for you and not read yet), so the phone and the computer agree, and it
+// goes away on both once the task is opened (openTaskModal marks the notice read), started here, or left for later.
+function newTasksOf(tasks, inbox) {
+  const byId = new Map(tasks.map((x) => [x.id, x])), seen = new Set(), out = [];
+  for (const n of inbox.items) {
+    if (n.kind !== "task_new" || n.read || !n.directed) continue;
+    const x = byId.get(Number(String(n.href || "").split("/").pop()));
+    if (!x || seen.has(x.id) || x.trashed_at || x.stage === "done" || x.assignee !== me.username) continue;
+    seen.add(x.id);
+    out.push({ x, n });
+  }
+  return out.sort((a, b) => importance(a.x) - importance(b.x));   // urgent first; the newest first among equals (the notices come newest first)
+}
+const ntShown = new Set(); // it slides in and the light runs across it once, not again at every refresh
+const plainOf = (text) => String(text || "").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[*_`#>]+/g, "").replace(/\s+/g, " ").trim();
+function newTaskCard(fresh) {
+  if (!fresh.length) return "";
+  const [{ x, n }, ...more] = fresh, from = x.created_by || "", everybody = /a todos:/.test(n.title);
+  const enter = !ntShown.has(x.id), body = plainOf(x.description);
+  ntShown.add(x.id);
+  const [when, late] = whenOf(x, "week");
+  const chips = [x.priority === "urgent" ? `<em class="bad">${icon("flag")}${t("Urgente")}</em>` : x.priority === "high" ? `<em class="warn">${icon("flag")}${t("Alta")}</em>` : "",
+    `<em class="${late ? "bad" : ""}">${icon("calendar")}${when ? esc(late ? `${t("Atrasada")} · ${when}` : when) : t("Sem prazo")}</em>`,
+    x.project_name ? `<em>${icon("folder")}${esc(x.project_name)}</em>` : "", everybody ? `<em>${icon("users")}${t("Para todos")}</em>` : ""].join("");
+  return `<section class="nt ${enter ? "enter" : ""} ${x.priority === "urgent" ? "hot" : ""}" style="${whoVar(from)}">
+    <div class="nt-light" aria-hidden="true"></div>
+    <header class="nt-eye"><i class="nt-dot"></i><b>${t(fresh.length > 1 ? "Tarefas novas para ti" : "Tarefa nova para ti")}</b>${fresh.length > 1 ? `<span class="nt-n">${fresh.length}</span>` : ""}
+      <time>${esc(fmt.ago(n.created_at))}</time></header>
+    <div class="nt-main">
+      <div class="nt-from">${ui.avatar(nameOf(from))}<span><b>${esc(nameOf(from))}</b> ${t(everybody ? "mandou uma tarefa a todos" : "mandou-te uma tarefa")}</span></div>
+      <h2 class="nt-title">${esc(x.title)}</h2>
+      ${body ? `<p class="nt-body">${esc(body.slice(0, 360))}${body.length > 360 ? "…" : ""}</p>` : ""}
+      <div class="nt-chips">${chips}</div>
+      <div class="nt-acts"><button class="nt-btn main" data-nt-open="${x.id}">${t("Abrir a tarefa")}${icon("chevron")}</button>
+        ${heldByAgent(x) ? "" : `<button class="nt-btn" data-nt-doing="${x.id}" data-nt-n="${n.id}">${icon("play")}${t("Começar agora")}</button>`}
+        <button class="nt-btn quiet" data-nt-later="${n.id}">${t("Mais tarde")}</button></div>
+    </div>
+    ${more.length ? `<div class="nt-more"><small>${t("Também chegaram")}</small>${more.slice(0, 3).map(({ x: y, n: m }) => `<button class="nt-row" data-nt-open="${y.id}" style="${whoVar(y.created_by)}">
+      ${ui.avatar(nameOf(y.created_by), "sm")}<div><b>${esc(y.title)}</b><em>${esc(nameOf(y.created_by))} · ${esc(fmt.ago(m.created_at))}</em></div>${icon("chevron")}</button>`).join("")}
+      ${more.length > 3 ? `<a class="nt-all" href="#/tarefas">${t("e mais {n}", { n: more.length - 3 })}</a>` : ""}</div>` : ""}
+  </section>`;
+}
+
 /* ---------- what is urgent, above everything; the three numbers ---------- */
 async function alertBody() {
-  const [tasks, inbox] = await Promise.all([api("/api/tasks"), api("/api/notifications?limit=1")]);
+  const [tasks, inbox] = await Promise.all([api("/api/tasks"), api("/api/notifications?limit=100")]);
+  const fresh = newTasksOf(tasks, inbox), freshIds = new Set(fresh.map((f) => f.x.id));
   const p = planOf(asOne(tasks));
-  const urgent = p.open.filter((x) => x.priority === "urgent").sort((a, b) => (a.deadline || "9").localeCompare(b.deadline || "9"));
+  // what the new-task card already shows big is not said again in the urgent strip
+  const urgent = p.open.filter((x) => x.priority === "urgent" && !freshIds.has((x.group ? x.group.find((y) => y.assignee === me.username) || x : x).id))
+    .sort((a, b) => (a.deadline || "9").localeCompare(b.deadline || "9"));
   const hot = p.open.filter((x) => x.priority === "urgent" || x.priority === "high").length;
   const row = (x) => {
     const own = x.group ? x.group.find((y) => y.assignee === me.username) : x.assignee === me.username ? x : null;
@@ -207,7 +254,7 @@ async function alertBody() {
       ${x.group ? whoFaces(x.group) : whoPlate(x.assignee)}${icon("chevron")}</div>`;
   };
   const stat = (n, label, tone, ic, act) => `<button class="stat ${n ? `lit ${tone}` : ""}" ${act}><span class="stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></button>`;
-  return `${urgent.length ? `<section class="urgent"><header><i class="pulse"></i><b>${t(urgent.length === 1 ? "Urgente" : "Urgentes")}</b><span>${urgent.length}</span></header>
+  return `${newTaskCard(fresh)}${urgent.length ? `<section class="urgent"><header><i class="pulse"></i><b>${t(urgent.length === 1 ? "Urgente" : "Urgentes")}</b><span>${urgent.length}</span></header>
       <div class="u-rows">${urgent.slice(0, 4).map(row).join("")}</div></section>` : ""}
     <div class="stats">${stat(p.today.length, "Para hoje", "today", "calendar", 'data-go="#/tarefas"')}${stat(hot, "Urgentes", "hot", "flag", 'data-go="#/tarefas"')}
       ${stat(inbox.unread, "Por ler", "unread", "bell", 'data-act="alerts"')}${stat(p.late.length, "Atrasadas", "hot", "clock", 'data-go="#/tarefas"')}</div>`;
@@ -330,7 +377,35 @@ async function openAgenda() {
   };
 }
 
+// The buttons of the new-task card: open it, start it now (the team sees it is with you), or leave it for later. Each one
+// reads the notice, so the card goes away here and on the phone.
+const readNotices = (ids) => api("/api/notifications/read", { method: "POST", body: { ids } });
+async function newTaskClick(e) {
+  const open = e.target.closest("[data-nt-open]");
+  if (open) { openTaskModal(Number(open.dataset.ntOpen)); return true; }
+  const start = e.target.closest("[data-nt-doing]");
+  if (start) {
+    start.disabled = true;
+    try {
+      await api(`/api/tasks/${start.dataset.ntDoing}`, { method: "PATCH", body: { doing: true } });
+      await readNotices([Number(start.dataset.ntN)]);
+      flash(t("Começaste. A equipa vê que é contigo."));
+    } catch (err) { flash(err.message); start.disabled = false; }
+    loadHome(["plan", "news"]);
+    return true;
+  }
+  const later = e.target.closest("[data-nt-later]");
+  if (later) {
+    later.closest(".nt")?.classList.add("leaving");
+    try { await readNotices([Number(later.dataset.ntLater)]); } catch (err) { flash(err.message); }
+    loadHome(["news"]);
+    return true;
+  }
+  return false;
+}
+
 async function homeClick(e) {
+  if (await newTaskClick(e)) return;
   const act = e.target.closest("[data-act]")?.dataset.act;
   if (act === "task") return newTask();
   if (act === "agenda") return openAgenda();

@@ -263,13 +263,16 @@
     page(`<div class="m-screen" id="m-home">
       <header class="m-large m-amg"><span class="m-eyebrow">${t("Centro de comando")}</span><h1>${esc(t(greeting))}, <em>${esc(me.display_name)}</em></h1>
         <span>${esc(date[0].toUpperCase() + date.slice(1))}</span><div class="m-amg-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" alt="" decoding="async"></div></header>
-      <div id="m-alert"></div><div class="m-stats" id="m-stats">${ui.skeleton(1)}</div><div id="m-now"></div><div id="m-todo"></div><div id="m-team"></div><div id="m-last"></div></div>`);
+      <div id="m-new"></div><div id="m-alert"></div><div class="m-stats" id="m-stats">${ui.skeleton(1)}</div><div id="m-now"></div><div id="m-todo"></div><div id="m-team"></div><div id="m-last"></div></div>`);
     const load = async () => {
-      const [tasks, team, inbox] = await Promise.all([api("/api/tasks"), api("/api/team"), request("/api/notifications?limit=6")]);
+      const [tasks, team, inbox] = await Promise.all([api("/api/tasks"), api("/api/team"), request("/api/notifications?limit=100")]);
       if (!$("m-home")) return;
+      // a task somebody sent you comes first, big, the same card as on the computer (home.js), until you open it
+      const fresh = newTasksOf(tasks, inbox), freshIds = new Set(fresh.map((f) => f.x.id));
+      paint($("m-new"), newTaskCard(fresh));
       const teamView = scopeNow() === "team"; // the same tasks as Tarefas (and as the computer, for whoever directs the work)
       const p = plan(scopeOf(tasks, teamView ? "team" : "mine"));
-      paint($("m-alert"), urgentCard(p.hoje.urgent));
+      paint($("m-alert"), urgentCard(p.hoje.urgent.filter((x) => !freshIds.has(x.id))));
       const stat = (tab, n, label, tone, ic) => `<a class="m-stat ${n ? `${tone} lit` : ""}" href="${tab ? "#/tarefas" : "#/avisos"}" ${tab ? `data-goto="${tab}"` : ""}>
         <span class="m-stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></a>`;
       paint($("m-stats"), stat("hoje", p.nHoje, "Para hoje", "today", "calendar") + stat("hoje", p.nHot, "Urgentes", "hot", "flag") + stat("", inbox.unread, "Por ler", "blue", "bell"));
@@ -289,6 +292,7 @@
     };
     reload = load;
     $("view").onclick = async (e) => {
+      if (await newTaskClick(e)) return load();
       const done = e.target.closest("[data-done]");
       if (done) {
         e.preventDefault(); done.disabled = true;
@@ -559,37 +563,41 @@
     try { [x, all] = await Promise.all([request_(`/api/tasks/${id}`), request_("/api/tasks")]); }
     catch (e) { if (tvId === id) tv.querySelector(".m-tv-body").innerHTML = ui.error(e.message); return; }
     if (tvId !== id) return;
+    if (fresh) markTaskSeen(x);
     const body = tv.querySelector(".m-tv-body"), keep = fresh ? 0 : body.scrollTop;
     const group = groupAll(all.filter((y) => !y.trashed_at)).find((g) => g.group && g.group.some((y) => y.id === x.id))?.group;
     const held = heldByAgent(x), running = ["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status), done = x.stage === "done";
     const late = !done && x.deadline && new Date(x.deadline) < new Date();
     const company = companies.find((c) => c.id === x.company)?.name;
     const row = (ic, label, value, { cls = "", act = "" } = {}) => `<${act ? `button data-tv="${act}"` : "div"} class="m-tv-row ${cls}"><span class="m-tv-ic">${ic}</span><em>${t(label)}</em><b>${value}</b>${act ? icon("chev") : ""}</${act ? "button" : "div"}>`;
+    // who sent it and to whom is said on top ("KOVEL › TU"), so the details below keep only the rest, small
     const facts = [
-      row(group ? icon("users") : ui.avatar(nameOf(x.assignee), "sm"), "Para", group ? `${t("Todos")} (${group.length})` : esc(nameOf(x.assignee))),
       done ? "" : row(icon("calendar"), late ? "Atrasada desde" : "Prazo", x.deadline ? `${fmt.day(x.deadline)} ${fmt.hhmm(x.deadline)}` : t("Sem prazo"), { cls: late ? "bad" : x.deadline ? "" : "dim", act: "due" }),
       row(icon("flag"), "Prioridade", t(PRIORITY[x.priority || "normal"]), { cls: x.priority === "urgent" ? "bad" : x.priority === "high" ? "warn" : "dim" }),
       x.project_name || x.project ? row(icon("folder"), "Projeto", esc(x.project_name || x.project)) : "",
       company ? row(icon("building"), "Empresa", esc(company)) : "",
       x.crew_name ? row(icon(CREW_ICON[x.crew] || "bot"), "Agente", esc(x.crew_name)) : x.agent_role ? row(icon("bot"), "Agente", esc(t(ROLES[x.agent_role]))) : "",
-      x.created_by ? row(icon("clock"), "Pedida por", `${esc(nameOf(x.created_by))} · ${fmt.day(x.created_at)}`, { cls: "dim" }) : "",
+      x.created_at ? row(icon("clock"), "Criada", `${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}`, { cls: "dim" }) : "",
       done && !group && x.completed_by ? row(icon("check"), "Concluída por", `${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)}` : ""}`, { cls: "ok" }) : "",
     ].filter(Boolean).join("");
     const stage = x.doing_since && !done ? ["A fazer", "ok"] : [STAGE_LABEL[x.stage], STAGE_TONE[x.stage]];
-    const text = (label, html, cls = "") => `<section class="m-tv-sec ${cls}"><h3>${t(label)}</h3><div class="m-tv-card tread">${html}</div></section>`;
+    // the task itself first and big, read like a letter: who sent it to whom, the title, the text; the details after it
+    const part = (label, html, cls = "") => `<section class="tv-part ${cls}"><small>${t(label)}</small><div class="tread">${html}</div></section>`;
+    const sender = x.created_by && (group || x.created_by !== x.assignee) ? x.created_by : "";
     tv.querySelector(".m-tv-t").textContent = t("Tarefa");
-    body.innerHTML = `<div class="m-tv-head"><span class="m-tv-stage ${stage[1] || ""}">${t(stage[0])}</span>
+    body.innerHTML = `<div class="m-tv-head m-tv-letter" style="${group ? "" : whoVar(x.assignee)}">
+        <div class="m-tv-route">${sender ? `<span class="tv-sender" style="${whoVar(sender)}">${ui.avatar(nameOf(sender), "sm")}<b>${esc(isMe(sender) ? t("Tu") : nameOf(sender))}</b></span><i class="tv-arrow">${icon("chevron")}</i>` : ""}${group ? allPlate(group) : whoPlate(x.assignee)}
+          <span class="m-tv-stage ${stage[1] || ""}">${t(stage[0])}</span></div>
         <h1>${x.priority === "urgent" ? '<i class="m-bang">!!</i>' : x.priority === "high" ? '<i class="m-bang high">!</i>' : ""}${esc(x.title)}</h1>
-        ${group ? `<p>${esc(whoLeft(group))}</p>` : ""}</div>
+        <div class="m-tv-msg">${x.description ? `<div class="tread">${richText(x.description)}</div>` : `<p class="tv-none">${t("Sem descrição: o título diz tudo.")}</p>`}
+          ${x.goal ? part("Objetivo", richText(x.goal)) : ""}
+          ${x.requirements?.length ? part("O que tem de ficar feito", `<ul>${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`) : ""}
+          ${x.result ? part("Resultado", richText(x.result), "ok") : ""}</div></div>
       ${x.progress > 0 && !done ? `<div class="m-tv-prog"><div>${ui.progress(x.progress, "ai")}</div><span>${x.progress}%</span></div>` : ""}
       ${x.current_action && running ? `<p class="m-tv-now">${esc(x.current_action)}</p>` : ""}
       ${x.blocked_reason ? `<p class="m-tv-block">${icon("alert")}<span>${esc(x.blocked_reason)}</span></p>` : ""}
       ${doingBanner(x, held)}
-      <div class="m-list m-tv-facts">${facts}</div>
-      ${text("Descrição", x.description ? richText(x.description) : `<p class="m-tv-none">${t("Sem descrição: o título diz tudo.")}</p>`)}
-      ${x.goal ? text("Objetivo", richText(x.goal)) : ""}
-      ${x.requirements?.length ? text("O que tem de ficar feito", `<ul>${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`) : ""}
-      ${x.result ? text("Resultado", richText(x.result), "ok") : ""}
+      <section class="m-tv-sec m-tv-details"><h3>${t("Pormenores")}${group ? ` · ${esc(whoLeft(group))}` : ""}</h3><div class="m-list m-tv-facts">${facts}</div></section>
       ${group ? `<section class="m-tv-sec"><h3>${t("Quem já fez")}</h3><div class="m-list">${group.map((y) => `<div class="m-tv-row"><span class="m-tv-ic">${ui.avatar(nameOf(y.assignee), "sm")}</span>
         <em>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` (${t("tu")})` : ""}</em><b class="${y.stage === "done" ? "ok" : ""}">${y.stage === "done" ? t("Feito") : y.doing_since ? t("A fazer agora") : t(STAGE_LABEL[y.stage])}</b></div>`).join("")}</div></section>` : ""}
       ${(x.log || []).length ? `<section class="m-tv-sec"><h3>${t("Histórico")}</h3><div class="m-list m-tv-log">${x.log.slice(-12).reverse().map((e) => `<div class="m-tv-logrow">${ui.avatar(e.name, "sm")}

@@ -184,7 +184,10 @@ class TeamAgent:
         return path
 
     def _prompt(self, task: dict, resume: bool) -> str:
-        lines = [f"Task #{task['id']}: {task['title']}"]
+        lines = [f"Task #{task['id']}: {task['title']}",
+                 # the conversation of a crew member runs from its own folder; the work is in the task's folder
+                 f"Work folder (every file tool works inside it): {self._workspace(task)}"
+                 + ("" if task.get("project") else " (a fresh one: this mission names no project)")]
         if task.get("description"):
             lines += ["", "Description:", task["description"]]
         if task.get("goal"):

@@ -776,3 +776,33 @@ html.is-phone .modal-box h3.cmp-what { margin: 0; text-align: left; font-size: 2
 html.is-phone .cmp-head .btn { min-height: 34px; padding: 0 9px; }
 html.is-phone .cmp-foot { z-index: 2; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; margin: 4px -16px calc(-1 * (var(--m-bottom) + 16px));
   padding: 12px 16px calc(var(--m-bottom) + 16px); border-top: .5px solid rgba(255, 255, 255, .08); background: var(--m-sheet); }
+
+/* ---------- Novidades (novidades.js): who changed what, one short line each ---------- */
+.nv-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 16px; }
+.nv-filter:empty { display: none; }
+.nv-filter button { height: 32px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 16px; background: rgba(255, 255, 255, .04); color: #c4c9d1; font: 600 13px var(--ui); cursor: pointer; }
+.nv-filter button.on { background: #eef1f4; border-color: #eef1f4; color: #0b0c0e; }
+.nv-day { margin-bottom: 20px; }
+.nv-day h4 { display: flex; align-items: center; gap: 8px; margin: 0 4px 8px; color: #868c95; font: 700 11px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.nv-day h4 i { font-style: normal; color: #5c6168; }
+.nv-card { overflow: hidden; border: 1px solid rgba(255, 255, 255, .07); border-radius: 14px; background: #101215; }
+.nv-row { position: relative; display: flex; gap: 12px; padding: 13px 16px; border-top: 1px solid rgba(255, 255, 255, .06); }
+.nv-row:first-child { border-top: 0; }
+.nv-row.can-open { cursor: pointer; }
+.nv-row.can-open:hover { background: rgba(255, 255, 255, .025); }
+.nv-row.fresh { box-shadow: inset 3px 0 0 #eef1f4; }
+.nv-row > .av { flex: none; width: 34px; height: 34px; }
+.nv-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.nv-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font: 400 13px var(--ui); color: #868c95; }
+.nv-top b { color: #fff; font-weight: 600; font-size: 14px; }
+.nv-top time { margin-left: auto; font-size: 12px; }
+.nv-chip { height: 20px; padding: 0 8px; border-radius: 10px; background: rgba(255, 255, 255, .08); color: #cfd5dc; font: 600 11px/20px var(--ui); }
+.nv-new { height: 18px; padding: 0 7px; border-radius: 9px; background: #eef1f4; color: #0b0c0e; font: 800 10px/18px var(--ui); font-style: normal; letter-spacing: .06em; text-transform: uppercase; }
+.nv-head { margin: 0; color: #e6e9ed; font: 400 15px/1.4 var(--ui); }
+.nv-more { display: none; margin: 4px 0 0; padding-left: 18px; color: #aab0b8; font: 400 14px/1.45 var(--ui); }
+.nv-more li + li { margin-top: 3px; }
+.nv-row.open .nv-more { display: block; }
+.nv-fold { color: #868c95; font: 600 12px var(--ui); }
+.nv-row.open .nv-fold { display: none; }
+html.is-phone .nv-row { padding: 12px 14px; }
+html.is-phone .nv-head { font-size: 16px; }

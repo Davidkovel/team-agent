@@ -208,7 +208,6 @@
     if (n === 0) return `<span class="today">${t("Hoje")} ${fmt.hhmm(x.deadline)}</span>`;
     return n === -1 ? t("Amanhã") : fmt.date(x.deadline);
   };
-  const faces = (list) => `<span class="m-faces">${list.slice(0, 3).map((y) => ui.avatar(nameOf(y.assignee), "sm")).join("")}</span>`;
   const taskRow = (x, team) => {
     const tone = x.stage === "done" ? "done" : x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
     const coLabel = companies.find((c) => c.id === x.company)?.name;
@@ -221,10 +220,12 @@
     // to see. In a task for everybody your own button stays, and who else is on their part is said in the line under the title.
     const doing = mine ? doingBtn(x.id, !!x.doing_since) : doer ? doingBadge(doer) : "";
     if (mine && doer && doer.assignee !== me.username && !x.doing_since) meta.unshift(`<span class="doing-txt">${esc(nameOf(doer.assignee))} ${t("a fazer")}</span>`);
-    return `<div class="m-task ${tone} ${doer ? "doing" : ""}" data-id="${x.id}">
+    // whose it is, as on the computer: a stripe of their colour, and in the team's list their plate (yours says TU)
+    const who = x.stage === "done" && x.completed_by ? x.completed_by : x.assignee;
+    return `<div class="m-task ${tone} ${doer ? "doing" : ""} ${!x.group && isMe(who) ? "mine" : ""}" style="${x.group ? "" : whoVar(who)}" data-id="${x.id}">
       <button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}">${x.stage === "done" ? icon("tick") : ""}</button>
       <div><b>${tone === "urgent" ? '<i class="m-bang">!!</i>' : tone === "high" ? '<i class="m-bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span class="sub">${meta.join(" · ")}</span>` : ""}</div>
-      ${doing || (x.group ? whoFaces(x.group) : team ? faces([x]) : "")}</div>`;
+      ${doing || (x.group ? whoFaces(x.group) : team ? whoPlate(who) : "")}</div>`;
   };
   const block = (title, list, tone, team, sort = true) => (list.length ? `<section class="m-sec"><h3 class="m-grp ${tone}"><i></i>${t(title)}<span>${list.length}</span></h3>
     <div class="m-list">${(sort ? [...list].sort(byImportance) : list).map((x) => taskRow(x, team)).join("")}</div></section>` : "");

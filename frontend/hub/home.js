@@ -204,7 +204,7 @@ async function alertBody() {
     const [when, late] = whenOf(x, "today");
     return `<div class="u-row" data-task="${(own || x).id}">${own && !mineDone ? `<button class="tcheck" data-done="${own.id}" title="${t("Concluir")}"></button>` : `<span class="tcheck ${mineDone ? "part" : ""}">${mineDone ? icon("tick") : ""}</span>`}
       <div class="u-t"><b>${esc(x.title)}</b><span>${esc(x.group ? whoLeft(x.group) : nameOf(x.assignee))}${when ? ` · <em class="${late}">${esc(when)}</em>` : ` · ${t("Sem prazo")}`}</span></div>
-      ${x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.assignee), "sm")}${icon("chevron")}</div>`;
+      ${x.group ? whoFaces(x.group) : whoPlate(x.assignee)}${icon("chevron")}</div>`;
   };
   const stat = (n, label, tone, ic, act) => `<button class="stat ${n ? `lit ${tone}` : ""}" ${act}><span class="stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></button>`;
   return `${urgent.length ? `<section class="urgent"><header><i class="pulse"></i><b>${t(urgent.length === 1 ? "Urgente" : "Urgentes")}</b><span>${urgent.length}</span></header>

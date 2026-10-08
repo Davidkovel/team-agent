@@ -352,3 +352,92 @@ button.tl-check { cursor: pointer; } button.tl-check:hover { border-color: #f4f6
 .tl-who b { font: 600 12.5px var(--ui); color: #eef1f4; }
 .tl-who span { margin-left: auto; color: #59606a; font: 500 11px var(--mono); }
 .tl-who + .tl-list + .tl-more { margin-top: 6px; }
+
+/* ---------------------------------------------------------------- Tarefas: whose it is, before what it says
+   Each partner has a colour (pages.js, PERSON_TINT: the same as on the Empresa AMG wall), carried in --who and --who-rgb:
+   the stripe of their rows and cards, the ring of their photo, their plate. Yours is filled in and says TU. */
+.wplate { display: inline-flex; align-items: center; gap: 7px; flex: none; height: 26px; padding: 0 10px 0 3px; border-radius: 999px;
+  background: rgba(var(--who-rgb, 143, 150, 159), .12); border: 1px solid rgba(var(--who-rgb, 143, 150, 159), .42); }
+.wplate .av { width: 20px; height: 20px; margin: 0; font-size: 9px; box-shadow: 0 0 0 1.5px var(--who); }
+.wplate b { font: 700 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--who); white-space: nowrap; }
+.wplate.me { background: var(--who); border-color: transparent; box-shadow: 0 0 16px -3px rgba(var(--who-rgb), .75); }
+.wplate.me b { color: #0b0c0e; }
+.wplate.me .av { box-shadow: 0 0 0 1.5px #0b0c0e; }
+.wplate.all { padding-left: 4px; background: rgba(255, 255, 255, .04); border-color: rgba(255, 255, 255, .14); }
+.wplate.all b { color: #cfd5dc; }
+.doer[style*="--who"] .av { box-shadow: 0 0 0 1.5px var(--who), 0 0 0 3px #111317; }
+.doer-row .doer + .doer { margin-left: -3px; }
+
+/* the list: a stripe of the owner's colour down the left of every row; your own rows lit faintly in yours */
+.tl-row[style*="--who"]::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--who); box-shadow: 0 0 10px rgba(var(--who-rgb), .55); }
+.tl-row[style*="--who"].urgent, .tl-row[style*="--who"].high { box-shadow: none; }
+.tl-row.mine:not(.urgent) { background: linear-gradient(90deg, rgba(var(--who-rgb), .1), transparent 60%); }
+.tl-row.mine:not(.urgent):hover { background: linear-gradient(90deg, rgba(var(--who-rgb), .16), rgba(255, 255, 255, .02) 70%); }
+.tl-row.done[style*="--who"]::before { opacity: .45; box-shadow: none; }
+.tl-row .wplate, .tl-row .doer-row, .tl-row .doer-live { flex: none; }
+.tl-t .tl-all { color: #cfd5dc; font-weight: 600; }
+.tl-who[style*="--who"] .av { box-shadow: 0 0 0 1.5px var(--who); }
+.tl-who[style*="--who"] b { color: var(--who); letter-spacing: .02em; }
+
+/* the board: the card's left edge in the owner's colour, the plate in its foot */
+.tk[style*="--who"] { border-left: 3px solid var(--who); }
+.tk.mine:not(.urgent) { background: linear-gradient(180deg, rgba(var(--who-rgb), .09), var(--surface-2) 65%); }
+.tk.tk-done[style*="--who"] { border-left-width: 2px; }
+.tk.tk-done[style*="--who"] .av { box-shadow: 0 0 0 1.5px var(--who); }
+
+/* the people strip: a card per partner, the colour along its top edge; the one pressed glows in it */
+.pstrip { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 10px; margin: 0 0 14px; }
+@media (max-width: 1150px) { .pstrip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pcard { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "av id" "av n" "facts facts" "now now";
+  align-items: center; align-content: start; column-gap: 12px; row-gap: 3px; padding: 15px 16px 13px; border-radius: 10px; overflow: hidden;
+  text-align: left; color: inherit; font: inherit; cursor: pointer; border: 1px solid rgba(255, 255, 255, .06);
+  background: linear-gradient(180deg, rgba(23, 26, 31, .96), rgba(11, 13, 15, .96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 18px 36px -26px rgba(0, 0, 0, .9); transition: border-color .15s, transform .15s, box-shadow .15s; }
+.pcard::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--who, var(--chrome)); box-shadow: 0 0 12px rgba(var(--who-rgb, 238, 245, 255), .7); }
+.pcard:hover { border-color: rgba(var(--who-rgb, 255, 255, 255), .35); transform: translateY(-1px); }
+.pcard.on { border-color: rgba(var(--who-rgb, 238, 245, 255), .65); background: linear-gradient(180deg, rgba(var(--who-rgb, 238, 245, 255), .13), rgba(11, 13, 15, .96) 80%);
+  box-shadow: 0 0 0 1px rgba(var(--who-rgb, 238, 245, 255), .2), 0 18px 40px -22px rgba(var(--who-rgb, 238, 245, 255), .5); }
+.pc-av { grid-area: av; display: grid; place-items: center; }
+.pc-av .av { width: 36px; height: 36px; margin: 0; font-size: 15px; box-shadow: 0 0 0 2px #0b0c0e, 0 0 0 3.5px var(--who, rgba(255, 255, 255, .3)); }
+.pcard.team .pc-av { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .16); background: radial-gradient(circle at 50% 30%, #3a4048, #14171b 75%); }
+.pcard.team .pc-av svg.i { width: 18px; height: 18px; color: #cfd5dc; }
+.pc-id { grid-area: id; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pc-id b { overflow: hidden; color: #f4f6f8; font: 500 23px/1.05 var(--serif); white-space: nowrap; text-overflow: ellipsis; }
+.pc-id small, .pcol > header b small { flex: none; padding: 3px 6px 2px; border-radius: 4px; background: var(--who); color: #0b0c0e;
+  font: 800 8.5px/1 var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+.pc-n { grid-area: n; display: flex; align-items: baseline; gap: 5px; line-height: 1; }
+.pc-n b { color: #f4f6f8; font: 600 17px var(--mono); }
+.pcard:not(.team) .pc-n b { color: var(--who); text-shadow: 0 0 18px rgba(var(--who-rgb), .45); }
+.pc-n small { color: #8f969f; font: 500 11.5px var(--ui); }
+.pc-facts { grid-area: facts; display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.pc-facts em { padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .07); background: rgba(255, 255, 255, .045);
+  color: #a7aeb7; font: 600 10.5px/1.5 var(--ui); font-style: normal; white-space: nowrap; }
+.pc-facts em.late { color: #ffb0a5; background: rgba(239, 111, 94, .12); border-color: rgba(239, 111, 94, .32); }
+.pc-facts em.today { color: #eef1f4; border-color: rgba(255, 255, 255, .2); }
+.pc-facts em.ok { color: #9be3b0; }
+.pc-facts em.calm { padding-left: 0; border-color: transparent; background: none; color: #6b727b; }
+.pc-now { grid-area: now; display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 7px; padding-top: 9px; border-top: 1px solid rgba(255, 255, 255, .06); color: #8f969f; font-size: 11.5px; }
+.pc-now > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pc-now b { color: #eef1f4; font-weight: 500; }
+.pc-now i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #4ee07a; box-shadow: 0 0 8px #4ee07a; animation: pc-live 1.6s ease-in-out infinite; }
+@keyframes pc-live { 50% { opacity: .35; } }
+
+/* "Por pessoa": a column per partner, the colour along its top; yours lit faintly in it */
+.tl-cols.pcols { grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); }
+@media (max-width: 1150px) { .tl-cols.pcols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.pcol::before { left: 0; right: 0; height: 2px; background: var(--who); opacity: .9; box-shadow: 0 0 14px rgba(var(--who-rgb), .6); }
+.pcol.me { border-color: rgba(var(--who-rgb), .28); background: linear-gradient(180deg, rgba(var(--who-rgb), .07), rgba(10, 12, 14, .96) 260px); }
+.pcol > header { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.pcol > header > div { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.pcol > header b { display: flex; align-items: center; gap: 8px; }
+.pcol > header i { color: var(--who); text-shadow: 0 0 18px rgba(var(--who-rgb), .45); }
+.tl-block h4.now { color: #4ee07a; } .tl-block h4.now i { background: #4ee07a; box-shadow: 0 0 8px #4ee07a; }
+
+/* the window of a task: whose it is on top, in their colour */
+.tv-owner { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(var(--who-rgb, 255, 255, 255), .22);
+  color: var(--who, #cfd5dc); font: 700 11px var(--ui); letter-spacing: .2em; text-transform: uppercase; }
+.tv-owner .av { width: 30px; height: 30px; margin: 0; font-size: 12px; box-shadow: 0 0 0 2px #0b0c0e, 0 0 0 3.5px var(--who); }
+.tv-owner.me > span { padding: 4px 8px 3px; border-radius: 4px; background: var(--who); color: #0b0c0e; box-shadow: 0 0 16px -3px rgba(var(--who-rgb), .75); }
+.tv-owner em { margin-left: auto; color: #6b727b; font: 500 11.5px var(--ui); font-style: normal; letter-spacing: 0; text-transform: none; }
+.tview[style*="--who"] .tfact .av { box-shadow: 0 0 0 1.5px var(--who); }

@@ -868,3 +868,10 @@ html.is-phone .m-task.sw-drag .m-sw-del { transition: none; }
 html.is-phone .m-sw-del svg.i { width: 20px; height: 20px; }
 html.is-phone .m-task:not(.sw-open):not(.sw-drag):not(.sw-gone) .m-sw-del { width: 0; overflow: hidden; }
 html.is-phone .m-task.sw-gone { max-height: 0 !important; min-height: 0 !important; padding-top: 0; padding-bottom: 0; transition: max-height .3s ease .15s, padding .3s ease .15s, min-height .3s ease .15s; }
+
+/* Tarefas: whose it is, as on the computer (amg.css): a stripe of the owner's colour, your own rows lit faintly in yours */
+html.is-phone .m-task[style*="--who"]::after { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--who); }
+html.is-phone .m-task.mine:not(.urgent) { background: linear-gradient(90deg, rgba(var(--who-rgb), .1), transparent 65%); }
+html.is-phone .m-task.done[style*="--who"]::after { opacity: .45; }
+html.is-phone .m-task .wplate { height: 28px; }
+html.is-phone .m-task .wplate b { font-size: 10px; }

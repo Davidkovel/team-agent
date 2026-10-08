@@ -25,6 +25,27 @@ const HUMAN_STATUS = { todo: "TODO", blocked: "BLOCKED", review: "REVIEW", done:
 const canGiveToAI = (x) => ["TODO", "BLOCKED", "REVIEW", "FAILED", "STOPPED", "COMPLETED"].includes(x.status);
 const heldByAgent = (x) => ["IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP", "ASSIGNED"].includes(x.status);
 
+/* Whose task it is must be seen before what it says. Each partner has a colour of their own, the same as on the wall of the
+   Empresa AMG (crew.js, PARTNERS): Kovel violet, Marco blue, David pink. It is the stripe of their rows and cards, the ring
+   of their photo and their plate; your own plate says TU. Somebody new gets a spare colour, always the same one. */
+const PERSON_TINT = [["kovel", "#a99bff"], ["marco", "#69b4ff"], ["david", "#f28fb8"]];
+const SPARE_TINT = ["#5ee0c4", "#9ee06a", "#e7a3ff"];
+function tintOf(login) {
+  const name = `${nameOf(login) || ""} ${login || ""}`.toLowerCase(), hit = PERSON_TINT.find(([k]) => name.includes(k));
+  if (hit) return hit[1];
+  let h = 0;
+  for (const c of String(login || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return SPARE_TINT[h % SPARE_TINT.length];
+}
+// --who for solid colour, --who-rgb for the see-through ones (rgba(var(--who-rgb), .1)): no color-mix, so older Chromiums work too
+const whoVar = (login) => { const c = tintOf(login); return `--who:${c};--who-rgb:${[1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)).join(",")}`; };
+const isMe = (login) => login === me.username;
+// The plate: the photo in a ring of the person's colour and the name in capitals. "TU" when it is yours.
+const whoPlate = (login, cls = "") => `<span class="wplate ${isMe(login) ? "me" : ""} ${cls}" style="${whoVar(login)}" title="${esc(t("Para {n}", { n: nameOf(login) }))}">${ui.avatar(nameOf(login), "sm")}<b>${esc(isMe(login) ? t("Tu") : nameOf(login))}</b></span>`;
+const allPlate = (group) => `<span class="wplate all" title="${esc(groupLabel(group))}">${whoFaces(group)}<b>${esc(group.length >= Object.keys(teamNames).length ? t("Todos") : group.length)}</b></span>`;
+// Me first, then the others by name: the order of the people strip and of the columns of "Por pessoa".
+const peopleOrder = (logins) => [...new Set(logins)].filter(Boolean).sort((a, b) => isMe(b) - isMe(a) || nameOf(a).localeCompare(nameOf(b)));
+
 // A task sent to everybody is one task per person. Those made together (same text, same moment) are shown as ONE card, "Para todos".
 function groupAll(list) {
   const used = new Set(), out = [];
@@ -47,7 +68,7 @@ function asOne(list) {
   });
 }
 // A face per person: a tick on whoever did their part, faded for whoever has not.
-const whoFace = (y, size = "sm") => `<span class="doer ${y.stage === "done" ? "did" : "left"}" title="${esc(nameOf(y.assignee))}: ${esc(y.stage === "done"
+const whoFace = (y, size = "sm") => `<span class="doer ${y.stage === "done" ? "did" : "left"}" style="${whoVar(y.assignee)}" title="${esc(nameOf(y.assignee))}: ${esc(y.stage === "done"
   ? `${t("feito")}${y.completed_by && y.completed_by !== y.assignee ? ` (${t("por")} ${nameOf(y.completed_by)})` : ""}` : t("por fazer"))}">${ui.avatar(nameOf(y.assignee), size)}<i>${icon("tick")}</i></span>`;
 const whoFaces = (group, size) => `<span class="doer-row">${group.map((y) => whoFace(y, size)).join("")}</span>`;
 // "2 de 3 feito · falta Kovel"
@@ -65,14 +86,15 @@ const isFresh = (x) => x.stage !== "done" && Date.now() - new Date(x.created_at)
 // Who is doing a task, for everybody to see: their photo inside a turning chrome-and-green ring, and "a fazer".
 // A task for everybody counts as being done while any one of them is on their part.
 const doingOf = (x) => (x.group ? x.group.find((y) => y.doing_since && y.stage !== "done") : x.doing_since && x.stage !== "done" ? x : null);
-const doingBadge = (y, size = "sm") => `<span class="doer-live" title="${esc(t("{n} está a fazer isto", { n: nameOf(y.assignee) }))}"><span class="dl-ring">${ui.avatar(nameOf(y.assignee), size)}</span><em><b>${esc(y.assignee === me.username ? t("Tu") : nameOf(y.assignee))}</b><s> · </s><span>${t("a fazer")}</span></em></span>`;
+const doingBadge = (y, size = "sm") => `<span class="doer-live" style="${whoVar(y.assignee)}" title="${esc(t("{n} está a fazer isto", { n: nameOf(y.assignee) }))}"><span class="dl-ring">${ui.avatar(nameOf(y.assignee), size)}</span><em><b>${esc(y.assignee === me.username ? t("Tu") : nameOf(y.assignee))}</b><s> · </s><span>${t("a fazer")}</span></em></span>`;
 function taskCard(x) {
   const late = x.deadline && x.stage !== "done" && new Date(x.deadline) < new Date();
   const mineOf = x.group && x.group.find((y) => y.assignee === me.username);
   const doer = doingOf(x);
-  const stack = doer ? doingBadge(doer) : x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.assignee), "sm");
+  const stack = doer ? doingBadge(doer) : x.group ? allPlate(x.group) : whoPlate(x.assignee);
   const top = [x.priority === "urgent" ? ui.tag(t("Urgente"), "bad") : x.priority === "high" ? ui.tag(t("Alta"), "warn") : "", x.group ? ui.tag(groupLabel(x.group), "ai") : "", isFresh(x) ? ui.tag(t("Nova"), "ok") : ""].join("");
-  return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""} ${doer ? "doing" : ""}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
+  return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""} ${doer ? "doing" : ""} ${x.group ? "for-all" : isMe(x.assignee) ? "mine" : ""}"
+    style="${x.group ? "" : whoVar(x.assignee)}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
     ${top ? `<div class="tk-top">${top}</div>` : ""}
     <b>${esc(x.title)}</b>
     ${x.stage === "in_progress" || (x.progress > 0 && x.stage !== "done") ? ui.progress(x.progress, "ai") : ""}
@@ -85,7 +107,7 @@ function taskCard(x) {
 // What is finished takes little room: one short line each, only today's, and the older ones behind a button.
 let showOlderDone = false;
 const doneAt = (x) => new Date(x.completed_at || x.updated_at || x.created_at);
-const doneCard = (x) => `<article class="tk tk-done" draggable="${x.group ? "false" : "true"}" data-id="${((x.group && x.group.find((y) => y.assignee === me.username)) || x).id}"
+const doneCard = (x) => `<article class="tk tk-done" style="${x.group ? "" : whoVar(x.completed_by || x.assignee)}" draggable="${x.group ? "false" : "true"}" data-id="${((x.group && x.group.find((y) => y.assignee === me.username)) || x).id}"
   title="${esc(x.group ? whoLeft(x.group) : doneBy(x))}"><span class="tk-tick">${icon("check")}</span><span class="tk-dt"><b>${esc(x.title)}</b>
   ${x.group ? `<i>${t("Todos fizeram")}</i>` : x.completed_by ? `<i class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</i>` : ""}</span>
   ${x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.completed_by || x.assignee), "sm")}</article>`;
@@ -100,7 +122,7 @@ function doneColumn(list, label) {
 }
 
 /* ---------- Tarefas as lists, like the phone: Hoje, Próximas and Feitas side by side, each in blocks ---------- */
-let taskView = (() => { try { return localStorage.getItem("hub.taskView") || "lista"; } catch { return "lista"; } })();
+let taskView = (() => { try { return localStorage.getItem("hub.taskView") || "pessoas"; } catch { return "pessoas"; } })();
 let taskCoFilter = "";
 const tlDay = (iso) => {
   const d = new Date(iso), now = new Date();
@@ -115,21 +137,26 @@ function tlWhen(x) {
   if (n === 0) return `<em class="today">${t("Hoje")} ${fmt.hhmm(x.deadline)}</em>`;
   return n === -1 ? `${t("Amanhã")} ${fmt.hhmm(x.deadline)}` : `${fmt.date(x.deadline)}`;
 }
-function tlRow(x) {
-  const own = x.group ? x.group.find((y) => y.assignee === me.username) : x;
+// A row wears the colour of whose it is (of who did it, once done) and ends in their plate. Inside a person's own column
+// (inCol, the "Por pessoa" view) the column already says whose it is: no plate, only who is on it now.
+function tlRow(x, inCol = false) {
+  const own = inCol ? x : x.group ? x.group.find((y) => y.assignee === me.username) : x;
   const done = x.stage === "done", tone = done ? "done" : x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
   const co = companies.find((c) => c.id === x.company)?.name;
-  const meta = [co ? `<span class="tl-co">${esc(co)}</span>` : "", x.project_name ? esc(x.project_name) : "",
-    x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : done ? (x.completed_by ? `<span class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</span>` : "") : esc(nameOf(x.assignee)),
+  const who = done && x.completed_by ? x.completed_by : x.assignee, doer = !done && doingOf(x);
+  const side = inCol ? (doer ? doingBadge(doer) : x.group ? whoFaces(x.group) : "")
+    : doer ? doingBadge(doer) : x.group ? allPlate(x.group) : whoPlate(who);
+  const meta = [co ? `<span class="tl-co">${esc(co)}</span>` : "", inCol && x.group ? `<span class="tl-all">${esc(groupLabel(x.group))}</span>` : "", x.project_name ? esc(x.project_name) : "",
+    x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : done && x.completed_by && x.completed_by !== x.assignee ? `<span class="other">${esc(doneBy(x))}</span>` : "",
     !done && x.crew_name ? `<em class="ai">${esc(x.crew_name)}</em>` : "",
     done ? (x.completed_at ? `${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : "") : tlWhen(x),
     x.stage === "in_progress" ? `<em class="ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="late">${t("Bloqueada")}</em>` : ""].filter(Boolean);
   const check = done ? `<span class="tl-check">${icon("tick")}</span>`
     : own && own.stage !== "done" && !heldByAgent(own) ? `<button class="tl-check" data-done="${own.id}" title="${t("Concluir")}"></button>`
     : `<span class="tl-check ${own && own.stage === "done" ? "part" : "held"}">${own && own.stage === "done" ? icon("tick") : ""}</span>`;
-  return `<div class="tl-row ${tone}" data-id="${(own || x).id}">${check}
+  return `<div class="tl-row ${tone} ${x.group && !inCol ? "for-all" : isMe(inCol ? x.assignee : who) ? "mine" : ""}" style="${x.group && !inCol ? "" : whoVar(inCol ? x.assignee : who)}" data-id="${(own || x).id}">${check}
     <div class="tl-t"><b>${tone === "urgent" ? '<i class="bang">!!</i>' : tone === "high" ? '<i class="bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span>${meta.join(" · ")}</span>` : ""}</div>
-    ${x.group ? whoFaces(x.group) : ui.avatar(nameOf(done && x.completed_by ? x.completed_by : x.assignee), "sm")}</div>`;
+    ${side}</div>`;
 }
 // A block with many tasks of several people is not one long list: it is one short list per person, the first few of each
 // showing and the rest one click away. Fourteen tasks of one person used to bury everybody else's.
@@ -141,27 +168,86 @@ function tlBlock(title, list, tone = "", sort = true) {
   const head = `<h4 class="${tone}"><i></i>${t(title)}<span>${list.length}</span></h4>`;
   const owner = (x) => (x.group ? "" : x.stage === "done" && x.completed_by ? x.completed_by : x.assignee);
   const owners = [...new Set(rows.map(owner))];
-  if (rows.length <= TL_MANY || taskFilter || !sort) return `<div class="tl-block">${head}<div class="tl-list">${rows.map(tlRow).join("")}</div></div>`;
+  if (rows.length <= TL_MANY || taskFilter || !sort) return `<div class="tl-block">${head}<div class="tl-list">${rows.map((x) => tlRow(x)).join("")}</div></div>`;
   return `<div class="tl-block">${head}${owners.map((u) => {
     const mine = rows.filter((x) => owner(x) === u), key = `${title}|${u}`, open = tlOpen.has(key) || mine.length <= TL_FEW + 1;
-    return `<div class="tl-who">${u ? ui.avatar(nameOf(u), "sm") : icon("users")}<b>${esc(u ? nameOf(u) : t("Para todos"))}</b><span>${mine.length}</span></div>
-      <div class="tl-list">${(open ? mine : mine.slice(0, TL_FEW)).map(tlRow).join("")}</div>
+    return `<div class="tl-who" style="${u ? whoVar(u) : ""}">${u ? ui.avatar(nameOf(u), "sm") : icon("users")}<b>${esc(u ? (isMe(u) ? t("Tu") : nameOf(u)) : t("Para todos"))}</b><span>${mine.length}</span></div>
+      <div class="tl-list">${(open ? mine : mine.slice(0, TL_FEW)).map((x) => tlRow(x)).join("")}</div>
       ${mine.length > TL_FEW + 1 ? `<button class="tl-more" data-tl-open="${esc(key)}">${open ? t("Mostrar menos") : t("Ver mais {n} de {quem}", { n: mine.length - TL_FEW, quem: u ? nameOf(u) : t("todos") })}</button>` : ""}`;
   }).join("")}</div>`;
 }
 let showOlderFeitas = false;
 
+/* The people strip, on top of every view: a card per partner in their colour, with what they have open, what is urgent, late
+   or for today, what they finished today and what they are doing right now. A press shows only theirs; pressing it again, or
+   "Equipa", shows everybody's. It is also the legend of the colours. */
+const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const teamLogins = (all) => peopleOrder([...Object.keys(teamNames), ...all.map((x) => x.assignee)]);
+const many = (n, one, more) => `${n} ${t(n === 1 ? one : more)}`;
+function drawPeople(all) {
+  const box = $("task-people");
+  if (!box) return;
+  const open = all.filter((x) => x.stage !== "done"), midnight = startOfToday(), people = teamLogins(all);
+  const facts = (list, did) => {
+    const urgent = list.filter((x) => x.priority === "urgent").length, late = list.filter((x) => tlLate(x) > 0).length, today = list.filter((x) => tlLate(x) === 0).length;
+    return [urgent ? `<em class="late">${many(urgent, "urgente", "urgentes")}</em>` : "", late ? `<em class="late">${many(late, "atrasada", "atrasadas")}</em>` : "",
+      today ? `<em class="today">${many(today, "para hoje", "para hoje")}</em>` : "", did ? `<em class="ok">${many(did, "feita hoje", "feitas hoje")}</em>` : ""].filter(Boolean).join("")
+      || `<em class="calm">${t(list.length ? "Tudo dentro do prazo" : "Nada por fazer")}</em>`;
+  };
+  const card = (u) => {
+    const mine = open.filter((x) => x.assignee === u), now = mine.find((x) => x.doing_since) || mine.find((x) => x.stage === "in_progress");
+    const did = all.filter((x) => x.stage === "done" && x.assignee === u && doneAt(x) >= midnight).length;
+    return `<button class="pcard ${u === taskFilter ? "on" : ""} ${isMe(u) ? "me" : ""}" data-u="${esc(u)}" style="${whoVar(u)}" aria-pressed="${u === taskFilter}">
+      <span class="pc-av">${ui.avatar(nameOf(u))}</span>
+      <span class="pc-id"><b>${esc(nameOf(u))}</b>${isMe(u) ? `<small>${t("Tu")}</small>` : ""}</span>
+      <span class="pc-n"><b>${mine.length}</b><small>${t(mine.length === 1 ? "aberta" : "abertas")}</small></span>
+      <span class="pc-facts">${facts(mine, did)}</span>
+      ${now ? `<span class="pc-now"><i></i><span>${t("A fazer")}: <b>${esc(now.title)}</b></span></span>` : ""}</button>`;
+  };
+  const team = asOne(open);
+  paint(box, `<button class="pcard team ${taskFilter ? "" : "on"}" data-u="" aria-pressed="${!taskFilter}"><span class="pc-av">${icon("users")}</span>
+      <span class="pc-id"><b>${t("Equipa")}</b></span><span class="pc-n"><b>${team.length}</b><small>${t(team.length === 1 ? "aberta" : "abertas")}</small></span>
+      <span class="pc-facts">${facts(team, all.filter((x) => x.stage === "done" && doneAt(x) >= midnight).length)}</span></button>${people.map(card).join("")}`);
+  box.style.setProperty("--n", people.length + 1);   // the people and the team card, all the same width
+}
+const coChips = (withCo) => (withCo.length ? [["", "Todas as empresas"], ...withCo.map((c) => [c.id, c.name]), ["none", "Sem empresa"]]
+  .map(([id, label]) => `<button class="chp ${id === taskCoFilter ? "on" : ""}" data-co="${esc(id)}">${esc(t(label))}</button>`).join("") : "");
+
+/* "Por pessoa": one column per partner, you first, in their colour. Each says what they are doing now, then what is urgent,
+   late, for today, coming and undated, and what they finished today. A task for everybody is in every column, as that
+   person's part of it. */
+const pcBlock = (title, list, tone = "") => (list.length ? `<div class="tl-block"><h4 class="${tone}"><i></i>${t(title)}<span>${list.length}</span></h4>
+  <div class="tl-list">${list.map((x) => tlRow(x, true)).join("")}</div></div>` : "");
+function personCols(all) {
+  const groups = new Map();
+  for (const g of groupAll(all)) if (g.group) for (const y of g.group) groups.set(y.id, g.group);
+  const people = taskFilter ? [taskFilter] : teamLogins(all), midnight = startOfToday();
+  const col = (u) => {
+    const mine = all.filter((x) => x.assignee === u).map((x) => (groups.has(x.id) ? { ...x, group: groups.get(x.id) } : x));
+    const open = mine.filter((x) => x.stage !== "done").sort(tlOrder);
+    const now = open.filter((x) => x.doing_since || x.stage === "in_progress"), rest = open.filter((x) => !now.includes(x)), calm = rest.filter((x) => x.priority !== "urgent");
+    const late = calm.filter((x) => tlLate(x) > 0), did = mine.filter((x) => x.stage === "done" && doneAt(x) >= midnight).sort((a, b) => doneAt(b) - doneAt(a));
+    const sub = [now.length ? t("a fazer agora") : "", late.length ? many(late.length, "atrasada", "atrasadas") : "", did.length ? many(did.length, "feita hoje", "feitas hoje") : ""].filter(Boolean).join(" · ");
+    const body = pcBlock("A fazer agora", now, "now") + pcBlock("Urgentes", rest.filter((x) => x.priority === "urgent"), "late") + pcBlock("Atrasadas", late, "late")
+      + pcBlock("Para hoje", calm.filter((x) => tlLate(x) === 0), "today") + pcBlock("Próximas", calm.filter((x) => tlLate(x) !== null && tlLate(x) < 0))
+      + pcBlock("Sem prazo", calm.filter((x) => tlLate(x) === null));
+    return `<section class="tl-col pcol ${isMe(u) ? "me" : ""}" style="${whoVar(u)}">
+      <header><span class="pc-av">${ui.avatar(nameOf(u))}</span><div><b>${esc(nameOf(u))}${isMe(u) ? `<small>${t("Tu")}</small>` : ""}</b><span>${esc(sub || t(open.length ? "tudo dentro do prazo" : "sem nada por fazer"))}</span></div>
+        <i>${open.length}</i></header>
+      ${body || `<p class="tl-empty">${t(isMe(u) ? "Não tens nada por fazer." : "Nada por fazer.")}</p>`}${pcBlock("Feitas hoje", did, "ok")}</section>`;
+  };
+  return `<div class="tl-cols pcols" style="--n:${Math.min(people.length, 4)}">${people.map(col).join("")}</div>`;
+}
+
 async function loadLists(board) {
   await mount(board, async () => {
     const [list, approvals] = await Promise.all([api("/api/tasks"), api("/api/approvals").catch(() => [])]);
     const all = list.filter((x) => !x.trashed_at);
-    const people = [...new Set(all.map((x) => x.assignee))];
     const withCo = companies.filter((c) => all.some((x) => x.company === c.id));
     if (taskCoFilter && taskCoFilter !== "none" && !withCo.some((c) => c.id === taskCoFilter)) taskCoFilter = "";
-    paint($("task-filter"), [["", t("Todas")], ...people.map((u) => [u, nameOf(u)])]
-      .map(([u, label]) => `<button class="chp ${u === taskFilter ? "on" : ""}" data-u="${esc(u)}">${esc(label)}</button>`).join("")
-      + (withCo.length ? `<span class="chp-sep"></span>${[["", "Todas as empresas"], ...withCo.map((c) => [c.id, c.name]), ["none", "Sem empresa"]]
-        .map(([id, label]) => `<button class="chp ${id === taskCoFilter ? "on" : ""}" data-co="${esc(id)}">${esc(t(label))}</button>`).join("")}` : ""));
+    const inCo = (x) => !taskCoFilter || (taskCoFilter === "none" ? !x.company : x.company === taskCoFilter);
+    drawPeople(all.filter(inCo));
+    paint($("task-filter"), coChips(withCo));
     const mine = all.filter((x) => (!taskFilter || x.assignee === taskFilter) && (!taskCoFilter || (taskCoFilter === "none" ? !x.company : x.company === taskCoFilter)));
     // filtered by a person, a task for everybody stands for that person's copy; otherwise it is one card for all
     const cards = taskFilter ? groupAll(all).filter((g) => g.group ? g.group.some((y) => y.assignee === taskFilter) : g.assignee === taskFilter)
@@ -180,7 +266,9 @@ async function loadLists(board) {
       ${body || `<p class="tl-empty">${t(empty)}</p>`}</section>`;
     const waiting = approvals.filter((a) => a.status === "PENDING").length;
     if (!all.length) return ui.empty("tasks", "Sem tarefas", "Cria a primeira tarefa: fica contigo ou vai direta para um agente.", `<button class="btn sm primary" data-new-task>${t("Nova tarefa")}</button>`);
-    return `${waiting ? `<a class="tl-approve" href="#/aprovacoes">${icon("alert")}<span>${t(waiting === 1 ? "1 aprovação à espera" : "{n} aprovações à espera", { n: waiting })}</span>${icon("chevron")}</a>` : ""}
+    const approve = waiting ? `<a class="tl-approve" href="#/aprovacoes">${icon("alert")}<span>${t(waiting === 1 ? "1 aprovação à espera" : "{n} aprovações à espera", { n: waiting })}</span>${icon("chevron")}</a>` : "";
+    if (taskView === "pessoas") return approve + personCols(all.filter(inCo));
+    return `${approve}
       <div class="tl-cols">
       ${col("Hoje", t("o que é para fazer já"), count(hoje), hoje.map(([title, l, tone]) => tlBlock(title, l, tone)).join(""), "Tudo feito por hoje.", count(hoje) && hoje[0][1].length ? "hot" : "")}
       ${col("Próximas", t("com prazo nos próximos dias"), count(prox), prox.map(([title, l]) => tlBlock(title, l)).join(""), "Nada marcado para os próximos dias.")}
@@ -194,14 +282,13 @@ async function loadLists(board) {
 async function loadBoard() {
   const board = $("board");
   if (!board) return;
-  board.classList.toggle("is-lists", taskView === "lista");
-  if (taskView === "lista") { $("bin")?.setAttribute("hidden", ""); return loadLists(board); }
+  board.classList.toggle("is-lists", taskView !== "quadro");
+  if (taskView !== "quadro") { $("bin")?.setAttribute("hidden", ""); return loadLists(board); }
   $("bin")?.removeAttribute("hidden");
   await mount(board, async () => {
     const all = (await api("/api/tasks")).filter((x) => !x.trashed_at); // what went into the bin as finished stays in the numbers, not on the board
-    const people = [...new Set(all.map((x) => x.assignee))];
-    paint($("task-filter"), [["", t("Todas")], ...people.map((u) => [u, nameOf(u)])]
-      .map(([u, label]) => `<button class="chp ${u === taskFilter ? "on" : ""}" data-u="${esc(u)}">${esc(label)}</button>`).join(""));
+    drawPeople(all);
+    paint($("task-filter"), "");
     const tasks = taskFilter ? all.filter((x) => x.assignee === taskFilter) : all;
     if (!all.length) return `<div style="grid-column:1/-1">${ui.empty("tasks", "Sem tarefas", "Cria a primeira tarefa: fica contigo ou vai direta para um agente.",
       `<button class="btn sm primary" data-new-task>${t("Nova tarefa")}</button>`)}</div>`;
@@ -513,7 +600,11 @@ async function openTaskModal(id) {
     ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
     ${!held && x.stage !== "done" ? ui.btn("Concluir", "data-act=done", "ok", "check") : ""}
     ${ui.btn("Editar", "data-act=edit", "quiet")}`;
-  openModal(`<div class="tview">
+  // whose it is comes first, in their colour: "Para ti", "Para Kovel", or the faces of everybody it was sent to
+  const asked = x.created_by && x.created_by !== x.assignee ? `<em>${t("pedida por {n}", { n: isMe(x.created_by) ? t("ti") : nameOf(x.created_by) })}</em>` : "";
+  const owner = group ? `<div class="tv-owner all">${whoFaces(group)}<span>${esc(groupLabel(group))}</span>${asked}</div>`
+    : `<div class="tv-owner ${isMe(x.assignee) ? "me" : ""}">${ui.avatar(nameOf(x.assignee), "sm")}<span>${esc(isMe(x.assignee) ? t("Para ti") : t("Para {n}", { n: nameOf(x.assignee) }))}</span>${asked}</div>`;
+  openModal(`<div class="tview" style="${group ? "" : whoVar(x.assignee)}">${owner}
     <header class="tv-head"><h3>${esc(x.title)}</h3>
       ${group ? ui.tag(t("{a} de {b} feito", { a: group.filter((y) => y.stage === "done").length, b: group.length }), group.every((y) => y.stage === "done") ? "ok" : "")
         : x.doing_since && x.stage !== "done" ? ui.tag(t("A fazer"), "ok") : ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}<button class="btn quiet sm" data-close>${icon("x")}</button></header>
@@ -611,16 +702,16 @@ async function openTaskModal(id) {
 }
 
 HUB_VIEWS.tarefas = async function (r) {
-  page(`${ui.head("Centro de comando", t("Tarefas"), t("Hoje, as próximas e as feitas. O quadro tem as colunas por estado, para arrastar cartões."),
-    `<div class="segx" id="task-view">${[["lista", "Lista"], ["quadro", "Quadro"]].map(([v, l]) => `<button data-view="${v}" class="${v === taskView ? "on" : ""}">${t(l)}</button>`).join("")}</div>
+  page(`${ui.head("Centro de comando", t("Tarefas"), t("Cada sócio tem a sua cor, e as tuas dizem TU. Carrega numa pessoa para ver só as dela."),
+    `<div class="segx" id="task-view">${[["pessoas", "Por pessoa"], ["lista", "Por prazo"], ["quadro", "Quadro"]].map(([v, l]) => `<button data-view="${v}" class="${v === taskView ? "on" : ""}">${t(l)}</button>`).join("")}</div>
     ${ui.btn("Nova tarefa", "data-new-task", "primary", "plus")}`)}
-    <div class="chipbar" id="task-filter"></div><div class="board" id="board"></div><div class="bin" id="bin"></div>`);
+    <div class="pstrip" id="task-people"></div><div class="chipbar" id="task-filter"></div><div class="board" id="board"></div><div class="bin" id="bin"></div>`);
   const view = $("view");
   view.onclick = (e) => {
     if (e.target.closest("[data-new-task]")) return newTask();
     if (e.target.closest("[data-bin-open]")) return openBin();
-    const chip = e.target.closest("#task-filter [data-u]");
-    if (chip) { taskFilter = chip.dataset.u; $("board")._html = null; return loadBoard(); }
+    const chip = e.target.closest("#task-people [data-u]");
+    if (chip) { taskFilter = chip.dataset.u === taskFilter ? "" : chip.dataset.u; $("board")._html = null; $("task-people")._html = null; return loadBoard(); }
     const coChip = e.target.closest("#task-filter [data-co]");
     if (coChip) { taskCoFilter = coChip.dataset.co; $("board")._html = null; return loadBoard(); }
     const viewBtn = e.target.closest("[data-view]");

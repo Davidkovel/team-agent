@@ -185,6 +185,8 @@ Coisas que custaram tempo e não se devem repetir:
 3. PC: Chrome headless com `--window-size=1500,1200 --screenshot=<png> "http://127.0.0.1:8010/#login=<token>&to=/tarefas"`; o token vem de `POST /api/auth/auto`.
 4. Telemóvel: uma página de teste com `<iframe src="/?phone=1#/home" width="393">` (o headless não fica mais estreito do que ~490 px, e o `#login=` apaga o `?phone=1`).
 5. No fim: apagar as páginas de teste e parar o Hub da 8010.
+6. Para mais do que uma captura (clicar, passar o rato, um telemóvel a sério, os pedidos que o Hub recusou, os erros da página e quanto
+   ela gasta do PC): `scripts/ver_hub.py passos.json`, um Chrome sem janela guiado por uma lista de passos (o cabeçalho do ficheiro diz quais).
 
 ### Publicar
 

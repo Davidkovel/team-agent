@@ -5,6 +5,10 @@
     presence = Presence()
     presence.show("Marco")                  # the corner card: somebody came online (online=False: went offline)
 
+Three kinds, each with its own look: a task drops from the top of the screen; somebody coming online is the green corner
+card that rings and beats; somebody going offline is the same corner card, clean: grey, no sound, no ring, no light, and
+gone sooner. Leaving is worth knowing, not worth looking up for.
+
 A task card drops from the top of the screen, one after another, and leaves on its own. A task sent to this person
 (`directed`) is amber and rings, with the Windows notification sound; one sent to somebody else is white and silent.
 Every card is a lit plate with a shadow, a coloured edge and a line that runs out while it is on the screen.
@@ -232,9 +236,9 @@ class Notices(QObject):
 class PresenceCard(Card):
     """Somebody came online (green) or went offline (grey): a small card in the bottom right corner, the way Steam says it."""
 
-    def __init__(self, name: str, text: str, slot: int, colour: QColor = ONLINE, quiet: bool = False):
-        super().__init__(P_WIDTH, P_HEIGHT, colour, Q_HOLD if quiet else P_HOLD)
-        self._name, self._text, self._colour, self._quiet = name, text, colour, quiet
+    def __init__(self, name: str, text: str, slot: int, colour: QColor = ONLINE, quiet: bool = False, clean: bool = False):
+        super().__init__(P_WIDTH, P_HEIGHT, colour, Q_HOLD if quiet or clean else P_HOLD)
+        self._name, self._text, self._colour, self._quiet, self._clean = name, text, colour, quiet, clean
         self._f_name, self._f_text = _font(11, QFont.DemiBold), _font(9, QFont.DemiBold)
         self._beat = 1.0   # how far the ring has gone out; 1 = no ring
         self._pulse = QVariantAnimation(self)
@@ -258,12 +262,14 @@ class PresenceCard(Card):
 
     def run(self):
         self._enter()
-        if not self._quiet:
+        if not (self._quiet or self._clean):
             QTimer.singleShot(SLIDE_IN - 120, self._pulse.start)   # the ring starts as the card lands
 
     def paintEvent(self, _):
         p = QPainter(self)
         rect = self._plate(p)
+        if self._clean:   # went offline: the plate, the name and a grey line, nothing that moves or glows
+            return self._paint_clean(p, rect)
         wash = QLinearGradient(rect.topLeft(), rect.topRight())   # green light from the left, so it does not read as one more dark window
         wash.setColorAt(0, _tint(self._colour, 0.1 if self._quiet else 0.28))
         wash.setColorAt(0.75, _tint(self._colour, 0.0))
@@ -290,6 +296,24 @@ class PresenceCard(Card):
         p.setPen(self._colour)
         p.drawText(QRectF(x, P_HEIGHT / 2 - 1, w, 18), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_text).elidedText(self._text, Qt.ElideRight, w))
 
+    def _paint_clean(self, p: QPainter, rect: QRectF):
+        av = QRectF(16, (P_HEIGHT - 3) / 2 - 18, 36, 36)
+        p.setOpacity(0.45)   # the badge greyed out, the way an avatar fades when somebody leaves
+        self._star(p, av)
+        p.setOpacity(1.0)
+        dot = av.bottomRight() - QRectF(0, 0, 5, 5).bottomRight()
+        p.setPen(QPen(self._colour, 2))   # a hollow dot: nobody there
+        p.setBrush(QColor(24, 24, 27))
+        p.drawEllipse(dot, 4.5, 4.5)
+        x = av.right() + 14
+        w = P_WIDTH - x - PAD
+        p.setFont(self._f_name)
+        p.setPen(MUTED)
+        p.drawText(QRectF(x, P_HEIGHT / 2 - 21, w, 20), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_name).elidedText(self._name, Qt.ElideRight, w))
+        p.setFont(_font(9))
+        p.setPen(self._colour)
+        p.drawText(QRectF(x, P_HEIGHT / 2 - 1, w, 18), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_text).elidedText(self._text, Qt.ElideRight, w))
+
 
 class Presence(QObject):
     """The presence cards on the screen: each new one sits above the ones still showing."""
@@ -300,10 +324,10 @@ class Presence(QObject):
 
     def show(self, name: str, online: bool = True):
         text = "está online agora" if online else "ficou offline"
-        if not self._cards:
-            ring()   # once for a group of people arriving together, not once each
+        if online and not any(c._colour == ONLINE and not c._quiet for c in self._cards.values()):
+            ring()   # once for a group of people arriving together, not once each; leaving makes no sound
         slot = next(i for i in range(len(self._cards) + 1) if i not in self._cards)
-        card = self._cards[slot] = PresenceCard(name, text, slot, ONLINE if online else OFFLINE)
+        card = self._cards[slot] = PresenceCard(name, text, slot, ONLINE if online else OFFLINE, clean=not online)
         card.finished.connect(lambda: (self._cards.pop(slot, None), card.close(), card.deleteLater()))
         card.run()
 

@@ -105,7 +105,7 @@ def test_task_runs_through_tools_approval_and_completion(tmp_path):
     agent = make_agent(tmp_path, backend, ai)
     asyncio.run(run_until(agent, lambda: {"status": "COMPLETED", "result": "Campaign drafted"} in backend.updates))
 
-    assert (tmp_path / "data" / "missoes" / "task-142" / "ads" / "copy.md").read_text() == "Ad copy"
+    assert (tmp_path / "ws" / "task-142" / "ads" / "copy.md").read_text() == "Ad copy"
     assert not (tmp_path / "escape.txt").exists()
     assert [r.is_error for r in ai.results] == [False, False, True, True, False, False]
     assert "BLOCKED" in ai.results[2].text and "BLOCKED" in ai.results[3].text
@@ -123,7 +123,7 @@ def test_sensitive_tool_call_is_not_run_when_owner_rejects(tmp_path):
     backend = FakeBackend(tasks=[dict(TASK)], decision="REJECTED")
     ai = ScriptedAI([("delete_file", {"path": "keep.txt"}), ("complete_task", {"result": "done"})])
     agent = make_agent(tmp_path, backend, ai)
-    workspace = tmp_path / "data" / "missoes" / "task-142"
+    workspace = tmp_path / "ws" / "task-142"
     workspace.mkdir(parents=True)
     (workspace / "keep.txt").write_text("important")
     asyncio.run(run_until(agent, lambda: ai.calls and agent.state.status == "IDLE"))

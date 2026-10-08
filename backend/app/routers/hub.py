@@ -221,25 +221,6 @@ async def history(limit: int = 100, user: User = Depends(current_user), db: Asyn
              "message": a.message, "task_id": a.task_id, "company": a.company, "created_at": iso(a.created_at)} for a in rows]
 
 
-@router.get("/workspaces")
-async def workspaces(user: User = Depends(current_user)):
-    """The project folders the agent on this PC can work in: the git repositories in its TEAM_AGENT_WORKSPACE (agent/.env).
-    A mission that names one works inside that repository; the agent's own policy keeps it there."""
-    from pathlib import Path
-    root = Path.home() / "team-agent-workspace"
-    try:
-        for line in (Path(__file__).resolve().parents[3] / "agent" / ".env").read_text(encoding="utf-8").splitlines():
-            if line.strip().startswith("TEAM_AGENT_WORKSPACE=") and line.split("=", 1)[1].strip():
-                root = Path(line.split("=", 1)[1].strip())
-    except OSError:
-        pass
-    try:
-        names = sorted((p.name for p in root.iterdir() if (p / ".git").exists()), key=str.lower)
-    except OSError:
-        names = []
-    return {"root": str(root), "folders": names}
-
-
 @router.get("/commits")
 async def commits_feed(limit: int = 40, user: User = Depends(current_user)):
     """Latest commits across the team's repositories (GitHub first, local git as fallback)."""

@@ -102,7 +102,7 @@ def test_an_approval_request_says_how_risky_it_is_and_shows_the_change(tmp_path)
                       ("write_file", {"path": ".env", "content": "TOKEN=supersecret"}),
                       ("complete_task", {"result": "done"})])
     agent = make_agent(tmp_path, backend, ai)
-    workspace = tmp_path / "data" / "missoes" / "task-142"
+    workspace = tmp_path / "ws" / "task-142"
     workspace.mkdir(parents=True)
     (workspace / "config.production.json").write_text("{\n  \"debug\": true\n}")
     asyncio.run(run_until(agent, lambda: {"status": "COMPLETED", "result": "done"} in backend.updates))

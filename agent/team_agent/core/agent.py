@@ -176,18 +176,13 @@ class TeamAgent:
         self._run = asyncio.create_task(self._execute(task, resume))
 
     def _workspace(self, task: dict) -> Path:
-        # a mission for a project works in that project's folder (TEAM_AGENT_WORKSPACE/<project>, e.g. Documents/baredesk-theme);
-        # one with no project gets a folder of its own under the agent's data, so it never litters the projects folder
-        name = re.sub(r"[^A-Za-z0-9_.-]", "_", task.get("project") or "").strip(".")
-        path = self.cfg.workspace / name if name else self.cfg.data_dir / "missoes" / f"task-{task['id']}"
+        name = re.sub(r"[^A-Za-z0-9_.-]", "_", task.get("project") or "").strip(".") or f"task-{task['id']}"
+        path = self.cfg.workspace / name
         path.mkdir(parents=True, exist_ok=True)
         return path
 
     def _prompt(self, task: dict, resume: bool) -> str:
-        lines = [f"Task #{task['id']}: {task['title']}",
-                 # the conversation of a crew member runs from its own folder; the work is in the task's folder
-                 f"Work folder (every file tool works inside it): {self._workspace(task)}"
-                 + ("" if task.get("project") else " (a fresh one: this mission names no project)")]
+        lines = [f"Task #{task['id']}: {task['title']}"]
         if task.get("description"):
             lines += ["", "Description:", task["description"]]
         if task.get("goal"):
@@ -245,7 +240,6 @@ class TeamAgent:
         self._intent, self._result = None, None
         workspace = self._workspace(task)
         registry = build_registry(ToolContext(workspace, PermissionPolicy(workspace, self.cfg.policy_file), self))
-        self._registry = registry   # what it changes, file by file, goes to the Hub when the task ends (_report_changes)
         system = SYSTEM_PROMPT.format(name=self.state.display_name or self.state.user)
         # A Hub that knows the crew sends a whole briefing; an older one only the memory.
         self._brief = await self._report("task_briefing", task["id"]) or {}
@@ -301,15 +295,8 @@ class TeamAgent:
             self._task["session_id"] = session_id
             await self._safe(self.backend.update_task(self._task["id"], session_id=session_id), "save session")
 
-    async def _report_changes(self):
-        """One "change" event per file the task wrote or deleted: the Hub's "O que mudou" in the task's window."""
-        registry, self._registry = getattr(self, "_registry", None), None
-        for change in (registry.change_report() if registry else []):
-            await self._safe(self.backend.add_event(self._task["id"], "change", json.dumps(change, ensure_ascii=False)), "change")
-
     async def _finish(self, task: dict, result: RunResult):
         s, tid = self.state, task["id"]
-        await self._report_changes()
         if self._intent == "stop":
             log.info("TASK-%s stopped", tid)
             self._remember(f"Tarefa parada: {task['title']}")

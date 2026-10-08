@@ -583,25 +583,6 @@ function markTaskSeen(x) {
     if (ids.length) return api("/api/notifications/read", { method: "POST", body: { ids } });
   }).catch(() => { /* the card simply stays until the next time */ });
 }
-// "O que mudou": the files an agent wrote or deleted in this task (the agent sends one "change" event per file, as JSON:
-// path, new / changed / deleted, lines added and taken out, the diff). Each file opens to show its lines.
-function changesOf(x) {
-  const out = [];
-  for (const e of x.events || []) if (e.kind === "change") { try { out.push(JSON.parse(e.message)); } catch { /* an older line */ } }
-  return out;
-}
-function changesHtml(x) {
-  const list = changesOf(x);
-  if (!list.length) return "";
-  const add = list.reduce((n, c) => n + (c.added || 0), 0), del = list.reduce((n, c) => n + (c.deleted || 0), 0);
-  const word = { new: "novo", deleted: "apagado", changed: "mudado" };
-  const line = (l) => `<span class="${l.startsWith("+") ? "a" : l.startsWith("-") ? "d" : ""}">${esc(l)}</span>`;
-  return `<section class="chg"><header><b>${t("O que mudou")}</b><span>${t(list.length === 1 ? "1 ficheiro" : "{n} ficheiros", { n: list.length })} · <em class="a">+${add}</em> <em class="d">−${del}</em></span></header>
-    ${list.map((c) => `<details class="chg-file"><summary><span class="chg-st ${esc(c.status)}">${t(word[c.status] || "mudado")}</span><b>${esc(c.path)}</b>
-      <span class="chg-n"><em class="a">+${c.added || 0}</em> <em class="d">−${c.deleted || 0}</em></span></summary>
-      <pre class="chg-diff">${(c.diff || "").split("\n").slice(2).map(line).join("\n")}</pre></details>`).join("")}</section>`;
-}
-
 async function openTaskModal(id) {
   let x, all;
   try { [x, all] = await Promise.all([request_(`/api/tasks/${id}`), request_("/api/tasks")]); } catch (e) { flash(e.message); return; }
@@ -625,7 +606,7 @@ async function openTaskModal(id) {
     group ? `<span class="tm">${whoFaces(group)}${esc(whoLeft(group))}</span>` : "",
     x.stage === "done" && !group && x.completed_by ? meta("check", `${t("Concluída por")} ${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : ""}`, "ok") : "",
     x.created_at ? meta("clock", `${t("Criada")} ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}`, "dim") : ""].filter(Boolean).join("");
-  const steps = x.events.filter((e) => e.kind !== "note" && e.kind !== "change");
+  const steps = x.events.filter((e) => e.kind !== "note");
   const buttons = `${canGiveToAI(x) ? ui.btn("Entregar ao escritório", "data-act=ai", "", "bot") : ""}
     ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
     ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
@@ -646,7 +627,6 @@ async function openTaskModal(id) {
       ${x.goal ? part("Objetivo", richText(x.goal)) : ""}
       ${x.requirements?.length ? part("O que tem de ficar feito", `<ul>${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`) : ""}
       ${x.result ? part("Resultado", richText(x.result), "ok") : ""}</section>
-    ${changesHtml(x)}
     ${x.progress > 0 && x.stage !== "done" ? `<div class="rowx tv-prog"><div class="grow">${ui.progress(x.progress, "ai")}</div><span class="mono">${x.progress}%</span></div>` : ""}
     ${x.current_action && running ? `<div class="now">${esc(x.current_action)}</div>` : ""}
     ${x.blocked_reason ? `<p class="msg note tv-blocked">${esc(x.blocked_reason)}</p>` : ""}

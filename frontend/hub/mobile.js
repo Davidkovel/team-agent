@@ -473,4 +473,276 @@
     if (linked) { openTask = null; openTaskModal(linked); }
     await load().catch((e) => { if (e.message !== "unauthorized") $("m-t-body").innerHTML = ui.error(e.message); });
   }
+
+  /* ---------- a task, the iOS way: a screen pushed over the tab you are on, not the computer's window ----------
+     It slides in from the right with "‹ Notificações" (or wherever you came from) on top; back, a swipe from the left
+     edge or the phone's own back all take you to the same place, scrolled where you were. The address does not change,
+     so closing it never leaves you in another tab and a reload never opens it again. What the computer has in its
+     window is here as rows to tap, a bar at the bottom with the one thing to do next, and "⋯" for the rest. */
+  document.body.insertAdjacentHTML("beforeend", `<div id="m-tv" hidden></div><div id="m-as" hidden></div><div id="m-undo" hidden></div>`);
+  const tv = $("m-tv");
+  let tvId = null;
+
+  // the action sheet: a list that rises from the bottom, "Cancelar" apart, like iOS. Resolves with the key picked, or null.
+  function actionSheet(title, items) {
+    const as = $("m-as");
+    as.innerHTML = `<div class="m-as-bg"></div><div class="m-as-box"><div class="m-as-group">${title ? `<p class="m-as-t">${esc(title)}</p>` : ""}${
+      items.map(([key, label, tone = ""]) => `<button data-as="${esc(key)}" class="${tone}">${esc(t(label))}</button>`).join("")}</div>
+      <div class="m-as-group"><button data-as="" class="m-as-cancel">${t("Cancelar")}</button></div></div>`;
+    as.hidden = false;
+    requestAnimationFrame(() => as.classList.add("in"));
+    return new Promise((done) => {
+      as.onclick = (e) => {
+        e.stopPropagation();
+        const b = e.target.closest("[data-as]");
+        if (!b && !e.target.closest(".m-as-bg")) return;
+        as.classList.remove("in");
+        setTimeout(() => { as.hidden = true; as.innerHTML = ""; }, 260);
+        done(b?.dataset.as || null);
+      };
+    });
+  }
+
+  // "Apagada · Desfazer" above the tabs for a few seconds; the task waits in the Lixo, so undoing is just restoring it
+  let undoTimer = null;
+  function undoBar(text, undo) {
+    const bar = $("m-undo");
+    bar.innerHTML = `<span>${esc(text)}</span><button>${t("Desfazer")}</button>`;
+    bar.hidden = false; bar.classList.remove("in"); void bar.offsetWidth; bar.classList.add("in");
+    clearTimeout(undoTimer);
+    const hide = () => { bar.classList.remove("in"); setTimeout(() => { if (!bar.classList.contains("in")) bar.hidden = true; }, 250); };
+    undoTimer = setTimeout(hide, 6000);
+    bar.querySelector("button").onclick = async (e) => { e.stopPropagation(); clearTimeout(undoTimer); hide(); await undo(); };
+  }
+
+  async function trashTaskPhone(id, title) {
+    try { await api(`/api/tasks/${id}/trash`, { method: "POST", body: { reason: "mistake" } }); }
+    catch (err) { flash(err.message); if (reload) reload().catch(() => {}); return false; }
+    navigator.vibrate?.(18);
+    if (reload) reload().catch(() => {});
+    undoBar(t("Tarefa apagada"), async () => {
+      try { await api(`/api/tasks/${id}/restore`, { method: "POST" }); flash(t("A tarefa voltou: {t}", { t: title })); } catch (err) { flash(err.message); }
+      if (reload) reload().catch(() => {});
+    });
+    return true;
+  }
+
+  const tvBack = () => {
+    const here = $("m-title").textContent.trim();
+    return here ? here[0].toUpperCase() + here.slice(1).toLowerCase() : t("Voltar");
+  };
+  function closeTask(fromHistory = false) {
+    if (tv.hidden || (tvId === null && !tv.classList.contains("in"))) return;   // already on its way out (back → popstate)
+    tvId = null;
+    tv.classList.remove("in"); tv.style.transform = "";
+    setTimeout(() => { if (tvId === null) { tv.hidden = true; tv.innerHTML = ""; } }, 320);
+    if (!fromHistory && history.state?.mtask) history.back();
+    if (reload) reload().catch(() => {});
+  }
+  window.addEventListener("popstate", () => { if (!tv.hidden) closeTask(true); });
+  window.addEventListener("hashchange", () => { if (!tv.hidden) { tvId = null; tv.hidden = true; tv.innerHTML = ""; tv.classList.remove("in"); } });
+
+  async function phoneTask(id) {
+    // #/tarefas/12 (a push notification, a link) becomes #/tarefas: the task opens on top and does not come back on reload
+    if (/^#(\/tarefas\/\d+|task-\d+)$/.test(location.hash)) history.replaceState(history.state, "", "#/tarefas");
+    const fresh = tv.hidden || tvId !== id;
+    tvId = id;
+    if (tv.hidden) {
+      tv.innerHTML = `<header class="m-tv-bar"><button class="m-tv-back" data-tv="close">${icon("chev")}<span>${esc(tvBack())}</span></button><b class="m-tv-t"></b>
+        <button class="m-tv-more" data-tv="more" aria-label="${t("Mais ações")}">${icon("more")}</button></header><div class="m-tv-body">${ui.skeleton(4)}</div><footer class="m-tv-foot"></footer>`;
+      tv.hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => tv.classList.add("in")));
+      if (!history.state?.mtask) history.pushState({ mtask: true }, "", location.href);
+    }
+    let x, all;
+    try { [x, all] = await Promise.all([request_(`/api/tasks/${id}`), request_("/api/tasks")]); }
+    catch (e) { if (tvId === id) tv.querySelector(".m-tv-body").innerHTML = ui.error(e.message); return; }
+    if (tvId !== id) return;
+    const body = tv.querySelector(".m-tv-body"), keep = fresh ? 0 : body.scrollTop;
+    const group = groupAll(all.filter((y) => !y.trashed_at)).find((g) => g.group && g.group.some((y) => y.id === x.id))?.group;
+    const held = heldByAgent(x), running = ["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status), done = x.stage === "done";
+    const late = !done && x.deadline && new Date(x.deadline) < new Date();
+    const company = companies.find((c) => c.id === x.company)?.name;
+    const row = (ic, label, value, { cls = "", act = "" } = {}) => `<${act ? `button data-tv="${act}"` : "div"} class="m-tv-row ${cls}"><span class="m-tv-ic">${ic}</span><em>${t(label)}</em><b>${value}</b>${act ? icon("chev") : ""}</${act ? "button" : "div"}>`;
+    const facts = [
+      row(group ? icon("users") : ui.avatar(nameOf(x.assignee), "sm"), "Para", group ? `${t("Todos")} (${group.length})` : esc(nameOf(x.assignee))),
+      done ? "" : row(icon("calendar"), late ? "Atrasada desde" : "Prazo", x.deadline ? `${fmt.day(x.deadline)} ${fmt.hhmm(x.deadline)}` : t("Sem prazo"), { cls: late ? "bad" : x.deadline ? "" : "dim", act: "due" }),
+      row(icon("flag"), "Prioridade", t(PRIORITY[x.priority || "normal"]), { cls: x.priority === "urgent" ? "bad" : x.priority === "high" ? "warn" : "dim" }),
+      x.project_name || x.project ? row(icon("folder"), "Projeto", esc(x.project_name || x.project)) : "",
+      company ? row(icon("building"), "Empresa", esc(company)) : "",
+      x.crew_name ? row(icon(CREW_ICON[x.crew] || "bot"), "Agente", esc(x.crew_name)) : x.agent_role ? row(icon("bot"), "Agente", esc(t(ROLES[x.agent_role]))) : "",
+      x.created_by ? row(icon("clock"), "Pedida por", `${esc(nameOf(x.created_by))} · ${fmt.day(x.created_at)}`, { cls: "dim" }) : "",
+      done && !group && x.completed_by ? row(icon("check"), "Concluída por", `${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)}` : ""}`, { cls: "ok" }) : "",
+    ].filter(Boolean).join("");
+    const stage = x.doing_since && !done ? ["A fazer", "ok"] : [STAGE_LABEL[x.stage], STAGE_TONE[x.stage]];
+    const text = (label, html, cls = "") => `<section class="m-tv-sec ${cls}"><h3>${t(label)}</h3><div class="m-tv-card tread">${html}</div></section>`;
+    tv.querySelector(".m-tv-t").textContent = t("Tarefa");
+    body.innerHTML = `<div class="m-tv-head"><span class="m-tv-stage ${stage[1] || ""}">${t(stage[0])}</span>
+        <h1>${x.priority === "urgent" ? '<i class="m-bang">!!</i>' : x.priority === "high" ? '<i class="m-bang high">!</i>' : ""}${esc(x.title)}</h1>
+        ${group ? `<p>${esc(whoLeft(group))}</p>` : ""}</div>
+      ${x.progress > 0 && !done ? `<div class="m-tv-prog"><div>${ui.progress(x.progress, "ai")}</div><span>${x.progress}%</span></div>` : ""}
+      ${x.current_action && running ? `<p class="m-tv-now">${esc(x.current_action)}</p>` : ""}
+      ${x.blocked_reason ? `<p class="m-tv-block">${icon("alert")}<span>${esc(x.blocked_reason)}</span></p>` : ""}
+      ${doingBanner(x, held)}
+      <div class="m-list m-tv-facts">${facts}</div>
+      ${text("Descrição", x.description ? richText(x.description) : `<p class="m-tv-none">${t("Sem descrição: o título diz tudo.")}</p>`)}
+      ${x.goal ? text("Objetivo", richText(x.goal)) : ""}
+      ${x.requirements?.length ? text("O que tem de ficar feito", `<ul>${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`) : ""}
+      ${x.result ? text("Resultado", richText(x.result), "ok") : ""}
+      ${group ? `<section class="m-tv-sec"><h3>${t("Quem já fez")}</h3><div class="m-list">${group.map((y) => `<div class="m-tv-row"><span class="m-tv-ic">${ui.avatar(nameOf(y.assignee), "sm")}</span>
+        <em>${esc(nameOf(y.assignee))}${y.assignee === me.username ? ` (${t("tu")})` : ""}</em><b class="${y.stage === "done" ? "ok" : ""}">${y.stage === "done" ? t("Feito") : y.doing_since ? t("A fazer agora") : t(STAGE_LABEL[y.stage])}</b></div>`).join("")}</div></section>` : ""}
+      ${(x.log || []).length ? `<section class="m-tv-sec"><h3>${t("Histórico")}</h3><div class="m-list m-tv-log">${x.log.slice(-12).reverse().map((e) => `<div class="m-tv-logrow">${ui.avatar(e.name, "sm")}
+        <div><span><b>${esc(e.name)}</b> ${esc(group && e.kind === "task_created" ? t("criou a tarefa para todos") : e.message)}</span><time>${fmt.day(e.at)} ${fmt.hhmm(e.at)}</time></div></div>`).join("")}</div></section>` : ""}
+      <div class="m-list m-tv-danger"><button class="m-tv-row" data-tv="trash"><span class="m-tv-ic">${icon("trash")}</span><em>${t("Apagar tarefa")}</em></button></div>`;
+    body.scrollTop = keep;
+    // the bar at the bottom: the one thing to do next, big enough for a thumb
+    const foot = running ? `<button class="m-tv-btn" data-tv="pause">${icon("pause")}${t("Pausar")}</button><button class="m-tv-btn bad" data-tv="stop">${icon("stop")}${t("Parar")}</button>`
+      : x.status === "PAUSED" || x.status === "NEEDS_HELP" ? `<button class="m-tv-btn" data-tv="resume">${icon("play")}${t("Retomar")}</button><button class="m-tv-btn bad" data-tv="stop">${icon("stop")}${t("Parar")}</button>`
+      : done ? `<button class="m-tv-btn" data-tv="reopen">${t("Reabrir")}</button>`
+      : `<button class="m-tv-btn main" data-tv="done">${icon("check")}${t("Concluir")}</button>`;
+    tv.querySelector(".m-tv-foot").innerHTML = foot;
+
+    const again = () => phoneTask(id);
+    const patch = async (bodyIn, ok) => {
+      try { await api(`/api/tasks/${x.id}`, { method: "PATCH", body: bodyIn }); if (ok) flash(t(ok)); } catch (err) { flash(err.message); }
+      return again();
+    };
+    const setDue = async () => {
+      const friday = (5 - new Date().getDay() + 7) % 7;
+      const pick = await actionSheet(t("Prazo"), [["0", "Hoje 18:00"], ["1", "Amanhã 18:00"], ...(friday > 1 ? [[String(friday), "Sexta 18:00"]] : []), ["7", "Daqui a 1 semana"],
+        ["pick", "Escolher dia e hora…"], ...(x.deadline ? [["none", "Tirar prazo", "bad"]] : [])]);
+      if (pick === null) return;
+      if (pick === "none") return patch({ deadline: null }, "Prazo tirado.");
+      if (pick === "pick") return formModal("Prazo", field("Dia e hora", `<input type="datetime-local" name="due" required value="${x.deadline ? new Date(new Date(x.deadline).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : dueAt(0)}">`, true),
+        async (v) => { await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { deadline: new Date(v.due).toISOString() } }); flash(t("Prazo guardado.")); again(); });
+      return patch({ deadline: new Date(dueAt(Number(pick))).toISOString() }, "Prazo guardado.");
+    };
+    const setState = async () => {
+      const pick = await actionSheet(t("Mudar o estado"), [["TODO", "Por fazer"], ["BLOCKED", "Bloqueada"], ["REVIEW", "Em revisão"], ["COMPLETED", "Concluída"]].filter(([s]) => s !== x.status));
+      if (!pick) return;
+      if (pick === "BLOCKED") return formModal("Marcar como bloqueada", field("O que está a bloquear?", '<textarea name="blocked_reason"></textarea>', true),
+        async (v) => { await api(`/api/tasks/${x.id}`, { method: "PATCH", body: { status: "BLOCKED", blocked_reason: v.blocked_reason } }); again(); }, { submit: "Bloquear" });
+      return patch({ status: pick }, pick === "COMPLETED" ? "Tarefa concluída." : "");
+    };
+    const edit = async () => {
+      const [users, projects] = await Promise.all([api("/api/users"), api("/api/projects")]);
+      formModal("Editar tarefa", taskFields(x, users, projects), async (v) => {
+        const b = taskBody(v);
+        if (held) delete b.assignee;   // while the agent has it, the task stays where it is
+        await api(`/api/tasks/${x.id}`, { method: "PATCH", body: b });
+        again();
+      }, { wide: true });
+    };
+    const trash = async () => {
+      if (held) return flash(t("O agente está a trabalhar nesta tarefa: pausa-a ou pára-a primeiro."));
+      const pick = await actionSheet(t("Apagar «{t}»?", { t: x.title }), [["mistake", "Apagar tarefa", "bad"]]);
+      if (pick && (await trashTaskPhone(x.id, x.title))) closeTask();
+    };
+    tv.onclick = async (e) => {
+      e.stopPropagation();   // shell.js closes sheets on a click outside them; this screen is not one of those
+      const el = e.target.closest("[data-tv], [data-act]");
+      if (!el) return;
+      const act = el.dataset.tv || el.dataset.act;
+      if (act === "close") return closeTask();
+      if (act === "due") return setDue();
+      if (act === "trash") return trash();
+      if (act === "done") { el.disabled = true; navigator.vibrate?.(14); return patch({ status: "COMPLETED" }, "Tarefa concluída."); }
+      if (act === "reopen") return patch({ status: "TODO" }, "Tarefa reaberta.");
+      if (act === "doing" || act === "notdoing") { navigator.vibrate?.(14); return patch({ doing: act === "doing" }, act === "doing" ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa."); }
+      if (act === "pause" || act === "stop" || act === "resume") {
+        if (act === "stop" && (await actionSheet(t("Parar o agente nesta tarefa?"), [["stop", "Parar", "bad"]])) !== "stop") return;
+        try { await api(`/api/tasks/${x.id}/control`, { method: "POST", body: { action: act } }); flash(t("Pedido enviado ao agente.")); } catch (err) { flash(err.message); }
+        return again();
+      }
+      if (act === "more") {
+        const pick = await actionSheet(x.title, [["edit", "Editar"], ...(done ? [] : [["due", x.deadline ? "Mudar o prazo" : "Dar um prazo"]]),
+          ...(held ? [] : [["state", "Mudar o estado"]]), ...(canGiveToAI(x) ? [["ai", "Entregar ao escritório"]] : []),
+          ...(!done && !held && x.assignee === me.username ? [[x.doing_since ? "notdoing" : "doing", x.doing_since ? "Já não estou a fazer isto" : "Estou a fazer isto"]] : []),
+          ["trash", "Apagar tarefa", "bad"]]);
+        if (pick === "edit") return edit();
+        if (pick === "due") return setDue();
+        if (pick === "state") return setState();
+        if (pick === "ai") return assignToAI(x);
+        if (pick === "doing" || pick === "notdoing") return patch({ doing: pick === "doing" }, pick === "doing" ? "A equipa já vê que estás a fazer isto." : "Paraste esta tarefa.");
+        if (pick === "trash") return trash();
+      }
+    };
+  }
+  const desktopTask = openTaskModal;
+  openTaskModal = (id) => (phone() ? phoneTask(id) : desktopTask(id));
+
+  // a link to a task (a notification, "A fazer agora") opens it over the tab you are on, instead of moving you to Tarefas
+  document.addEventListener("click", (e) => {
+    if (!phone() || e.defaultPrevented) return;
+    const a = e.target.closest('a[href^="#/tarefas/"]'), m = a && a.getAttribute("href").match(/^#\/tarefas\/(\d+)$/);
+    if (!m || a.closest(".modal")) return;
+    e.preventDefault();
+    phoneTask(Number(m[1]));
+  });
+
+  // swipe back from the left edge, as on any iOS screen that was pushed
+  let edge = null;
+  tv.addEventListener("touchstart", (e) => { const p = e.touches[0]; edge = p.clientX < 28 ? { x: p.clientX, dx: 0 } : null; }, { passive: true });
+  tv.addEventListener("touchmove", (e) => {
+    if (!edge) return;
+    edge.dx = Math.max(0, e.touches[0].clientX - edge.x);
+    tv.style.transition = "none"; tv.style.transform = `translateX(${edge.dx}px)`;
+  }, { passive: true });
+  tv.addEventListener("touchend", () => {
+    if (!edge) return;
+    tv.style.transition = ""; tv.style.transform = "";
+    if (edge.dx > window.innerWidth * 0.3) closeTask();
+    edge = null;
+  });
+
+  /* ---------- swipe a task row to the left: "Apagar" in red behind it, as in Mail or Reminders ----------
+     A short swipe leaves the button showing; a long one deletes at once. Either way "Desfazer" brings it back. */
+  const SW = 88;
+  let sw = null, swiped = 0;
+  const shut = (except) => document.querySelectorAll(".m-task.sw-open").forEach((r) => { if (r !== except) { r.classList.remove("sw-open"); r.style.setProperty("--sw", "0px"); } });
+  document.addEventListener("touchstart", (e) => {
+    if (!phone()) return;
+    const row = e.target.closest(".m-task[data-id]");
+    if (!e.target.closest(".m-sw-del")) shut(row);
+    if (!row || row.closest("#m-tv") || e.target.closest(".m-check, .m-doing, .m-sw-del")) { sw = null; return; }
+    const p = e.touches[0];
+    sw = { row, x: p.clientX, y: p.clientY, base: row.classList.contains("sw-open") ? -SW : 0, dx: 0, dir: null };
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!sw) return;
+    const p = e.touches[0], dx = p.clientX - sw.x, dy = p.clientY - sw.y;
+    if (!sw.dir) { if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) sw.dir = "x"; else if (Math.abs(dy) > 8) { sw = null; return; } else return; }
+    e.preventDefault();
+    const row = sw.row;
+    if (!row.querySelector(".m-sw-del")) row.insertAdjacentHTML("beforeend", `<button class="m-sw-del" data-sw-del="${row.dataset.id}">${icon("trash")}<span>${t("Apagar")}</span></button>`);
+    sw.dx = Math.min(0, sw.base + dx);
+    row.classList.add("sw-drag"); row.classList.toggle("sw-far", sw.dx < -row.offsetWidth * 0.55);
+    row.style.setProperty("--sw", `${sw.dx}px`);
+  }, { passive: false });
+  document.addEventListener("touchend", () => {
+    if (!sw) return;
+    const { row, dx, dir } = sw; sw = null;
+    if (dir !== "x") return;
+    swiped = Date.now();
+    row.classList.remove("sw-drag");
+    if (dx < -row.offsetWidth * 0.55) return swipeDelete(row);
+    const open = dx < -SW / 2;
+    row.classList.toggle("sw-open", open); row.style.setProperty("--sw", open ? `${-SW}px` : "0px");
+  });
+  async function swipeDelete(row) {
+    const id = Number(row.dataset.id), title = row.querySelector("b")?.textContent || "";
+    row.classList.add("sw-gone"); row.style.setProperty("--sw", `${-row.offsetWidth}px`);
+    if (!(await trashTaskPhone(id, title))) { row.classList.remove("sw-gone", "sw-open"); row.style.setProperty("--sw", "0px"); }
+  }
+  // a tap right after a swipe is the end of the swipe, not a tap; a tap on an open row closes it; the red button deletes
+  document.addEventListener("click", (e) => {
+    if (!phone()) return;
+    const del = e.target.closest("[data-sw-del]");
+    if (del) { e.preventDefault(); e.stopPropagation(); return swipeDelete(del.closest(".m-task")); }
+    const open = e.target.closest(".m-task.sw-open");
+    if (Date.now() - swiped < 400 || open) { e.preventDefault(); e.stopPropagation(); if (open) shut(); }
+  }, true);
+
+  // signing in with #login= draws the first page before this file has said it is a phone: draw it again as one
+  if (phone() && $("view").children.length) render();
 })();

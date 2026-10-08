@@ -2353,6 +2353,8 @@
     const done = memoryNotes.filter((m) => m.category === "TAREFAS").length;
     return t("Lê {n} notas da Memória antes de cada missão · {d} tarefas da equipa já lá estão", { n: memoryNotes.length, d: done });
   }
+  const SPEECH = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const MIC = '<svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
   function agentPanel(a) {
     const j = a.job, st = stateOf(a), color = st === "idle" ? "#8b95a1" : (WORD[st] || [0, COLD])[1];
     const word = st === "idle" ? t("À espera de trabalho") : labelOf(a).word, done = doneBy(a);
@@ -2367,8 +2369,9 @@
     if (!j) {
       return `${head}<section class="cp-sec"><small class="cp-k">${esc(t("Quem é"))}</small><p class="cp-bio">${esc(t(a.bio))}</p></section>
         <section class="cp-sec"><small class="cp-k">${esc(t("Nova missão"))}</small>
-          <form class="cp-send" data-crew="${a.id}"><input name="title" maxlength="200" placeholder="${esc(t("O que é para o {n} fazer?", { n: a.name }))}" autocomplete="off">
-          <button class="btn primary">${esc(t("Mandar"))}${icon("arrow")}</button></form></section>
+          <form class="cp-send" data-crew="${a.id}"><textarea name="what" rows="4" placeholder="${esc(t("Escreve ou dita o que tens na cabeça e o que é para o {n} fazer. A primeira linha é o título.", { n: a.name }))}"></textarea>
+          <div class="cp-send-row">${SPEECH ? `<button type="button" class="cp-mic" data-mic aria-label="${esc(t("Ditar"))}" title="${esc(t("Ditar"))}">${MIC}</button>` : ""}
+            <span class="cp-send-k">${esc(t("Ctrl + Enter manda"))}</span><button class="btn primary">${esc(t("Mandar"))}${icon("arrow")}</button></div></form></section>
         ${mind}
         <section class="cp-sec"><small class="cp-k">${esc(t("Últimas missões"))}</small>${done.length ? done.slice(0, 4).map((x) => `<button class="cp-done" data-href="#task-${x.id}"><i></i><div><b>${esc(x.title)}</b><span>${esc(x.result || t("Concluída"))}</span></div></button>`).join("")
           : `<p class="cp-empty">${esc(t("Ainda nenhuma. A primeira fica aqui e na Memória da equipa."))}</p>`}</section>`;
@@ -2488,11 +2491,11 @@
       try { panelTask = await api(`/api/tasks/${panel.ref.job.id}`); } catch { panelTask = null; }
       if (!panel) return;
     }
-    const keep = el.querySelector(".cp-send input");
+    const keep = el.querySelector(".cp-send textarea");
     const typed = keep ? keep.value : "", focused = keep && document.activeElement === keep;
     const body = { car: () => carPanel(panel.ref), vault: vaultPanel, memory: memoryPanel, arsenal: arsenalPanel }[panel.kind] || (() => agentPanel(panel.ref));
     paint(el, `<div class="cp-in">${body()}</div>`);
-    const input = el.querySelector(".cp-send input");
+    const input = el.querySelector(".cp-send textarea");
     if (input && typed) input.value = typed;
     if (input && focused) input.focus();
   }
@@ -2548,10 +2551,34 @@
     const form = e.target.closest(".cp-send");
     if (!form) return;
     e.preventDefault();
-    const input = form.querySelector("input"), title = input.value.trim();
-    if (!title) { input.focus(); return; }
-    if (await sendTask(title, form.dataset.crew, form.querySelector("button"))) { const now = $("cr-panel").querySelector(".cp-send input"); if (now) now.value = ""; }
+    const input = form.querySelector("textarea"), text = input.value.trim();
+    if (!text) { input.focus(); return; }
+    stopMic();
+    // the first line is the title; a long first line is cut at a word and the whole text goes as the description
+    const first = text.split("\n")[0].trim(), title = first.length > 120 ? `${first.slice(0, 117).replace(/\s+\S*$/, "")}…` : first;
+    const description = text === first && first.length <= 120 ? "" : text;
+    if (await sendTask(title, form.dataset.crew, form.querySelector("button.primary"), description)) { const now = $("cr-panel").querySelector(".cp-send textarea"); if (now) now.value = ""; }
   }
+  // dictating a mission (Chrome / Edge / Safari): what is said is written into the box, in Portuguese, until stopped
+  let mic = null;
+  function stopMic() { if (mic) { mic.stop(); mic = null; } document.querySelectorAll(".cp-mic.on").forEach((b) => b.classList.remove("on")); }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-mic]");
+    if (!b) return;
+    e.preventDefault();
+    if (mic) return stopMic();
+    const box = b.closest(".cp-send").querySelector("textarea"), base = box.value ? `${box.value.trimEnd()} ` : "";
+    mic = new SPEECH();
+    mic.lang = "pt-PT"; mic.continuous = true; mic.interimResults = true;
+    mic.onresult = (ev) => { box.value = base + [...ev.results].map((r) => r[0].transcript).join(" "); };
+    mic.onerror = (ev) => { flash(ev.error === "not-allowed" ? t("O browser não deixou usar o microfone.") : t("O ditado parou.")); stopMic(); };
+    mic.onend = () => { if (mic) stopMic(); };
+    mic.start();
+    b.classList.add("on"); box.focus();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && e.target.closest?.(".cp-send textarea")) { e.preventDefault(); e.target.closest(".cp-send").requestSubmit(); }
+  });
 
   // ================================================================ the page around it
   const ago = (iso) => (iso ? fmt.ago(iso) : "");

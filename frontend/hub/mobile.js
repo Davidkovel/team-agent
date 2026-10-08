@@ -593,6 +593,7 @@
           ${x.goal ? part("Objetivo", richText(x.goal)) : ""}
           ${x.requirements?.length ? part("O que tem de ficar feito", `<ul>${x.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`) : ""}
           ${x.result ? part("Resultado", richText(x.result), "ok") : ""}</div></div>
+      ${changesHtml(x)}
       ${x.progress > 0 && !done ? `<div class="m-tv-prog"><div>${ui.progress(x.progress, "ai")}</div><span>${x.progress}%</span></div>` : ""}
       ${x.current_action && running ? `<p class="m-tv-now">${esc(x.current_action)}</p>` : ""}
       ${x.blocked_reason ? `<p class="m-tv-block">${icon("alert")}<span>${esc(x.blocked_reason)}</span></p>` : ""}

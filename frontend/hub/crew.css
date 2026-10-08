@@ -365,3 +365,15 @@ html.is-phone .cp-send input { font-size: 16px; }
 .cp-money b { display: block; margin-top: 3px; font: 700 16px var(--display); color: #fff; }
 .cp-money span { display: block; color: #8b929c; font-size: 11px; }
 .cp-cost { font: 700 15px var(--mono); color: #fff; }
+
+/* the mission box: a real box to write (or dictate) what is on your mind; the first line is the title */
+.cp-send { flex-direction: column; }
+.cp-send textarea { width: 100%; min-height: 104px; padding: 11px 13px; border-radius: 11px; background: #05060a; border: 1px solid rgba(255, 255, 255, .1);
+  color: #eef1f4; font: 400 14px/1.45 var(--ui); resize: vertical; box-sizing: border-box; }
+.cp-send textarea:focus { outline: 0; border-color: rgba(79, 180, 255, .55); box-shadow: 0 0 0 3px rgba(79, 180, 255, .12); }
+.cp-send-row { display: flex; align-items: center; gap: 8px; }
+.cp-send-k { flex: 1; color: #6b727b; font: 500 11px var(--ui); }
+.cp-mic { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .14); background: #0b0c10; color: #eef1f4; cursor: pointer; }
+.cp-mic svg.i { width: 18px; height: 18px; }
+.cp-mic.on { border-color: #ff453a; background: rgba(255, 69, 58, .16); color: #ff6961; animation: cp-mic 1.2s ease-in-out infinite; }
+@keyframes cp-mic { 50% { box-shadow: 0 0 0 7px rgba(255, 69, 58, .12); } }

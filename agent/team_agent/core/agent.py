@@ -33,6 +33,7 @@ CREW_PROMPT = """
 
 Who you are in this team: {persona}
 You are one of the crew of eight: {team}. Each of you works in their own Claude conversation. This one is yours: the tasks you did before are earlier in it, if any. What any of you finishes goes into the Hub's memory, and you get that memory, the projects and the open work at the start of every task, so take it as what the team knows now.
+The team's long memory is the `recall` tool: every Claude conversation on this computer, from the first one on. When the task speaks of earlier work, a decision, "like last time" or something the briefing does not explain, search it before asking or guessing.
 Stay yourself in how you think and decide, but the work comes first: no role-play in files, code, progress reports or results."""
 
 
@@ -239,6 +240,7 @@ class TeamAgent:
         self._intent, self._result = None, None
         workspace = self._workspace(task)
         registry = build_registry(ToolContext(workspace, PermissionPolicy(workspace, self.cfg.policy_file), self))
+        self._registry = registry   # what it changes, file by file, goes to the Hub when the task ends (_report_changes)
         system = SYSTEM_PROMPT.format(name=self.state.display_name or self.state.user)
         # A Hub that knows the crew sends a whole briefing; an older one only the memory.
         self._brief = await self._report("task_briefing", task["id"]) or {}
@@ -294,8 +296,15 @@ class TeamAgent:
             self._task["session_id"] = session_id
             await self._safe(self.backend.update_task(self._task["id"], session_id=session_id), "save session")
 
+    async def _report_changes(self):
+        """One "change" event per file the task wrote or deleted: the Hub's "O que mudou" in the task's window."""
+        registry, self._registry = getattr(self, "_registry", None), None
+        for change in (registry.change_report() if registry else []):
+            await self._safe(self.backend.add_event(self._task["id"], "change", json.dumps(change, ensure_ascii=False)), "change")
+
     async def _finish(self, task: dict, result: RunResult):
         s, tid = self.state, task["id"]
+        await self._report_changes()
         if self._intent == "stop":
             log.info("TASK-%s stopped", tid)
             self._remember(f"Tarefa parada: {task['title']}")

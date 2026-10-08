@@ -818,3 +818,24 @@ html.is-phone .nv-head { font-size: 16px; }
 .in-doing-card:hover { border-color: rgba(95, 224, 138, .45); }
 .in-doing-task { color: #fff; font: 600 15px/1.35 var(--ui); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .in-doing-card .tv-doing { padding: 10px 12px; }
+
+/* "O que mudou" in a task's window (pages.js, changesHtml): the files an agent changed, each opening to its lines */
+.chg { display: grid; gap: 6px; margin-top: 16px; }
+.chg > header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 2px 4px; }
+.chg > header b { color: #868c95; font: 700 11px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.chg > header span { color: #868c95; font: 500 12px var(--ui); }
+.chg em { font-style: normal; font-weight: 700; }
+.chg em.a { color: #8af0aa; }
+.chg em.d { color: #ff7b72; }
+.chg-file { border: 1px solid rgba(255, 255, 255, .08); border-radius: 12px; background: #101215; overflow: hidden; }
+.chg-file summary { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.chg-file summary::-webkit-details-marker { display: none; }
+.chg-file summary b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e6e9ed; font: 500 13px var(--mono, ui-monospace, monospace); direction: rtl; text-align: left; }
+.chg-st { flex: none; height: 20px; padding: 0 8px; border-radius: 10px; background: rgba(255, 255, 255, .08); color: #cfd5dc; font: 700 10px/20px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.chg-st.new { background: rgba(95, 224, 138, .15); color: #8af0aa; }
+.chg-st.deleted { background: rgba(255, 69, 58, .15); color: #ff7b72; }
+.chg-n { flex: none; font: 600 12px var(--ui); }
+.chg-diff { margin: 0; max-height: 360px; overflow: auto; padding: 10px 12px; border-top: 1px solid rgba(255, 255, 255, .06); background: #0a0b0d; color: #9aa1a9;
+  font: 12px/1.5 var(--mono, ui-monospace, monospace); white-space: pre; }
+.chg-diff .a { display: inline-block; min-width: 100%; color: #b7f5c8; background: rgba(95, 224, 138, .08); }
+.chg-diff .d { display: inline-block; min-width: 100%; color: #ffb3ad; background: rgba(255, 69, 58, .08); }

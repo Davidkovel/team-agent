@@ -49,7 +49,7 @@ class TaskUpdate(BaseModel):
 
 
 class EventIn(BaseModel):
-    kind: Literal["action", "decision", "error", "result", "note"]
+    kind: Literal["action", "decision", "error", "result", "note", "change"]   # change: one file the task wrote, as JSON
     message: str
     data: dict = {}
 

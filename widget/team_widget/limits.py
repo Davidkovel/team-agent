@@ -74,6 +74,34 @@ def save_rate_limits(limits: dict, path: Path = USAGE, now: float | None = None)
     Path(path).write_text(json.dumps({"saved_at": time.time() if now is None else now, "rate_limits": limits}), encoding="utf-8")
 
 
+RENEW_MARK = hub.DATA_DIR / "claude_renew.txt"
+RENEW_GAP = 2 * 3600   # at most one nudge every two hours
+
+
+def _let_claude_renew() -> bool:
+    """Whoever uses the Claude desktop app never runs the `claude` command, so the sign-in it keeps in ~/.claude runs out
+    and is never renewed (David, 8 Oct: his lines stayed at 0% for two days). The smallest possible question to the
+    command makes Claude Code renew it itself, the way it always does: the widget still never touches the tokens.
+    Costs one tiny Haiku answer, at most every RENEW_GAP. True when the command ran."""
+    import shutil
+    import subprocess
+    try:
+        if time.time() - float(RENEW_MARK.read_text(encoding="utf-8")) < RENEW_GAP:
+            return False
+    except (OSError, ValueError):
+        pass
+    exe = shutil.which("claude")
+    if not exe:
+        return False
+    try:
+        RENEW_MARK.write_text(str(time.time()), encoding="utf-8")
+        subprocess.run([exe, "-p", "ok", "--model", "haiku"], cwd=str(hub.DATA_DIR), capture_output=True, timeout=90,
+                       stdin=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def refresh_from_account(path: Path = USAGE, timeout: float = 8) -> bool:
     """Asks the Claude account for the usage figures, with the sign-in Claude Code keeps on this PC. True when saved.
 
@@ -81,9 +109,13 @@ def refresh_from_account(path: Path = USAGE, timeout: float = 8) -> bool:
     renewing it would sign Claude Code itself out. When the access token has run out, this waits for Claude Code to renew it."""
     try:
         oauth = json.loads(CREDENTIALS.read_text(encoding="utf-8"))["claudeAiOauth"]
-        token = oauth["accessToken"]
         if oauth.get("expiresAt") and oauth["expiresAt"] / 1000 <= time.time():
-            return False
+            if not _let_claude_renew():
+                return False
+            oauth = json.loads(CREDENTIALS.read_text(encoding="utf-8"))["claudeAiOauth"]
+            if oauth.get("expiresAt") and oauth["expiresAt"] / 1000 <= time.time():
+                return False
+        token = oauth["accessToken"]
         req = urllib.request.Request(USAGE_URL, headers={"Authorization": f"Bearer {token}", "anthropic-beta": "oauth-2025-04-20",
                                                          "Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=timeout) as res:

@@ -449,6 +449,7 @@ async function loadHome(parts = ["team", "news", "plan", "act"]) {
   if (!$("in-team")) return;
   const jobs = [];
   if (parts.includes("team")) jobs.push(mount($("in-team"), teamCard, 3));
+  if (parts.includes("team") || parts.includes("plan")) jobs.push(mount($("in-doing"), doingBody, 1));
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
   if (parts.includes("plan")) jobs.push(mount($("in-done"), finishedCard, 3));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
@@ -457,11 +458,29 @@ async function loadHome(parts = ["team", "news", "plan", "act"]) {
   await Promise.all(jobs);
 }
 
+// "A fazer agora": whoever said "Estou a fazer" on a task shows on Início with the same card the task's window has
+// (the face in the green ring, the name, since when), with the task's title on top. A click opens the task; yours
+// keeps its "Parar".
+async function doingBody() {
+  const busy = (await api("/api/team")).filter((m) => m.doing);
+  if (!busy.length) return "";
+  return `<div class="in-doing-head">${icon("play")}<b>${t("A fazer agora")}</b><i>${busy.length}</i></div><div class="in-doing-list">${busy.map((m) =>
+    `<a class="in-doing-card" href="#/tarefas/${m.doing.id}"><span class="in-doing-task">${esc(m.doing.title)}</span>${doingCard(m.display_name, m.doing.since, m.user === me.username)}</a>`).join("")}</div>`;
+}
+document.addEventListener("click", async (e) => {
+  const stop = e.target.closest(".in-doing [data-act=notdoing]");
+  if (!stop) return;
+  e.preventDefault(); e.stopPropagation();
+  const id = stop.closest(".in-doing-card").getAttribute("href").split("/").pop();
+  try { await api(`/api/tasks/${id}`, { method: "PATCH", body: { doing: false } }); flash(t("Paraste esta tarefa.")); } catch (err) { flash(err.message); }
+  loadHome(["team"]);
+}, true);
+
 HUB_VIEWS.home = async function viewHome() {
   let ignite = false; // the car comes out of the dark once per session; after that it is simply there
   try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: no start-up */ }
   $("view").innerHTML = `<div class="page inicio"><div id="in-newsbar" class="in-newsbar"></div>${heroHtml(new Date(), ignite)}
-    <div id="in-alert" class="in-alert"></div>
+    <div id="in-alert" class="in-alert"></div><div id="in-doing" class="in-doing"></div>
     <div class="in-top"><section class="in-card" id="in-team"></section><section class="in-card" id="in-done"></section></div>
     <div class="in-grid">
       <section class="in-card in-tasks">${cardHead("tasks", "A seguir", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import commits, ponto, sync, week
 from ..config import settings
 from ..db import get_db
-from ..models import Approval, Notification, User
+from ..models import Approval, Notification, Task, User
 from ..realtime import rt
 from ..security import make_jwt, sees_all
 from ..services import WIDGET_SEEN, hub_seen, set_away, iso, usage_fields, usage_numbers
@@ -66,9 +66,12 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
                                      .group_by(Approval.user_id))).all())
     unread = dict((await db.execute(select(Notification.user_id, func.count(Notification.id)).where(Notification.read_at.is_(None))
                                     .group_by(Notification.user_id))).all())
+    # the task each one said "Estou a fazer" on, for the widget's "A fazer agora"
+    doing = {t.assignee_id: {"id": t.id, "title": t.title, "since": iso(t.doing_since)} for t in (await db.execute(
+        select(Task).where(Task.doing_since.is_not(None), Task.status != "COMPLETED", Task.trashed_at.is_(None)))).unique().scalars()}
     for u in (await db.execute(select(User).order_by(User.id))).scalars():
         presence = await rt.store.get_presence(u.id)
-        out.append({"user": u.username, "name": u.display_name, "online": presence is not None,
+        out.append({"user": u.username, "name": u.display_name, "online": presence is not None, "doing": doing.get(u.id),
                     "status": presence["status"] if presence else "OFFLINE",
                     "task": presence.get("task", "") if presence else "",
                     "via": (presence.get("via") or "agent") if presence else None,

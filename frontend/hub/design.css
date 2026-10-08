@@ -806,3 +806,15 @@ html.is-phone .cmp-foot { z-index: 2; display: grid; grid-template-columns: auto
 .nv-row.open .nv-fold { display: none; }
 html.is-phone .nv-row { padding: 12px 14px; }
 html.is-phone .nv-head { font-size: 16px; }
+
+/* Início: "A fazer agora", the task window's own doing card (home.js, doingBody) */
+.in-doing:empty { display: none; }
+.in-doing { margin: 0 0 18px; }
+.in-doing-head { display: flex; align-items: center; gap: 8px; margin: 0 4px 10px; color: #8af0aa; font: 700 11px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.in-doing-head svg.i { width: 14px; height: 14px; }
+.in-doing-head i { font-style: normal; color: #868c95; }
+.in-doing-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.in-doing-card { display: grid; gap: 10px; padding: 14px; border: 1px solid rgba(95, 224, 138, .22); border-radius: 16px; background: linear-gradient(160deg, rgba(95, 224, 138, .07), #101215 60%); color: inherit; text-decoration: none; }
+.in-doing-card:hover { border-color: rgba(95, 224, 138, .45); }
+.in-doing-task { color: #fff; font: 600 15px/1.35 var(--ui); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.in-doing-card .tv-doing { padding: 10px 12px; }

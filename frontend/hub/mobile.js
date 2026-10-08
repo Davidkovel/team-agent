@@ -277,8 +277,8 @@
         <span class="m-stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></a>`;
       paint($("m-stats"), stat("hoje", p.nHoje, "Para hoje", "today", "calendar") + stat("hoje", p.nHot, "Urgentes", "hot", "flag") + stat("", inbox.unread, "Por ler", "blue", "bell"));
       const busy = team.filter((m) => m.doing);
-      paint($("m-now"), busy.length ? `<section class="m-sec"><header><b>${t("A fazer agora")}</b></header><div class="m-list m-now">${busy.map((m) => `<a class="m-now-row" href="#/tarefas/${m.doing.id}">
-        <span class="dl-ring">${ui.avatar(m.display_name)}</span><div><b>${esc(m.doing.title)}</b><span>${esc(m.user === me.username ? t("Tu") : m.display_name)} · ${t("desde")} ${fmt.hhmm(m.doing.since)}</span></div>${icon("chev")}</a>`).join("")}</div></section>` : "");
+      paint($("m-now"), busy.length ? `<section class="m-sec in-doing"><header><b>${t("A fazer agora")}</b></header><div class="in-doing-list">${busy.map((m) => `<a class="in-doing-card" href="#/tarefas/${m.doing.id}">
+        <span class="in-doing-task">${esc(m.doing.title)}</span>${doingCard(m.display_name, m.doing.since, m.user === me.username)}</a>`).join("")}</div></section>` : "");   // the task window's own card
       const online = team.filter((m) => m.status !== "OFFLINE").length;
       const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
       paint($("m-team"), `<section class="m-sec"><header><b>${t("Equipa")}</b><span class="m-online"><i></i>${online} ${t("de")} ${team.length} ${t("online")}</span></header>

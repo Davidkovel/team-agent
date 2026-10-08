@@ -1462,6 +1462,16 @@ class WidgetWindow(QWidget):
         self.notes.hide()
         col.insertWidget(col.indexOf(self.task_card), self.notes)
         col.addWidget(self.task_card)
+        # "A fazer agora": who said "Estou a fazer" on a task in the Hub, and which; there while it lasts, so the
+        # team sees it without opening the Hub. A click on the task opens it there.
+        self.doing_card = Card(COLORS["WORKING"])
+        self.doing_card.box.addWidget(caption("A fazer agora", COLORS["WORKING"]))
+        self.doing_text = label("", 9.5, TEXT, wrap=True)
+        self.doing_text.setTextFormat(Qt.RichText)
+        self.doing_text.linkActivated.connect(self._open_notice)
+        self.doing_card.box.addWidget(self.doing_text)
+        self.doing_card.hide()
+        col.addWidget(self.doing_card)
 
         self.ledger = Card()
         self.ledger.box.addWidget(caption("A mexer agora, sem commit"))
@@ -1724,7 +1734,26 @@ class WidgetWindow(QWidget):
         clocked = sum(1 for p in shown if p.get("ponto"))
         self.grid_note.setText(f"{clocked} de {len(shown)} com ponto" if shown else "")
         self.hub_note.setVisible(team is None)
+        self._render_doing(team or [], me)
         self._render_state()
+
+    def _render_doing(self, team, me):
+        from html import escape
+        busy = [p for p in team if p.get("doing")]
+        rows = []
+        for p in busy:
+            d = p["doing"]
+            since = ""
+            try:
+                since = datetime.fromisoformat(d["since"].replace("Z", "+00:00")).astimezone().strftime("%H:%M")
+            except (KeyError, AttributeError, ValueError):
+                pass
+            who = "Tu" if p["user"] == me else p["name"]
+            rows.append(f'<b style="color:{COLORS["WORKING"]}">{escape(who)}</b>'
+                        f'<span style="color:{MUTED}">{" · desde " + since if since else ""}</span><br>'
+                        f'<a href="#/tarefas/{d["id"]}" style="color:{TEXT};text-decoration:none">{escape(d["title"])}</a>')
+        self.doing_text.setText("<br><br>".join(rows))
+        self.doing_card.setVisible(bool(rows))
 
     def _render_inbox(self, team):
         """Approvals this person can decide (the notifications have their own card). A new one raises a Windows notification."""

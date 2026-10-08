@@ -299,6 +299,7 @@ class ClaudeSession(Base):
     project: Mapped[str] = mapped_column(String(120), default="")
     status: Mapped[str] = mapped_column(String(12), default="idle")  # idle | working | waiting | ended
     prompt: Mapped[str] = mapped_column(String(200), default="")  # the start of the last request, one line
+    request: Mapped[str | None] = mapped_column(Text, nullable=True)  # the whole last request, lines kept, for whoever opens it (nothing from a Hub of before)
     action: Mapped[str] = mapped_column(String(160), default="")  # what it is doing now, in words ("a editar pages.js")
     model: Mapped[str] = mapped_column(String(60), default="")
     tokens: Mapped[int] = mapped_column(Integer, default=0)  # used so far, from its transcript (transcripts.py)

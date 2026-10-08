@@ -55,6 +55,7 @@ def test_a_window_shows_whose_it_is_what_was_asked_and_what_it_is_doing(client):
     assert w["user"] == "mark" and w["name"] == "Mark" and w["project"] == "team-agent"
     assert w["state"] == "working"
     assert w["prompt"].startswith("Melhora a página de tarefas e põe as urgentes") and len(w["prompt"]) <= 160
+    assert w["request"].startswith("Melhora a página de tarefas\ne põe as urgentes") and len(w["request"]) > 160
     assert w["action"] == "a editar pages.js"
     assert "segredo" not in str(client.get("/api/office", headers=owner).json())  # never what is inside the files
 

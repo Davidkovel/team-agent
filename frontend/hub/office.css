@@ -68,7 +68,11 @@
 .st-work > header em { color: #0b0c0e; background: var(--chrome); border-color: #eef1f4; }
 .st-wait > header em { color: #e2b55c; border-color: rgba(226, 181, 92, .5); }
 .st-stall > header em { color: #ef6f5e; border-color: rgba(239, 111, 94, .4); }
-.of-ask { margin: 8px 0 0; color: #cfd5dc; font: italic 500 15px/1.3 var(--serif); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.of-ask { margin: 8px 0 0; color: #cfd5dc; font: italic 500 14px/1.3 var(--serif); }
+.of-ask summary { cursor: pointer; list-style: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.of-ask summary::-webkit-details-marker { display: none; }
+.of-ask[open] summary { display: none; }
+.of-ask p { margin: 0; font-style: normal; font-size: 13px; line-height: 1.45; white-space: pre-line; max-height: 220px; overflow-y: auto; overflow-wrap: anywhere; cursor: pointer; }
 .of-now { display: flex; align-items: center; gap: 7px; margin-top: 8px; color: #eef1f4; font-size: 12.5px; }
 .of-now svg.i { flex: none; width: 13px; height: 13px; color: #8f969f; }
 .of-now span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

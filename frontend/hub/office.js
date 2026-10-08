@@ -59,13 +59,25 @@
   const lit = {}; // what each screen and room said last time: only what changed lights up
   const changed = (key, now) => { const was = lit[key]; lit[key] = now; return was !== undefined && was !== now; };
 
+  // a request is one line until it is clicked, and a click on the whole of it folds it again; the ones opened stay open
+  // when the page draws again
+  const openAsk = new Set();
+  document.addEventListener("toggle", (e) => {
+    const d = e.target;
+    if (d.classList && d.classList.contains("of-ask")) d.open ? openAsk.add(d.dataset.id) : openAsk.delete(d.dataset.id);
+  }, true);
+  document.addEventListener("click", (e) => {
+    const p = e.target.closest && e.target.closest(".of-ask > p");
+    if (p && !String(getSelection()).length) p.parentNode.open = false;
+  });
+
   function screen(s) {
     const [label, cls] = STATE[s.state] || STATE.idle;
     const now = s.action && s.action !== "aberto" ? s.action : s.state === "idle" ? t("aberto, à espera de um pedido") : s.action || "—";
     const fresh = changed(`s${s.id}`, `${s.state}|${now}`);
     return `<article class="of-screen st-${cls} ${fresh ? "fresh" : ""}">
       <header><b>${esc(s.project)}</b><em>${t(label)}</em></header>
-      ${s.prompt ? `<p class="of-ask">“${esc(s.prompt)}”</p>` : ""}
+      ${s.prompt ? `<details class="of-ask" data-id="${s.id}" ${openAsk.has(String(s.id)) ? "open" : ""}><summary>“${esc(s.prompt)}”</summary><p>${esc(s.request || s.prompt)}</p></details>` : ""}
       <div class="of-now">${icon(s.state === "waiting" ? "bell" : "bolt")}<span>${esc(now)}</span><time title="${esc(fmt.hhmm(s.since))}">${esc(fmt.ago(s.since))}</time></div>
       <footer>${[model(s.model), tokens(s.tokens), s.agents.length ? t(s.agents.length === 1 ? "1 agente" : "{n} agentes", { n: s.agents.length }) : ""].filter(Boolean).map(esc).join(" · ")}</footer>
     </article>`;

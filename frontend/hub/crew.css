@@ -151,6 +151,7 @@
 .cp-sec { margin: 0 14px; padding: 13px 4px; border-top: 1px solid rgba(255, 255, 255, .06); }
 .cp-stripes + .cp-sec { border-top: 0; }
 .cp-k { display: block; margin-bottom: 7px; color: #6b7380; font: 700 10px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+.cp-mission .cp-req { white-space: pre-line; max-height: 240px; overflow-y: auto; overflow-wrap: anywhere; }
 .cp-mission h4 { margin: 0; font: 600 16px/1.35 var(--display); color: #fff; }
 .cp-mission p, .cp-bio { margin: 7px 0 0; color: #aeb5bf; font-size: 12.5px; line-height: 1.55; }
 .cp-bio { margin: 0; }

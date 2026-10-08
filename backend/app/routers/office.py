@@ -53,6 +53,19 @@ def _request(prompt) -> str:
     return one_line(re.sub(r"<[^>]{1,200}>", " ", text), 160)
 
 
+WHOLE = 1500  # characters of a request kept for whoever opens it
+
+
+def _whole(prompt) -> str:
+    """The whole request, cleaned like _request but with its lines kept. A machine message has nothing more to read."""
+    text = str(prompt or "").lstrip()
+    if text.startswith(("<cross-session-message", "(mensagem de outra", "<task-notification")):
+        return ""
+    lines = [" ".join(line.split()) for line in re.sub(r"<[^>]{1,200}>", " ", text).splitlines()]
+    text = "\n".join(line for line in lines if line)
+    return text if len(text) <= WHOLE else text[: WHOLE - 1].rstrip() + "…"
+
+
 def _file(inp: dict, *keys) -> str:
     for key in keys:
         if inp.get(key):
@@ -200,7 +213,7 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
     elif event == "UserPromptSubmit":
         _status(row, "working", when)
         row.since = when  # a new request starts the clock again
-        row.prompt, row.action = _request(body.get("prompt")), "a pensar"
+        row.prompt, row.request, row.action = _request(body.get("prompt")), _whole(body.get("prompt")), "a pensar"
         if _typed_skill(body.get("prompt")):
             row.skills = _add_skill(row.skills, _typed_skill(body.get("prompt")))
     elif event == "PreToolUse":
@@ -392,7 +405,7 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
     for a in agents:
         by_session.setdefault(a.session_id, []).append(a)
     sessions = [{"id": r.id, "key": r.key, "user": r.user.username, "name": r.user.display_name, "project": r.project, "state": _state(r),
-                 "prompt": _request(r.prompt), "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
+                 "prompt": _request(r.prompt), "request": r.request or "", "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
                  "updated_at": iso(r.updated_at), "skills": _skills(r.skills), "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]}
                 for r in rows]
     names = {r.id: (r.user.display_name, r.project) for r in rows}

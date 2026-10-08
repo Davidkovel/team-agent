@@ -1102,7 +1102,7 @@
     }
     for (const s of office.sessions || []) {
       if (s.state === "working" || (s.state === "waiting" && now - Date.parse(s.since) < STILL_WAITING)) {
-        out.push({ key: "c" + s.id, type: "claude", title: cleanPrompt(s.prompt) || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait",
+        out.push({ key: "c" + s.id, type: "claude", title: cleanPrompt(s.prompt) || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait", request: s.request || "",
           action: s.state === "working" ? s.action || "" : "", since: s.since, project: s.project, model: s.model, tokens: s.tokens,
           subagents: (s.agents || []).map((x) => ({ kind: x.kind, state: x.state, description: x.description })), skills: s.skills || [], href: "#/escritorio" });
       }
@@ -1751,6 +1751,7 @@
   }
   const shortModel = (m) => { const x = String(m || "").match(/opus|sonnet|haiku|fable/i); return x ? x[0][0].toUpperCase() + x[0].slice(1).toLowerCase() : ""; };
   const kTokens = (n) => (n > 0 ? (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.max(1, Math.round(n / 1e3))}k`) + " tok" : "");
+  const PILLS = true; // false brings back the big card over each working agent
   function labelOf(a) {
     if (!a.job) {
       const say = a === hovered || a === focus || a === talker || (panel && panel.ref === a);
@@ -1759,8 +1760,9 @@
     const st = stateOf(a), [word, color] = WORD[st], j = a.job;
     const chips = [...(j.skills || []).map((s) => "/" + s), ...(j.subagents || []).filter((x) => x.state === "working").map((x) => x.kind), ...(j.type === "sub" ? [j.kind] : [])];
     const now = a.fetching ? t("a buscar /{s} ao arsenal", { s: a.fetching }) : a.reading ? t("a levar as notas da Memória") : j.action || "";
-    // on a phone a card would hide the cave: one line, the state's dot, the name and the start of the request
-    if (narrow) { const s = String(j.title || ""); return { pill: true, name: a.name, word: s.length > 22 ? s.slice(0, 21).trimEnd() + "…" : s, color }; }
+    // a card per agent hid half the cave (David, 8 out): one line, the state's dot, the name and the start of the request.
+    // The whole request, who asked and what is in use are a click away, in the agent's panel.
+    if (PILLS) { const s = String(j.title || ""), n = narrow ? 22 : 32; return { pill: true, name: a.name, word: s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s, color }; }
     return { name: a.name, sector: t(a.what), word: t(st === j.state && j.word ? j.word : word), color, title: j.title, now,
       ask: partnerOf(j.who), meta: [j.project, j.since ? ago(j.since) : "", shortModel(j.model), kTokens(j.tokens)].filter(Boolean).join(" · "),
       chips: [...new Set(chips.filter(Boolean))], progress: j.type === "task" && j.progress > 0 ? j.progress : null };
@@ -2377,9 +2379,10 @@
     const status = tk ? tk.status : j.status;
     const ctl = j.type === "task" ? (["IN_PROGRESS", "WAITING_APPROVAL", "NEEDS_HELP"].includes(status) ? [["pause", "Pausar", "pause"], ["stop", "Parar", "stop"]] : status === "PAUSED" ? [["resume", "Retomar", "play"], ["stop", "Parar", "stop"]] : []) : [];
     const cost = tk && tk.ai_cost_usd != null ? `≈ $${tk.ai_cost_usd.toFixed(2)}` : j.tokens ? `${fmt.tokens(j.tokens)} tokens` : "—";
-    const text = (tk && tk.description) || j.description;
+    const text = (tk && tk.description) || j.description || (j.request !== j.title && j.request) || "";
+    const short = j.request && j.title.length > 90 ? j.title.slice(0, 89).trimEnd() + "…" : j.title;
     return `${head}<section class="cp-sec cp-mission"><small class="cp-k">${esc(t(j.type === "task" ? "Missão" : j.type === "sub" ? "Missão de subagente" : "Pedido ao Claude"))}</small>
-        <h4>${esc(j.title)}</h4>${text ? `<p>${esc(text.slice(0, 280))}</p>` : ""}</section>
+        <h4>${esc(short)}</h4>${text ? `<p class="cp-req">${esc(text)}</p>` : ""}</section>
       <section class="cp-tele">${gauge(pct, color, pct == null)}
         <div class="cp-stats">
           <div><small>${esc(t("Tempo"))}</small><b class="mono" data-elapsed="${esc(j.since || "")}">${elapsed(j.since)}</b></div>

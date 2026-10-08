@@ -189,9 +189,10 @@ class TeamAgent:
         if task.get("requirements"):
             lines += ["", "Requirements:", *[f"- {r}" for r in task["requirements"]]]
         role = task.get("agent_role") or ""
-        if role == "custom" and task.get("agent_instructions"):
-            lines += ["", "How to work on this task:", task["agent_instructions"]]
-        elif role in ROLE_PROMPTS:
+        instructions = task.get("agent_instructions")
+        if instructions:  # whoever handed it over said how they want it done: that goes with any kind of agent
+            lines += ["", "How to work on this task:", instructions]
+        if role in ROLE_PROMPTS and not (role == "custom" and instructions):
             lines += ["", ROLE_PROMPTS[role]]
         if self._memory:
             lines += ["", "What the team already knows (the Hub's memory). Take it as given:",

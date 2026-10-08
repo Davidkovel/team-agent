@@ -1116,14 +1116,16 @@
   }
   // Who goes where, always by the same rule (docs/batcave-redesenho.md): a subagent by its kind, a request by its words,
   // anything else to Operations. If that sector's agent is busy, the most alike free colleague; nobody free, the queue.
+  // WORDS and ROLE_CREW are also in backend/app/crew.py (the Hub chooses with them when a task comes with nobody named):
+  // change both together.
   const word = (s) => new RegExp(`(?<![\\p{L}\\d])(${s})(?![\\p{L}\\d])`, "iu");
   const WORDS = [
-    ["catwoman", word("design\\p{L}*|página\\p{L}*|pagina\\p{L}*|cor|cores|layout|ecrã\\p{L}*|visual|ícone\\p{L}*|logo\\p{L}*|estilo\\p{L}*|css")],
+    ["catwoman", word("design\\p{L}*|página\\p{L}*|pagina\\p{L}*|cor|cores|layout|ecrã\\p{L}*|visual|ícone\\p{L}*|logo\\p{L}*|estilo\\p{L}*|css|bonit\\p{L}*|interface\\p{L}*|aba|abas|bot[ãa]o|bot[õo]es")],
     ["riddler", word("pesquis\\p{L}*|preço\\p{L}*|preco\\p{L}*|procur\\p{L}*|concorr\\p{L}*|fornecedor\\p{L}*")],
     ["robin", word("test\\p{L}*")],
     ["alfred", word("rever|revê|revisão|revisao|revis[ae]\\p{L}*|review")],
     ["joker", word("anúncio\\p{L}*|anuncio\\p{L}*|posts?|campanha\\p{L}*|instagram|tiktok|marketing|legenda\\p{L}*")],
-    ["batman", word("erro\\p{L}*|bug\\p{L}*|código|codigo|corrig\\p{L}*|implement\\p{L}*|script\\p{L}*")],
+    ["batman", word("erro\\p{L}*|bug\\p{L}*|código|codigo|corrig\\p{L}*|implement\\p{L}*|script\\p{L}*|automatiz\\p{L}*|backend|api")],
     ["lucius", word("onde está|onde esta|onde fica|explic\\p{L}*|como funciona")],
   ];
   const ROLE_CREW = { developer: "batman", research: "riddler", marketing: "joker", testing: "robin" };

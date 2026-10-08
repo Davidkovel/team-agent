@@ -38,8 +38,47 @@ def test_a_task_goes_to_a_crew_member_with_their_role(client):
     chosen = client.post("/api/tasks", headers=owner, json={"title": "Rever", "assignee": "owner", "crew": "alfred", "agent_role": "testing"}).json()
     assert chosen["agent_role"] == "testing"  # a role chosen by hand stays
     assert client.post("/api/tasks", headers=owner, json={"title": "X", "assignee": "owner", "crew": "bane"}).status_code == 422
-    plain = client.post("/api/tasks", headers=owner, json={"title": "Sem ninguém", "assignee": "owner"}).json()
-    assert plain["crew"] == ""
+    plain = client.post("/api/tasks", headers=owner, json={"title": "Sem ninguém", "assignee": "owner", "for_ai": False}).json()
+    assert plain["crew"] == "" and plain["crew_name"] == ""  # a task for a person stays with the person
+
+
+def test_a_task_for_the_office_goes_to_its_sector_by_itself(client):
+    owner = login(client, "owner")
+
+    def send(title, **more):
+        return client.post("/api/tasks", headers=owner, json={"title": title, "assignee": "owner", **more}).json()
+
+    def ask(**body):
+        return client.post("/api/tasks/route", headers=owner, json=body).json()
+
+    assert send("Fazer a página de preços mais bonita")["crew"] == "catwoman"
+    assert send("PESQUISAR fornecedores de café")["crew"] == "riddler"
+    assert send("Corrigir o bug do login")["crew"] == "batman"
+    assert send("Ver isto", description="Como funciona o sync entre os Hubs?")["crew"] == "lucius"  # the description counts too
+    ops = send("Organizar a semana")
+    assert ops["crew"] == "gordon" and ops["crew_name"] == "Gordon" and ops["agent_role"] == "custom" and ops["status"] == "ASSIGNED"
+    assert send("Qualquer coisa", agent_role="marketing")["crew"] == "joker"  # no word says the sector: the kind of agent does
+    assert send("O decorador novo")["crew"] == "gordon"  # "cor" inside another word is not the word
+
+    # asked while it is being written: who would take it and how much that person's agent has before it
+    before = ask(title="Testar o checkout")
+    assert before["crew"] == "robin" and before["name"] == "Robin" and before["what"] == "Testes" and before["for"]
+    send("Mais uma")
+    assert ask(title="Testar o checkout")["ahead"] == before["ahead"] + 1
+    assert ask(title="Testar o checkout", crew="alfred")["crew"] == "alfred"  # named by hand: that one
+    assert client.post("/api/tasks/route", headers=owner, json={"title": "X", "crew": "bane"}).status_code == 422
+    assert [c["id"] for c in client.get("/api/tasks/crew", headers=owner).json()] == list(crew.CREW)
+
+    # a task a person had, handed to the office: the office chooses, unless somebody is named
+    mine = send("Rever o contrato", for_ai=False)
+    assert ask(title=mine["title"], task_id=mine["id"])["ahead"] == ask(title="X")["ahead"]
+    given = client.post(f"/api/tasks/{mine['id']}/assign-ai", headers=owner, json={"instructions": "Só as cláusulas de preço"}).json()
+    assert given["crew"] == "alfred" and given["agent_role"] == "custom" and given["status"] == "ASSIGNED"
+    assert given["agent_instructions"] == "Só as cláusulas de preço"
+    other = send("Outra", for_ai=False)
+    named = client.post(f"/api/tasks/{other['id']}/assign-ai", headers=owner, json={"crew": "batman"}).json()
+    assert named["crew"] == "batman" and named["agent_role"] == "developer"
+    assert client.post(f"/api/tasks/{send('Z', for_ai=False)['id']}/assign-ai", headers=owner, json={"crew": "bane"}).status_code == 422
 
 
 def test_the_briefing_says_who_they_are_and_what_the_team_knows(client):

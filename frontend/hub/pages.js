@@ -78,7 +78,7 @@ function taskCard(x) {
     ${x.stage === "in_progress" || (x.progress > 0 && x.stage !== "done") ? ui.progress(x.progress, "ai") : ""}
     ${x.group ? `<span class="tk-who">${esc(whoLeft(x.group))}</span>` : ""}
     <div class="tk-foot">${stack}<span class="grow ell">${esc(x.project_name || x.project || "")}</span>
-      ${x.agent_role ? ui.tag("IA", "ai") : ""}${x.priority === "low" ? ui.tag(t(PRIORITY[x.priority]), x.priority) : ""}
+      ${x.crew_name ? ui.tag(x.crew_name, "ai") : x.agent_role ? ui.tag("IA", "ai") : ""}${x.priority === "low" ? ui.tag(t(PRIORITY[x.priority]), x.priority) : ""}
       ${x.deadline ? ui.tag(fmt.date(x.deadline), late ? "bad" : "") : ""}</div></article>`;
 }
 
@@ -121,6 +121,7 @@ function tlRow(x) {
   const co = companies.find((c) => c.id === x.company)?.name;
   const meta = [co ? `<span class="tl-co">${esc(co)}</span>` : "", x.project_name ? esc(x.project_name) : "",
     x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : done ? (x.completed_by ? `<span class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</span>` : "") : esc(nameOf(x.assignee)),
+    !done && x.crew_name ? `<em class="ai">${esc(x.crew_name)}</em>` : "",
     done ? (x.completed_at ? `${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : "") : tlWhen(x),
     x.stage === "in_progress" ? `<em class="ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="late">${t("Bloqueada")}</em>` : ""].filter(Boolean);
   const check = done ? `<span class="tl-check">${icon("tick")}</span>`
@@ -327,30 +328,132 @@ const taskBody = (v) => ({ title: v.title.trim(), description: v.description, as
   project_id: v.project_id ? Number(v.project_id) : null, company: v.company || null,
   deadline: v.deadline ? new Date(v.deadline).toISOString() : null, git_branch: v.git_branch || "" });
 
+/* ---- sending work. One window, made to direct it: what, who does it, for when. "Quem faz" is the office (the agents do
+   it alone, at once, and the Hub says which of them by the words of the task) or a person (it waits in "Por fazer").
+   The form before this one was a grid of eleven fields with a list of "kinds of agent". ---- */
+const CREW_ICON = { batman: "code", lucius: "gear", riddler: "search", catwoman: "layers", joker: "trend", alfred: "check", robin: "target", gordon: "tasks" };
+let officeCrew = null;
+const loadCrew = async () => (officeCrew ||= await api("/api/tasks/crew"));
+// Who of the office: "Automático" (the Hub chooses, crew.py) or one of them by name; under it, the line that says who takes it
+const crewPicker = (crew, chosen = "") => `<div class="cmp-crew" role="radiogroup" aria-label="${esc(t("Quem do escritório"))}">
+    <label class="cmp-ag auto"><input type="radio" name="crew" value="" ${chosen ? "" : "checked"}><span>${icon("bolt")}<b>${t("Automático")}</b><em>${t("O escritório escolhe")}</em></span></label>
+    ${crew.map((c) => `<label class="cmp-ag" data-crew="${esc(c.id)}"><input type="radio" name="crew" value="${esc(c.id)}" ${chosen === c.id ? "checked" : ""}><span>${icon(CREW_ICON[c.id] || "bot")}<b>${esc(c.name)}</b><em>${esc(t(c.what))}</em></span></label>`).join("")}</div>
+  <p class="cmp-route idle" data-route aria-live="polite"></p>`;
+// The line under the picker, asked of the Hub while the task is written: the answer is the one the task gets when it is
+// sent. `ask()` gives what to ask; the returned function is called on every change (it waits for a pause in the typing).
+function routeWatch(form, ask) {
+  const line = form.querySelector("[data-route]");
+  let timer = 0, turn = 0;
+  const paint = (r, q) => {
+    form.querySelectorAll(".cmp-ag.would").forEach((el) => el.classList.remove("would"));
+    line.classList.toggle("idle", !r);
+    if (!r) { line.textContent = t("Escreve a tarefa: o escritório diz logo quem a faz."); return; }
+    if (!q.crew) form.querySelector(`.cmp-ag[data-crew="${r.crew}"]`)?.classList.add("would");
+    line.innerHTML = `${icon(CREW_ICON[r.crew] || "bot")}<span>${t("Vai para")} <b>${esc(r.name)}</b> · ${esc(t(r.what))}</span>
+      <em>${esc(r.ahead ? t(r.ahead === 1 ? "1 tarefa à frente no agente de {p}" : "{n} tarefas à frente no agente de {p}", { n: r.ahead, p: r.for }) : t("nada à frente no agente de {p}", { p: r.for }))}</em>`;
+  };
+  const say = async () => {
+    const my = ++turn, q = ask();
+    if (!q.title && !q.crew) return paint(null);
+    try { const r = await api("/api/tasks/route", { method: "POST", body: q }); if (my === turn && line.isConnected) paint(r, q); }
+    catch { if (my === turn) paint(null); }
+  };
+  return (now = false) => { clearTimeout(timer); timer = setTimeout(say, now ? 0 : 220); };
+}
+const cmpHead = (ic, title) => `<header class="cmp-head"><span>${icon(ic)}${esc(t(title))}</span><button type="button" class="btn quiet sm" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>`;
+
 async function newTask(preset = {}) {
-  const [users, projects] = await Promise.all([api("/api/users"), api("/api/projects")]);
-  formModal("Nova tarefa", taskFields(preset, users, projects, true)
-    + field("Quem a faz", `<select name="for_ai">${options([["", t("Uma pessoa (fica em Por fazer)")], ...Object.entries(ROLES).filter(([k]) => k !== "custom").map(([k, v]) => [k, `${t("IA")}: ${t(v)}`])], preset.for_ai || "")}</select>`, true),
-  async (v) => {
-    if (!v.assignee) throw new Error(t("Escolhe pelo menos uma pessoa."));
-    if (!v.due_pick) throw new Error(t("Diz para quando é a tarefa (ou escolhe «Sem prazo»)."));
-    if (v.due_pick === "data" && !v.deadline) throw new Error(t("Escolhe a data do prazo."));
-    const created = await api("/api/tasks", { method: "POST", body: { ...taskBody(v), for_ai: !!v.for_ai, agent_role: v.for_ai || "" } });
-    flash(v.assignee === "all" ? t("Tarefa enviada a todos.") : v.assignee.includes(",") ? t("Tarefa enviada a {n} pessoas.", { n: v.assignee.split(",").length }) : t("Tarefa criada."));
-    loadBoard();
-    return created;
-  }, { submit: "Criar tarefa", wide: true });
+  const [users, projects, crew] = await Promise.all([api("/api/users"), api("/api/projects"), loadCrew()]);
+  let kept = "";
+  try { kept = localStorage.getItem("hub.taskMode") || ""; } catch { /* private window: it starts on "Pessoa" */ }
+  const mode = preset.for_ai || preset.crew ? "office" : preset.assignee ? "person" : kept === "office" ? "office" : "person";
+  const pick = (name, value, label, on) => `<label class="who-opt"><input type="radio" name="${name}" value="${esc(value)}" ${on ? "checked" : ""}><span>${esc(label)}</span></label>`;
+  openModal(`<form class="cmp" id="cmp" autocomplete="off" data-mode="${mode}">
+    ${cmpHead("plus", "Nova tarefa")}
+    <input class="cmp-title" name="title" maxlength="200" placeholder="${esc(t("O que é preciso fazer?"))}" value="${esc(preset.title || "")}" aria-label="${esc(t("Título"))}">
+    <textarea class="cmp-desc" name="description" rows="2" placeholder="${esc(t("Pormenores, links, o que tem de ficar feito (opcional)"))}" aria-label="${esc(t("Descrição"))}">${esc(preset.description || "")}</textarea>
+    <section class="cmp-sec"><h4>${t("Quem faz")}</h4>
+      <div class="cmp-mode" role="radiogroup" aria-label="${esc(t("Quem faz"))}">
+        <label><input type="radio" name="mode" value="office" ${mode === "office" ? "checked" : ""}><span><i>${icon("bot")}</i><b>${t("Escritório")}</b><em>${t("Os agentes fazem sozinhos, já")}</em></span></label>
+        <label><input type="radio" name="mode" value="person" ${mode === "person" ? "checked" : ""}><span><i>${icon("users")}</i><b>${t("Pessoa")}</b><em>${t("Fica em «Por fazer» até alguém a fazer")}</em></span></label></div>
+      <div class="cmp-pane" data-pane="office">${crewPicker(crew, preset.crew || "")}
+        ${me.lead && users.length > 1 ? `<div class="cmp-line"><span>${t("No computador de")}</span><div class="who">${users.map((u) => pick("pc", u.username, u.display_name, u.username === me.username)).join("")}</div></div>` : ""}</div>
+      <div class="cmp-pane" data-pane="person">${whoPicker(users, preset.assignee || me.username)}${me.lead ? "" : `<p class="cmp-note">${t("Fica contigo, em «Por fazer».")}</p>`}</div>
+    </section>
+    <section class="cmp-sec cmp-two">${duePicker()}
+      <div class="field"><span>${t("Prioridade")}</span><div class="who">${Object.entries(PRIORITY).map(([k, v]) => pick("priority", k, t(v), k === (preset.priority || "normal"))).join("")}</div></div>
+    </section>
+    <details class="cmp-more" ${preset.project_id || preset.company ? "open" : ""}><summary>${icon("sliders")}${t("Projeto, empresa e branch")}</summary><div class="form-grid">
+      ${field("Projeto", `<select name="project_id">${options([["", t("Sem projeto")], ...projects.map((p) => [p.id, p.name])], preset.project_id)}</select>`)}
+      ${field("Empresa", `<select name="company">${options([["", t("Sem empresa")], ...companies.map((c) => [c.id, c.name])], preset.company)}</select>`)}
+      ${field("Branch de git", `<input name="git_branch" placeholder="ex: checkout-fix">`, true)}</div></details>
+    <p class="error" id="cmp-error"></p>
+    <footer class="cmp-foot"><span class="cmp-key">${t("Ctrl + Enter envia")}</span><button type="button" class="btn quiet" data-close>${t("Cancelar")}</button><button class="btn primary" id="cmp-go"></button></footer></form>`);
+  const form = $("cmp"), go = $("cmp-go"), fail = $("cmp-error");
+  $("modal-box").classList.add("cmp-box");
+  const read = () => Object.fromEntries(new FormData(form).entries());
+  const watch = routeWatch(form, () => { const v = read(); return { title: v.title.trim(), description: v.description, crew: v.crew || "", assignee: v.pc || me.username }; });
+  const sync = (now) => {
+    const v = read();
+    form.dataset.mode = v.mode;
+    go.innerHTML = v.mode === "office" ? `${esc(t("Mandar para o escritório"))}${icon("arrow")}` : `${icon("plus")}${esc(t("Criar tarefa"))}`;
+    if (v.mode === "office") watch(now === true);
+  };
+  form.addEventListener("input", sync);
+  form.elements.title.onkeydown = (e) => { if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); form.elements.description.focus(); } };
+  form.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); } };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const v = read(), office = v.mode === "office";
+    fail.textContent = "";
+    try {
+      if (!v.title.trim()) { form.elements.title.focus(); throw new Error(t("Escreve o que é preciso fazer.")); }
+      if (!office && !v.assignee) throw new Error(t("Escolhe pelo menos uma pessoa."));
+      if (!office && !v.due_pick) throw new Error(t("Diz para quando é a tarefa (ou escolhe «Sem prazo»)."));
+      if (v.due_pick === "data" && !v.deadline) throw new Error(t("Escolhe a data do prazo."));
+      go.disabled = true;
+      const assignee = office ? v.pc || me.username : v.assignee;
+      const made = await api("/api/tasks", { method: "POST", body: { ...taskBody({ ...v, assignee }), for_ai: office, crew: office ? v.crew || "" : "" } });
+      try { localStorage.setItem("hub.taskMode", v.mode); } catch { /* private window: it just is not remembered */ }
+      flash(office ? t("Mandada para o escritório: {n} · {s}.", { n: made.crew_name, s: t(made.crew_what) })
+        : assignee === "all" ? t("Tarefa enviada a todos.") : assignee.includes(",") ? t("Tarefa enviada a {n} pessoas.", { n: assignee.split(",").length }) : t("Tarefa criada."));
+      closeModal();
+      loadBoard();
+    } catch (err) { fail.textContent = err.message; go.disabled = false; }
+  };
+  sync(true);
+  form.elements.title.focus();
 }
 
-function assignToAI(x) {
-  formModal("Entregar à IA", field("Tipo de agente", `<select name="role">${options(Object.entries(ROLES).map(([k, v]) => [k, t(v)]), x.agent_role || "developer")}</select>`, true)
-    + field("Instruções (obrigatórias no agente à medida)", `<textarea name="instructions" placeholder="${t("Como deve trabalhar nesta tarefa")}">${esc(x.agent_instructions || "")}</textarea>`, true)
-    + `<p class="dim wide" style="margin:0">${t("A tarefa vai para o agente local de {nome}. Ele arranca o Claude, pode usar subagentes, e pede aprovação antes de qualquer ação sensível.", { nome: nameOf(x.assignee) })}</p>`,
-  async (v) => {
-    await api(`/api/tasks/${x.id}/assign-ai`, { method: "POST", body: { role: v.role, instructions: v.instructions } });
-    flash(t("Entregue ao agente."));
-    loadBoard(); openTaskModal(x.id);
-  }, { submit: "Entregar" });
+// A task that exists, handed to the office: the same picker, with the task's own words deciding when nobody is named.
+async function assignToAI(x) {
+  const crew = await loadCrew();
+  openModal(`<form class="cmp" id="cmp" autocomplete="off" data-mode="office">
+    ${cmpHead("bot", "Entregar ao escritório")}
+    <h3 class="cmp-what">${esc(x.title)}</h3>
+    <section class="cmp-sec"><h4>${t("Quem faz")}</h4><div class="cmp-pane">${crewPicker(crew, x.crew || "")}</div></section>
+    <section class="cmp-sec">${field("Instruções para o agente (opcional)", `<textarea name="instructions" placeholder="${esc(t("Como deve trabalhar nesta tarefa"))}">${esc(x.agent_instructions || "")}</textarea>`)}
+      <p class="cmp-note">${esc(t("Corre no agente local de {nome}: arranca o Claude sozinho, pode usar subagentes e pede aprovação antes de qualquer ação sensível.", { nome: nameOf(x.assignee) }))}</p></section>
+    <p class="error" id="cmp-error"></p>
+    <footer class="cmp-foot"><span class="cmp-key">${t("Ctrl + Enter envia")}</span><button type="button" class="btn quiet" data-close>${t("Cancelar")}</button><button class="btn primary" id="cmp-go">${esc(t("Entregar"))}${icon("arrow")}</button></footer></form>`);
+  const form = $("cmp"), go = $("cmp-go");
+  $("modal-box").classList.add("cmp-box");
+  const read = () => Object.fromEntries(new FormData(form).entries());
+  const watch = routeWatch(form, () => ({ title: x.title, description: x.description || "", crew: read().crew || "", assignee: x.assignee, task_id: x.id }));
+  form.addEventListener("change", () => watch(true));
+  form.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); } };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const v = read();
+    go.disabled = true;
+    try {
+      const given = await api(`/api/tasks/${x.id}/assign-ai`, { method: "POST", body: { crew: v.crew || "", instructions: v.instructions } });
+      flash(t("Entregue ao escritório: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) }));
+      closeModal();
+      loadBoard(); openTaskModal(x.id);
+    } catch (err) { $("cmp-error").textContent = err.message; go.disabled = false; }
+  };
+  watch(true);
 }
 
 // A task's text, made to be read: what people type as plain lines becomes paragraphs, numbered and dotted lists, small
@@ -400,11 +503,12 @@ async function openTaskModal(id) {
     x.priority && x.priority !== "normal" ? fact(icon("flag"), "Prioridade", t(PRIORITY[x.priority]), x.priority === "urgent" ? "bad" : x.priority === "high" ? "warn" : "dim") : "",
     x.project_name || x.project ? fact(icon("folder"), "Projeto", esc(x.project_name || x.project)) : "",
     company ? fact(icon("building"), "Empresa", esc(company)) : "",
-    x.agent_role ? fact(icon("bot"), "Agente", esc(t(ROLES[x.agent_role]))) : "",
+    x.crew_name ? fact(icon(CREW_ICON[x.crew] || "bot"), "Agente", `${esc(x.crew_name)} · ${esc(t(x.crew_what))}`)
+      : x.agent_role ? fact(icon("bot"), "Agente", esc(t(ROLES[x.agent_role]))) : "",
     x.created_by ? fact(icon("clock"), "Pedida por", `${esc(nameOf(x.created_by))} · ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}`, "dim") : "",
     x.stage === "done" && !group && x.completed_by ? fact(icon("check"), "Concluída por", `${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : ""}`, "ok") : ""].filter(Boolean).join("");
   const steps = x.events.filter((e) => e.kind !== "note");
-  const buttons = `${canGiveToAI(x) ? ui.btn("Entregar à IA", "data-act=ai", "", "bot") : ""}
+  const buttons = `${canGiveToAI(x) ? ui.btn("Entregar ao escritório", "data-act=ai", "", "bot") : ""}
     ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
     ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
     ${!held && x.stage !== "done" ? ui.btn("Concluir", "data-act=done", "ok", "check") : ""}

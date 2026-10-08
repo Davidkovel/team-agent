@@ -6,6 +6,7 @@ task starts with a briefing from the Hub: who they are, what the team knows (the
 what the crew finished lately and what this one did before. When a task is finished, a note goes into the Memória
 (category TAREFAS), so the next run of any of them knows it too.
 """
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -44,6 +45,29 @@ CREW: dict[str, dict] = {
                           "small fixes, chasing the loose ends. Practical; you close tasks."},
 }
 
+# Who takes a task nobody named: the words of the request say the sector, else the kind of agent asked for, else Operations.
+# The same lists as WORDS and ROLE_CREW in frontend/hub/crew.js (the Batcave draws with them): change both together.
+_L = r"[^\W\d_]*"   # the rest of a word: "pesquis" + this takes pesquisa, pesquisar, pesquisas
+
+
+def _words(*stems: str) -> re.Pattern:
+    return re.compile(rf"(?<![^\W_])(?:{'|'.join(stems)})(?![^\W_])".replace("~", _L), re.IGNORECASE)
+
+
+WORDS: list[tuple[str, re.Pattern]] = [
+    ("catwoman", _words("design~", "página~", "pagina~", "cor", "cores", "layout", "ecrã~", "visual", "ícone~", "logo~", "estilo~", "css",
+                        "bonit~", "interface~", "aba", "abas", "bot[ãa]o", "bot[õo]es")),
+    ("riddler", _words("pesquis~", "preço~", "preco~", "procur~", "concorr~", "fornecedor~")),
+    ("robin", _words("test~")),
+    ("alfred", _words("rever", "revê", "revisão", "revisao", "revis[ae]~", "review")),
+    ("joker", _words("anúncio~", "anuncio~", "posts?", "campanha~", "instagram", "tiktok", "marketing", "legenda~")),
+    ("batman", _words("erro~", "bug~", "código", "codigo", "corrig~", "implement~", "script~", "automatiz~", "backend", "api")),
+    ("lucius", _words("onde está", "onde esta", "onde fica", "explic~", "como funciona")),
+]
+ROLE_CREW = {"developer": "batman", "research": "riddler", "marketing": "joker", "testing": "robin"}
+# with the agent (waiting for it, running, or stopped half way): what is ahead of a task that arrives now
+WITH_AGENT = ("ASSIGNED", "IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP")
+
 MEMORY_CATEGORY = "TAREFAS"
 MEMORY_KEEP = 15  # the TAREFAS notes a task's prompt gets: the newest ones (the Memória page still shows them all)
 
@@ -54,6 +78,23 @@ def role_of(crew_id: str | None) -> str:
 
 def name_of(crew_id: str | None) -> str:
     return CREW[crew_id]["name"] if crew_id in CREW else ""
+
+
+def sector_of(title: str | None, description: str | None = "", role: str | None = "") -> str:
+    """The crew member whose sector a request belongs to."""
+    text = f"{title or ''} {description or ''}"
+    return next((who for who, words in WORDS if words.search(text)), None) or ROLE_CREW.get(role or "") or "gordon"
+
+
+async def route(db: AsyncSession, person: User, title: str, description: str = "", role: str = "", crew_id: str = "",
+                but: int | None = None) -> dict:
+    """Where a task sent to the office goes: the crew member (the one asked for, else the sector's) and how many tasks that
+    person's agent has before it. An agent runs one task at a time, so a busy one means a queue, not another character:
+    the task waits for the one who knows that kind of work and keeps their conversation."""
+    who = crew_id if crew_id in CREW else sector_of(title, description, role)
+    ahead = (await db.execute(select(Task.id).where(Task.assignee_id == person.id, Task.status.in_(WITH_AGENT),
+                                                    Task.trashed_at.is_(None), Task.id != (but or 0)))).scalars().all()
+    return {"crew": who, "name": CREW[who]["name"], "what": CREW[who]["what"], "ahead": len(ahead), "for": person.display_name}
 
 
 def _short(text: str | None, size: int) -> str:

@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import hub, push
+from .. import crew as office
 from ..crew import CREW, role_of
 from ..db import get_db
 from ..models import Activity, AgentSession, Approval, Project, Task, TaskEvent, UsageRecord, User
@@ -38,7 +39,10 @@ class TaskCreate(BaseModel):
     agent_role: Role | Literal[""] = ""
     # True: the assignee's agent picks it up at once (how tasks always worked). False: it waits in "to do" for a person.
     for_ai: bool = True
-    crew: str = ""  # a member of the crew (crew.CREW) does it, as themselves
+    # A member of the crew (crew.CREW) does it, as themselves. Left empty on a task for the AI, the office chooses: the
+    # sector of the request (crew.sector_of).
+    crew: str = ""
+    git_branch: str = ""
 
 
 class TaskEdit(BaseModel):
@@ -57,8 +61,18 @@ class TaskEdit(BaseModel):
 
 
 class AssignAI(BaseModel):
-    role: Role
+    role: Role | None = None   # left out: the role of whoever takes it
+    crew: str = ""             # who does it; empty: the office chooses by the task's words
     instructions: str = ""
+
+
+class RouteAsk(BaseModel):
+    title: str = ""
+    description: str = ""
+    assignee: str = ""          # whose agent runs it (a login); empty: the asker's
+    crew: str = ""
+    role: Role | Literal[""] = ""
+    task_id: int | None = None  # a task that already exists and is being handed over: not counted as ahead of itself
 
 
 class Control(BaseModel):
@@ -140,11 +154,30 @@ async def create_task(body: TaskCreate, user: User = Depends(current_user), db: 
     await _check_links(db, body.company, body.project_id)
     if body.crew and body.crew not in CREW:
         raise HTTPException(422, "Unknown crew member")
+    if body.for_ai and not body.crew:
+        body.crew = office.sector_of(body.title, body.description, body.agent_role)
     if body.crew and not body.agent_role:
         body.agent_role = role_of(body.crew)
     tasks = [await _create(db, body, person, user) for person in assignees]
     await _announce(db, user, tasks, everybody)
     return task_out(next((t for t in tasks if t.assignee_id == user.id), tasks[0]))
+
+
+@router.get("/crew")
+async def crew_list(user: User = Depends(current_user)):
+    """The office: who a task can be sent to, in the order of their desks."""
+    return [{"id": cid, "name": c["name"], "what": c["what"], "role": c["role"]} for cid, c in CREW.items()]
+
+
+@router.post("/route")
+async def route_ask(body: RouteAsk, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Who would take this, said while it is being written: the same answer the task gets when it is sent."""
+    if body.crew and body.crew not in CREW:
+        raise HTTPException(422, "Unknown crew member")
+    person = user
+    if body.assignee and body.assignee != user.username:
+        person = (await db.execute(select(User).where(User.username == body.assignee))).scalar_one_or_none() or user
+    return await office.route(db, person, body.title, body.description, body.role, body.crew, body.task_id)
 
 
 @router.get("")
@@ -336,19 +369,23 @@ async def delete_trashed(task_id: int, user: User = Depends(current_user), db: A
 
 @router.post("/{task_id}/assign-ai")
 async def assign_ai(task_id: int, body: AssignAI, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    """Hand the task to the assignee's Local Team Agent, as the kind of agent chosen."""
+    """Hand the task to the office: the assignee's Local Team Agent runs it as the crew member chosen, or as the one whose
+    sector the task's words say."""
     task = await get_task(task_id, user, db)
     if task.trashed_at is not None:
         raise HTTPException(409, "This task is in the bin: recover it first")
     if task.status in HELD_BY_AGENT or task.status in ("ASSIGNED", "PAUSED", "NEEDS_HELP"):
         raise HTTPException(409, "This task is already with the agent")
-    if body.role == "custom" and not body.instructions.strip():
+    if body.crew and body.crew not in CREW:
+        raise HTTPException(422, "Unknown crew member")
+    if body.role == "custom" and not body.crew and not body.instructions.strip():
         raise HTTPException(422, "A custom agent needs instructions")
-    task.agent_role, task.agent_instructions, task.status = body.role, body.instructions.strip(), "ASSIGNED"
+    task.crew = body.crew or office.sector_of(task.title, task.description, body.role)
+    task.agent_role, task.agent_instructions, task.status = body.role or role_of(task.crew), body.instructions.strip(), "ASSIGNED"
     task.completed_at, task.blocked_reason = None, ""
     await db.commit()
     await db.refresh(task)
-    await log_activity(db, user, "task_assigned", f"{user.display_name} entregou à IA ({body.role}): {task.title}", task.id)
+    await log_activity(db, user, "task_assigned", f"{user.display_name} entregou ao escritório ({office.name_of(task.crew)}): {task.title}", task.id)
     await rt.publish("task", task.assignee_id)
     await rt.publish("wake", task.assignee_id, "agent")
     return task_out(task)

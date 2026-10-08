@@ -690,3 +690,89 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .tk.doing { border-color: rgba(95, 224, 138, .45); box-shadow: 0 0 0 1px rgba(95, 224, 138, .18), 0 10px 26px -14px rgba(95, 224, 138, .5); }
 .trow.doing { box-shadow: inset 3px 0 0 #5fe08a; padding-left: 10px; background: linear-gradient(90deg, rgba(95, 224, 138, .09), transparent 70%); }
 .tv-doing.go { display: inline-flex; justify-self: start; }
+
+/* ---- The composer: the window a task is sent from (pages.js: newTask, assignToAI). One column, read from top to bottom:
+   what it is, who does it (the office or a person), for when. The route line says who of the office takes it. ---- */
+.modal-box.cmp-box { width: min(720px, 96vw); padding: 0; }
+.cmp { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 20px 24px 0; }
+.cmp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: -6px; }
+.cmp-head > span { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font: 600 11px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.cmp-head > span svg.i { width: 14px; height: 14px; }
+#modal .cmp-title, #modal .cmp-desc { width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--text); outline: none; box-shadow: none; }
+#modal .cmp-title { font: 500 29px/1.2 var(--serif, var(--display)); }
+#modal .cmp textarea.cmp-desc { min-height: 44px; margin-top: -10px; font: 14px/1.55 var(--ui); resize: none; }
+.cmp-title::placeholder, .cmp-desc::placeholder { color: var(--faint); }
+.cmp-what { margin: 0; font: 600 21px/1.3 var(--display); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.cmp-sec { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.cmp-sec h4, .cmp .field > span, .cmp-line > span { margin: 0; color: var(--muted); font: 600 11px var(--ui); letter-spacing: .1em; text-transform: uppercase; }
+.cmp-pane { display: grid; gap: 10px; }
+.cmp[data-mode="office"] [data-pane="person"], .cmp[data-mode="person"] [data-pane="office"] { display: none; }
+
+.cmp-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cmp-mode label, .cmp-ag { position: relative; cursor: pointer; }
+.cmp-mode input, .cmp-ag input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.cmp-mode span { display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 11px; align-items: center; padding: 11px 13px; border-radius: 12px;
+  border: 1px solid var(--line-2); background: var(--surface-2); transition: border-color .15s var(--ease), background .15s var(--ease); }
+.cmp-mode i { grid-row: 1 / 3; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--surface-3); color: var(--muted); }
+.cmp-mode i svg.i { width: 17px; height: 17px; }
+.cmp-mode b { font: 600 14px var(--ui); color: var(--text); }
+.cmp-mode em { grid-column: 2; color: var(--muted); font: normal 12px var(--ui); }
+.cmp-mode label:hover span { border-color: rgba(255, 255, 255, .26); }
+.cmp-mode input:checked + span { border-color: #eceef1; background: #171a1f; box-shadow: inset 0 0 0 1px #eceef1; }
+.cmp-mode input:checked + span i { background: #eceef1; color: #0a0b0d; }
+.cmp-mode input:focus-visible + span, .cmp-ag input:focus-visible + span { box-shadow: 0 0 0 3px rgba(var(--ai-rgb), .28); }
+
+.cmp-crew { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.cmp-ag span { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 10px; align-items: center; padding: 8px 11px; border-radius: 10px;
+  border: 1px solid var(--line); color: var(--muted); transition: border-color .15s var(--ease), background .15s var(--ease); }
+.cmp-ag span svg.i { grid-row: 1 / 3; width: 16px; height: 16px; }
+.cmp-ag b, .cmp-ag em { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cmp-ag b { font: 600 13px var(--ui); color: var(--text); }
+.cmp-ag em { grid-column: 2; font: normal 11.5px var(--ui); color: var(--faint); }
+.cmp-ag:hover span { border-color: rgba(255, 255, 255, .24); }
+.cmp-ag.would span { border-color: rgba(var(--ai-rgb), .65); background: rgba(var(--ai-rgb), .09); color: var(--ai); }
+.cmp-ag input:checked + span { background: #eceef1; border-color: #eceef1; color: #0a0b0d; }
+.cmp-ag input:checked + span b { color: #0a0b0d; }
+.cmp-ag input:checked + span em { color: #4a5059; }
+
+.cmp-route { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; min-height: 36px; margin: 0; padding: 8px 12px; border-radius: 10px;
+  background: rgba(var(--ai-rgb), .08); color: var(--muted); font-size: 12.5px; }
+.cmp-route.idle { padding-left: 0; background: transparent; color: var(--faint); }
+.cmp-route svg.i { flex: none; width: 15px; height: 15px; color: var(--ai); }
+.cmp-route b { color: var(--text); font-weight: 600; }
+.cmp-route em { margin-left: auto; color: var(--faint); font-style: normal; }
+.cmp-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cmp-note { margin: 0; color: var(--muted); font-size: 12.5px; }
+.cmp-two { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.cmp-two .due-own { margin-top: 2px; }
+.cmp-more { padding-top: 14px; border-top: 1px solid var(--line); }
+.cmp-more summary { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; color: var(--muted); font: 500 12.5px var(--ui); list-style: none; }
+.cmp-more summary::-webkit-details-marker { display: none; }
+.cmp-more summary svg.i { width: 14px; height: 14px; }
+.cmp-more summary:hover { color: var(--text); }
+.cmp-more[open] summary { margin-bottom: 12px; }
+.cmp .error { margin: 0; }
+.cmp .error:empty { display: none; }
+.cmp-foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; margin: 0 -24px; padding: 12px 24px; border-top: 1px solid var(--line); background: #0f1215; }
+.cmp-key { margin-right: auto; color: var(--faint); font-size: 11.5px; }
+.cmp-foot .btn { display: inline-flex; align-items: center; gap: 7px; }
+@media (max-width: 640px) {
+  .cmp { gap: 14px; padding: 16px 16px 0; }
+  #modal .cmp-title { font-size: 20px; }
+  .cmp-crew { grid-template-columns: 1fr 1fr; }
+  .cmp-ag.auto { grid-column: 1 / -1; }
+  .cmp-mode em, .cmp-key { display: none; }
+  .cmp-two { grid-template-columns: 1fr; }
+  .cmp-route em { margin-left: 0; }
+  .cmp-foot { margin: 0 -16px; padding: 10px 16px; }
+  .cmp-foot .btn.primary { flex: 1; justify-content: center; }
+}
+/* on the phone a window is a sheet with its own padding and its own big fields (mobile.css): the composer keeps its
+   bare title and text, and its foot sticks to the bottom of the sheet like a form's */
+html.is-phone .cmp { gap: 14px; padding: 0; }
+html.is-phone #modal .cmp-title { min-height: 0; padding: 0; border-radius: 0; background: transparent; font: 600 22px/1.25 var(--ui) !important; }
+html.is-phone #modal .cmp textarea.cmp-desc { min-height: 48px; margin-top: -6px; padding: 0; border-radius: 0; background: transparent; }
+html.is-phone .modal-box h3.cmp-what { margin: 0; text-align: left; font-size: 20px; line-height: 1.3; }
+html.is-phone .cmp-head .btn { min-height: 34px; padding: 0 9px; }
+html.is-phone .cmp-foot { z-index: 2; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; margin: 4px -16px calc(-1 * (var(--m-bottom) + 16px));
+  padding: 12px 16px calc(var(--m-bottom) + 16px); border-top: .5px solid rgba(255, 255, 255, .08); background: var(--m-sheet); }

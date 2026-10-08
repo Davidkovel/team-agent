@@ -8,6 +8,7 @@ from .config import settings
 from .models import (TASK_STAGE, Activity, AgentSession, AgentState, Approval, Meter, Notification, Subagent, Task, TaskEvent,
                      UsageRecord, User)
 from . import hub, push, sync
+from .crew import CREW, name_of
 from .realtime import rt
 from .security import sees_all
 
@@ -32,6 +33,7 @@ def task_out(t: Task, completed_by: str | None = None) -> dict:
         "company": t.company or (t.project if t.project in hub.companies() else None),
         "project_id": t.project_id, "project_name": t.project_ref.name if t.project_ref else "",
         "agent_role": t.agent_role or "", "agent_instructions": t.agent_instructions or "", "crew": t.crew or "",
+        "crew_name": name_of(t.crew), "crew_what": CREW[t.crew]["what"] if t.crew in CREW else "",
         "git_branch": t.git_branch or "", "blocked_reason": t.blocked_reason or "",
         "trashed_at": iso(t.trashed_at), "trash_reason": t.trash_reason,
         "created_by": t.creator.username if t.creator else None,

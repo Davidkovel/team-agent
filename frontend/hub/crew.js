@@ -2282,7 +2282,7 @@
   function peek(a) {
     const st = stateOf(a), color = st === "idle" ? "#8b95a1" : (WORD[st] || [0, COLD])[1], j = a.job;
     const head = `<div class="pk-h"><img class="cr-px" src="${a.portrait}" alt=""><div><b>${esc(a.name)}</b><small>${esc(t(a.what))}</small></div>
-      <em style="--c:${color}"><i></i>${esc(t(st === "idle" ? "Livre" : WORD[st][0]))}</em></div>`;
+      <em style="--c:${color}"><i></i>${esc(t(st === "idle" ? "Livre" : (WORD[st] || [st])[0]))}</em></div>`;
     if (!j) return `${head}<p class="pk-idle">${esc(t("Sem missão · {w}", { w: t(idleWord(a)) }))}</p><small class="pk-hint">${esc(t("Clica para lhe dar uma missão"))}</small>`;
     const who = partnerOf(j.who), now = a.fetching ? t("a buscar /{s} ao arsenal", { s: a.fetching }) : a.reading ? t("a levar as notas da Memória") : j.action || "";
     const chips = [...(j.skills || []).map((s) => "/" + String(s).split(":").pop()), ...(j.subagents || []).filter((x) => x.state === "working").map((x) => x.kind)];

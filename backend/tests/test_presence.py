@@ -196,3 +196,32 @@ def test_the_team_sees_whether_someone_is_on_the_phone_or_the_computer(client):
             pc.send_text("ping")  # the next ping counts the computer too
             assert wait_for(lambda: where_of(client, owner, "mark") == ["pc", "phone"])
     assert wait_for(lambda: where_of(client, owner, "mark") == [])
+
+
+def seen_of(client, headers, username):
+    from datetime import datetime
+    m = next(m for m in client.get("/api/team", headers=headers).json() if m["user"] == username)
+    return datetime.fromisoformat(m["last_seen"]).timestamp() if m["last_seen"] else None
+
+
+def test_seen_is_when_they_left_not_when_they_came(client):
+    # 9 Oct: Kovel came online at 12:22, his Hub restarted for an update at 13:26 and the board said "visto há 1 h".
+    _, owner = login(client, "owner")
+    mtok, _ = login(client, "mark")
+    with client.websocket_connect(f"/ws?token={mtok}"):
+        assert wait_for(lambda: status_of(client, owner, "mark") == "ONLINE")
+        time.sleep(2.5)  # long enough for the watcher to have written the arrival down
+        left = time.time()
+    assert wait_for(lambda: status_of(client, owner, "mark") == "OFFLINE")
+    assert wait_for(lambda: (seen_of(client, owner, "mark") or 0) >= left - 0.5)
+
+
+def test_seen_counts_the_last_time_another_computer_vouched_for_them(client):
+    from app import sync
+    _, owner = login(client, "owner")
+    david_id = client.post("/api/auth/login", json={"username": "david", "password": "david-change-me"}).json()["user"]["id"]
+    sync.HEARD[david_id] = time.time()
+    try:
+        assert seen_of(client, owner, "david") >= time.time() - 5
+    finally:
+        sync.HEARD.pop(david_id, None)

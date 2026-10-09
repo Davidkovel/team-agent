@@ -169,6 +169,18 @@ def usage_fields(user_id: int, week_cost: dict, meters: dict, budget: float) -> 
             "higgsfield_pct": meters.get((user_id, "higgsfield"))}
 
 
+def last_seen(user_id: int, saved: AgentState | None) -> str | None:
+    """The latest moment anybody saw them: what the database says (their own computer writes when they leave, and it
+    arrives by sync) or, newer still, the last time their computer told this one they were online."""
+    seen = saved.last_seen if saved else None
+    if seen is not None and seen.tzinfo is None:
+        seen = seen.replace(tzinfo=timezone.utc)
+    heard = sync.HEARD.get(user_id)
+    if heard and (seen is None or heard > seen.timestamp()):
+        seen = datetime.fromtimestamp(heard, timezone.utc)
+    return iso(seen)
+
+
 async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
     """Owner and the agent's own user see full state; teammates see the
     permitted Team information only: status, task title, progress."""
@@ -187,7 +199,7 @@ async def team_view(db: AsyncSession, viewer: User) -> list[dict]:
             "task": presence.get("task", "") if presence else "",
             "progress": presence.get("progress", 0) if presence else 0,
             "where": (presence.get("where") or ["pc"]) if presence else [],  # an agent or an older Hub elsewhere: a computer
-            "last_seen": iso(saved.last_seen) if saved else None,
+            "last_seen": last_seen(u.id, saved),
             "doing": doing.get(u.id),  # the task they said "Estou a fazer" on, for everyone to see
             **usage_fields(u.id, week_cost, meters, budget),
         }

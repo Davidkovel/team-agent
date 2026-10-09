@@ -77,7 +77,7 @@ async def offline_watcher():
                 by_hub = ONLINE_VIA.pop(user_id, "agent") in SOFT_VIA
                 async with SessionLocal() as db:
                     user = await db.get(User, user_id)
-                    await save_agent_state(db, user_id, "OFFLINE", seen=False)
+                    await save_agent_state(db, user_id, "OFFLINE")  # "visto há" = when they left, not when they came
                     await log_activity(db, user, "hub_offline" if by_hub else "agent_offline",
                                        f"{user.display_name} saiu" if by_hub else f"{user.display_name} desligou o agente")
                 await rt.publish("presence", user_id, "team")

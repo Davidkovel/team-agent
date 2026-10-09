@@ -295,6 +295,7 @@ def _incoming(conn, ip: str, upto: int, more: bool, reply: dict) -> bool:
 
 
 PRESENCE_TTL = 20  # a few exchanges: a computer that goes off stops being heard and its person goes offline here
+HEARD: dict[int, float] = {}  # user id -> last time another computer said they were online there (for "visto há")
 
 
 async def _present() -> list[dict]:
@@ -309,6 +310,7 @@ async def _present() -> list[dict]:
 async def _hear(present: list[dict]):
     """Another computer says who is online there: they show online here too, for as long as it keeps saying so."""
     for p in present:
+        HEARD[p["user"]] = time.time()
         current = await rt.store.get_presence(p["user"])
         if current is not None and not current.get("remote"):
             continue  # that person is at this computer: what is known here is better

@@ -98,11 +98,20 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
 **Redesenhada a 7 out** a pedido do Marco e arrumada em duas páginas a 9 out (`docs/batcave-redesenho.md`: o que ele pediu, o
 que se fez e o que falta). Antes de mudar alguma coisa grande nestas páginas, lê esse ficheiro. Correm no mesmo motor (`crew.js`):
 
-- **Empresa AMG** (`#/empresa`; o `#/niggaz` antigo continua a abrir) **é a cave**, a página inteira. A ficha do agente aparece por
-  cima dela ao passar o rato (`.cr-side`). O botão **Mini janela** (`openMini`) põe a cave numa janela pequena por cima de tudo: no
-  widget pela `amg.openMini` (`widget/team_widget/ui/mini.py`, sempre por cima, guarda o sítio e o tamanho), no Chrome com
-  picture-in-picture, noutro browser numa janela pequena. A página com `?mini=1` (`html.is-mini`, posto no `app.js`) é só a cave
-  e uma linha de quem trabalha para quem, a menos imagens por segundo.
+- **Empresa AMG** (`#/empresa`; o `#/niggaz` antigo continua a abrir) **é a cave**, a página inteira. Ao passar o rato num agente
+  aparece um cartão pequeno ao lado do rato (`peek` no `crew.js`: nome, estado, meta, para quem, agora); a ficha grande à direita
+  (`.cr-side`) saiu a 9 out («parece uma janela que ocupa quase a tela toda... não é clean»). O botão **Mini janela** (`openMini`)
+  põe a cave numa janela pequena por cima de tudo: no widget pela `amg.openMini` (`widget/team_widget/ui/mini.py`, sempre por
+  cima, guarda o sítio e o tamanho), no Chrome com picture-in-picture, noutro browser numa janela pequena. A página com `?mini=1`
+  (`html.is-mini`, posto no `app.js`) é só a cave, a menos imagens por segundo, com uma barra fina com os números e um cartão em
+  baixo que mostra um a um quem trabalha, para quem e em quê (`paintMini`, um novo de 6 em 6 s; clicar abre a missão); por cima
+  dos agentes só os nomes, e as vistas aparecem com o rato. Os estilos da página e da mini janela estão no `crew.css` com
+  `#cr-cave` à frente.
+- **Janelas pequenas** (9 out, «quando mete a janela bem mais pequenina... buga-se tudo»): abaixo de 1100 px a barra lateral do
+  Hub fica em ícones e o Painel (`#hpanel`) só abre quando se pede, por cima, e fecha ao clicar fora (`shell.js`, `painel.js`; a
+  escolha feita numa janela grande fica guardada). A cave nunca passa do fundo: o HUD, a equipa e as vistas ficam sempre por cima
+  da imagem, mais pequenos (container queries no `crew.css`), e o `fitCave` volta a medir sempre que o espaço muda
+  (`ResizeObserver`). No telemóvel a equipa, as vistas e a legenda continuam por baixo da imagem.
 - **Escritório** (`#/escritorio`) **é a central de comando**: `frontend/hub/crew-board.js` + `crew-board.css`. Num ecrã só no PC
   (`.desk`, a partir de 760 px; cada coluna rola por dentro). Arrumado de novo a 9 out («completamente mal feito», «as câmaras
   apertadas», «quem está a trabalhar tem de estar sempre mais destacado»):

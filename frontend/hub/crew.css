@@ -430,6 +430,7 @@ html.is-phone .cp-send input { font-size: 16px; }
 #cr-cave .cx-acts .btn .i { width: 14px; height: 14px; }
 #cr-cave .cx-acts .btn span { display: inline; color: inherit; font: inherit; }
 html.is-phone #cr-cave .cx-acts { display: none; }   /* a phone has no window to float a mini cave over */
+html.is-phone #cr-cave .cr-cave-bar b { font-size: 24px; }
 #cr-cave .cr-cave-body { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; }
 #cr-cave .cr-stage { flex: none; touch-action: none; }
 #cr-cave .cr-tip { max-width: min(290px, calc(100cqw - 16px)); font-size: 12px; }

@@ -345,38 +345,10 @@ html:not(.is-phone) body:has(#cr-board) #ai-fab { right: 20px; }
 .cf-row p i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
 .cf-hint { margin: 10px 4px 0; color: #5f6874; font-size: 12px; line-height: 1.5; }
 
-/* ================================================================ the page Empresa AMG: the cave itself (crew.js) */
-.cr-host { position: relative; min-height: 420px; }
-.cr-cave { position: relative; display: flex; flex-direction: column; gap: 10px; height: 100%; }
-.cr-cave-bar { display: flex; align-items: center; gap: 14px; padding: 0 4px; }
-.cr-cave-bar > div { min-width: 0; }
-.cr-cave-bar small { display: block; color: #6b7380; font: 700 10px var(--ui); letter-spacing: .2em; text-transform: uppercase; }
-.cr-cave-bar b { display: block; font: 500 30px/1.05 var(--serif, var(--display)); color: #fff; }
-.cr-cave-bar span { color: #6b7380; font-size: 12.5px; }
-.cr-cave-bar .cx-acts { margin-left: auto; }
-.cr-cave-body { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; }
-.cr-cave .cr-stage { flex: none; touch-action: none; }
-/* the agent under the pointer, read large: a card over the cave, at its right, under the crew */
-.cr-side { position: absolute; z-index: 3; right: 14px; top: 160px; width: 340px; max-height: calc(100% - 230px); overflow-y: auto; scrollbar-width: thin; padding: 16px;
-  border-radius: 18px; pointer-events: none; opacity: 0; transform: translateX(10px); transition: opacity .18s ease, transform .18s ease;
-  background: rgba(10, 12, 16, .94); border: 1px solid rgba(255, 255, 255, .12); box-shadow: 0 24px 60px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .07); backdrop-filter: blur(8px); }
-.cr-side.on { opacity: 1; transform: none; }
-.cr-cave .cr-tip { max-width: 340px; font-size: 13.5px; }
-/* the mission panel: a drawer at the right, over the command centre and over the cave alike */
+/* the mission panel: a drawer at the right, over the command centre and over the cave alike (the cave's own page and
+   its mini window are styled in crew.css) */
 .cr-panel { position: fixed; top: 12px; right: 12px; bottom: 12px; z-index: 70; width: min(404px, calc(100% - 24px)); }
-@media (max-width: 700px) { .cr-panel { top: 0; right: 0; bottom: 0; width: 100%; border-radius: 0; } .cr-cave-bar span { display: none; } }
-/* the mini window (?mini=1): only the cave, at the size of the window, with a line of who is doing what */
-html.is-mini .cr-host { min-height: 0; }
-html.is-mini .cr-cave { gap: 0; }
-html.is-mini .cr-cave-bar, html.is-mini .cr-side, html.is-mini .cr-legend, html.is-mini .cr-crew, html.is-mini .cr-views, html.is-mini .cr-hud { display: none; }
-html.is-mini .cr-cave-body { align-items: center; background: #030407; }
-html.is-mini .cr-stage { border-radius: 0; border: 0; box-shadow: none; }
-.cr-ticker { display: none; }
-html.is-mini .cr-ticker { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: block; padding: 18px 12px 8px; pointer-events: none;
-  background: linear-gradient(0deg, rgba(0, 0, 0, .78), transparent); color: #dfe5ec; font: 600 12px/1.45 var(--ui); text-shadow: 0 1px 2px #000; }
-html.is-mini .cr-ticker p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-html.is-mini .cr-ticker i { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--p); }
-html.is-mini .cr-ticker em { font-style: normal; color: #8b95a1; }
+@media (max-width: 700px) { .cr-panel { top: 0; right: 0; bottom: 0; width: 100%; border-radius: 0; } }
 
 /* ================================================================ the phone: the command centre as an app with four tabs
    Agora (the day and the doors) · Câmaras (the monitor and the cameras, to swipe) · Sócios (one at a time) · Missões (send,
@@ -469,6 +441,3 @@ html.is-phone .cx-box { border-radius: 18px; }
 .cb-sheet .cf-grp > b { font-size: 13px; }
 /* the mission panel and the cave fill the phone, under the notch and over the tabs */
 html.is-phone .cr-panel { z-index: 95; padding-top: env(safe-area-inset-top, 0px); }
-html.is-phone .cr-host { min-height: 0; }
-html.is-phone .cr-cave-bar b { font-size: 24px; }
-html.is-phone .cr-cave-bar .cx-acts { display: none; }

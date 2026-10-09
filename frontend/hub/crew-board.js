@@ -58,6 +58,10 @@ window.CrewBoard = (function () {
     ["lucius", /claude-api|plugin|mcp|skill|keybind|permission|browser|chrome|computer|config|init|setup/i],
   ];
   const sectorOfSkill = (name) => (SECTOR_SKILLS.find(([, re]) => re.test(name)) || ["batman"])[0];
+  // The automatic agent's heartbeat sets these; ONLINE is only the widget or a page open. Another PC's agent is not seen
+  // from here (presence does not travel by sync), so of the others nothing is said unless their agent shows up.
+  const AGENT_ON = ["WORKING", "IDLE", "WAITING", "PAUSED", "ERROR"];
+  const agentOn = (m) => !!m && AGENT_ON.includes(m.status);
   const STATE_WORD = { idle: "Livre", work: "A trabalhar", start: "A começar", go: "A caminho do posto", wait: "À espera", help: "Precisa de ajuda",
     pause: "Em pausa", done: "Acabou agora", fail: "Falhou" };
 
@@ -153,10 +157,11 @@ window.CrewBoard = (function () {
       <div><b>${esc(it.goal)}</b><p>${esc(text)}</p>${extra}</div><span class="cb-done-r"><em><i></i>${esc(it.p.name)}</em><time>${esc(ago(it.at))}</time></span></button>`;
   }
   function queueRow(it, i, p, s) {
-    const x = it.x, a = it.agent, m = (s.team || []).find((u) => u.user === x.assignee), on = !!(m && m.agent);
+    const x = it.x, a = it.agent, m = (s.team || []).find((u) => u.user === x.assignee), on = agentOn(m);
     const why = it.held ? t("Em espera: arranca quando a mandares")
-      : !on ? (p.me ? t("À espera do teu agente automático, que está desligado") : t("À espera do agente automático do {n}, que está desligado", { n: p.name }))
-      : i ? t("À espera de vez") : t("É a seguinte");
+      : !on && p.me ? t("À espera do teu agente automático, que está desligado")
+      : !on ? t("À espera do agente automático do {n}", { n: p.name })
+      : x.current_action ? x.current_action : i ? t("À espera de vez") : t("É a seguinte");
     return `<div class="cb-q ${it.held ? "held" : ""}"><span class="cb-pos">${i + 1}</span>
       <div><b data-href="#task-${x.id}">${esc(x.title)}</b><small>${a ? `${esc(a.name)} · ${esc(t(a.what))} — ` : ""}${esc(why)}</small></div>
       ${it.held ? `<button type="button" class="btn cb-go" data-release="${x.id}">${esc(t("Arrancar"))}</button>` : ""}</div>`;
@@ -173,7 +178,7 @@ window.CrewBoard = (function () {
     const last = p.done[0];
     const facts = [p.done.length ? t(p.done.length === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: p.done.length }) : "",
       p.queue.length ? t(p.queue.length === 1 ? "1 na fila" : "{n} na fila", { n: p.queue.length }) : "",
-      m.agent ? t("agente automático ligado") : t("agente automático desligado")].filter(Boolean);
+      agentOn(p.m) ? t("agente automático ligado") : p.me ? t("agente automático desligado") : ""].filter(Boolean);
     return `<header><span class="cx-face">${ui.avatar(p.name)}<i class="${on ? "on" : ""}"></i></span><div><b>${esc(p.name)}${p.me ? ` <small>${esc(t("tu"))}</small>` : ""}</b><span>${esc(place)}</span></div><em>${esc(head)}</em></header>
       ${lim ? `<div class="cx-lims">${lim}</div>` : ""}
       ${live || `<p class="cb-quiet">${last ? esc(t("Acabou «{g}» {q}.", { g: last.goal, q: ago(last.at) })) : esc(t("Nada a correr agora."))}</p>`}

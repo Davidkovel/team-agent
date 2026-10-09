@@ -81,25 +81,37 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
 - **Várias sessões no mesmo PC:** ver as outras (ListAgents) antes de mexer em ficheiros partilhados e combinar por mensagem; nunca deixar commits por enviar; o merge ou o reset do trabalho de outra sessão é a pessoa que decide.
 
 - **A equipa da Empresa AMG** (`backend/app/crew.py`): uma tarefa pode ir para uma personagem (`crew`: batman, lucius, riddler, catwoman, joker, alfred, robin, gordon). O agente automático corre-a nessa personagem, sempre na mesma conversa do Claude, com o briefing do Hub; cada tarefa acabada vira uma nota TAREFAS na Memória. Mudar uma personagem = `CREW` no `crew.py` e no `frontend/hub/crew.js`.
+- **Tarefas para o escritório num toque** (9 out): «Mandar para o escritório» na linha da tarefa, na janela da tarefa
+  (`sendToOffice` no `pages.js`) e no cartão «Tarefa para ti»; «Escolher o agente» fica em segundo plano. Uma tarefa mandada a
+  alguém aparece num cartão no topo de qualquer página e acende o número do «Tarefas» da barra (`taskNews` no `shell.js`, a partir
+  dos avisos `task_new` dirigidos e por ler; `setBadge` no `app.js`).
+- **O agente espera pelo limite do Claude** (9 out, `limit_reset` no `agent/team_agent/core/agent.py`): uma tarefa parada pelo fim do
+  plano volta a ASSIGNED com «À espera do limite do Claude: recomeça às HH:MM» e o agente não pega em mais nada até essa hora; o
+  Hub aceita ASSIGNED vindo do agente. O agente automático do Marco está ligado desde 9 out (`agent/.env`, arranque com o Windows
+  por `scripts/autostart.py install agent`).
 - **O escritório distribui sozinho** (8 out, pedido do Marco): uma tarefa para a IA sem `crew` recebe-o no Hub (`crew.sector_of`: palavras do título e da descrição → papel → Gordon), tanto ao criar (`POST /api/tasks`) como ao entregar uma que já existe (`POST /api/tasks/{id}/assign-ai`, com `crew` vazio). O agente corre uma tarefa de cada vez, por isso ocupado = fila, não outra personagem. `POST /api/tasks/route` diz quem a leva e quantas tem à frente; `GET /api/tasks/crew` dá a lista. As palavras (`WORDS`, `ROLE_CREW`) estão no `crew.py` **e** no `crew.js`: mudar nos dois. A janela de mandar tarefas é o compositor do `pages.js` (`newTask`, `assignToAI`, estilos `.cmp` no `design.css`): Escritório ou Pessoa, os oito agentes, e a linha «Vai para…» pedida ao Hub enquanto se escreve.
 - **A empresa de agentes:** o rumo do Agente AMG está em `docs/empresa-amg.md` (visão de Deus, departamentos, fases 2D → controlo → 3D). Lê-o antes de construir algo grande.
 - **Regras de peso:** o Hub guarda o estado e não cada passo; o widget só mostra resumos e só anima quando algo muda; cada secção da central carrega só quando se entra nela. Limites parados: widget e Hub abaixo de 1% de CPU, central aberta abaixo de 3%. Mede antes do push: se pesar, não entra.
 
 ### A Empresa AMG (a Batcave, antiga My Niggaz)
 
-**Redesenhada a 7 out** a pedido do Marco, e a 9 out passou a ser a **central de controlo** (`docs/batcave-redesenho.md`: o que
-ele pediu, o que se fez e o que fica para a fase de controlo). Antes de mudar alguma coisa grande nesta página, lê esse ficheiro.
+**Redesenhada a 7 out** a pedido do Marco e arrumada em duas páginas a 9 out (`docs/batcave-redesenho.md`: o que ele pediu, o
+que se fez e o que falta). Antes de mudar alguma coisa grande nestas páginas, lê esse ficheiro. Correm no mesmo motor (`crew.js`):
 
-A página `#/empresa` (o `#/niggaz` antigo continua a abrir) **é o quadro**: nada mexe até se entrar na cave. Cada ficheiro com a sua parte:
+- **Empresa AMG** (`#/empresa`; o `#/niggaz` antigo continua a abrir) **é a cave**, a página inteira. A ficha do agente aparece por
+  cima dela ao passar o rato (`.cr-side`). O botão **Mini janela** (`openMini`) põe a cave numa janela pequena por cima de tudo: no
+  widget pela `amg.openMini` (`widget/team_widget/ui/mini.py`, sempre por cima, guarda o sítio e o tamanho), no Chrome com
+  picture-in-picture, noutro browser numa janela pequena. A página com `?mini=1` (`html.is-mini`, posto no `app.js`) é só a cave
+  e uma linha de quem trabalha para quem, a menos imagens por segundo.
+- **Escritório** (`#/escritorio`) **é a central de comando**: `frontend/hub/crew-board.js` + `crew-board.css`. Num ecrã só no PC
+  (`.desk`: duas colunas a partir de 760 px, três a partir de 1180 px, `.wide`; cada coluna rola por dentro): os sócios (online ou
+  visto há, Claude 5 h e semana, o que cada Claude deles faz e o que espera por eles), as **câmaras** (monitor principal com quem
+  pediu, a meta e o que faz agora, e uma câmara por agente) e as missões (mandar, pôr na fila, a fila, o feito hoje). Desenha o que
+  o `crew.js` lhe dá (`boardHost`) e só mexe no bocado que mudou. **No telemóvel** é uma app de quatro abas (Agora · Câmaras · Sócios ·
+  Missões, `data-tab`/`data-pane`) e o Escritório está na barra de baixo (`TABS` no `mobile.js`); a Empresa AMG fica em «Mais».
 
-- `frontend/hub/crew-board.js` + `crew-board.css`: **a página**. «Agora» (uma frase por sócio e quatro números), as **câmaras** (um
-  monitor principal e uma câmara por agente, a segui-lo, com quem pediu, a meta, o pedido e o que faz agora), uma coluna por sócio
-  (a trabalhar · à espera dele · feito · na fila) e as portas (Memória, arsenal, cofre, Reunião). Desenha o que o `crew.js` lhe dá
-  (`boardHost`) e só mexe no bocado que mudou. A ficha de um agente (`ficha()`, as skills arrumadas) aparece ao passar o rato numa
-  câmara e ao lado da cave. **No telemóvel** é uma app de quatro abas (Agora · Câmaras · Sócios · Fila, `data-tab`/`data-pane`),
-  um sócio de cada vez, a ficha numa folha que sobe de baixo; a Empresa está na barra de baixo (`TABS` no `mobile.js`).
-
-- `frontend/hub/crew.js`: o motor e **a cave**, que abre por cima de tudo (`openCave`/`closeCave`; é construída uma vez e fica).
+- `frontend/hub/crew.js`: o motor e **a cave** (construída uma vez, `buildCave`; a página Empresa AMG põe-na dentro de si e a sair
+  ela pára, `openCave`/`closeCave`).
   O mundo, a câmara (Escritório · Cofre · Stand · Tudo, arrastar, roda do rato; clicar num agente leva-a ao posto dele), os agentes
   a andar e a trabalhar, as missões (lê `/api/tasks`, `/api/office`, `/api/memory` e `/api/team`, cria com `POST /api/tasks` e
   `crew`), os painéis (agente, Memória, arsenal, cofre, carro: uma gaveta à direita, por cima do quadro e da cave) e as câmaras do
@@ -140,6 +152,10 @@ A página `#/empresa` (o `#/niggaz` antigo continua a abrir) **é o quadro**: na
   entrega-a (`assign-ai`). O quadro diz porque espera cada uma (em espera, agente automático desligado, à vez).
 - **Ninguém a ver = nada a mexer**: com a cave fechada e as câmaras fora do ecrã, o `settleAll()` faz de uma vez o que seriam
   segundos a andar. Quem juntar animações novas confirma que o quadro não fica à espera delas.
+- **Câmaras nítidas** (`shoot`): cada pixel da camada que mexe é um número inteiro de pixels no ecrã e a imagem assenta na grelha
+  dela; um zoom livre dava pixels desiguais e parecia avariado. Sem filtro CSS nos canvas (em nove pesava mais do que desenhar).
+- **«Agente automático ligado»** vem do `status` do `/api/team` (WORKING, IDLE, WAITING, PAUSED, ERROR); `ONLINE` é só o widget
+  ou uma página aberta. O agente de outro PC não se vê daqui (a presença não vai por sync).
 - **No telemóvel** (`narrow`, menos de 640 px) os cartões são pastilhas de uma linha, senão tapam a gruta toda.
 
 Coisas que custaram tempo e não se devem repetir:
@@ -162,6 +178,9 @@ Coisas que custaram tempo e não se devem repetir:
 - **Peso**: 3,5–5 ms por imagem a 1600 px (melhor de vários lotes; as medições soltas variam o dobro com o PC ocupado); o fundo
   com os carros ~300 ms, só ao abrir e ao mudar de tamanho (espera 160 ms). Medido a 9 out no Chrome sem placa gráfica, a 1920 px:
   o quadro com as câmaras à vista 3,7% de um núcleo, a cave aberta 42%, outra página do Hub 0,1%. Por isso a cave só abre a pedido.
+- **`\b` numa expressão escrita por uma ferramenta pode virar um carácter de controlo** (9 out): no `index.html` o `/[?&]phone=1\b/`
+  estava com um ^H em vez de `\b` e nunca dava certo; o `?mini=1` saiu igual. Escrever `(&|$)` em vez de `\b`, e procurar
+  caracteres de controlo antes do push (`grep -rlP "\x08"`).
 - **Um nome que já existe no `crew.js` apaga o outro** (9 out): uma função nova chamada `release` substituiu a que liberta o sítio
   de um agente, e cada passo de um agente passou a mandar um pedido errado ao Hub. Antes de juntar uma função, procurar o nome.
 - **O mundo é o `MAP`** (7 out): uma letra por ladrilho (o escritório, `~` o rio, `b` as pontes, `g` o stand, `v` o cofre, `t` a

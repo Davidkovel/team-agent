@@ -140,6 +140,25 @@ pessoa tem a chapa «Empresa AMG» na própria linha: um toque passa-a ao escrit
 arrancar sozinha quando o limite do Claude volta, e resumir em português os pedidos escritos noutra língua (os do Kovel, em russo),
 o que pede uma chamada ao Claude por pedido.
 
+## Duas páginas: a cave e a central de comando (9 out, à tarde)
+
+O Marco voltou a pedir: «a Empresa AMG é literalmente a cave; no escritório é que estão as câmaras, uma central de comando mesmo
+crazy», «não pode ser uma coisa tão scroll aborrecida», «quero uma mini janela como no YouTube para estar sempre atualizado», «quando
+alguém me manda uma tarefa tem que me aparecer "Tarefa para ti, Marco"», «não quero andar a escolher o agente» e «quando estivermos a
+dormir, está tudo a trabalhar». Ficou assim:
+
+- **Empresa AMG = a cave**, a página inteira, com a ficha do agente por cima ao passar o rato e o botão **Mini janela** (no widget,
+  uma janela própria sempre por cima; no Chrome, picture-in-picture).
+- **Escritório = a central de comando**, num ecrã só: os sócios à esquerda, as câmaras ao meio, as missões à direita. No telemóvel,
+  quatro abas, e o Escritório entra na barra de baixo.
+- **Tarefas**: cartão «Tarefa para ti» em qualquer página, número aceso no «Tarefas» da barra, «Mandar para o escritório» num toque.
+- **O agente automático do Marco está ligado** e espera sozinho pelo limite do Claude: uma tarefa parada pelo fim do plano volta à
+  fila e recomeça à hora do reset.
+
+Falta: ligar o agente automático no PC do David e do Kovel (cada um corre as tarefas que lhe calham: `agent/.env` com o token
+de Sistema > Definições, `pip install -r agent/requirements.txt`, `python scripts/autostart.py install agent`), resumir em português
+os pedidos escritos noutra língua, e um atalho para a mini janela sem abrir o Hub.
+
 ## Fora por agora (a seguir, na fase de controlo)
 
 - Missões em cadeia, passadas sozinhas de agente para agente (design → código → testes).

@@ -1,8 +1,22 @@
 // The AMG app's own notifications (backend/app/webpush.py). The browser wakes this file when the Hub pushes something, even with the
-// app closed; the notification shows the app's name and icon (AMG and the star) and the text of the task. Nothing else is cached or
-// intercepted: the Hub is served live from the computer, so this file never touches a page load.
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+// app closed; the notification shows the app's name and icon (AMG and the star) and the text of the task.
+// The Hub is served live from the computer and nothing of it is cached. The one exception is offline.html: when opening the app
+// cannot reach the computer at all (the iPhone off the Tailscale, the PC or the Hub off), the app shows that page with what to do
+// instead of Safari's error, and it goes back in by itself once the Hub answers. Any answer of the Hub, errors included, goes through.
+const OFFLINE = "amg-offline-1";
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+  event.waitUntil(caches.open(OFFLINE).then((cache) => cache.add("offline.html")).catch(() => {}));
+});
+self.addEventListener("activate", (event) => event.waitUntil((async () => {
+  for (const name of await caches.keys()) if (name !== OFFLINE) await caches.delete(name);
+  await self.clients.claim();
+})()));
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+  event.respondWith(fetch(event.request).catch(async () => (await caches.match("offline.html")) || Response.error()));
+});
 
 self.addEventListener("push", (event) => {
   let data = {};

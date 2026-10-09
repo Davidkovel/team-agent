@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>AMG · sem ligação</title>
+<!-- What the phone app shows when it cannot reach the computer (sw.js keeps this page in the phone): almost always the iPhone is off
+     the Tailscale, sometimes the PC or the Hub is off. Everything is inline because nothing else can load while offline. It tries
+     again by itself every few seconds and when the app comes back to the front, so turning the Tailscale on is enough. -->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; color: #f2f2f4; font: 17px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
+  main { min-height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 22px;
+         padding: calc(env(safe-area-inset-top) + 32px) 24px calc(env(safe-area-inset-bottom) + 32px); max-width: 460px; margin: 0 auto; }
+  svg { width: 64px; height: 64px; }
+  h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.02em;
+       background: linear-gradient(180deg, #fff, #b9bec4 55%, #7d848b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  p { margin: 0; color: #a1a1aa; }
+  ol { margin: 0; padding: 18px 18px 18px 40px; background: #121214; border: .5px solid rgba(255,255,255,.12); border-radius: 18px; display: grid; gap: 10px; }
+  li::marker { color: #6b6b73; }
+  b { color: #f2f2f4; font-weight: 600; }
+  button { appearance: none; border: 0; border-radius: 14px; padding: 15px; font: 600 17px -apple-system, BlinkMacSystemFont, sans-serif; color: #000;
+           background: linear-gradient(180deg, #fff, #c9ced3 60%, #9aa1a8); }
+  button:active { opacity: .7; }
+  small { color: #6b6b73; font-size: 14px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <defs><linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#9ba3a7"/><stop offset="1" stop-color="#434d54"/></linearGradient></defs>
+    <circle cx="32" cy="32" r="29.5" fill="none" stroke="url(#c)" stroke-width="3"/>
+    <path fill="url(#c)" d="M32 4 35 29.5 56.5 46 32 36 7.5 46 29 29.5z"/>
+  </svg>
+  <h1>Sem ligação ao PC</h1>
+  <p>O iPhone não está a chegar ao Hub. Quase sempre é a Tailscale que está desligada.</p>
+  <ol>
+    <li>Abre a app <b>Tailscale</b> e liga o botão.</li>
+    <li>Volta aqui: a app AMG abre sozinha.</li>
+    <li>Se a Tailscale já estava ligada, o PC ou o widget AMG estão desligados.</li>
+  </ol>
+  <button type="button" onclick="location.reload()">Tentar outra vez</button>
+  <small id="state">A tentar outra vez de 5 em 5 segundos…</small>
+</main>
+<script>
+  // The Hub answers /api/version from the computer: as soon as it does, go back into the app.
+  async function check() {
+    try {
+      const r = await fetch("api/version", { cache: "no-store" });
+      if (r.ok) location.reload();
+    } catch { /* still offline */ }
+  }
+  setInterval(check, 5000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") check(); });
+</script>
+</body>
+</html>

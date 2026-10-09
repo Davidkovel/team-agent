@@ -81,12 +81,18 @@ class Ghost(QWidget):
 
 
 class Bridge(QObject):
-    """What the Hub page can ask of the widget (as `amg` over QWebChannel): today, playing videos in the native player."""
+    """What the Hub page can ask of the widget (as `amg` over QWebChannel): playing videos in the native player, and the
+    cave in its mini window (mini.py)."""
     play = Signal(str)
+    mini = Signal(str)
 
     @Slot(str)
     def playVideos(self, payload: str):
         self.play.emit(payload)
+
+    @Slot(str)
+    def openMini(self, url: str):
+        self.mini.emit(url)
 
 
 def _channel_script() -> QWebEngineScript:
@@ -158,6 +164,8 @@ class HubExpander(QWidget):
         # Videos: the page hands them to the native player (Qt's Chromium has no H.264).
         self._bridge = Bridge(self)
         self._bridge.play.connect(self._play_videos)
+        self._bridge.mini.connect(self._open_mini)
+        self._mini = None   # the cave's mini window, made the first time it is asked for
         self._channel = QWebChannel(page)
         self._channel.registerObject("amg", self._bridge)
         page.setWebChannel(self._channel)
@@ -189,6 +197,15 @@ class HubExpander(QWidget):
         url = request.requestedUrl()
         if url.scheme() in ("http", "https"):
             QDesktopServices.openUrl(url)
+
+    def _open_mini(self, url: str):
+        """The cave's «Mini janela»: the cave in its own small window on top, and the big window goes back to the widget."""
+        from .mini import MiniWindow
+
+        if self._mini is None:
+            self._mini = MiniWindow()
+        self._mini.open(url)
+        self.collapse()
 
     def _play_videos(self, payload: str):
         self.stack.setCurrentWidget(self.player)

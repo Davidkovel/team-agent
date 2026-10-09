@@ -95,7 +95,7 @@ function taskCard(x) {
   const top = [x.priority === "urgent" ? ui.tag(t("Urgente"), "bad") : x.priority === "high" ? ui.tag(t("Alta"), "warn") : "", x.group ? ui.tag(groupLabel(x.group), "ai") : "", isFresh(x) ? ui.tag(t("Nova"), "ok") : ""].join("");
   return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""} ${doer ? "doing" : ""} ${x.group ? "for-all" : isMe(x.assignee) ? "mine" : ""}"
     style="${x.group ? "" : whoVar(x.assignee)}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
-    ${top ? `<div class="tk-top">${top}</div>` : ""}
+    ${trashBtn(x.group ? null : x, "tk-del")}${top ? `<div class="tk-top">${top}</div>` : ""}
     <b>${esc(x.title)}</b>
     ${x.stage === "in_progress" || (x.progress > 0 && x.stage !== "done") ? ui.progress(x.progress, "ai") : ""}
     ${x.group ? `<span class="tk-who">${esc(whoLeft(x.group))}</span>` : ""}
@@ -139,6 +139,31 @@ function tlWhen(x) {
 }
 // A row wears the colour of whose it is (of who did it, once done) and ends in their plate. Inside a person's own column
 // (inCol, the "Por pessoa" view) the column already says whose it is: no plate, only who is on it now.
+/* The red bin: on every row and card of Tarefas and in the window of a task. The task goes to the Lixo, where it can be
+   recovered for some hours, and «Desfazer» brings it straight back. Not on a task an agent is running (stop it first) nor
+   on a task for everybody (each has their own copy; it is deleted from inside it). */
+// the same rule as the Hub (tasks.py, HELD_BY_AGENT): only while an agent is running it does it have to be stopped first
+const canTrash = (x) => x && !x.group && !["IN_PROGRESS", "WAITING_APPROVAL"].includes(x.status);
+const trashBtn = (x, cls) => (canTrash(x) ? `<button type="button" class="${cls}" data-trash="${x.id}" data-title="${esc(x.title)}" data-reason="${x.stage === "done" ? "done" : "mistake"}"
+  title="${t("Apagar tarefa")}" aria-label="${t("Apagar tarefa")}">${icon("trash")}</button>` : "");
+async function trashTaskUndo(id, title, reason = "mistake") {
+  try { await api(`/api/tasks/${id}/trash`, { method: "POST", body: { reason } }); }
+  catch (err) { flash(err.message); loadBoard(); return false; }
+  loadBoard();
+  const el = document.createElement("div");
+  el.className = "toast undo";
+  el.innerHTML = `<span>${icon("trash")}<b>${esc(t("Tarefa apagada"))}</b><em>${esc(title)}</em></span><button type="button">${esc(t("Desfazer"))}</button>`;
+  $("toasts").append(el);
+  const gone = () => { el.classList.add("out"); setTimeout(() => el.remove(), 600); };
+  const timer = setTimeout(gone, 7000);
+  el.querySelector("button").onclick = async () => {
+    clearTimeout(timer); gone();
+    try { await api(`/api/tasks/${id}/restore`, { method: "POST" }); flash(t("A tarefa voltou: {t}", { t: title })); } catch (err) { flash(err.message); }
+    loadBoard();
+  };
+  return true;
+}
+
 function tlRow(x, inCol = false) {
   const own = inCol ? x : x.group ? x.group.find((y) => y.assignee === me.username) : x;
   const done = x.stage === "done", tone = done ? "done" : x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
@@ -158,7 +183,7 @@ function tlRow(x, inCol = false) {
     : `<span class="tl-check ${own && own.stage === "done" ? "part" : "held"}">${own && own.stage === "done" ? icon("tick") : ""}</span>`;
   return `<div class="tl-row ${tone} ${x.group && !inCol ? "for-all" : isMe(inCol ? x.assignee : who) ? "mine" : ""}" style="${x.group && !inCol ? "" : whoVar(inCol ? x.assignee : who)}" data-id="${(own || x).id}">${check}
     <div class="tl-t"><b>${tone === "urgent" ? '<i class="bang">!!</i>' : tone === "high" ? '<i class="bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span>${meta.join(" · ")}</span>` : ""}</div>
-    ${side}</div>`;
+    ${side}${x.group && !inCol ? "" : trashBtn(own, "tl-del")}</div>`;
 }
 // A block with many tasks of several people is not one long list: it is one short list per person, the first few of each
 // showing and the rest one click away. Fourteen tasks of one person used to bury everybody else's.
@@ -633,6 +658,7 @@ async function openTaskModal(id) {
   const part = (label, html, cls = "") => `<section class="tv-part ${cls}"><small>${t(label)}</small><div class="tread">${html}</div></section>`;
   openModal(`<article class="tview letter" style="${group ? "" : whoVar(x.assignee)}">
     <header class="tv-top"><div class="tv-route">${from}${group ? allPlate(group) : whoPlate(x.assignee)}</div>${ui.tag(stage[0], stage[1])}
+      ${canTrash(x) && !group ? `<button type="button" class="tv-del" data-act="trash" title="${t("Apagar tarefa")}">${icon("trash")}<span>${t("Apagar?")}</span></button>` : ""}
       <button class="btn quiet sm" data-close aria-label="${t("Fechar")}">${icon("x")}</button></header>
     <h2 class="tv-title">${x.priority === "urgent" ? '<i class="bang">!!</i>' : x.priority === "high" ? '<i class="bang high">!</i>' : ""}${esc(x.title)}</h2>
     <section class="tv-msg">${x.description ? `<div class="tread">${richText(x.description)}</div>` : `<p class="tv-none">${t("Sem descrição: o título diz tudo.")}</p>`}
@@ -678,6 +704,12 @@ async function openTaskModal(id) {
     if (quick) { $("task-due").value = dueAt(Number(quick.dataset.dueDays)); return; }   // fills the field; "Guardar prazo" keeps it
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
+    if (act === "trash") {   // the first press asks («Apagar?» in red), the second deletes
+      const bin = e.target.closest("[data-act]");
+      if (!bin.classList.contains("confirm")) { bin.classList.add("confirm"); setTimeout(() => bin.classList.remove("confirm"), 4000); return; }
+      closeModal();
+      return trashTaskUndo(x.id, x.title, x.stage === "done" ? "done" : "mistake");
+    }
     if (act === "due" || act === "nodue") {
       const value = act === "due" ? $("task-due").value : "";
       if (act === "due" && !value) return flash(t("Escolhe o dia e a hora do prazo."));
@@ -757,6 +789,11 @@ HUB_VIEWS.tarefas = async function (r) {
       api(`/api/tasks/${office.dataset.office}/assign-ai`, { method: "POST", body: { crew: "" } })
         .then((given) => flash(t("Mandada para o escritório: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) })), (err) => flash(err.message)).finally(loadBoard);
       return;
+    }
+    const del = e.target.closest("[data-trash]");
+    if (del) {
+      del.disabled = true; del.closest(".tl-row, .tk")?.classList.add("finishing");
+      return trashTaskUndo(Number(del.dataset.trash), del.dataset.title, del.dataset.reason);
     }
     const tick = e.target.closest(".tl-row [data-done]");
     if (tick) {

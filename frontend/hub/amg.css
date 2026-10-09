@@ -469,3 +469,25 @@ button.tl-check { cursor: pointer; } button.tl-check:hover { border-color: #f4f6
 .tview.letter > .tv-fold { margin-top: 10px; padding-top: 10px; border-top-color: rgba(255, 255, 255, .05); }
 .tview.letter > .tv-fold > summary { color: #6b727b; font-size: 12px; }
 .tview.letter > .tv-fold > summary:hover { color: #eef1f4; }
+
+/* The red bin of Tarefas (pages.js, trashBtn): on every row and card, half lit until the mouse is on the row; in the window
+   of a task beside the close button, where the first press turns it into «Apagar?» and the second deletes. */
+.tl-del, .tk-del, .tv-del { display: inline-grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border-radius: 8px;
+  border: 1px solid transparent; background: none; color: #ef6f5e; cursor: pointer; opacity: .55; transition: opacity .15s, background .15s, border-color .15s, color .15s; }
+.tl-del svg.i, .tk-del svg.i, .tv-del svg.i { width: 16px; height: 16px; }
+.tl-row:hover .tl-del, .tk:hover .tk-del { opacity: 1; }
+.tl-del:hover, .tk-del:hover, .tv-del:hover { opacity: 1; background: rgba(239, 111, 94, .14); border-color: rgba(239, 111, 94, .45); }
+.tk { position: relative; }
+.tk-del { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; z-index: 1; }
+.tk-del svg.i { width: 14px; height: 14px; }
+.tk:has(.tk-del) .tk-top { padding-right: 28px; }
+.tv-del { display: inline-flex; align-items: center; gap: 6px; width: auto; min-width: 30px; padding: 0 7px; opacity: 1; border-color: rgba(239, 111, 94, .3); }
+.tv-del span { display: none; font: 700 10.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.tv-del.confirm { padding: 0 12px; background: #ef6f5e; border-color: #ef6f5e; color: #fff; box-shadow: 0 0 18px -4px rgba(239, 111, 94, .8); }
+.tv-del.confirm span { display: inline; }
+.toast.undo { display: flex; align-items: center; gap: 14px; }
+.toast.undo > span { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.toast.undo > span svg.i { flex: none; width: 15px; height: 15px; color: #ef6f5e; }
+.toast.undo em { overflow: hidden; color: var(--muted); font-style: normal; white-space: nowrap; text-overflow: ellipsis; }
+.toast.undo button { flex: none; height: 30px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--chrome); color: #0b0c0e;
+  font: 700 11px var(--ui); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }

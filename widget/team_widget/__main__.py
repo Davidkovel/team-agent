@@ -3,6 +3,7 @@
 Reads the same TEAM_AGENT_PROFILE / TEAM_AGENT_DATA_DIR / TEAM_AGENT_LOCAL_PORT
 as the agent to find its local API and token.
 """
+import json
 import os
 import sys
 from pathlib import Path
@@ -34,15 +35,16 @@ def log_launch():
         pass
 
 
-def already_open(name: str) -> bool:
-    """True when this widget is already running: it is asked to come to the front and this copy stops.
-    Each click on Abrir AMG used to open one more widget, and each one started its own Hub on the same database."""
+def already_open(name: str, page: str = "") -> bool:
+    """True when this widget is already running: it is asked to come to the front (or to open the Hub on `page`) and
+    this copy stops. Each click on Abrir AMG used to open one more widget, and each one started its own Hub on the same
+    database."""
     socket = QLocalSocket()
     socket.connectToServer(name)
     if not socket.waitForConnected(500):
         return False
     log_launch()
-    socket.write(b"show")
+    socket.write(f"open {page}".encode("utf-8") if page else b"show")
     socket.waitForBytesWritten(500)
     socket.disconnectFromServer()
     return True
@@ -54,8 +56,17 @@ def listen_for_second_copy(name: str, window) -> QLocalServer:
     server.listen(name)
 
     def come_forward():
+        page = ""
         while (peer := server.nextPendingConnection()) is not None:
             peer.disconnected.connect(peer.deleteLater)
+            if not peer.bytesAvailable():
+                peer.waitForReadyRead(300)
+            said = bytes(peer.readAll()).decode("utf-8", "replace")
+            if said.startswith("open "):
+                page = said[5:].strip()
+        if page:
+            open_page(window, page)
+            return
         expander = getattr(window, "_expander", None)
         if expander is not None and expander.isVisible():
             expander.showNormal()
@@ -65,6 +76,21 @@ def listen_for_second_copy(name: str, window) -> QLocalServer:
             window.show_panel()
     server.newConnection.connect(come_forward)
     return server
+
+
+def open_page(window, page: str):
+    """The Hub on a page ("/empresa", the shortcut Empresa AMG on the desktop): if the big window is open it only changes
+    page, keeping the session; otherwise the widget grows into it, as when it is opened by hand."""
+    page = "/" + page.strip().lstrip("#/")
+    expander = getattr(window, "_expander", None)
+    if expander is not None and expander.isVisible():
+        expander.view.page().runJavaScript(f"location.hash = {json.dumps('#' + page)}")
+        expander.showNormal()
+        expander.raise_()
+        expander.activateWindow()
+    else:
+        window._hub_page = page
+        window._open_hub()
 
 
 def main():
@@ -83,7 +109,9 @@ def main():
     app.setQuitOnLastWindowClosed(False)  # closing the widget hides it to the tray
     app.setFont(font(9, families=UI))
     name = f"agente-amg-widget-{os.environ.get('USERNAME', '')}-{profile}"
-    if already_open(name):
+    # --open /empresa (the shortcut Empresa AMG): the Hub opens on that page, in this widget or in the one already open
+    page = sys.argv[sys.argv.index("--open") + 1] if "--open" in sys.argv[1:-1] else ""
+    if already_open(name, page):
         return
 
     store = StateStore()
@@ -95,6 +123,8 @@ def main():
     tray = start_tray(window)
     server = listen_for_second_copy(name, window)  # noqa: F841 - kept alive while the widget runs
     window.show_panel()
+    if page:
+        QTimer.singleShot(1200, lambda: open_page(window, page))
 
     started_at = selfupdate.head()   # the commit this widget is running
 

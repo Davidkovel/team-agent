@@ -115,3 +115,16 @@ def test_nobody_deletes_someone_elses_notifications(client):
     assert r.json()["deleted"] == 0
     assert client.post("/api/local/inbox/delete", json={"user": "mark", "all": True}).status_code == 403   # widgets only
     assert inbox(client, "mark")["items"][0]["id"] == mine["id"]
+
+
+def test_a_program_on_this_computer_rings_one_person(client):
+    before = inbox(client, "david")["unread"]
+    r = client.post("/api/local/notify", headers=WIDGET, json={"user": "david", "title": "Freelancehunt: bot para Telegram", "body": "3000 UAH", "href": "https://example.com/p/1"})
+    assert r.status_code == 200
+    assert inbox(client, "david")["unread"] == before + 1
+    assert client.post("/api/local/notify", json={"user": "david", "title": "sem cabeçalho"}).status_code == 403
+
+
+def test_another_computer_cannot_ring_through_the_local_door():
+    with TestClient(app, client=("26.244.76.112", 50000)) as far:
+        assert far.post("/api/local/notify", headers=WIDGET, json={"user": "david", "title": "de fora"}).status_code == 403

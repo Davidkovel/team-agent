@@ -20,7 +20,7 @@ from ..db import get_db
 from ..models import Approval, Notification, Task, User
 from ..realtime import rt
 from ..security import make_jwt, sees_all
-from ..services import WIDGET_SEEN, hub_seen, set_away, iso, usage_fields, usage_numbers
+from ..services import WIDGET_SEEN, hub_seen, notify, set_away, iso, usage_fields, usage_numbers
 
 router = APIRouter(prefix="/api/local")
 
@@ -191,6 +191,27 @@ async def local_presence(body: WidgetPing, request: Request, db: AsyncSession = 
     WIDGET_SEEN[user.id] = time.time()
     await hub_seen(user.id, "widget")
     return {"ok": True, "name": user.display_name}
+
+
+class LocalNotice(WidgetPing):
+    title: str
+    body: str = ""
+    href: str = ""
+    kind: str = "freelance"
+    severity: str = "medium"
+
+
+@router.post("/notify")
+async def local_notify(body: LocalNotice, request: Request, db: AsyncSession = Depends(get_db),
+                       x_team_widget: str | None = Header(None)):
+    """A program on this computer (the freelance watcher) rings one person: bell, widget and phone.
+    This computer only, not the trusted networks: nobody else's PC may write notifications here."""
+    host = request.client.host if request.client else ""
+    if host not in LOCAL_HOSTS or x_team_widget != "1":
+        raise HTTPException(403, "Only available from the server computer")
+    user = await _person(db, body.user)
+    await notify(db, [user.id], body.kind[:30], body.severity, body.title, body.body[:2000], body.href[:200], directed=True)
+    return {"ok": True}
 
 
 class AwayPing(WidgetPing):

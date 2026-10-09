@@ -152,7 +152,7 @@ function tlRow(x, inCol = false) {
     done ? (x.completed_at ? `${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : "") : tlWhen(x),
     x.stage === "in_progress" ? `<em class="ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="late">${t("Bloqueada")}</em>` : "",
     // a task still with a person goes to the office with one touch: the agent of its sector takes it (Marco, 9 out)
-    !done && !x.group && own && own.status === "TODO" ? `<button type="button" class="tl-office" data-office="${own.id}" title="${t("Passar para a Empresa AMG: o agente do setor pega nela")}">${icon("bot")}${t("Empresa AMG")}</button>` : ""].filter(Boolean);
+    !done && !x.group && own && own.status === "TODO" ? `<button type="button" class="tl-office" data-office="${own.id}" title="${t("O escritório escolhe o agente certo e ele começa sozinho")}">${icon("bot")}${t("Mandar para o escritório")}</button>` : ""].filter(Boolean);
   const check = done ? `<span class="tl-check">${icon("tick")}</span>`
     : own && own.stage !== "done" && !heldByAgent(own) ? `<button class="tl-check" data-done="${own.id}" title="${t("Concluir")}"></button>`
     : `<span class="tl-check ${own && own.stage === "done" ? "part" : "held"}">${own && own.stage === "done" ? icon("tick") : ""}</span>`;
@@ -424,10 +424,11 @@ const CREW_ICON = { batman: "code", lucius: "gear", riddler: "search", catwoman:
 let officeCrew = null;
 const loadCrew = async () => (officeCrew ||= await api("/api/tasks/crew"));
 // Who of the office: "Automático" (the Hub chooses, crew.py) or one of them by name; under it, the line that says who takes it
-const crewPicker = (crew, chosen = "") => `<div class="cmp-crew" role="radiogroup" aria-label="${esc(t("Quem do escritório"))}">
+const crewPicker = (crew, chosen = "") => `<p class="cmp-route idle" data-route aria-live="polite"></p>
+  <details class="cmp-pick" ${chosen ? "open" : ""}><summary>${icon("users")}${t("Escolher outro agente")}</summary>
+  <div class="cmp-crew" role="radiogroup" aria-label="${esc(t("Quem do escritório"))}">
     <label class="cmp-ag auto"><input type="radio" name="crew" value="" ${chosen ? "" : "checked"}><span>${icon("bolt")}<b>${t("Automático")}</b><em>${t("O escritório escolhe")}</em></span></label>
-    ${crew.map((c) => `<label class="cmp-ag" data-crew="${esc(c.id)}"><input type="radio" name="crew" value="${esc(c.id)}" ${chosen === c.id ? "checked" : ""}><span>${icon(CREW_ICON[c.id] || "bot")}<b>${esc(c.name)}</b><em>${esc(t(c.what))}</em></span></label>`).join("")}</div>
-  <p class="cmp-route idle" data-route aria-live="polite"></p>`;
+    ${crew.map((c) => `<label class="cmp-ag" data-crew="${esc(c.id)}"><input type="radio" name="crew" value="${esc(c.id)}" ${chosen === c.id ? "checked" : ""}><span>${icon(CREW_ICON[c.id] || "bot")}<b>${esc(c.name)}</b><em>${esc(t(c.what))}</em></span></label>`).join("")}</div></details>`;
 // The line under the picker, asked of the Hub while the task is written: the answer is the one the task gets when it is
 // sent. `ask()` gives what to ask; the returned function is called on every change (it waits for a pause in the typing).
 function routeWatch(form, ask) {
@@ -455,7 +456,7 @@ async function newTask(preset = {}) {
   const [users, projects, crew] = await Promise.all([api("/api/users"), api("/api/projects"), loadCrew()]);
   let kept = "";
   try { kept = localStorage.getItem("hub.taskMode") || ""; } catch { /* private window: it starts on "Pessoa" */ }
-  const mode = preset.for_ai || preset.crew ? "office" : preset.assignee ? "person" : kept === "office" ? "office" : "person";
+  const mode = preset.for_ai || preset.crew ? "office" : preset.assignee ? "person" : kept === "person" ? "person" : "office";
   const pick = (name, value, label, on) => `<label class="who-opt"><input type="radio" name="${name}" value="${esc(value)}" ${on ? "checked" : ""}><span>${esc(label)}</span></label>`;
   openModal(`<form class="cmp" id="cmp" autocomplete="off" data-mode="${mode}">
     ${cmpHead("plus", "Nova tarefa")}
@@ -514,7 +515,16 @@ async function newTask(preset = {}) {
   form.elements.title.focus();
 }
 
-// A task that exists, handed to the office: the same picker, with the task's own words deciding when nobody is named.
+// A task that exists, sent to the office with one touch: the Hub chooses the agent by the task's words (crew.sector_of)
+// and the person's automatic agent starts it (Marco, 9 out: «não quero andar a escolher»).
+async function sendToOffice(x) {
+  try {
+    const given = await api(`/api/tasks/${x.id}/assign-ai`, { method: "POST", body: { crew: "" } });
+    flash(t("Mandada para o escritório: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) }));
+    loadBoard(); openTaskModal(x.id);
+  } catch (err) { flash(err.message); }
+}
+// The same, choosing who: the picker, with the task's own words deciding when nobody is named.
 async function assignToAI(x) {
   const crew = await loadCrew();
   openModal(`<form class="cmp" id="cmp" autocomplete="off" data-mode="office">
@@ -609,7 +619,7 @@ async function openTaskModal(id) {
     x.stage === "done" && !group && x.completed_by ? meta("check", `${t("Concluída por")} ${esc(nameOf(x.completed_by))}${x.completed_at ? ` · ${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : ""}`, "ok") : "",
     x.created_at ? meta("clock", `${t("Criada")} ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}`, "dim") : ""].filter(Boolean).join("");
   const steps = x.events.filter((e) => e.kind !== "note");
-  const buttons = `${canGiveToAI(x) ? ui.btn("Entregar ao escritório", "data-act=ai", "", "bot") : ""}
+  const buttons = `${canGiveToAI(x) ? ui.btn("Mandar para o escritório", "data-act=ai", "primary", "bot") + ui.btn("Escolher o agente", "data-act=ai-pick", "quiet", "users") : ""}
     ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
     ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
     ${!held && x.stage !== "done" ? ui.btn("Concluir", "data-act=done", "ok", "check") : ""}
@@ -677,7 +687,8 @@ async function openTaskModal(id) {
       } catch (err) { flash(err.message); }
       return;
     }
-    if (act === "ai") return assignToAI(x);
+    if (act === "ai") return sendToOffice(x);
+    if (act === "ai-pick") return assignToAI(x);
     if (act === "doing" || act === "notdoing") {
       // the change shows under the finger first (dark card, your photo and name), then the Hub is told; if it says no, the
       // window is drawn again from what the Hub has
@@ -744,7 +755,7 @@ HUB_VIEWS.tarefas = async function (r) {
     if (office) {
       office.disabled = true;
       api(`/api/tasks/${office.dataset.office}/assign-ai`, { method: "POST", body: { crew: "" } })
-        .then((given) => flash(t("Passada para a Empresa AMG: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) })), (err) => flash(err.message)).finally(loadBoard);
+        .then((given) => flash(t("Mandada para o escritório: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) })), (err) => flash(err.message)).finally(loadBoard);
       return;
     }
     const tick = e.target.closest(".tl-row [data-done]");

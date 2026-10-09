@@ -16,7 +16,54 @@ async function hubNews() {
   }
   lastNotification = newest;
   if (!$("notif-panel").hidden) drawNotifications(inbox);
+  taskNews(inbox);
   return inbox;
+}
+/* A task somebody sent me: the Tarefas of the sidebar (and of the phone's tabs) says how many are new, lit, and the
+   first time the Hub is open after one arrives a card says so on any page, with one touch to open it or to send it to
+   the office (Marco, 9 out: «mal abro o Hub tem que me aparecer "Tarefa para ti, Marco"»). It stays on the sidebar until
+   the task is opened; «Mais tarde» only puts the card away for this window. The Início has its own big card, so it is
+   not shown twice there. */
+const taskPopSeen = new Set((() => { try { return JSON.parse(sessionStorage.getItem("tpop.seen") || "[]"); } catch { return []; } })());
+const taskIdOf = (n) => Number(String(n.href || "").split("/").pop()) || 0;
+function taskNews(inbox) {
+  const fresh = inbox.items.filter((n) => n.kind === "task_new" && !n.read && n.directed && taskIdOf(n));
+  if (window.setBadge) setBadge("tarefas", fresh.length, fresh.length > 0, fresh.length ? t(fresh.length === 1 ? "1 tarefa nova para ti" : "{n} tarefas novas para ti", { n: fresh.length }) : "");
+  const show = fresh.filter((n) => !taskPopSeen.has(n.id));
+  if (!show.length) { closeTaskPop(); return; }
+  if (document.documentElement.classList.contains("is-mini") || document.querySelector(".nt") || !$("modal").hidden) return;
+  drawTaskPop(show);
+}
+function closeTaskPop() { const el = $("tpop"); if (el) el.remove(); }
+function drawTaskPop(show) {
+  const n = show[0], { who, title } = notifParts(n), id = taskIdOf(n), first = (me.display_name || "").split(" ")[0];
+  let el = $("tpop");
+  if (!el) { el = Object.assign(document.createElement("div"), { id: "tpop", className: "tpop" }); el.setAttribute("role", "dialog"); document.body.append(el); }
+  el.innerHTML = `<i class="tpop-light" aria-hidden="true"></i>
+    <header><i class="tpop-dot"></i><b>${esc(t("Tarefa para ti, {n}", { n: first }))}</b>${show.length > 1 ? `<em>${esc(t("+{n} novas", { n: show.length - 1 }))}</em>` : ""}
+      <button type="button" class="tpop-x" data-tpop-later aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
+    <div class="tpop-from">${ui.avatar(who || "?", "sm")}<span><b>${esc(who || t("Alguém"))}</b> ${esc(t("mandou-te uma tarefa"))} · ${esc(fmt.ago(n.created_at))}</span></div>
+    <h3>${esc(title || n.title)}</h3>
+    <div class="tpop-acts"><button type="button" class="btn primary" data-tpop-open="${id}">${esc(t("Abrir"))}${icon("chevron")}</button>
+      <button type="button" class="btn" data-tpop-office="${id}" data-n="${n.id}">${icon("bot")}${esc(t("Mandar para o escritório"))}</button>
+      <button type="button" class="btn quiet" data-tpop-later>${esc(t("Mais tarde"))}</button></div>`;
+  el.onclick = async (e) => {
+    const later = e.target.closest("[data-tpop-later]"), open = e.target.closest("[data-tpop-open]"), office = e.target.closest("[data-tpop-office]");
+    if (later || open) {
+      show.forEach((x) => taskPopSeen.add(x.id));
+      try { sessionStorage.setItem("tpop.seen", JSON.stringify([...taskPopSeen])); } catch { /* private window: the card may come back on reload */ }
+      closeTaskPop();
+      if (open) openTaskModal(Number(open.dataset.tpopOpen));
+    } else if (office) {
+      office.disabled = true;
+      try {
+        const given = await api(`/api/tasks/${office.dataset.tpopOffice}/assign-ai`, { method: "POST", body: { crew: "" } });
+        await api("/api/notifications/read", { method: "POST", body: { ids: [Number(office.dataset.n)] } });
+        flash(t("Mandada para o escritório: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) }));
+        closeTaskPop(); hubNews().catch(() => {});
+      } catch (err) { flash(err.message); office.disabled = false; }
+    }
+  };
 }
 /* The list of notifications, the same on the computer's bell and on the phone's Avisos: by day, each with what kind of thing
    it is written out, unread ones lit. «Escolher» turns on ticks to pick which ones to delete; the × deletes one at once. */

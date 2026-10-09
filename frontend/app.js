@@ -128,7 +128,12 @@ const NAV = [
 ];
 const TABS = NAV.flatMap(([, , pages]) => pages);
 const badgeCount = {}; // page id -> number, kept so tabs drawn later show it too
-const badgeHtml = (id) => `<i class="badge" data-badge="${id}" ${badgeCount[id] ? "" : "hidden"}>${badgeCount[id] || ""}</i>`;
+const badgeHtml = (id) => `<i class="badge ${badgeHot[id] ? "hot" : ""}" data-badge="${id}" ${badgeCount[id] ? "" : "hidden"}>${badgeCount[id] || ""}</i>`;
+const badgeHot = {};   // page id -> true: the number is something new for this person, lit (the Tarefas of the sidebar)
+function setBadge(id, n, hot = false, title = "") {
+  badgeCount[id] = n; badgeHot[id] = hot;
+  document.querySelectorAll(`[data-badge="${id}"]`).forEach((b) => { b.textContent = n; b.hidden = !n; b.classList.toggle("hot", hot); b.title = title; });
+}
 
 function route() {
   const hash = location.hash;
@@ -172,8 +177,7 @@ async function loadStats() {
   const pending = approvals.filter((a) => a.status === "PENDING").length;
   const week = team.reduce((sum, m) => sum + (Number(m.week_cost_usd) || 0), 0);
   drawHud(team, active, pending, week);
-  const badge = (id, n) => { badgeCount[id] = n; document.querySelectorAll(`[data-badge="${id}"]`).forEach((b) => { b.textContent = n; b.hidden = !n; }); };
-  badge("aprovacoes", pending); badge("tarefas", active);
+  setBadge("aprovacoes", pending);   // the Tarefas number is the new tasks for this person (shell.js, taskNews)
   if (!$("tiles")) return;
   paint($("tiles"), [[active, "Em curso"], [pending, "Aprovações", pending ? "orange" : ""],
     [`$${week.toFixed(2)}`, "Gasto esta semana"]]

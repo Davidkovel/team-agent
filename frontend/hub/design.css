@@ -831,3 +831,35 @@ html.is-mini .hside, html.is-mini #hpanel, html.is-mini #ai-fab, html.is-mini #a
 html.is-mini .hub, html.is-mini .hub.paneled, html.is-mini .hub.collapsed { grid-template-columns: minmax(0, 1fr) !important; }
 html.is-mini #view { padding: 0 !important; max-width: none !important; overflow: hidden; }
 html.is-mini body { background: #030407; }
+
+/* «Tarefa para ti»: a card at the top of any page when a task is sent to me (shell.js, taskNews), and the lit number of the
+   sidebar's Tarefas */
+.badge.hot { background: #ff2d4f !important; color: #fff !important; box-shadow: 0 0 0 0 rgba(255, 45, 79, .55); animation: tpop-ping 1.8s ease-out infinite; }
+@keyframes tpop-ping { 0% { box-shadow: 0 0 0 0 rgba(255, 45, 79, .55); } 70% { box-shadow: 0 0 0 7px rgba(255, 45, 79, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 45, 79, 0); } }
+.tpop { position: fixed; z-index: 85; top: 18px; left: 50%; width: min(460px, calc(100vw - 24px)); transform: translateX(-50%); overflow: hidden; padding: 16px 16px 14px;
+  border-radius: 18px; background: linear-gradient(180deg, #14171c, #0a0c10); border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .7), 0 0 0 1px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .1); animation: tpop-in .45s cubic-bezier(.2, .8, .2, 1); }
+@keyframes tpop-in { from { transform: translate(-50%, -24px); opacity: 0; } }
+.tpop-light { position: absolute; top: 0; left: -40%; width: 40%; height: 2px; background: linear-gradient(90deg, transparent, #fff, transparent); animation: tpop-run 1.6s ease-out .2s 1 both; }
+@keyframes tpop-run { to { left: 100%; } }
+.tpop header { display: flex; align-items: center; gap: 9px; }
+.tpop header b { font: 700 11px var(--ui); letter-spacing: .18em; text-transform: uppercase; color: #fff; }
+.tpop header em { padding: 2px 8px; border-radius: 999px; background: rgba(255, 45, 79, .16); color: #ff8a9c; font: 700 10.5px var(--ui); font-style: normal; }
+.tpop-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff2d4f; box-shadow: 0 0 10px #ff2d4f; animation: tpop-ping 1.8s ease-out infinite; }
+.tpop-x { margin-left: auto; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: #aeb5bf; cursor: pointer; }
+.tpop-x .i { width: 13px; height: 13px; }
+.tpop-from { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; color: #8b95a1; font-size: 12.5px; }
+.tpop-from b { color: #dfe5ec; }
+.tpop h3 { margin: 0 0 14px; font: 600 19px/1.3 var(--display); color: #fff; overflow-wrap: anywhere; }
+.tpop-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tpop-acts .btn { height: 38px; gap: 7px; border-radius: 11px; font-size: 13px; }
+.tpop-acts .btn .i { width: 13px; height: 13px; }
+html.is-phone .tpop { top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px) + 8px); }
+html.is-phone .tpop-acts .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+
+/* the new task's window: who takes it is said in one line; choosing somebody else is folded away */
+.cmp-pick { margin-top: 8px; }
+.cmp-pick > summary { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; color: var(--muted); font: 600 12px var(--ui); list-style: none; }
+.cmp-pick > summary::-webkit-details-marker { display: none; }
+.cmp-pick > summary .i { width: 13px; height: 13px; }
+.cmp-pick[open] > summary { margin-bottom: 10px; color: var(--text); }

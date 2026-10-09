@@ -2614,7 +2614,8 @@
     if (a.camX == null || Math.hypot(x - a.camX, y - a.camY) > 70) { a.camX = x; a.camY = y; }
     else { a.camX += (x - a.camX) * .45; a.camY += (y - a.camY) * .45; }
   }
-  // c: { el: the canvas, i: whose camera, w: how much of the cave it should take in, main: the big monitor }. Each pixel of
+  // c: { el: the canvas, i: whose camera, w: how much of the cave it should take in, main: a large monitor, lift: how much
+  // of the picture the agent sits above its middle, clear of what is written at the bottom }. Each pixel of
   // the crew is a whole number of pixels on the screen and the picture sits on their grid: the uneven pixels of a free
   // zoom were what made the cameras look broken (Marco, 9 out). The cave and the walls are drawn sharp at their own size,
   // so they are scaled smoothly; the crew is pixel art, so it is not.
@@ -2622,7 +2623,7 @@
   function shoot(c) {
     const a = agents[c.i], g = c.el.getContext("2d"), W = c.el.width, H = c.el.height;
     const k = Math.max(WS, Math.round(W / c.w / WS) * WS), w = W / k, h = H / k;
-    const sx = Math.round((a.camX - w / 2) * WS) / WS, sy = Math.round((a.camY - h / 2) * WS) / WS;
+    const sx = Math.round((a.camX - w / 2) * WS) / WS, sy = Math.round((a.camY - h / 2 + (c.lift || 0) * h) * WS) / WS;
     g.fillStyle = "#030407"; g.fillRect(0, 0, W, H);
     g.imageSmoothingEnabled = true;
     g.drawImage(bg, sx * BS, sy * BS, w * BS, h * BS, 0, 0, W, H);
@@ -2646,7 +2647,11 @@
     for (const c of window.CrewBoard.cams()) if (c.main || !moving || camTick % 3 === 0) shoot(c);   // walking: the small ones a third as often
     camTimer = setTimeout(camFrame, moving ? 150 : 1000);
   }
-  function film() { if (!camTimer && camsLive()) camTimer = setTimeout(camFrame, 0); }
+  // now: a monitor changed place or size (and so went blank): film at once instead of at the next second
+  function film(now) {
+    if (now && camTimer) { clearTimeout(camTimer); camTimer = 0; }
+    if (!camTimer && camsLive()) camTimer = setTimeout(camFrame, 0);
+  }
 
   // over the cave, at its right: the agent under the pointer, read large (on a big enough screen; elsewhere the small tip)
   let cave = null, side = null, sideAgent = null;

@@ -1,7 +1,7 @@
 /* O Escritório, the command centre (crew-board.js), and the page Empresa AMG, which is the cave itself (crew.js). AMG finish:
    black lacquer, graphite panels with a chrome edge; colour only for the states (green working, amber waiting, red in
-   trouble) and for the three partners. On a computer the command centre is one screen with no long page (.desk); on the
-   phone it is an app with four tabs (the last part of this file). */
+   trouble) and for the three partners. On a computer the command centre is one screen with no long page (.desk), most of
+   it the wall of cameras; on the phone it is an app with four tabs (the last part of this file). */
 
 .cb { display: grid; gap: 14px; margin-top: 2px; }
 .cb-seg, .cb-who { display: none; }   /* the phone's own: see the end */
@@ -49,6 +49,7 @@
 .cb-col > header b small { margin-left: 4px; padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--p) 22%, transparent); color: var(--p); font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; vertical-align: 3px; }
 .cb-col > header span { display: block; margin-top: 2px; color: #7d8794; font-size: 12px; }
 .cb-col > header em { color: #c3c9d2; font: 600 12px var(--ui); font-style: normal; white-space: nowrap; }
+.cb-col > header em.on { color: #4dff9a; }
 .cx-lims { display: grid; gap: 5px; margin: 0 0 12px; padding: 9px 11px; border-radius: 11px; background: #06080b; border: 1px solid rgba(255, 255, 255, .06); }
 .cx-lim { display: grid; grid-template-columns: 74px minmax(0, 1fr) 36px; gap: 9px; align-items: center; }
 .cx-lim span { color: #7d8794; font: 600 11px var(--ui); }
@@ -139,55 +140,74 @@
 .cb-q small { display: block; margin-top: 2px; color: #7d8794; font-size: 11.5px; line-height: 1.4; }
 .cb-go { height: 30px; padding: 0 12px; border-radius: 9px; font-size: 12px; }
 
-/* ---- the cameras: a main monitor and one camera per agent */
-.cc { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 10px; padding: 10px; border-radius: 18px; background: #05070a;
+/* ---- the cameras: a wall of monitors, one per agent. Those with a job share the wall, large and lit in the colour of
+   their state, with what they do written over the picture; the free ones stand by, small and dim, in a row under them */
+.cc { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; border-radius: 18px; background: #05070a;
   border: 1px solid rgba(255, 255, 255, .08); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 24px 60px rgba(0, 0, 0, .45); }
-.cc-feed { position: relative; display: block; overflow: hidden; background: #020305; }
-.cc-feed canvas { display: block; width: 100%; height: 100%; }   /* no CSS filter: on nine canvases it cost more than the drawing */
+.cc-bar { display: flex; align-items: center; gap: 12px; min-height: 26px; padding: 0 4px; }
+.cc-on { flex: none; display: inline-flex; align-items: center; gap: 7px; color: #ff9aa9; font: 700 10.5px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+.cc-on i { width: 8px; height: 8px; border-radius: 50%; background: #ff2d4f; box-shadow: 0 0 10px #ff2d4f; }
+.cc-bar b { min-width: 0; color: #e9edf3; font: 600 13px var(--ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-all { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; margin-left: auto; padding: 0 11px; border-radius: 8px; cursor: pointer;
+  background: var(--chrome); border: 1px solid #eef1f4; color: #0b0c0e; font: 700 10.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.cc-all .i { width: 13px; height: 13px; }
+.cc-all[hidden] { display: none; }
+.cc-bar time { flex: none; margin-left: auto; color: #8b95a1; font: 600 11px var(--mono); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.cc-all:not([hidden]) + time { margin-left: 0; }
+.cc-wall { display: grid; gap: 8px; min-width: 0; }
+.cc-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
+.cc-strip[hidden] { display: none; }
+/* a monitor: the picture fills it and what it says is written over it */
+.cc-cam { position: relative; min-width: 0; min-height: 0; border-radius: 12px; overflow: hidden; cursor: pointer; background: #020305;
+  border: 1px solid rgba(255, 255, 255, .09); container-type: size; transition: border-color .15s, box-shadow .15s; }
+.cc-strip .cc-cam { aspect-ratio: 16 / 10; }
+.cc-cam:hover { border-color: rgba(255, 255, 255, .34); }
+.cc-cam:focus-visible { outline: 2px solid #dfe8f2; outline-offset: 2px; }
+.cc-feed { position: absolute; inset: 0; display: block; overflow: hidden; background: #020305; }
+.cc-feed canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }   /* no CSS filter: on nine canvases it cost more than the drawing */
 /* the glass of a monitor: faint lines across it and darker corners */
 .cc-scan { position: absolute; inset: 0; pointer-events: none;
   background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 3px), radial-gradient(120% 95% at 50% 50%, transparent 60%, rgba(0, 0, 0, .45)); }
-.cc-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-radius: 13px; overflow: hidden; border: 1px solid rgba(255, 255, 255, .1); background: #0a0c10; }
-.cc-main .cc-feed { aspect-ratio: 16 / 9.4; }
-.cc-top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 12px; padding: 9px 12px 18px; color: #dfe8f2;
-  font: 600 11px var(--mono); letter-spacing: .08em; text-shadow: 0 1px 2px #000; background: linear-gradient(180deg, rgba(0, 0, 0, .62), transparent); }
-.cc-id { display: flex; align-items: baseline; gap: 9px; }
-.cc-id b { font: 700 11px var(--ui); letter-spacing: .18em; text-transform: uppercase; color: #fff; }
-.cc-rec { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: #ff9aa9; }
-.cc-rec i { width: 7px; height: 7px; border-radius: 50%; background: #ff2d4f; box-shadow: 0 0 8px #ff2d4f; }
-.cc-top time { font-variant-numeric: tabular-nums; color: #c3c9d2; }
-.cc-auto { height: 22px; padding: 0 9px; border-radius: 7px; cursor: pointer; background: rgba(6, 8, 13, .6); border: 1px solid rgba(255, 255, 255, .22); color: #9aa2ab;
-  font: 700 10px var(--ui); letter-spacing: .12em; }
-.cc-auto.on { background: var(--chrome); border-color: #eef1f4; color: #0b0c0e; text-shadow: none; }
-.cc-low { display: grid; gap: 8px; align-content: start; padding: 12px 14px; }
-.cc-who { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 11px; align-items: center; }
-.cc-who img { width: 30px; height: 42px; object-fit: cover; object-position: top; }
-.cc-who b { display: block; font: 700 20px/1.1 var(--display); color: #fff; }
-.cc-who small { color: #8b95a1; font: 700 10px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
-.cc-who em { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 8px; border-radius: 999px; font: 700 10.5px var(--ui); font-style: normal; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); border: 1px solid color-mix(in srgb, var(--c) 38%, transparent); white-space: nowrap; }
-.cc-who em i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
-.cc-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 10px; align-items: baseline; }
-.cc-line small { color: #6b7380; font: 700 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
-.cc-line span { color: #dfe5ec; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.cc-line.big span { font: 600 16.5px/1.3 var(--display); color: #fff; }
-.cc-line.mono span { font: 500 12px/1.45 var(--mono); color: #c3c9d2; }
-.cc-act { display: flex; align-items: center; gap: 12px; }
-.cc-act small { color: #6b7380; font-size: 11.5px; }
-.cc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-content: start; min-width: 0; }
-.cc-cam { display: grid; min-width: 0; padding: 0; border-radius: 11px; overflow: hidden; cursor: pointer; text-align: left; background: #0a0c10; border: 1px solid rgba(255, 255, 255, .09);
-  color: inherit; font: inherit; transition: border-color .15s; }
-.cc-cam .cc-feed { aspect-ratio: 16 / 10; }
-.cc-cam:hover { border-color: rgba(255, 255, 255, .3); }
-.cc-cam.busy { border-color: color-mix(in srgb, var(--c) 50%, transparent); }
-.cc-cam.sel { border-color: #dfe8f2; box-shadow: 0 0 0 1px #dfe8f2; }
-.cc-l { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; align-items: baseline; padding: 6px 9px 7px; }
-.cc-l span { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; color: #8b95a1; font: 600 9.5px var(--mono); letter-spacing: .08em; text-transform: uppercase;
-  white-space: nowrap; overflow: hidden; }
-.cc-l span i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
-.cc-cam.busy .cc-l span i { box-shadow: 0 0 8px var(--c); }
-.cc-l b { font: 700 13px var(--display); color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cc-l em { font: 600 10.5px var(--ui); font-style: normal; color: var(--p); }
+.cc-cam.busy { border-color: color-mix(in srgb, var(--c) 62%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 34%, transparent), 0 0 30px color-mix(in srgb, var(--c) 15%, transparent); }
+.cc-cam.busy:hover { border-color: var(--c); }
+.cc-strip .cc-cam.free::after { content: ""; position: absolute; inset: 0; background: rgba(2, 3, 5, .45); pointer-events: none; }
+.cc-hud { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.cc-hud button { pointer-events: auto; }
+.cc-tl, .cc-tr { position: absolute; top: 9px; display: inline-flex; align-items: center; gap: 7px; max-width: calc(100% - 18px); padding: 4px 9px; border-radius: 7px;
+  background: rgba(3, 4, 7, .68); color: #dfe8f2; font: 700 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+.cc-tl { left: 9px; }
+.cc-tr { right: 9px; color: #c3c9d2; }
+.cc-tl i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.cc-cam.busy .cc-tl i { box-shadow: 0 0 9px var(--c); }
+.cc-tr em { display: inline-flex; align-items: center; gap: 5px; font-style: normal; color: #ff9aa9; }
+.cc-tr em::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #ff2d4f; box-shadow: 0 0 8px #ff2d4f; }
+.cc-cap { position: absolute; left: 0; right: 0; bottom: 0; display: grid; gap: 6px; padding: 46px 16px 13px;
+  background: linear-gradient(0deg, rgba(3, 4, 7, .95), rgba(3, 4, 7, .86) 55%, rgba(3, 4, 7, 0)); }
+.cc-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cc-name img { flex: none; width: 22px; height: 31px; object-fit: cover; object-position: top; }
+.cc-name b { min-width: 0; font: 700 20px/1.1 var(--display); color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-pill { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 999px; font: 700 10px var(--ui); font-style: normal;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--c); background: color-mix(in srgb, var(--c) 14%, rgba(3, 4, 7, .7));
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); white-space: nowrap; }
+.cc-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.cc-goal { margin: 0; font: 600 18px/1.28 var(--display); color: #fff; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cc-now { margin: 0; color: #c3c9d2; font: 500 12.5px/1.45 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-now::before { content: "↳ "; color: #5f6874; }
+.cc-ask { margin: 0; color: #aeb5bf; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cc-ask small { margin-right: 8px; color: #6b7380; font: 700 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.cc-can { margin: 0; color: #aeb5bf; font-size: 13px; line-height: 1.45; }
+.cc-meta { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.cc-meta > span, .cc-meta > small { min-width: 0; color: #8b95a1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-meta .cb-link { flex: none; }
+/* a smaller monitor says less: first the request and the skills go, then the line at the bottom, then all but the name */
+@container (max-height: 430px) { .cb.desk .cc-ask, .cb.desk .cc-cap .cb-chips { display: none; } }
+@container (max-height: 300px) { .cb.desk .cc-cap { gap: 4px; padding: 34px 13px 10px; } .cb.desk .cc-goal { font-size: 16px; -webkit-line-clamp: 1; } .cb.desk .cc-can { display: none; } }
+@container (max-height: 210px) { .cb.desk .cc-meta { display: none; } }
+@container (max-width: 400px) { .cb.desk .cc-ask, .cb.desk .cc-cap .cb-chips, .cb.desk .cc-meta > span, .cb.desk .cc-meta > small { display: none; }
+  .cb.desk .cc-goal { font-size: 16px; } .cb.desk .cc-name b { font-size: 17px; } .cb.desk .cc-cap { padding-left: 13px; padding-right: 13px; } }
+@container (max-width: 240px) { .cc-cap { gap: 2px; padding: 22px 9px 7px; } .cc-name img, .cc-pill, .cc-goal, .cc-now, .cc-can, .cc-meta, .cc-ask, .cc-cap .cb-chips, .cc-tr { display: none; }
+  .cc-name b { font-size: 13px; } .cc-tl { top: 6px; left: 6px; padding: 2px 6px; font-size: 8.5px; letter-spacing: .06em; } .cc-tl span { display: none; } }
 
 /* the doors to what the cave keeps */
 .cb-doors { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
@@ -199,42 +219,92 @@
 .cb-door span { display: block; margin-top: 1px; color: #6b7380; font-size: 11px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ================================================================ one screen on a computer (.desk, set by crew-board.js)
-   two columns from 760 px (the cameras, and the partners over the missions), three from 1180 px (.wide) */
-.cb.desk { gap: 12px; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr) auto;
-  grid-template-areas: "top top" "cams people" "cams side" "doors side"; }
-.cb.desk.wide { grid-template-columns: 330px minmax(0, 1fr) 350px; grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-areas: "top top top" "people cams side" "people doors side"; }
-.cb.desk > .cx-top { grid-area: top; }
-.cb.desk > .cx-people { grid-area: people; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding-right: 2px; }
-.cb.desk > .cx-side { grid-area: side; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding-right: 2px; }
-.cb.desk > .cc { grid-area: cams; min-height: 0; display: flex; flex-direction: column; }
-.cb.desk > .cb-doors { grid-area: doors; }
-.cb.desk .cc-main { flex: 1; }
-.cb.desk .cc-main .cc-feed { flex: 1; min-height: 150px; aspect-ratio: auto; }
-.cb.desk .cc-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
-.cb.desk .cc-cam .cc-feed { aspect-ratio: 4 / 3; }
-.cb.desk .cc-l { padding: 5px 7px 6px; }
-.cb.desk .cc-l span { font-size: 8.5px; letter-spacing: .04em; }
-.cb.desk .cc-l b { font-size: 12px; }
-.cb.desk .cc-l em { display: none; }
-.cb.desk:not(.wide) .cc-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.cb.desk:not(.wide) .cb-doors { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.cb.desk:not(.wide) .cb-door { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; padding: 9px 6px; }
-.cb.desk:not(.wide) .cb-door span { display: none; }
+   The wall of cameras takes the room; at its right the partners, a few lines each, over the missions and the doors. Each
+   column scrolls inside itself, the page never does. */
+.cb.desk { gap: 12px; grid-template-columns: minmax(0, 1fr) 330px; grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "top top" "cams people" "cams side" "cams doors"; }
+.cb.desk.wide { grid-template-columns: minmax(0, 1fr) 384px; }
+.cb.desk > .cx-top { grid-area: top; padding: 12px 18px; }
+.cb.desk .cx-id h1 { font-size: 30px; }
+.cb.desk > .cc { grid-area: cams; min-height: 0; }
+.cb.desk .cc-wall { flex: 1; min-height: 0; }
+.cb.desk .cc-strip .cc-cam { aspect-ratio: auto; height: 82px; }
+.cb.desk > .cx-people { grid-area: people; max-height: 46vh; overflow-y: auto; scrollbar-width: thin; }
+.cb.desk > .cx-side { grid-area: side; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.cb.desk > .cb-doors { grid-area: doors; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.cb.desk .cb-door:first-child { display: none; }   /* the cave is at the top already */
+.cb.desk .cb-door { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 4px; padding: 8px 4px; text-align: center; }
+.cb.desk .cb-door .i { width: 16px; height: 16px; }
+.cb.desk .cb-door b { font-size: 12px; }
+.cb.desk .cb-door span { display: none; }
+.cb.desk:not(.wide) .cb-nums { grid-template-columns: repeat(4, 80px); }
 .cb.desk:not(.wide) .cx-acts .btn { padding: 0 12px; }
-.cb.desk:not(.wide) .cb-nums { grid-template-columns: repeat(4, 88px); }
-.cb.desk.wide .cb-door span { display: none; }
-.cb:not(.desk) .cc-main .cc-feed { aspect-ratio: 16 / 9.4; }
-/* two columns: the numbers are in the cards already, the monitor keeps the room for its picture */
-.cb.desk:not(.wide) .cx-top { grid-template-columns: minmax(0, 1fr) auto; }
-.cb.desk:not(.wide) .cx-top .cb-nums { display: none; }
-.cb.desk:not(.wide) .cc-line.ask, .cb.desk:not(.wide) .cc-low .cb-chips { display: none; }
-.cb.desk:not(.wide) .cc-cam .cc-feed { aspect-ratio: 16 / 8; }
-.cb.desk:not(.wide) .cc-low { gap: 6px; padding: 10px 12px; }
+/* the partners: a few lines each */
+.cb.desk .cx-k { margin-bottom: 8px; }
+.cb.desk .cb-cols { gap: 8px; }
+.cb.desk .cb-col { padding: 11px 12px; border-radius: 15px; }
+.cb.desk .cb-col > header { grid-template-columns: auto minmax(0, 1fr) 132px; gap: 10px; margin: 0; }
+.cb.desk .cx-face .av { width: 34px; height: 34px; font-size: 14px; }
+.cb.desk .cb-col > header b { font-size: 16.5px; }
+.cb.desk .cb-col > header span { font-size: 11.5px; }
+.cb.desk .cb-col > header .cx-lims { gap: 4px; margin: 0; padding: 0; background: none; border: 0; }
+.cb.desk .cx-lim { grid-template-columns: 30px minmax(0, 1fr) 30px; gap: 6px; }
+.cb.desk .cx-lim span { font-size: 10.5px; }
+.cb.desk .cx-lim em { font-size: 11px; }
+.cb.desk .cb-col > .cb-card { margin-top: 7px; }
+.cb.desk .cb-col > .cb-idle { margin-top: 6px; }
+.cb-wrow { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 9px; align-items: center; width: 100%; margin-top: 6px; padding: 7px 10px; text-align: left; cursor: pointer;
+  border-radius: 10px; background: rgba(77, 255, 154, .05); border: 1px solid rgba(77, 255, 154, .2); color: inherit; font: inherit; transition: border-color .15s; }
+.cb-wrow:hover { border-color: rgba(77, 255, 154, .5); }
+.cb-wrow > i { width: 7px; height: 7px; border-radius: 50%; background: #4dff9a; box-shadow: 0 0 8px #4dff9a; }
+.cb-wrow b { min-width: 0; font: 600 12.5px/1.3 var(--ui); color: #e9edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-wrow span { color: #8b95a1; font: 600 11px var(--ui); }
+/* the missions: send one, then the queue or what got done, a tab each */
+.cb.desk .cx-side .cr-send { grid-template-columns: minmax(0, 1fr) auto; margin: 0; padding: 7px; gap: 6px; }
+.cb.desk .cx-side .cr-send > .cr-in { grid-column: 1; grid-row: 1; height: 42px; }
+.cb.desk .cx-side .cr-send > .cr-go { grid-column: 2; grid-row: 1; height: 42px; padding: 0 16px; }
+.cb.desk .cx-side .cr-send > label.cr-who { height: 38px; }
+.cb.desk .cx-side .cr-send > .cr-hold { grid-column: 1 / -1; height: 38px; }
+/* one line and «Mandar» until a mission is being written: then who does it, on whose computer, and «Pôr na fila» */
+.cb.desk .cx-side .cr-send:not(:focus-within):has(#cr-title:placeholder-shown) > :is(label.cr-who, .cr-hold) { display: none; }
+.cx-mtabs { display: none; }
+.cb.desk .cx-mtabs { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-top: 10px; padding: 3px; border-radius: 11px; background: #06080b; border: 1px solid rgba(255, 255, 255, .07); }
+.cx-mtabs button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 30px; border: 0; border-radius: 8px; background: none; color: #8b95a1;
+  font: 600 12.5px var(--ui); cursor: pointer; }
+.cx-mtabs button:hover { color: #fff; }
+.cx-mtabs button.on { background: var(--chrome); color: #0b0c0e; }
+.cx-mtabs b { min-width: 18px; padding: 1px 6px; border-radius: 6px; background: rgba(255, 255, 255, .08); font: 700 11px var(--ui); }
+.cx-mtabs b:empty { display: none; }
+.cx-mtabs .on b { background: rgba(0, 0, 0, .12); }
+.cb.desk .cx-side[data-m="queue"] > [data-m="done"], .cb.desk .cx-side[data-m="done"] > [data-m="queue"] { display: none; }
+.cb.desk .cx-side .cx-box { margin-top: 8px; padding: 8px; }
+.cb.desk .cx-side .cx-box > .cb-k { display: none; }   /* the tab says it */
+/* the side panel (the widget's numbers) would only squeeze the cameras: the partners' Claude and who is here are on this page */
+html:not(.is-phone) .hub.paneled:has(#cr-board) { grid-template-columns: 236px minmax(0, 1fr); }
+html:not(.is-phone) .hub.paneled.collapsed:has(#cr-board) { grid-template-columns: 60px minmax(0, 1fr); }
+html:not(.is-phone) .hub.paneled:has(#cr-board) #hpanel { display: none; }
+html:not(.is-phone) body:has(#cr-board) #ai-fab { right: 20px; }
+/* below a computer's width (a narrow window): the monitors one under the other, the words under the picture */
+.cb:not(.desk) .cc-wall { gap: 12px; }
+.cb:not(.desk) .cc-wall .cc-cam { container-type: inline-size; }
+.cb:not(.desk) .cc-wall .cc-feed { position: relative; inset: auto; aspect-ratio: 16 / 10; }
+.cb:not(.desk) .cc-wall .cc-hud { position: static; }
+.cb:not(.desk) .cc-wall .cc-cap { position: static; padding: 13px 15px 15px; background: #0a0c10; }
 
 /* ---- an agent read at a glance: the pointer on a camera, here and at the side of the cave */
-.cb-tip { position: fixed; left: 0; top: 0; z-index: 80; width: 372px; pointer-events: none; border-radius: 18px; padding: 16px;
-  background: rgba(8, 10, 14, .97); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 30px 80px rgba(0, 0, 0, .7), inset 0 1px 0 rgba(255, 255, 255, .08); }
+.cb-tip { position: fixed; left: 0; top: 0; z-index: 80; width: 288px; pointer-events: none; border-radius: 14px; padding: 12px 13px;
+  background: rgba(8, 10, 14, .97); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 20px 50px rgba(0, 0, 0, .65), inset 0 1px 0 rgba(255, 255, 255, .08); }
+/* the small card under the pointer on a small camera */
+.cb-peek { display: grid; gap: 6px; }
+.cb-peek header { display: flex; align-items: center; gap: 9px; }
+.cb-peek header img { width: 18px; height: 26px; object-fit: cover; object-position: top; }
+.cb-peek header b { font: 700 16px var(--display); color: #fff; }
+.cb-peek header em { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--c); font: 700 9.5px var(--ui); font-style: normal; letter-spacing: .1em; text-transform: uppercase; }
+.cb-peek header em i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); }
+.cb-peek-goal { margin: 0; color: #fff; font: 600 13.5px/1.35 var(--display); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cb-peek-now { margin: 0; color: #aeb5bf; font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cb-peek small { color: #8b95a1; font-size: 11.5px; }
+.cb-peek .cb-peek-k { color: #5f6874; font-size: 11px; }
 .cb-tip[hidden], .cb-sheet[hidden] { display: none; }
 .cf { display: grid; gap: 14px; color: var(--text); }
 .cf > header { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 14px; align-items: end; }
@@ -312,19 +382,24 @@ html.is-mini .cr-ticker em { font-style: normal; color: #8b95a1; }
    Agora (the day and the doors) · Câmaras (the monitor and the cameras, to swipe) · Sócios (one at a time) · Missões (send,
    the queue, what got done). One thing per screen, large, lists as on an iPhone. */
 html.is-phone .cb { gap: 14px; margin-top: 0; }
-html.is-phone .cb-seg { position: sticky; z-index: 25; top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px) + 6px); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 3px;
+/* the four tabs, also in a narrow window on a computer (.tabbed: wherever the board is not one screen) */
+.cb.tabbed .cb-seg { position: sticky; z-index: 25; top: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 3px;
   border-radius: 12px; background: rgba(28, 30, 35, .82); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
-html.is-phone .cb-seg button, html.is-phone .cb-who button { height: 34px; padding: 0; border: 0; border-radius: 9px; background: none; color: #9aa2ab; font: 600 13.5px var(--ui); }
-html.is-phone .cb-seg button.on, html.is-phone .cb-who button.on { background: var(--chrome); color: #0b0c0e; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
-html.is-phone .cb[data-tab="now"] > [data-pane]:not([data-pane="now"]),
-html.is-phone .cb[data-tab="cams"] > [data-pane]:not([data-pane="cams"]),
-html.is-phone .cb[data-tab="people"] > [data-pane]:not([data-pane="people"]),
-html.is-phone .cb[data-tab="queue"] > [data-pane]:not([data-pane="queue"]) { display: none; }
+.cb.tabbed .cb-seg button, .cb.tabbed .cb-who button { height: 34px; padding: 0; border: 0; border-radius: 9px; background: none; color: #9aa2ab; font: 600 13.5px var(--ui); }
+.cb.tabbed .cb-seg button.on, .cb.tabbed .cb-who button.on { background: var(--chrome); color: #0b0c0e; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
+.cb.tabbed[data-tab="now"] > [data-pane]:not([data-pane="now"]),
+.cb.tabbed[data-tab="cams"] > [data-pane]:not([data-pane="cams"]),
+.cb.tabbed[data-tab="people"] > [data-pane]:not([data-pane="people"]),
+.cb.tabbed[data-tab="queue"] > [data-pane]:not([data-pane="queue"]) { display: none; }
+.cb.tabbed .cx-top { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.cb.tabbed .cb-nums { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cb.tabbed .cb-say { display: grid; gap: 12px; }
+html.is-phone .cb-seg { top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px) + 6px); }
 html.is-phone .cx-k { display: none; }
 html.is-phone .cx-top { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 18px 16px; border-radius: 18px; }
 html.is-phone .cx-id small, html.is-phone .cx-id h1 { display: none; }
 html.is-phone .cx-id p { white-space: normal; font-size: 15px; color: #8b95a1; }
-html.is-phone .cb-say { display: grid; gap: 14px; order: -1; }
+html.is-phone .cb-say { gap: 14px; order: -1; }
 html.is-phone .cb-say li { font-size: 17px; line-height: 1.38; }
 html.is-phone .cb-nums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 html.is-phone .cb-num { padding: 14px 16px; border-radius: 16px; }
@@ -338,27 +413,27 @@ html.is-phone .cb-door { padding: 15px 16px; border: 0; border-radius: 0; backgr
 html.is-phone .cb-door:last-child { border-bottom: 0; }
 html.is-phone .cb-door b { font-size: 16px; }
 html.is-phone .cb-door span { font-size: 13px; }
-html.is-phone .cc { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 0; border: 0; background: none; box-shadow: none; }
-html.is-phone .cc-main { border-radius: 18px; }
-html.is-phone .cc-main .cc-feed { aspect-ratio: 16 / 10.5; }
-html.is-phone .cc-low { padding: 16px; gap: 11px; }
-html.is-phone .cc-who b { font-size: 24px; }
-html.is-phone .cc-line { grid-template-columns: 82px minmax(0, 1fr); }
-html.is-phone .cc-line span { font-size: 15.5px; -webkit-line-clamp: 3; }
-html.is-phone .cc-line.big span { font-size: 19px; }
-html.is-phone .cc-line.mono span { font-size: 13.5px; }
+html.is-phone .cc { gap: 10px; padding: 0; border: 0; background: none; box-shadow: none; }
+html.is-phone .cc-bar { padding: 0 2px; }
+html.is-phone .cc-wall .cc-cam { border-radius: 18px; }
+html.is-phone .cc-wall .cc-feed { aspect-ratio: 16 / 10.5; }
+html.is-phone .cc-cap { gap: 9px; padding: 15px 16px 16px; }
+html.is-phone .cc-name b { font-size: 23px; }
+html.is-phone .cc-goal { font-size: 19.5px; -webkit-line-clamp: 3; }
+html.is-phone .cc-now { font-size: 13.5px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+html.is-phone .cc-ask, html.is-phone .cc-can { font-size: 15px; -webkit-line-clamp: 3; }
+html.is-phone .cc-meta { flex-wrap: wrap; gap: 6px 16px; }
+html.is-phone .cc-meta > span, html.is-phone .cc-meta > small { flex-basis: 100%; font-size: 13.5px; }
 html.is-phone .cb-link.cc-skills { display: inline-flex; margin-left: 0; }
 html.is-phone .cb-link { font-size: 14.5px; min-height: 36px; }
-html.is-phone .cc-grid { order: -1; display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin: 0 -14px; padding: 2px 14px; }
-html.is-phone .cc-grid::-webkit-scrollbar { display: none; }
-html.is-phone .cc-cam { flex: 0 0 31%; scroll-snap-align: start; border-radius: 14px; }
-html.is-phone .cc-l span { font-size: 9px; }
-html.is-phone .cc-l b { font-size: 14px; }
-html.is-phone .cb-who { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin-bottom: 12px; padding: 3px; border-radius: 12px; background: rgba(118, 118, 128, .2); }
-html.is-phone .cb-who button { display: flex; align-items: center; justify-content: center; gap: 7px; }
-html.is-phone .cb-who button i { width: 8px; height: 8px; border-radius: 50%; background: var(--p); }
-html.is-phone .cb-cols[data-who="kovel"] > :not(#cb-col-kovel), html.is-phone .cb-cols[data-who="marco"] > :not(#cb-col-marco),
-html.is-phone .cb-cols[data-who="david"] > :not(#cb-col-david) { display: none; }
+html.is-phone .cc-strip { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin: 0 -14px; padding: 2px 14px; }
+html.is-phone .cc-strip::-webkit-scrollbar { display: none; }
+html.is-phone .cc-strip .cc-cam { flex: 0 0 31%; scroll-snap-align: start; border-radius: 14px; }
+.cb.tabbed .cb-who { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin-bottom: 12px; padding: 3px; border-radius: 12px; background: rgba(118, 118, 128, .2); }
+.cb.tabbed .cb-who button { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.cb.tabbed .cb-who button i { width: 8px; height: 8px; border-radius: 50%; background: var(--p); }
+.cb.tabbed .cb-cols[data-who="kovel"] > :not(#cb-col-kovel), .cb.tabbed .cb-cols[data-who="marco"] > :not(#cb-col-marco),
+.cb.tabbed .cb-cols[data-who="david"] > :not(#cb-col-david) { display: none; }
 html.is-phone .cb-col { padding: 16px 14px; border-radius: 18px; }
 html.is-phone .cb-col > header b { font-size: 24px; }
 html.is-phone .cb-col > header span, html.is-phone .cb-col > header em { font-size: 13.5px; }

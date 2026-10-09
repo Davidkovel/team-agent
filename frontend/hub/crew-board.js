@@ -1,8 +1,10 @@
 // O Escritório: the company's command centre, the page #/escritorio. The cave itself is the page Empresa AMG (crew.js).
 // Asked for by Marco on 8-9 Oct: "o escritório tem de ser uma central de comando mesmo crazy", on one screen and with no
-// long scroll, clean like an app other companies would use. On the left the real people (Kovel, Marco, David): where
-// they are, how much Claude they have left, what each of their Claudes is doing and what waits for them. In the middle
-// the cameras of the agents. On the right the missions: send one, the queue, what got done today.
+// long scroll, clean like an app other companies would use. Rearranged on 9 Oct, when he found it a mess and the cameras
+// squeezed: on a computer the wall of cameras takes most of the screen, and whoever is working gets a large monitor with
+// the goal and what is being done written over the picture (the idle ones small and dim in a row under them). On the
+// right, in a few lines each, the real people (Kovel, Marco, David): where they are, how much Claude they have left, what
+// waits for them; under them the missions: send one, the queue, what got done today.
 // It draws what crew.js hands it (host.state()) and only touches the page where what it shows has changed (paint). The
 // cameras are canvases the cave's engine films into (cams(), crew.js camFrame), like security cameras.
 // On the phone the same page is an app with four tabs (Agora · Câmaras · Sócios · Missões), one partner at a time, and an
@@ -10,6 +12,8 @@
 window.CrewBoard = (function () {
   let host = null, root = null, tip = null, tipFor = null, sheet = null;
   const open = new Set(), more = new Set();   // what the person opened: a request, a result, the rest of a list
+  let mtab = sessionStorage.getItem("cb.mtab") || "";   // the missions' half shown on a computer (the queue or what got done); until chosen, the queue when it has something
+  let wallSize = null;   // re-splits the wall when its room changes (the window, the sidebar folded)
   const TABS = [["now", "Agora"], ["cams", "Câmaras"], ["people", "Sócios"], ["queue", "Missões"]];
   const SHOW_DONE = 8, DAY = 24 * 3600e3;
   const GREEN = "#4dff9a", AMBER = "#ffbf3c", RED = "#ff2d4f", GREY = "#8b95a1", COLD = "#dfe8f2";
@@ -166,24 +170,39 @@ window.CrewBoard = (function () {
       <div><b data-href="#task-${x.id}">${esc(x.title)}</b><small>${a ? `${esc(a.name)} · ${esc(t(a.what))} — ` : ""}${esc(why)}</small></div>
       ${it.held ? `<button type="button" class="btn cb-go" data-release="${x.id}">${esc(t("Arrancar"))}</button>` : ""}</div>`;
   }
-  // a partner: where they are, how much Claude they have left, what their Claudes are doing and what waits for them
-  function personCard(p) {
+  // a partner: who, where they are and how much Claude they have left (the top of both their card and their row)
+  function personHead(p, short) {
     const m = p.m || {}, on = m.status && m.status !== "OFFLINE", where = m.where || [];
     const place = !on ? (m.last_seen ? t("offline · visto {q}", { q: ago(m.last_seen) }) : t("offline"))
       : where.includes("phone") && !where.includes("pc") ? t("online no telemóvel") : t("online no computador");
     const bar = (label, pct) => (pct == null ? "" : `<div class="cx-lim"><span>${esc(t(label))}</span><i><b style="width:${Math.min(100, pct)}%;--c:${pct >= 90 ? RED : pct >= 70 ? AMBER : COLD}"></b></i><em>${Math.round(pct)}%</em></div>`);
-    const lim = p.limits ? bar("Claude 5 h", p.limits.five) + bar("Semana", p.limits.week) : "";
+    const lim = p.limits ? bar(short ? "5 h" : "Claude 5 h", p.limits.five) + bar(short ? "Sem." : "Semana", p.limits.week) : "";
     const n = p.working.length, head = n ? t(n === 1 ? "1 a trabalhar" : "{n} a trabalhar", { n }) : p.needs.length ? t(p.me ? "à tua espera" : "à espera dele") : t("nada a correr");
+    const who = `<span class="cx-face">${ui.avatar(p.name)}<i class="${on ? "on" : ""}"></i></span><div><b>${esc(p.name)}${p.me ? ` <small>${esc(t("tu"))}</small>` : ""}</b><span>${esc(place)}</span></div>`;
+    // a row: the Claude left in the corner of the line, since the lines under it already say what is running
+    if (short) return `<header>${who}${lim ? `<div class="cx-lims">${lim}</div>` : ""}</header>`;
+    return `<header>${who}<em>${esc(head)}</em></header>${lim ? `<div class="cx-lims">${lim}</div>` : ""}`;
+  }
+  const lastLine = (p) => `<p class="cb-quiet">${p.done[0] ? esc(t("Acabou «{g}» {q}.", { g: p.done[0].goal, q: ago(p.done[0].at) })) : esc(t("Nada a correr agora."))}</p>`;
+  // the phone: a partner's whole card, what their Claudes are doing and what waits for them
+  function personCard(p) {
     const live = p.working.map(workCard).join("") + p.needs.map((it) => needCard(it, p)).join("");
-    const last = p.done[0];
     const facts = [p.done.length ? t(p.done.length === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: p.done.length }) : "",
       p.queue.length ? t(p.queue.length === 1 ? "1 na fila" : "{n} na fila", { n: p.queue.length }) : "",
       agentOn(p.m) ? t("agente automático ligado") : p.me ? t("agente automático desligado") : ""].filter(Boolean);
-    return `<header><span class="cx-face">${ui.avatar(p.name)}<i class="${on ? "on" : ""}"></i></span><div><b>${esc(p.name)}${p.me ? ` <small>${esc(t("tu"))}</small>` : ""}</b><span>${esc(place)}</span></div><em>${esc(head)}</em></header>
-      ${lim ? `<div class="cx-lims">${lim}</div>` : ""}
-      ${live || `<p class="cb-quiet">${last ? esc(t("Acabou «{g}» {q}.", { g: last.goal, q: ago(last.at) })) : esc(t("Nada a correr agora."))}</p>`}
+    return `${personHead(p)}${live || lastLine(p)}
       ${p.idle ? `<p class="cb-idle">${esc(t(p.idle === 1 ? "1 janela do Claude aberta, sem pedido" : "{n} janelas do Claude abertas, sem pedido", { n: p.idle }))}</p>` : ""}
       <footer>${facts.map((f) => `<span>${esc(f)}</span>`).join("")}</footer>`;
+  }
+  // A computer: the same partner in a few lines, because the cameras already show what their agents are doing. A line
+  // per job, which brings its camera up large; what waits for them stays a card, since it waits for a person.
+  function personRow(p) {
+    const row = (it) => {
+      const go = it.agent ? `data-spot="${it.agent.i}" title="${esc(t("Ver a câmara de {n}", { n: it.agent.name }))}"` : it.kind === "task" ? `data-href="#task-${it.x.id}"` : "";
+      return `<button type="button" class="cb-wrow" ${go}><i></i><b>${esc(it.goal)}</b>${it.agent ? `<span>${esc(it.agent.name)}</span>` : ""}</button>`;
+    };
+    return `${personHead(p, true)}${p.working.map(row).join("")}${p.needs.map((it) => needCard(it, p)).join("")}
+      ${p.me && !agentOn(p.m) ? `<p class="cb-idle">${esc(t("O teu agente automático está desligado"))}</p>` : ""}`;
   }
   // the company in one sentence, and four numbers
   function summary(people) {
@@ -233,6 +252,7 @@ window.CrewBoard = (function () {
 
   // ---------------------------------------------------------------- an agent's card, read at a glance (the pointer on a camera, here and in the cave)
   function ficha(a) {
+    if (!host) return "";   // the cave asked before the command centre was ever opened
     const s = host.state(), st = host.stateOf(a), j = a.job, c = host.light(st), use = j ? inUse(j) : { skills: [], subs: [] };
     const sector = (s.arsenal || []).filter((k) => sectorOfSkill(k.name) === a.id && !use.skills.includes(k.name)), done = host.doneBy(a);
     const who = j ? host.partnerOf(j.who) : null;
@@ -263,36 +283,89 @@ window.CrewBoard = (function () {
   }
 
   // ---------------------------------------------------------------- the cameras
-  // One per agent, following them; the main monitor shows one of them large, with who asked, the goal and what is being
-  // done under the picture. Left alone it goes to whoever started working last; a click pins a camera.
-  let camSel = 0, camPin = false;
+  // A wall of security monitors, one camera per agent, following them. Whoever has a job (working, or waiting for
+  // somebody) gets a large monitor that shares the wall with the others at work, with the goal and what is being done
+  // written over the picture; the free ones are small and dim in a row under them. With nobody at work the eight share
+  // the wall. A click blows a camera up to the whole wall; another click on it, or «Todas», gives the wall back.
+  let spot = null;
   const camNo = (i) => String(i + 1).padStart(2, "0");
-  function autoCam(s) {
-    const busy = s.agents.filter((a) => a.job && a.mode !== "done");
-    const pick = busy.filter((a) => a.job.state === "work").sort((p, q) => String(q.job.since).localeCompare(String(p.job.since)))[0] || busy[0];
-    return pick ? pick.i : camSel;
+  const busy = (a) => !!a.job && a.mode !== "done";
+  const WAITING = ["wait", "help", "pause"];
+  function wallPlan(s) {
+    const on = s.agents.filter(busy).sort((p, q) => String(p.job.since || "").localeCompare(String(q.job.since || "")));   // oldest first: a new job joins at the end, nobody jumps
+    const off = s.agents.filter((a) => !busy(a));
+    if (spot != null && s.agents[spot]) return { on, live: [s.agents[spot]], strip: [...on, ...off].filter((a) => a.i !== spot) };
+    return on.length ? { on, live: on, strip: off } : { on, live: s.agents, strip: [] };
   }
-  function camInfo(a) {
-    const st = host.stateOf(a), j = a.job, c = host.light(st);
-    const head = `<div class="cc-who"><img class="cr-px" src="${a.portrait}" alt=""><div><b>${esc(a.name)}</b><small>${esc(t(a.what))}</small></div><em style="--c:${c}"><i></i>${esc(t(STATE_WORD[st] || st))}</em></div>`;
-    const line = (k, v, cls = "") => (v ? `<div class="cc-line ${cls}"><small>${esc(t(k))}</small><span>${v}</span></div>` : "");
-    if (!j) return `${head}${line("Sabe fazer", esc(CAN[a.id].map((x) => t(x)).join(" · ")))}
-      <div class="cc-act"><button type="button" class="cb-link cc-skills" data-ficha="${a.i}">${esc(t("Skills"))}${icon("chevron")}</button><small>${esc(t("Sem missão: está com os outros, à espera de trabalho."))}</small><button type="button" class="cb-link" data-agent="${a.i}">${esc(t("Dar-lhe uma missão"))}${icon("chevron")}</button></div>`;
-    const who = host.partnerOf(j.who), use = inUse(j), goal = jobGoal(j), ask = sentence(j.title, 130);
-    return `${head}${line("Para", `<i class="cf-p" style="--p:${who.color}"></i>${esc(who.name || j.who)}${j.project ? ` · ${esc(j.project)}` : ""}${j.since ? ` · ${esc(ago(j.since))}` : ""}`)}
-      ${line("Meta", esc(goal), "big")}${ask && !same(ask, goal) ? line("Pediu", esc(ask), "ask") : ""}${line("Agora", esc(j.action || t("a pensar…")), "mono")}${chips(use.skills, use.subs)}
-      <div class="cc-act"><button type="button" class="cb-link cc-skills" data-ficha="${a.i}">${esc(t("Skills"))}${icon("chevron")}</button><small>${esc([model(j.model), tok(j.tokens)].filter(Boolean).join(" · "))}</small><button type="button" class="cb-link" data-agent="${a.i}">${esc(t("Abrir a missão"))}${icon("chevron")}</button></div>`;
+  // the wall's columns: the split of its room whose monitors come closest to a landscape picture, few cells left empty
+  function gridFor(n, W, H) {
+    let best = [1, n], score = Infinity;
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols), sc = Math.abs(Math.log(W / cols / (H / rows) / 1.35)) + (cols * rows - n) * .12;
+      if (sc < score) { score = sc; best = [cols, rows]; }
+    }
+    return best;
   }
-  // What the cave's engine films: the main monitor and the eight small ones, each a canvas the size it is shown at.
-  // w: how much of the cave the picture should take in; the engine rounds it so that each pixel of the cave is a whole
-  // number of pixels on the screen (uneven pixels were what made the cameras look broken).
+  function layoutWall() {
+    const box = $("cc-live");
+    if (!box) return;
+    const tiles = [...box.children], desk = root.classList.contains("desk");
+    const [cols, rows] = desk && tiles.length ? gridFor(tiles.length, box.clientWidth, box.clientHeight) : [1, tiles.length];
+    box.style.gridTemplateColumns = desk ? `repeat(${cols}, minmax(0, 1fr))` : "";
+    box.style.gridTemplateRows = desk ? `repeat(${rows}, minmax(0, 1fr))` : "";
+    const spare = cols * rows - tiles.length;   // cells left empty: the first monitor takes them, wider
+    tiles.forEach((el, k) => { el.style.gridColumn = desk && !k && spare ? `span ${spare + 1}` : ""; });
+  }
+  // what is written over a camera: which one, the agent and their state, and for one at work who asked, the goal, what is
+  // being done right now and how long it has been going (crew-board.css hides lines as the monitor gets smaller)
+  function hud(a) {
+    const st = host.stateOf(a), j = busy(a) ? a.job : null;
+    const top = `<span class="cc-tl"><i></i><span>CAM </span>${camNo(a.i)} · ${esc(t(a.what))}</span>${j ? `<span class="cc-tr"><em>REC</em>${j.since ? `<time>${esc(ago(j.since))}</time>` : ""}</span>` : ""}`;
+    const name = `<div class="cc-name"><img class="cr-px" src="${a.portrait}" alt=""><b>${esc(a.name)}</b><em class="cc-pill"><i></i>${esc(t(STATE_WORD[st] || st))}</em></div>`;
+    const skills = `<button type="button" class="cb-link cc-skills" data-ficha="${a.i}">${esc(t("Skills"))}${icon("chevron")}</button>`;
+    if (!j) return `${top}<div class="cc-cap">${name}<p class="cc-can">${esc(CAN[a.id].map((x) => t(x)).join(" · "))}</p>
+      <div class="cc-meta"><small>${esc(t("Sem missão, à espera de trabalho"))}</small>${skills}<button type="button" class="cb-link" data-open="${a.i}">${esc(t("Dar-lhe uma missão"))}${icon("chevron")}</button></div></div>`;
+    const who = host.partnerOf(j.who), use = inUse(j), goal = jobGoal(j), ask = sentence(j.title, 160);
+    return `${top}<div class="cc-cap">${name}<p class="cc-goal">${esc(goal)}</p><p class="cc-now">${esc(j.action || t("a pensar…"))}</p>
+      ${ask && !same(ask, goal) ? `<p class="cc-ask"><small>${esc(t("Pediu"))}</small>${esc(ask)}</p>` : ""}${chips(use.skills, use.subs)}
+      <div class="cc-meta"><span><i class="cf-p" style="--p:${who.color}"></i>${esc([who.name || j.who, j.project, model(j.model), tok(j.tokens)].filter(Boolean).join(" · "))}</span>${skills}<button type="button" class="cb-link" data-open="${a.i}">${esc(t("Abrir a missão"))}${icon("chevron")}</button></div></div>`;
+  }
+  // The monitors in their places (moved, never made again: a canvas keeps its picture when it moves) and what is written
+  // over each. When a monitor changes place or size it is filmed again at once instead of at the next second.
+  function paintWall(s) {
+    const plan = wallPlan(s), live = $("cc-live"), strip = $("cc-strip");
+    let moved = false;
+    const place = (box, list) => list.forEach((a, k) => { const el = $(`cc-cam-${a.i}`); if (el && box.children[k] !== el) { box.insertBefore(el, box.children[k] || null); moved = true; } });
+    place(live, plan.live); place(strip, plan.strip);
+    for (const el of strip.children) el.style.gridColumn = "";   // a monitor that was the wide one on the wall
+    strip.hidden = !plan.strip.length;
+    for (const a of s.agents) {
+      const el = $(`cc-cam-${a.i}`);
+      el.className = `cc-cam ${busy(a) ? "busy" : "free"}${spot === a.i ? " spot" : ""}`;
+      el.style.setProperty("--c", host.light(host.stateOf(a)));
+      paint($(`cc-h-${a.i}`), hud(a));
+    }
+    const waiting = plan.on.filter((a) => WAITING.includes(host.stateOf(a))).length, working = plan.on.length - waiting;
+    paint($("cc-count"), esc([working ? t(working === 1 ? "1 a trabalhar" : "{n} a trabalhar", { n: working }) : t("Ninguém a trabalhar"),
+      waiting ? t("{n} à espera", { n: waiting }) : "", plan.on.length < s.agents.length ? t("{n} livres", { n: s.agents.length - plan.on.length }) : ""].filter(Boolean).join(" · ")));
+    $("cc-all").hidden = spot == null;
+    if (moved) { layoutWall(); host.film(true); }
+  }
+  // What the cave's engine films: each monitor a canvas the size it is shown at. w: how much of the cave the picture
+  // should take in, more on a larger monitor; the engine rounds it so that each pixel of the cave is a whole number of
+  // pixels on the screen (uneven pixels were what made the cameras look broken). lift: the agent a bit above the middle,
+  // clear of what is written at the bottom of a large monitor. main: an agent at work (or blown up), filmed at every frame
+  // while somebody walks; the others a third as often.
   function cams() {
     if (!root || !root.isConnected) return [];
-    const dpr = Math.min(2, window.devicePixelRatio || 1), out = [];
-    const fit = (c) => { const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr); if (w && h && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; } return w && h; };
-    const main = $("cc-main-cv");
-    if (main && fit(main)) out.push({ el: main, i: camSel, w: 150, main: true });
-    for (const a of host.state().agents) { const c = $(`cc-cv-${a.i}`); if (c && fit(c)) out.push({ el: c, i: a.i, w: 78 }); }
+    const dpr = Math.min(2, window.devicePixelRatio || 1), out = [], over = root.classList.contains("desk");
+    for (const a of host.state().agents) {
+      const c = $(`cc-cv-${a.i}`), cw = c ? c.clientWidth : 0, ch = c ? c.clientHeight : 0;
+      if (!cw || !ch) continue;
+      const w = Math.round(cw * dpr), h = Math.round(ch * dpr), big = !!c.closest("#cc-live");
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      out.push({ el: c, i: a.i, w: Math.max(60, Math.min(240, cw / 5)), main: big && (busy(a) || spot === a.i), lift: big && over ? .16 : 0 });
+    }
     const clock = $("cc-clock");
     if (clock) clock.textContent = new Date().toLocaleTimeString("pt-PT");
     return out;
@@ -301,50 +374,56 @@ window.CrewBoard = (function () {
   // ---------------------------------------------------------------- the page
   function draw() {
     if (!root || !root.isConnected) return;
-    const s = host.state(), people = build(s);
+    const s = host.state(), people = build(s), desk = root.classList.contains("desk");
     if (host.ready()) {   // before the Hub has answered there is nothing true to say: the page waits
       paint($("cx-sum"), esc(summary(people)));
       paint($("cb-nums"), nums(people));
       paint($("cb-say"), sayList(people));
-      for (const p of people) paint($(`cb-col-${p.id}`), personCard(p));
+      for (const p of people) paint($(`cb-col-${p.id}`), desk ? personRow(p) : personCard(p));
       paint($("cb-queue"), queuePane(people, s));
       paint($("cb-done"), donePane(people));
-      const waiting = people.reduce((n, p) => n + p.queue.length, 0), seg = root.querySelector('.cb-seg [data-tab="queue"]');
+      const waiting = people.reduce((n, p) => n + p.queue.length, 0), done = people.reduce((n, p) => n + p.done.length, 0), seg = root.querySelector('.cb-seg [data-tab="queue"]');
       if (seg) seg.textContent = waiting ? `${t("Missões")} · ${waiting}` : t("Missões");
+      paint($("cb-nq"), waiting ? String(waiting) : "");
+      paint($("cb-nd"), done ? String(done) : "");
+      $("cb-side").dataset.m = mtab || (waiting ? "queue" : "done");
+      root.querySelectorAll(".cx-mtabs [data-mtab]").forEach((b) => b.classList.toggle("on", b.dataset.mtab === $("cb-side").dataset.m));
     }
-    if (!camPin) camSel = autoCam(s);
-    const sel = s.agents[camSel] || s.agents[0];
-    paint($("cc-head"), `<span>CAM ${camNo(sel.i)}</span><b>${esc(t(sel.what))}</b>`);
-    paint($("cc-low"), camInfo(sel));
-    $("cc-auto").classList.toggle("on", !camPin);
-    for (const a of s.agents) {
-      const el = $(`cc-cam-${a.i}`), who = a.job ? host.partnerOf(a.job.who) : null;
-      if (!el) continue;
-      paint($(`cc-l-${a.i}`), `<span><i></i>${camNo(a.i)} · ${esc(t(a.what))}</span><b>${esc(a.name)}</b>${who ? `<em style="--p:${who.color}">${esc(who.name || a.job.who)}</em>` : ""}`);
-      el.className = `cc-cam ${a.i === sel.i ? "sel" : ""} ${a.job ? "busy" : ""}`; el.style.setProperty("--c", host.light(host.stateOf(a)));
-    }
+    paintWall(s);
     paint($("cb-doors"), doors(s));
-    if (tip && !tip.hidden && tipFor) paint(tip, ficha(tipFor));
+    if (tip && !tip.hidden && tipFor) paint(tip, peek(tipFor));
   }
   // On a computer the command centre takes exactly the height of the window: no long page, each column scrolls inside.
   function fit() {
     if (!root || !root.isConnected) return;
-    const desk = !document.documentElement.classList.contains("is-phone") && root.clientWidth >= 760;
+    const desk = !document.documentElement.classList.contains("is-phone") && root.clientWidth >= 760, was = root.classList.contains("desk");
     root.classList.toggle("desk", desk);
+    root.classList.toggle("tabbed", !desk);   // a narrow window gets the phone's four tabs: one thing at a time instead of everything squeezed
     root.classList.toggle("wide", desk && root.clientWidth >= 1180);
     const pad = (parseFloat(getComputedStyle($("view")).paddingBottom) || 0) + 6;
-    root.style.height = desk ? `${Math.max(560, window.innerHeight - root.getBoundingClientRect().top - pad)}px` : "";
+    root.style.height = desk ? `${Math.max(440, window.innerHeight - root.getBoundingClientRect().top - pad)}px` : "";   // the widget's window can be 480 high
+    if (desk !== was) draw();   // the partners are a row each on a computer and a whole card elsewhere
+    layoutWall();
+  }
+  // The pointer on a small camera: a small card, who and what in a few lines. The whole card (skills, what they did) was
+  // nearly a window of its own (Marco, 9 Oct: "não é clean"); it is a click away, in the agent's panel.
+  function peek(a) {
+    const st = host.stateOf(a), j = busy(a) ? a.job : null, who = j ? host.partnerOf(j.who) : null;
+    return `<div class="cb-peek" style="--c:${host.light(st)}"><header><img class="cr-px" src="${a.portrait}" alt=""><b>${esc(a.name)}</b><em><i></i>${esc(t(STATE_WORD[st] || st))}</em></header>
+      ${j ? `<p class="cb-peek-goal">${esc(jobGoal(j))}</p><p class="cb-peek-now">${esc(j.action || t("a pensar…"))}</p>
+        <small><i class="cf-p" style="--p:${who.color}"></i>${esc([t("para {n}", { n: who.name || j.who }), j.since ? ago(j.since) : ""].filter(Boolean).join(" · "))}</small>`
+        : `<p class="cb-peek-now">${esc(CAN[a.id].map((x) => t(x)).join(" · "))}</p>`}
+      <small class="cb-peek-k">${esc(t("Clicar: a câmara em grande"))}</small></div>`;
   }
   function hideTip() { if (tip) tip.hidden = true; tipFor = null; }
   function showTip(a, card) {
     if (window.matchMedia("(hover: none)").matches) return;
     if (!tip) { tip = document.createElement("div"); tip.className = "cb-tip"; document.body.append(tip); }
-    tipFor = a; tip.hidden = false; paint(tip, ficha(a));
+    tipFor = a; tip.hidden = false; paint(tip, peek(a));
     const r = card.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
-    let x = r.right + 12;
-    if (x + w > vw - 8) x = r.left - w - 12;
-    if (x < 8) x = Math.max(8, Math.min(vw - w - 8, r.left));
-    tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(Math.max(8, Math.min(r.top, vh - h - 8)))}px)`;
+    // over the camera, centred on it; under it when there is no room above (the row of small cameras is at the bottom)
+    const x = Math.max(8, Math.min(vw - w - 8, r.left + r.width / 2 - w / 2)), y = r.top - h - 10 >= 8 ? r.top - h - 10 : Math.min(vh - h - 8, r.bottom + 10);
+    tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   }
   // the phone: an agent's card comes up from the bottom
   function openSheet(html) {
@@ -384,11 +463,14 @@ window.CrewBoard = (function () {
     else if ((b = at("[data-release]"))) host.release(Number(b.dataset.release), b);
     else if ((b = at("[data-mini]"))) host.openMini();
     else if ((b = at("[data-href]"))) location.hash = b.dataset.href;
+    else if ((b = at("[data-open]"))) { hideTip(); host.openAgent(Number(b.dataset.open)); }
     else if ((b = at("[data-agent]"))) { hideTip(); host.openAgent(Number(b.dataset.agent)); }
     else if ((b = at("[data-panel]"))) host.openPanel(b.dataset.panel);
     else if ((b = at("[data-meet]"))) host.meet(b);
-    else if ((b = at("[data-cam-auto]"))) { camPin = false; draw(); host.film(); }
-    else if ((b = at("[data-cam]"))) { camSel = Number(b.dataset.cam); camPin = true; draw(); host.film(); }
+    else if ((b = at("[data-mtab]"))) { mtab = b.dataset.mtab; sessionStorage.setItem("cb.mtab", mtab); draw(); }
+    else if ((b = at("[data-cam-all]"))) { spot = null; draw(); }
+    else if ((b = at("[data-spot]"))) { spot = Number(b.dataset.spot); hideTip(); draw(); if (document.documentElement.classList.contains("is-phone")) showTab("cams"); }
+    else if ((b = at("[data-cam]"))) { const i = Number(b.dataset.cam); spot = spot === i ? null : i; hideTip(); draw(); }
     else if ((b = at("[data-more]"))) { flip(more, b.dataset.more); draw(); }
     else if ((b = at("[data-toggle]"))) { flip(open, b.dataset.toggle); draw(); }
   }
@@ -407,26 +489,32 @@ window.CrewBoard = (function () {
         <nav class="cb-who">${host.partners.map(([id, name, color]) => `<button type="button" data-who="${id}" style="--p:${color}"><i></i>${esc(name)}</button>`).join("")}</nav>
         <div class="cb-cols" id="cb-cols">${host.partners.map(([id, , color]) => `<section class="cb-col" id="cb-col-${id}" style="--p:${color}">${ui.skeleton(2)}</section>`).join("")}</div></section>
       <section class="cc" id="cb-cams" data-pane="cams">
-        <div class="cc-main"><div class="cc-feed"><canvas id="cc-main-cv"></canvas><i class="cc-scan"></i>
-            <div class="cc-top"><div class="cc-id" id="cc-head"></div><span class="cc-rec"><i></i>REC</span><time id="cc-clock"></time>
-              <button type="button" class="cc-auto on" id="cc-auto" data-cam-auto title="${esc(t("Automático: o monitor vai para quem começou a trabalhar por último. Clicar numa câmara fixa-a."))}">AUTO</button></div></div>
-          <div class="cc-low" id="cc-low"></div></div>
-        <div class="cc-grid">${host.state().agents.map((a) => `<button type="button" class="cc-cam" id="cc-cam-${a.i}" data-cam="${a.i}"><span class="cc-feed"><canvas id="cc-cv-${a.i}"></canvas><i class="cc-scan"></i></span><span class="cc-l" id="cc-l-${a.i}"></span></button>`).join("")}</div>
+        <div class="cc-bar"><span class="cc-on"><i></i>${esc(t("Ao vivo"))}</span><b id="cc-count"></b>
+          <button type="button" class="cc-all" id="cc-all" data-cam-all hidden>${icon("grid")}${esc(t("Todas"))}</button><time id="cc-clock"></time></div>
+        <div class="cc-wall" id="cc-live"></div>
+        <div class="cc-strip" id="cc-strip">${host.state().agents.map((a) => `<div class="cc-cam" id="cc-cam-${a.i}" data-cam="${a.i}" role="button" tabindex="0" title="${esc(t("Clicar: esta câmara em grande"))}">
+          <span class="cc-feed"><canvas id="cc-cv-${a.i}"></canvas><i class="cc-scan"></i></span><div class="cc-hud" id="cc-h-${a.i}"></div></div>`).join("")}</div>
       </section>
-      <aside class="cx-side" data-pane="queue"><small class="cx-k">${esc(t("Missões"))}</small>
+      <aside class="cx-side" id="cb-side" data-pane="queue"><small class="cx-k">${esc(t("Missões"))}</small>
         ${composer}
-        <div class="cx-box"><small class="cb-k">${esc(t("Na fila"))}</small><div id="cb-queue"></div></div>
-        <div class="cx-box"><small class="cb-k">${esc(t("Feito hoje"))}</small><div id="cb-done"></div></div>
+        <nav class="cx-mtabs"><button type="button" data-mtab="queue">${esc(t("Na fila"))}<b id="cb-nq"></b></button><button type="button" data-mtab="done">${esc(t("Feito hoje"))}<b id="cb-nd"></b></button></nav>
+        <div class="cx-box" data-m="queue"><small class="cb-k">${esc(t("Na fila"))}</small><div id="cb-queue"></div></div>
+        <div class="cx-box" data-m="done"><small class="cb-k">${esc(t("Feito hoje"))}</small><div id="cb-done"></div></div>
       </aside>
       <div class="cb-doors" id="cb-doors" data-pane="now"></div>`;
     showTab(sessionStorage.getItem("cb.tab") || "now");
     showWho(sessionStorage.getItem("cb.who") || mine);
     root.onclick = click;
+    root.onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".cc-cam")) { e.preventDefault(); e.target.click(); } };
     root.ondblclick = (e) => { const b = e.target.closest("[data-cam]"); if (b) { hideTip(); host.openAgent(Number(b.dataset.cam)); } };
-    root.onmouseover = (e) => { const card = e.target.closest(".cc-cam"); if (!card) hideTip(); else if (tipFor !== host.state().agents[Number(card.dataset.cam)]) showTip(host.state().agents[Number(card.dataset.cam)], card); };
+    // the pointer on a small camera brings up the agent's card; a large one already says what it is doing
+    root.onmouseover = (e) => { const card = e.target.closest("#cc-strip .cc-cam"); if (!card) hideTip(); else if (tipFor !== host.state().agents[Number(card.dataset.cam)]) showTip(host.state().agents[Number(card.dataset.cam)], card); };
     root.onmouseleave = hideTip;
-    fit();
     draw();
+    fit();
+    if (wallSize) wallSize.disconnect();
+    wallSize = new ResizeObserver(() => { layoutWall(); host.film(true); });
+    wallSize.observe($("cc-live"));
     const flashId = sessionStorage.getItem("cb.flash");
     if (flashId) { sessionStorage.removeItem("cb.flash"); setTimeout(() => flashPerson(flashId), 400); }
   }

@@ -104,11 +104,23 @@ que se fez e o que falta). Antes de mudar alguma coisa grande nestas páginas, l
   picture-in-picture, noutro browser numa janela pequena. A página com `?mini=1` (`html.is-mini`, posto no `app.js`) é só a cave
   e uma linha de quem trabalha para quem, a menos imagens por segundo.
 - **Escritório** (`#/escritorio`) **é a central de comando**: `frontend/hub/crew-board.js` + `crew-board.css`. Num ecrã só no PC
-  (`.desk`: duas colunas a partir de 760 px, três a partir de 1180 px, `.wide`; cada coluna rola por dentro): os sócios (online ou
-  visto há, Claude 5 h e semana, o que cada Claude deles faz e o que espera por eles), as **câmaras** (monitor principal com quem
-  pediu, a meta e o que faz agora, e uma câmara por agente) e as missões (mandar, pôr na fila, a fila, o feito hoje). Desenha o que
-  o `crew.js` lhe dá (`boardHost`) e só mexe no bocado que mudou. **No telemóvel** é uma app de quatro abas (Agora · Câmaras · Sócios ·
-  Missões, `data-tab`/`data-pane`) e o Escritório está na barra de baixo (`TABS` no `mobile.js`); a Empresa AMG fica em «Mais».
+  (`.desk`, a partir de 760 px; cada coluna rola por dentro). Arrumado de novo a 9 out («completamente mal feito», «as câmaras
+  apertadas», «quem está a trabalhar tem de estar sempre mais destacado»):
+  - **A parede de câmaras ocupa a página** (`paintWall`, `wallPlan`, `gridFor`). Quem tem missão (a trabalhar ou à espera de alguém)
+    ganha um monitor grande, aceso na cor do estado, com o agente, a meta, o que faz agora e para quem escritos por cima da imagem
+    (`hud`). Os monitores dividem a parede entre si (`gridFor` escolhe as colunas). Os livres ficam pequenos e escuros numa fila
+    por baixo; sem ninguém a trabalhar, os oito dividem a parede. Monitor mais pequeno = menos texto (container queries).
+  - Clicar num monitor põe-no na parede inteira; «Todas» volta atrás. Os monitores são movidos, nunca refeitos (um canvas guarda a
+    imagem), e o motor filma logo (`film(true)`), com o agente um pouco acima do meio (`lift`) para o texto não o tapar.
+  - À direita, os sócios numa linha cada (Claude 5 h e semana ao canto; uma linha por trabalho, que acende a câmara dele) e, por
+    baixo, as missões: o formulário numa linha até se escrever, e «Na fila» / «Feito hoje» em abas.
+  - O painel do lado direito do Hub (`#hpanel`) fica escondido nesta página (`:has(#cr-board)`).
+  - Passar o rato numa câmara pequena mostra um cartão pequeno (`peek`), não a ficha inteira.
+  - Peso medido: 2,1–2,8% de um núcleo parado.
+  Numa janela estreita (menos de 760 px, `.tabbed`) e **no telemóvel** é uma app de quatro abas (Agora · Câmaras · Sócios ·
+  Missões, `data-tab`/`data-pane`), com os monitores um por baixo do outro e o texto por baixo da imagem. No telemóvel o Escritório
+  está na barra de baixo (`TABS` no `mobile.js`) e a Empresa AMG em «Mais». Desenha o que o `crew.js` lhe dá (`boardHost`) e só mexe
+  no bocado que mudou.
 
 - `frontend/hub/crew.js`: o motor e **a cave** (construída uma vez, `buildCave`; a página Empresa AMG põe-na dentro de si e a sair
   ela pára, `openCave`/`closeCave`).

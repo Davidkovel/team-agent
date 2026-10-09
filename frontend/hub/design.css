@@ -410,16 +410,18 @@ a.rw:hover, .rw.click:hover { background: rgba(255, 255, 255, .03); cursor: poin
 
 /* ---------------------------------------------------------------- smaller screens */
 @media (max-width: 1280px) { .hub > main { padding: 18px 20px 64px; } .detail { grid-template-columns: 1fr; } }
+/* A small window on a computer (the widget's, or a browser made narrow; a phone is html.is-phone, mobile.css) keeps the
+   sidebar as the rail of icons (shell.js collapses it below 1100 px) and the page scrolling inside: until 9 Oct the sidebar
+   turned into a bar along the top here, but stuck in its 236 px column with the panel open, and the whole Hub broke. */
 @media (max-width: 900px) {
-  .hub, .hub.collapsed { grid-template-columns: 1fr; height: auto; overflow: visible; }
-  .hside { height: auto; position: sticky; top: 0; z-index: 30; flex-direction: row; align-items: center; padding: 8px 10px; gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .side-word, .side-search, .side-group, .side-link span, .side-me, .side-link .badge { display: none; }
-  .side-nav { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
-  .hside-foot { flex-direction: row; border-top: 0; padding-top: 0; }
-  .hub > main { height: auto; overflow: visible; padding: 14px 14px 80px; }
+  .hub > main { padding: 14px 14px 56px; }
   .form-grid { grid-template-columns: 1fr; }
-  #notif-panel { left: 10px; right: 10px; bottom: auto; top: 58px; width: auto; }
   .board { grid-template-columns: repeat(6, 78vw); }
+}
+@media (max-height: 620px) {
+  .hub.collapsed .side-lim, .hub.collapsed #maximize { display: none; }
+  .hub.collapsed .hside { padding-top: 10px; gap: 6px; }
+  .hub > main { padding-top: 12px; padding-bottom: 40px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 

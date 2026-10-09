@@ -344,10 +344,18 @@ function hubStart() {
   $("ai-fab").innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${HUB_ICONS.spark}</svg>`;
   // The Team AI's round button stays hidden since 6 Oct: Kovel had it taken off every page (and off Ctrl+K and the phone's
   // "Mais"). The panel's code is still below, for the day it comes back.
-  $("app").classList.toggle("collapsed", localStorage.getItem("hub.side") === "collapsed");
+  // A small window (the widget's, a narrow browser) gets the sidebar as a rail of icons, so the page keeps its room; the
+  // choice made on a big window is kept for when it is big again.
+  const sideSmall = window.matchMedia("(max-width: 1100px)");
+  const sideFit = () => $("app").classList.toggle("collapsed", sideSmall.matches || localStorage.getItem("hub.side") === "collapsed");
+  sideFit();
+  sideSmall.addEventListener("change", sideFit);
 
   $("bell").onclick = (e) => { e.stopPropagation(); toggleNotifications(); };
-  $("collapse").onclick = () => localStorage.setItem("hub.side", $("app").classList.toggle("collapsed") ? "collapsed" : "open");
+  $("collapse").onclick = () => {
+    const shut = $("app").classList.toggle("collapsed");
+    if (!sideSmall.matches) localStorage.setItem("hub.side", shut ? "collapsed" : "open");
+  };
   $("open-palette").onclick = () => togglePalette(true);
   $("ai-fab").onclick = () => toggleAI();
   $("palette").onclick = (e) => { if (e.target === $("palette")) togglePalette(false); };

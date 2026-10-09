@@ -1764,7 +1764,11 @@
     const now = a.fetching ? t("a buscar /{s} ao arsenal", { s: a.fetching }) : a.reading ? t("a levar as notas da Memória") : j.action || "";
     // a card per agent hid half the cave (David, 8 out): one line, the state's dot, the name and the start of the request.
     // The whole request, who asked and what is in use are a click away, in the agent's panel.
-    if (PILLS) { const s = String(j.title || ""), n = narrow ? 22 : 32; return { pill: true, name: a.name, word: s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s, color }; }
+    // in the mini window only the name: who does what is in the card at the bottom, and the one under the pointer says it
+    if (PILLS) {
+      const s = String(j.title || ""), n = narrow ? 22 : 32, quiet = MINI && a !== hovered && !(panel && panel.ref === a);
+      return { pill: true, name: a.name, word: quiet ? "" : s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s, color };
+    }
     return { name: a.name, sector: t(a.what), word: t(st === j.state && j.word ? j.word : word), color, title: j.title, now,
       ask: partnerOf(j.who), meta: [j.project, j.since ? ago(j.since) : "", shortModel(j.model), kTokens(j.tokens)].filter(Boolean).join(" · "),
       chips: [...new Set(chips.filter(Boolean))], progress: j.type === "task" && j.progress > 0 ? j.progress : null };
@@ -1885,7 +1889,7 @@
     list.sort((p, q) => idle(p) - idle(q) || q.ay - p.ay);
     const placed = [], k = dpr * LS;
     carPlates(g, placed);
-    if (talker && talker.head) { const text = chatLine(); if (text) placed.push(speech(g, text, SX(talker.head[0]), SY(talker.head[1] - 7))); }
+    if (talker && talker.head && !(MINI && cv.width < 520 * dpr)) { const text = chatLine(); if (text) placed.push(speech(g, text, SX(talker.head[0]), SY(talker.head[1] - 7))); }
     for (const it of list) {
       it.a.label = null;
       if (it.ax < -40 * k || it.ax > cv.width + 40 * k || it.ay < -20 * k || it.ay > cv.height + 60 * k) continue;
@@ -2233,7 +2237,7 @@
     if (hit.desk) {
       const d = hit.desk, c = crewById(d.crew), busy = c.job && c.mode !== "done" ? c : null;
       return `<div class="cr-tip-h"><img class="cr-px" src="${c.portrait}" alt=""><div><span>${esc(t("Posto"))} · ${esc(c.name)}</span><b>${esc(t(c.what))}</b></div></div>
-        <p class="cr-tip-idle"><i style="--c:${busy ? LIGHT[busy.job.state] || COLD : "#7d8794"}"></i>${esc(busy ? `${busy.job.title}` : t("Livre: o {n} está {w}", { n: c.name, w: t(idleWord(c)) }))}</p>
+        <p class="cr-tip-idle"><i style="--c:${busy ? LIGHT[busy.job.state] || COLD : "#7d8794"}"></i><span class="cr-tip-clip">${esc(busy ? busy.job.goal || busy.job.title : t("Livre: o {n} está {w}", { n: c.name, w: t(idleWord(c)) }))}</span></p>
         <small>${esc(t(WHY[d.crew]))}</small>`;
     }
     if (hit.screen) {
@@ -2271,13 +2275,23 @@
       return `<div class="cr-tip-h"><div><span>${esc(c.maker)}</span><b>${esc(c.name)}</b></div></div>
         <p class="cr-tip-idle"><i style="--c:${c.accent}"></i>${esc(c.project || t("Ainda sem projeto"))}</p><small>${esc(t("Clica para ver o carro"))}</small>`;
     }
-    const a = hit.agent;
-    const head = `<div class="cr-tip-h"><img class="cr-px" src="${a.portrait}" alt=""><div><b>${esc(a.name)}</b><span>${esc(t(a.what))}</span></div></div>`;
-    if (!a.job) return `${head}<p class="cr-tip-idle"><i style="--c:#7d8794"></i>${esc(t("À espera de trabalho"))} · ${esc(t(idleWord(a)))}</p><small>${esc(t("Clica para lhe dar uma missão"))}</small>`;
-    const j = a.job, L = labelOf(a);
-    return `${head}<em class="cr-tip-st" style="--c:${L.color}">${esc(L.word)}</em><p class="cr-tip-t">${esc(j.title)}</p>
-      <dl>${row("Pediu", j.who)}${j.project ? row("Onde", j.project) : ""}${L.now ? row("Agora", L.now) : ""}${L.chips.length ? row("Usa", L.chips.join(", ")) : ""}${j.since ? row("Desde", fmt.ago(j.since)) : ""}</dl>
-      <small>${esc(t("Clica para abrir a missão"))}</small>`;
+    return peek(hit.agent);
+  }
+  // An agent under the pointer: a small card with what matters at a glance, never a window over the cave (Marco, 9 Oct:
+  // the big card "parece uma janela que ocupa quase a tela toda... não é clean"). Everything else is a click away.
+  function peek(a) {
+    const st = stateOf(a), color = st === "idle" ? "#8b95a1" : (WORD[st] || [0, COLD])[1], j = a.job;
+    const head = `<div class="pk-h"><img class="cr-px" src="${a.portrait}" alt=""><div><b>${esc(a.name)}</b><small>${esc(t(a.what))}</small></div>
+      <em style="--c:${color}"><i></i>${esc(t(st === "idle" ? "Livre" : WORD[st][0]))}</em></div>`;
+    if (!j) return `${head}<p class="pk-idle">${esc(t("Sem missão · {w}", { w: t(idleWord(a)) }))}</p><small class="pk-hint">${esc(t("Clica para lhe dar uma missão"))}</small>`;
+    const who = partnerOf(j.who), now = a.fetching ? t("a buscar /{s} ao arsenal", { s: a.fetching }) : a.reading ? t("a levar as notas da Memória") : j.action || "";
+    const chips = [...(j.skills || []).map((s) => "/" + String(s).split(":").pop()), ...(j.subagents || []).filter((x) => x.state === "working").map((x) => x.kind)];
+    return `${head}<p class="pk-goal">${esc(j.goal || j.title)}</p>
+      <p class="pk-for" style="--p:${who.color}"><i></i><b>${esc(who.name || j.who)}</b>${esc([j.project, j.since ? ago(j.since) : ""].filter(Boolean).map((s) => ` · ${s}`).join(""))}</p>
+      ${now ? `<p class="pk-now">${esc(now)}</p>` : ""}
+      ${chips.length ? `<p class="pk-chips">${chips.slice(0, 3).map((k) => `<span>${esc(k)}</span>`).join("")}${chips.length > 3 ? `<span>+${chips.length - 3}</span>` : ""}</p>` : ""}
+      ${j.type === "task" && j.progress > 0 ? `<span class="pk-bar" style="--c:${color}"><i style="width:${Math.min(100, j.progress)}%"></i></span>` : ""}
+      <small class="pk-hint">${esc(t("Clica para abrir a missão"))}</small>`;
   }
   let drag = null;
   function onMove(e) {
@@ -2294,14 +2308,12 @@
     const hit = hitTest(e), tip = $("cr-tip"), target = Object.keys(hit).length ? hit : null;
     hovered = hit.agent || null; hoverCar = hit.car || null; hoverVault = !!hit.vault;
     stage.classList.toggle("point", !!target);
-    // an agent or a post under the pointer is read at the side of the cave, large; anything else, in the small tip
-    const who = hit.agent || (hit.desk ? crewById(hit.desk.crew) : null);
-    if (sideOn()) { if (who !== sideAgent) { sideAgent = who; paintSide(); } if (who) { tip.hidden = true; return; } }
     if (!target) { tip.hidden = true; return; }
     tip.innerHTML = tipHtml(hit); tip.hidden = false;
+    // beside the pointer, on whichever side has room, and always inside the cave
     const r = stage.getBoundingClientRect();
     let x = e.clientX - r.left + 16, y = e.clientY - r.top + 14;
-    if (x + tip.offsetWidth > r.width - 8) x = e.clientX - r.left - tip.offsetWidth - 16;
+    if (x + tip.offsetWidth > r.width - 8) x = Math.max(8, e.clientX - r.left - tip.offsetWidth - 16);
     if (y + tip.offsetHeight > r.height - 8) y = Math.max(8, r.height - tip.offsetHeight - 8);
     tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   }
@@ -2574,7 +2586,7 @@
   // The two pages: Empresa AMG is the cave, Escritório the command centre (crew-board.js). Marco, 9 out: «a Empresa AMG é
   // literalmente a cave; no escritório é que estão as câmaras, uma central de comando mesmo crazy».
   const ago = (iso) => (iso ? fmt.ago(iso) : "");
-  function stat(n, label, c) { return `<div class="cr-stat ${n ? "lit" : ""}" style="--c:${c}"><i></i><b>${n}</b><span>${esc(t(label))}</span></div>`; }
+  function stat(n, label, c) { return `<div class="cr-stat ${n ? "lit" : ""}" style="--c:${c}" title="${n} ${esc(t(label))}"><i></i><b>${n}</b><span>${esc(t(label))}</span></div>`; }
   // The partners' screens in the cave: each Claude of theirs that is open and the missions of their automatic agent
   // (screensPic draws these lines; the board says the same in words, a column per partner).
   const CLAUDE_STATE = { working: ["a trabalhar", NEON.green], waiting: ["à tua espera", NEON.amber], stalled: ["parado", "#7d8794"], idle: ["aberto", "#5f6874"] };
@@ -2653,21 +2665,30 @@
     if (!camTimer && camsLive()) camTimer = setTimeout(camFrame, 0);
   }
 
-  // over the cave, at its right: the agent under the pointer, read large (on a big enough screen; elsewhere the small tip)
-  let cave = null, side = null, sideAgent = null;
-  const sideOn = () => !!side && !MINI && window.innerWidth > 1100 && !document.documentElement.classList.contains("is-phone");
-  function paintSide() {
-    if (!side || !window.CrewBoard) return;
-    side.classList.toggle("on", !!sideAgent && sideOn());
-    if (sideAgent && sideOn()) paint(side, window.CrewBoard.ficha(sideAgent));
-  }
-  // the mini window has no side: a line at the bottom says who is working on what
-  function paintTicker() {
-    const el = $("cr-ticker");
-    if (!el || !MINI) return;
-    const busy = agents.filter((a) => a.job && a.mode !== "done");
-    paint(el, busy.length ? busy.slice(0, 3).map((a) => { const p = partnerOf(a.job.who); return `<p style="--p:${p.color}"><i></i><b>${esc(a.name)}</b> <em>${esc(t("para"))} ${esc(p.name || a.job.who)} ·</em> ${esc(a.job.goal || a.job.title)}</p>`; }).join("")
-      : `<p><em>${esc(t("Ninguém a trabalhar agora: estão todos na sala."))}</em></p>`);
+  let cave = null;
+  // The mini window (?mini=1): a thin bar at the top with the numbers, and at the bottom a card that shows, one at a time,
+  // who is working, for whom and on what, the next one every 6 s, like a mini player going through its clips. A click on
+  // the card opens that agent's mission.
+  let npAt = 0, npTimer = 0;
+  function paintMini() {
+    if (!MINI || !$("cr-np")) return;
+    const busy = agents.filter((a) => a.job && a.mode !== "done"), n = (f) => busy.filter((a) => f(a.job.state)).length;
+    const num = (k, c, label) => `<span class="mt-n ${k ? "lit" : ""}" style="--c:${c}" title="${esc(t(label))}"><i></i>${k}</span>`;
+    paint($("cr-mtop"), `<span class="mt-live"><i></i>${esc(t("Ao vivo"))}</span><b>${esc(t("Empresa AMG"))}</b>`
+      + num(n((s) => s === "work" || s === "start"), NEON.green, "a trabalhar") + num(n((s) => s === "wait" || s === "help" || s === "pause"), NEON.amber, "à tua espera")
+      + num(agents.length - busy.length, "#9aa2ab", "livres"));
+    if (npTimer && busy.length < 2) { clearInterval(npTimer); npTimer = 0; }
+    if (!busy.length) {
+      paint($("cr-np"), `<div class="np-idle"><span>${agents.map((a) => `<img class="cr-px" src="${a.portrait}" alt="">`).join("")}</span><p>${esc(t("Todos na sala, à espera de trabalho"))}</p></div>`);
+      return;
+    }
+    const at = npAt % busy.length, a = busy[at], j = a.job, [word, c] = WORD[stateOf(a)] || ["", COLD], who = partnerOf(j.who);
+    paint($("cr-np"), `<button type="button" class="np-card" data-np="${a.i}" style="--c:${c};--p:${who.color}" title="${esc(t("Abrir a missão"))}"><img class="cr-px" src="${a.portrait}" alt="">
+      <div><p class="np-top"><b>${esc(a.name)}</b><small>${esc(t(a.what))}</small><em><i></i>${esc(t(word))}</em></p>
+        <p class="np-goal">${esc(j.goal || j.title)}</p>
+        <p class="np-for"><i></i>${esc(t("para"))} <b>${esc(who.name || j.who)}</b>${esc([j.project, j.since ? ago(j.since) : ""].filter(Boolean).map((x) => ` · ${x}`).join(""))}</p></div>
+      ${busy.length > 1 ? `<span class="np-dots">${busy.map((b, i) => `<i class="${i === at ? "on" : ""}"></i>`).join("")}</span>` : ""}</button>`);
+    if (!npTimer && busy.length > 1) npTimer = setInterval(() => { if (!document.hidden) { npAt++; paintMini(); } }, 6000);
   }
   function paintLists() {
     if (caveOpen) {
@@ -2679,8 +2700,7 @@
         const st = !a.job || a.mode === "done" ? "idle" : a.job.state === "work" || a.job.state === "start" ? "work" : "wait", done = doneBy(a).length;
         return `<button class="cr-mate st-${st}" data-mate="${a.i}" style="--c:${{ work: NEON.green, wait: NEON.amber }[st] || "#8b95a1"}" title="${esc(a.name)} · ${esc(t(a.what))}${done ? ` · ${esc(t("{n} missões feitas", { n: done }))}` : ""}"><img class="cr-px" src="${a.portrait}" alt=""><i></i>${done ? `<b class="cr-medal">${done}</b>` : ""}<span>${esc(a.name)}</span></button>`;
       }).join(""));
-      paintSide();
-      paintTicker();
+      paintMini();
     }
     buildPartners();
     if (window.CrewBoard && $("cr-board")) window.CrewBoard.paint();
@@ -2825,12 +2845,12 @@
 
   // ================================================================ the cave: the page Empresa AMG
   // Built once and kept: leaving the page only stops it, so it comes back at once and as it was. It takes all the room of
-  // the page at its own proportions; beside it, the agent under the pointer read large.
+  // the page at its own proportions; the agent under the pointer is a small card beside it (peek).
   function buildCave() {
     cave = Object.assign(document.createElement("div"), { className: "cr-cave", id: "cr-cave" });
     cave.innerHTML = `<div class="cr-cave-bar"><div><small>${esc(t("Agente AMG · a cave dos agentes"))}</small><b>${esc(t("Empresa AMG"))}</b>
           <span>${esc(t("Ao vivo · arrasta para andar, roda do rato para aproximar, clica num agente para a missão dele"))}</span></div>
-        <div class="cx-acts"><a class="btn" href="#/escritorio">${icon("bot")}${esc(t("Escritório"))}</a><button type="button" class="btn cx-mini" id="cr-mini" title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div></div>
+        <div class="cx-acts"><a class="btn" href="#/escritorio" title="${esc(t("Escritório"))}">${icon("bot")}<span>${esc(t("Escritório"))}</span></a><button type="button" class="btn cx-mini" id="cr-mini" title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}<span>${esc(t("Mini janela"))}</span></button></div></div>
       <div class="cr-cave-body" id="cr-cave-body">
         <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>
           <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>
@@ -2838,12 +2858,11 @@
           <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
           <div class="cr-legend" aria-label="${esc(t("Legenda"))}">${[["a trabalhar", NEON.green], ["à espera", NEON.amber], ["precisa de ajuda", NEON.red], ["livre", "#8b95a1"]]
             .map(([l, c]) => `<span><i class="st" style="--c:${c}"></i>${esc(t(l))}</span>`).join("")}<b></b>${PARTNERS.map(([, n, c]) => `<span><i style="--c:${c}"></i>${esc(n)}</span>`).join("")}</div>
-          <div class="cr-ticker" id="cr-ticker"></div>
-          <aside class="cr-side" id="cr-side"></aside>
+          ${MINI ? `<div class="cr-mtop" id="cr-mtop"></div><div class="cr-np" id="cr-np"></div>` : ""}
           <div class="cr-tip" id="cr-tip" hidden></div></section></div>`;
     const drawer = Object.assign(document.createElement("aside"), { className: "cr-panel", id: "cr-panel", hidden: true });
     document.body.append(drawer);
-    stage = cave.querySelector("#cr-stage"); cv = cave.querySelector("#cr-canvas"); g2 = cv.getContext("2d"); side = cave.querySelector("#cr-side");
+    stage = cave.querySelector("#cr-stage"); cv = cave.querySelector("#cr-canvas"); g2 = cv.getContext("2d");
     world = document.createElement("canvas"); world.width = LW * WS; world.height = LH * WS; wg = world.getContext("2d"); wg.k = WS;
     const img = new Image();
     img.onload = () => { star = img; if (bg) { buildBg(); if (caveOpen) draw(); } };
@@ -2853,6 +2872,9 @@
     document.addEventListener("visibilitychange", () => { wake(); film(); });
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", () => { if (caveOpen) fitCave(); });
+    // the room changes without the window changing too: the sidebar folding, the title bar settling once its styles arrive
+    const refit = new ResizeObserver(() => { if (caveOpen) fitCave(); });
+    refit.observe(cave); refit.observe(cave.querySelector(".cr-cave-bar"));
     window.addEventListener("hashchange", () => {
       if (!/^#\/(empresa|niggaz)/.test(location.hash)) closeCave();
       if (!/^#\/(empresa|niggaz|escritorio)/.test(location.hash) && panel) closePanel();
@@ -2863,13 +2885,16 @@
     stage.onpointerleave = () => {
       if (drag) return;
       $("cr-tip").hidden = true; hovered = null; hoverCar = null; hoverVault = false; stage.classList.remove("point");
-      if (sideAgent) { sideAgent = null; paintSide(); }
     };
     cv.addEventListener("wheel", onWheel, { passive: false });
     stage.querySelector(".cr-views").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) goView(b.dataset.view); };
     stage.querySelector(".cr-views").addEventListener("pointerup", (e) => e.stopPropagation());
     cave.querySelector("#cr-mini").onclick = openMini;
-    side.onclick = (e) => { const b = e.target.closest("[data-agent]"); if (b) openPanel({ kind: "agent", ref: agents[Number(b.dataset.agent)] }); };
+    if (MINI) {
+      const np = cave.querySelector("#cr-np");
+      np.onclick = (e) => { const b = e.target.closest("[data-np]"); if (b) openPanel({ kind: "agent", ref: agents[Number(b.dataset.np)] }); };
+      for (const type of ["pointerdown", "pointerup"]) np.addEventListener(type, (e) => e.stopPropagation());
+    }
     drawer.onclick = panelClick; drawer.onsubmit = panelSubmit;
     const crew = cave.querySelector("#cr-crew");
     crew.onmouseover = (e) => { const b = e.target.closest("[data-mate]"); focus = b ? agents[Number(b.dataset.mate)] : null; };
@@ -2882,7 +2907,8 @@
     const host = $("cr-host"), body = $("cr-cave-body");
     if (!host || !body) return;
     const pad = MINI ? 0 : (parseFloat(getComputedStyle($("view")).paddingBottom) || 0) + 6;
-    host.style.height = `${Math.max(MINI ? 120 : 420, window.innerHeight - host.getBoundingClientRect().top - pad)}px`;
+    host.style.minHeight = "0";   // a small window (the widget's) gets a small cave, never one that runs off the bottom
+    host.style.height = `${Math.max(MINI ? 120 : 240, window.innerHeight - host.getBoundingClientRect().top - pad)}px`;
     stage.style.width = `${Math.max(240, Math.floor(Math.min(body.clientWidth, body.clientHeight * ASPECT)))}px`;
   }
   function openCave() {
@@ -2896,7 +2922,7 @@
   function closeCave() {
     if (!cave || !caveOpen) return;
     caveOpen = false; stop();
-    hideCaveTip(); hovered = null; hoverCar = null; hoverVault = false; sideAgent = null; drag = null;
+    hideCaveTip(); hovered = null; hoverCar = null; hoverVault = false; drag = null;
     if (camsLive()) film(); else settleAll();
   }
 

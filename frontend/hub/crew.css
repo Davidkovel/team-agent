@@ -89,10 +89,31 @@
 .cr-views button:hover { color: #fff; }
 .cr-views button.on { color: #0b0c0e; background: var(--chrome); box-shadow: inset 0 1px 0 #fff, 0 2px 10px rgba(0, 0, 0, .5); }
 
-/* the tooltip */
-.cr-tip { position: absolute; left: 0; top: 0; z-index: 4; width: max-content; max-width: 290px; padding: 12px 14px 11px; border-radius: 14px; pointer-events: none;
-  background: rgba(7, 9, 14, .94); border: 1px solid rgba(255, 255, 255, .12); color: var(--text); font: 500 12px/1.45 var(--ui);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, .65); backdrop-filter: blur(10px); }
+/* the tip: a small glass card beside the pointer, never a window over the cave (an agent: peek() in crew.js) */
+.cr-tip { position: absolute; left: 0; top: 0; z-index: 4; width: max-content; max-width: min(290px, calc(100cqw - 16px)); padding: 11px 13px 10px; border-radius: 14px;
+  pointer-events: none; background: rgba(8, 10, 15, .93); border: 1px solid rgba(255, 255, 255, .12); color: var(--text); font: 500 12px/1.45 var(--ui);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .06); backdrop-filter: blur(10px); }
+.pk-h { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 9px; align-items: center; min-width: min(232px, calc(100cqw - 42px)); }
+.pk-h img { width: 24px; height: 34px; margin: -3px 0; object-fit: cover; object-position: top; }
+.pk-h b { display: block; font: 700 14px/1.15 var(--display); color: #fff; }
+.pk-h small { display: block; color: #7d8591; font: 700 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.pk-h em { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 7px; border-radius: 999px; white-space: nowrap; font: 700 9px var(--ui); font-style: normal;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); border: 1px solid color-mix(in srgb, var(--c) 34%, transparent); }
+.pk-h em i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+.pk-goal { margin: 9px 0 0; font: 600 13.5px/1.35 var(--display); color: #fff; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pk-for { margin: 5px 0 0; color: #8b95a1; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-for i { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--p); }
+.pk-for b { color: #dfe5ec; font-weight: 600; }
+.pk-now { margin: 7px 0 0; padding: 5px 8px; border-radius: 8px; background: rgba(255, 255, 255, .035); color: #c3c9d2; font: 500 11px/1.4 var(--mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-now::before { content: "↳ "; color: #5f6874; }
+.pk-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 7px 0 0; }
+.pk-chips span { padding: 1px 7px; border-radius: 6px; background: rgba(223, 232, 242, .07); border: 1px solid rgba(223, 232, 242, .16); color: #dfe8f2; font: 600 10.5px var(--mono); }
+.pk-bar { display: block; height: 3px; margin-top: 8px; border-radius: 3px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.pk-bar i { display: block; height: 100%; border-radius: inherit; background: var(--c); }
+.pk-idle { margin: 8px 0 0; color: #a3aab4; }
+.pk-hint { display: block; margin-top: 8px; color: #5f6874; font-size: 10.5px; }
 .cr-tip-h { display: flex; align-items: center; gap: 10px; }
 .cr-tip-h .cr-px { width: 28px; height: 40px; object-fit: contain; object-position: top; flex: none; margin: -4px 0 -4px; }
 .cr-tip-h b { display: block; font: 700 14px var(--display); }
@@ -105,7 +126,8 @@
 .cr-tip dd { margin: 0; color: #c3c9d2; overflow-wrap: anywhere; }
 .cr-tip small { display: block; margin-top: 9px; color: #626a76; font-size: 11px; }
 .cr-tip-idle { display: flex; align-items: center; gap: 7px; margin: 9px 0 0; color: #a3aab4; }
-.cr-tip-idle i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.cr-tip-idle i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.cr-tip-clip { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ================================================================ the mission panel: carbon, chrome, a rev counter */
 .cr-panel { position: absolute; top: 10px; right: 10px; bottom: 10px; z-index: 5; width: min(392px, calc(100% - 20px)); overflow: hidden;
@@ -318,15 +340,32 @@
 .cp-skill span { display: block; margin-top: 3px; color: #a3aab4; font-size: 12px; line-height: 1.45; }
 .cp-skill small { display: block; margin-top: 3px; color: #626a76; font-size: 11px; }
 
-/* a narrow cave has no empty corners: the numbers go over it, the crew and the views under it, the panel over all of it */
+/* A smaller cave (a small window, the widget's, a phone): everything stays over the cave, only smaller, and what does not
+   fit goes. Until 9 Oct the HUD, the crew and the views went under the picture here, the stage grew taller than the room
+   the page gives it (fitCave), and the cave ran off the bottom of the window. */
 @container (max-width: 900px) {
-  .cr-hud { order: -1; position: static; display: flex; align-items: center; gap: 6px; padding: 12px 12px 2px; overflow-x: auto; scrollbar-width: none; }
-  .cr-stats { display: flex; gap: 6px; }
-  .cr-stat { flex: none; }
-  .cr-crew { position: static; grid-template-columns: repeat(8, minmax(44px, 1fr)); padding: 2px 12px 10px; overflow-x: auto; scrollbar-width: none; }
-  .cr-views { position: static; order: 2; align-self: flex-start; margin: 0 12px 12px; }
-  .cr-legend { position: static; order: 3; max-width: none; justify-content: flex-start; margin: 0 12px 12px; }
-  .cr-panel { top: 0; right: 0; bottom: 0; width: 100%; border-radius: 0; }
+  .cr-hud { left: 10px; top: 10px; gap: 6px; }
+  .cr-live { padding: 4px 8px 4px 7px; font-size: 9px; }
+  .cr-stats { gap: 4px; }
+  .cr-stat { height: 24px; padding: 0 9px 0 8px; gap: 7px; border-radius: 8px; font-size: 10.5px; }
+  .cr-stat b { font-size: 13px; }
+  .cr-crew { right: 10px; top: 10px; grid-template-columns: repeat(4, 34px); gap: 4px; }
+  .cr-mate { height: 40px; padding-top: 5px; border-radius: 9px; }
+  .cr-mate img { width: 18px; height: 26px; }
+  .cr-mate span { display: none; }
+  .cr-mate i { top: 4px; right: 4px; width: 5px; height: 5px; }
+  .cr-medal { top: 2px; left: 2px; min-width: 13px; height: 13px; padding: 0 3px; font-size: 8px; }
+  .cr-views { left: 10px; bottom: 10px; }
+  .cr-views button { height: 26px; padding: 0 10px; font-size: 11px; }
+  .cr-legend { display: none; }
+}
+@container (max-width: 620px) {
+  .cr-live, .cr-crew { display: none; }
+  .cr-stats { display: flex; }
+  .cr-stat { gap: 6px; padding: 0 8px; }
+  .cr-stat span { display: none; }   /* the dot in the state's colour and the number */
+  .cr-views { padding: 2px; }
+  .cr-views button { padding: 0 8px; }
 }
 
 /* ---- the phone */
@@ -338,6 +377,18 @@ html.is-phone .cr-who { flex: 1 1 auto; }
 html.is-phone .cr-go { flex: 1 1 auto; justify-content: center; }
 html.is-phone .cr-live { display: none; }
 html.is-phone .cr-stage { border-radius: 16px; margin: 0 -4px; }
+/* a phone has room under the cave, not over it: the numbers above the picture, the crew, the views and the colours under it */
+html.is-phone .cr-stage .cr-hud { order: -1; position: static; display: flex; align-items: center; gap: 6px; padding: 12px 12px 2px; overflow-x: auto; scrollbar-width: none; }
+html.is-phone .cr-stage .cr-stats { display: flex; gap: 6px; }
+html.is-phone .cr-stage .cr-stat { flex: none; height: 28px; padding: 0 11px 0 9px; gap: 8px; font-size: 11.5px; }
+html.is-phone .cr-stage .cr-stat span { display: inline; }
+html.is-phone .cr-stage .cr-crew { position: static; display: grid; grid-template-columns: repeat(8, minmax(44px, 1fr)); gap: 6px; padding: 2px 12px 10px; overflow-x: auto; scrollbar-width: none; }
+html.is-phone .cr-stage .cr-mate { height: 62px; padding: 6px 0 0; border-radius: 12px; }
+html.is-phone .cr-stage .cr-mate img { width: 24px; height: 34px; }
+html.is-phone .cr-stage .cr-mate span { display: block; }
+html.is-phone .cr-stage .cr-views { position: static; order: 2; align-self: flex-start; margin: 0 12px 12px; padding: 3px; }
+html.is-phone .cr-stage .cr-views button { height: 30px; padding: 0 13px; font-size: 12px; }
+html.is-phone .cr-stage .cr-legend { position: static; order: 3; display: flex; max-width: none; justify-content: flex-start; margin: 0 12px 12px; }
 html.is-phone .cr-lists { grid-template-columns: minmax(0, 1fr); }
 html.is-phone .cp-send input { font-size: 16px; }
 
@@ -365,3 +416,83 @@ html.is-phone .cp-send input { font-size: 16px; }
 .cp-money b { display: block; margin-top: 3px; font: 700 16px var(--display); color: #fff; }
 .cp-money span { display: block; color: #8b929c; font-size: 11px; }
 .cp-cost { font: 700 15px var(--mono); color: #fff; }
+
+/* ================================================================ the page Empresa AMG around the cave (crew.js buildCave)
+   With #cr-cave in front, so these win over the older copy of these rules in crew-board.css, which loads later. */
+#cr-cave.cr-cave { position: relative; display: flex; flex-direction: column; gap: 10px; height: 100%; }
+#cr-cave .cr-cave-bar { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 0 4px; }
+#cr-cave .cr-cave-bar > div { min-width: 0; }
+#cr-cave .cr-cave-bar small { display: block; color: #6b7380; font: 700 10px var(--ui); letter-spacing: .2em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cr-cave .cr-cave-bar b { display: block; font: 500 30px/1.05 var(--serif, var(--display)); color: #fff; white-space: nowrap; }
+#cr-cave .cr-cave-bar > div > span { display: block; color: #6b7380; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cr-cave .cx-acts { display: flex; flex: none; gap: 8px; margin-left: auto; }
+#cr-cave .cx-acts .btn { height: 40px; gap: 8px; border-radius: 11px; font-size: 13px; }
+#cr-cave .cx-acts .btn .i { width: 14px; height: 14px; }
+#cr-cave .cx-acts .btn span { display: inline; color: inherit; font: inherit; }
+html.is-phone #cr-cave .cx-acts { display: none; }   /* a phone has no window to float a mini cave over */
+#cr-cave .cr-cave-body { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; }
+#cr-cave .cr-stage { flex: none; touch-action: none; }
+#cr-cave .cr-tip { max-width: min(290px, calc(100cqw - 16px)); font-size: 12px; }
+/* a small window: one line of title and smaller keys; a narrow one, only the icons (their words are in the title) */
+@media (max-width: 900px), (max-height: 640px) {
+  #cr-cave.cr-cave { gap: 8px; }
+  #cr-cave .cr-cave-bar small, #cr-cave .cr-cave-bar > div > span { display: none; }
+  #cr-cave .cr-cave-bar b { font-size: 22px; }
+  #cr-cave .cx-acts .btn { height: 34px; padding: 0 12px; font-size: 12px; }
+}
+@media (max-width: 640px) {
+  #cr-cave .cx-acts .btn { width: 34px; padding: 0; justify-content: center; }
+  #cr-cave .cx-acts .btn span { display: none; }
+}
+
+/* ================================================================ the mini window (?mini=1, openMini): only the cave, a thin
+   bar at the top with the numbers, the card of who is working at the bottom (paintMini), the views when the pointer is in */
+html.is-mini #cr-cave .cr-cave-bar, html.is-mini #cr-cave .cr-hud, html.is-mini #cr-cave .cr-crew, html.is-mini #cr-cave .cr-legend,
+html.is-mini #cr-cave .cr-views { display: none; }
+html.is-mini #cr-cave.cr-cave { gap: 0; }
+html.is-mini #cr-cave .cr-cave-body { align-items: center; background: #030407; }
+html.is-mini #cr-cave .cr-stage { border: 0; border-radius: 0; box-shadow: none; }
+html.is-mini #cr-cave .cr-stage::after { display: none; }
+html.is-mini #cr-cave .cr-stage:hover .cr-views { display: flex; }
+html.is-mini #cr-cave .cr-views { left: auto; right: 8px; top: 8px; bottom: auto; padding: 2px; border-radius: 10px; }
+html.is-mini #cr-cave .cr-views button { height: 24px; padding: 0 9px; border-radius: 8px; font-size: 10.5px; }
+.cr-mtop { position: absolute; left: 8px; top: 8px; z-index: 2; display: flex; align-items: center; gap: 9px; height: 26px; padding: 0 10px 0 9px; border-radius: 9px;
+  pointer-events: none; background: rgba(6, 8, 13, .74); border: 1px solid rgba(255, 255, 255, .08); backdrop-filter: blur(8px); }
+.mt-live { display: inline-flex; align-items: center; gap: 6px; color: #ff8a9c; font: 700 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.mt-live i { width: 6px; height: 6px; border-radius: 50%; background: #ff2d4f; box-shadow: 0 0 6px #ff2d4f; }   /* still: a pulse here would repaint every frame */
+.cr-mtop b { padding-right: 9px; border-right: 1px solid rgba(255, 255, 255, .1); color: #fff; font: 600 12px var(--display); white-space: nowrap; }
+.mt-n { display: inline-flex; align-items: center; gap: 5px; color: #59606b; font: 700 12px var(--display); font-variant-numeric: tabular-nums; }
+.mt-n i { width: 6px; height: 6px; border-radius: 50%; background: #3a3f48; }
+.mt-n.lit { color: #fff; }
+.mt-n.lit i { background: var(--c); box-shadow: 0 0 6px var(--c); }
+.cr-np { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; }
+.np-card { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 8px 12px 8px 10px; text-align: left; cursor: pointer;
+  border-radius: 12px; background: rgba(7, 9, 14, .86); border: 1px solid rgba(255, 255, 255, .1); color: inherit; font: inherit; backdrop-filter: blur(10px);
+  box-shadow: inset 2px 0 0 var(--c), 0 10px 30px rgba(0, 0, 0, .5); animation: np-in .35s ease; transition: border-color .15s; }
+@keyframes np-in { from { opacity: 0; transform: translateY(4px); } }
+.np-card:hover { border-color: rgba(255, 255, 255, .24); }
+.np-card > img { width: 30px; height: 42px; object-fit: cover; object-position: top; }
+.np-card > div { min-width: 0; }
+.np-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; margin: 0; }
+.np-top b { flex: none; font: 700 13.5px var(--display); color: #fff; }
+.np-top small { min-width: 0; color: #6b7380; font: 700 9px var(--ui); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-top em { display: inline-flex; align-items: center; gap: 5px; flex: none; margin-left: auto; color: var(--c); font: 700 9px var(--ui); font-style: normal; letter-spacing: .1em; text-transform: uppercase; }
+.np-top em i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); }
+.np-goal { margin: 2px 0 0; color: #e9edf3; font: 500 12.5px/1.35 var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-for { margin: 2px 0 0; color: #7d8794; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-for i { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--p); }
+.np-for b { color: #c3c9d2; font-weight: 600; }
+.np-dots { display: flex; flex-direction: column; gap: 3px; }
+.np-dots i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, .18); }
+.np-dots i.on { background: #fff; }
+.np-idle { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 12px; background: rgba(7, 9, 14, .82); border: 1px solid rgba(255, 255, 255, .08);
+  color: #8b95a1; font-size: 12px; }
+.np-idle span { display: flex; flex: none; }
+.np-idle img { width: 16px; height: 23px; margin-right: -3px; object-fit: cover; object-position: top; }
+.np-idle p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 400px) {
+  .cr-mtop b, .np-top small, .np-for, .np-idle span { display: none; }
+  .np-card { gap: 8px; padding: 6px 10px 6px 8px; grid-template-columns: 22px minmax(0, 1fr) auto; }
+  .np-card > img { width: 22px; height: 31px; }
+}
+@media (max-height: 280px) { html.is-mini .np-for { display: none; } }

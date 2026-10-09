@@ -211,12 +211,6 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .in-quote figcaption { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .in-quote figcaption img { height: 12px; width: auto; opacity: .85; }
 
-@media (max-width: 900px) {
-  /* on a phone the sidebar is a bar on top (design.css); it must not make the page wider than the screen:
-     the one column may shrink, and the bar's links scroll sideways instead */
-  .hub, .hub.collapsed { grid-template-columns: minmax(0, 1fr); }
-  .hside { min-width: 0; }
-}
 @media (prefers-reduced-motion: reduce) {
   .in-hero.ignite .hero-car img, .ring-val, .in-bar i { animation: none; }
 }

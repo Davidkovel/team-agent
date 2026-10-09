@@ -103,12 +103,20 @@ async function drawSideLimits() {
   box.innerHTML = row("5 horas", "5h", plan.five, plan.five_reset) + row("Semana", "Sem", plan.week, plan.week_reset, true);
 }
 
-function setPanel(open) {
+// In a small window (the widget's, or a browser made narrow) the panel would cover half the page: there it only opens when
+// asked, over the page, and closes with a click anywhere else. What the person chose on a big window is kept for when it
+// is big again (Marco, 9 Oct: "quando mete a janela bem mais pequenina... buga-se tudo").
+const panelSmall = window.matchMedia("(max-width: 1100px)");
+const panelWanted = () => localStorage.getItem(PANEL_KEY) !== "closed" || new URLSearchParams(location.search).has("painel"); // open until somebody closes it; ?painel=1 opens it again
+function showPanel(open) {
   $("app").classList.toggle("paneled", open);
-  localStorage.setItem(PANEL_KEY, open ? "open" : "closed");
   $("panel-toggle").classList.toggle("on", open);
   clearInterval(panelTimer);
   if (open) { drawPanel().catch(() => {}); panelTimer = setInterval(() => drawPanel().catch(() => {}), 20000); }
+}
+function setPanel(open) {
+  if (!panelSmall.matches) localStorage.setItem(PANEL_KEY, open ? "open" : "closed");
+  showPanel(open);
 }
 
 window.addEventListener("DOMContentLoaded", function startPanel() { // app.js, with $ and icon, loads after this file
@@ -124,6 +132,10 @@ window.addEventListener("DOMContentLoaded", function startPanel() { // app.js, w
     drawSideLimits();
     setInterval(drawSideLimits, 60000);
     document.addEventListener("visibilitychange", drawSideLimits);
-    setPanel(localStorage.getItem(PANEL_KEY) !== "closed" || new URLSearchParams(location.search).has("painel")); // open until somebody closes it; ?painel=1 opens it again
+    showPanel(panelWanted() && !panelSmall.matches);
+    panelSmall.addEventListener("change", () => showPanel(panelWanted() && !panelSmall.matches));
+    document.addEventListener("pointerdown", (e) => {
+      if (panelSmall.matches && panelOpen() && !e.target.closest("#hpanel, #panel-toggle, #side-lim")) showPanel(false);
+    });
   }, 400);
 });

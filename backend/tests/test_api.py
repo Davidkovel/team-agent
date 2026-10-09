@@ -147,3 +147,14 @@ def test_team_mode_everyone_sees_all_and_company_work_is_counted(client):
         assert any("Escrevi 3 textos" in i["message"] for i in work["items"])
     finally:
         settings.team_mode = False
+
+
+def test_the_agent_puts_a_task_back_in_the_queue_when_claude_has_no_limit_left(client):
+    owner, mark = login(client, "owner"), login(client, "mark")
+    mark_agent = agent(client, "mark", mark)
+    tid = client.post("/api/tasks", headers=owner, json={"title": "Fila depois do limite", "assignee": "mark"}).json()["id"]
+    client.post(f"/api/agent/tasks/{tid}/update", headers=mark_agent, json={"status": "IN_PROGRESS"})
+    r = client.post(f"/api/agent/tasks/{tid}/update", headers=mark_agent,
+                    json={"status": "ASSIGNED", "current_action": "À espera do limite do Claude: recomeça às 18:20"})
+    assert r.status_code == 200 and r.json()["status"] == "ASSIGNED"
+    assert tid in [t["id"] for t in client.get("/api/agent/tasks/next", headers=mark_agent).json()]   # it is picked up again later

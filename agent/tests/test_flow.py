@@ -155,3 +155,44 @@ def test_recovery_restores_context_and_does_not_restart_in_ask_mode(tmp_path):
     assert ai.resumed == "sess-0"
     assert "RESUMED" in ai.prompt and "Created ad copy" in ai.prompt
     assert backend.tasks == []  # never polled for new work while holding a task
+
+
+class LimitedAI(ScriptedAI):
+    """Claude stops at once: the plan's limit was reached."""
+
+    async def run(self, prompt, system_prompt, registry, workspace, resume_session, on_session):
+        self.calls += 1
+        return RunResult(ok=False, error="error_during_execution", text="Claude AI usage limit reached|9999999999")
+
+
+def test_a_task_stopped_by_claudes_limit_goes_back_to_the_queue_and_waits_for_the_reset(tmp_path):
+    backend = FakeBackend(tasks=[dict(TASK)])
+    ai = LimitedAI([])
+    agent = make_agent(tmp_path, backend, ai)
+
+    async def scenario():
+        runner = asyncio.create_task(agent.run())
+        async with asyncio.timeout(5):
+            while not any(u.get("status") == "ASSIGNED" for u in backend.updates):
+                await asyncio.sleep(0.01)
+        backend.tasks = [dict(TASK)]   # still in the queue: while the limit lasts the agent does not take it
+        await asyncio.sleep(0.2)
+        runner.cancel()
+
+    asyncio.run(scenario())
+    assert ai.calls == 1 and backend.tasks == [dict(TASK)]
+    assert agent._limited_until == 9999999999 + 60
+    assert any("Limite do Claude" in message for _, message in backend.events)
+    assert not any(u.get("status") == "NEEDS_HELP" for u in backend.updates)
+
+
+def test_when_the_limit_resets_is_read_from_claudes_message():
+    import time
+    from team_agent.core.agent import LIMIT_WAIT, limit_reset
+    now = time.mktime((2026, 10, 9, 13, 0, 0, 0, 0, -1))
+    reset = int(now) + 7200
+    assert limit_reset(f"Claude AI usage limit reached|{reset}", now) == reset + 60
+    assert limit_reset("You've hit your limit · resets 3pm (Europe/Lisbon)", now) == time.mktime((2026, 10, 9, 15, 0, 0, 0, 0, -1)) + 60
+    assert limit_reset("5-hour limit reached · resets 9am", now) == time.mktime((2026, 10, 10, 9, 0, 0, 0, 0, -1)) + 60   # tomorrow
+    assert limit_reset("rate limit: try later", now) == now + LIMIT_WAIT
+    assert limit_reset("Permission denied: rm -rf", now) is None

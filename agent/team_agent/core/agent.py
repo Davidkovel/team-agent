@@ -58,6 +58,31 @@ Concluído (what was finished), Bloqueado (what is stuck and why, if the data sa
 Uso de IA (tokens and estimated cost). Leave a part out, saying there is no data, rather than filling it with guesses."""
 
 
+# Claude's plan limit (the 5 hours or the week) ended the run: the words Claude Code uses for it. The task goes back to the
+# queue and starts again by itself when the limit resets, instead of waiting for somebody (Marco, 9 Oct: «quando ficamos
+# sem Claude, as tarefas ficam na fila e trabalham sozinhas enquanto dormimos»).
+LIMIT_WORDS = re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|out of extra usage|(?<![0-9])429(?![0-9])", re.IGNORECASE)
+LIMIT_WAIT = 30 * 60   # when the message does not say when the limit resets
+
+
+def limit_reset(text: str, now: float) -> float | None:
+    """When a run ended on Claude's plan limit: the moment to try again (a minute after the reset the message gives, or
+    half an hour from now when it gives none). None when the text is about something else."""
+    if not LIMIT_WORDS.search(text or ""):
+        return None
+    epoch = re.search(r"[|](\d{10})(?![0-9])", text)   # "Claude AI usage limit reached|1791499199"
+    if epoch and float(epoch.group(1)) > now:
+        return float(epoch.group(1)) + 60
+    clock = re.search(r"resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text, re.IGNORECASE)   # "resets 3pm", "resets at 15:30"
+    if clock:
+        hour, minute, half = int(clock.group(1)), int(clock.group(2) or 0), (clock.group(3) or "").lower()
+        hour = hour % 12 + (12 if half == "pm" else 0) if half else hour
+        day = time.localtime(now)
+        at = time.mktime((day.tm_year, day.tm_mon, day.tm_mday, hour, minute, 0, 0, 0, -1))
+        return (at if at > now else at + 24 * 3600) + 60
+    return now + LIMIT_WAIT
+
+
 class TeamAgent:
     def __init__(self, cfg: Config, backend, tasks: TaskProvider, ai: AIProvider, store: LocalStore,
                  ask_ai: Callable[[], AIProvider] | None = None):
@@ -77,6 +102,7 @@ class TeamAgent:
         self._intent: str | None = None     # 'pause' | 'stop' requested while running
         self._result: str | None = None     # set by complete_task
         self._run_cost: float | None = None  # what the last run cost (the SDK's estimate), None if it did not say
+        self._limited_until = 0.0           # Claude's plan limit was reached: no task is taken before this moment
 
     # ---------------------------------------------------------------- lifecycle
 
@@ -90,7 +116,7 @@ class TeamAgent:
         while True:
             self._wake.clear()
             await self._heartbeat()
-            if self._task is None and self.state.connected:
+            if self._task is None and self.state.connected and time.time() >= self._limited_until:
                 await self._poll()
             try:
                 await asyncio.wait_for(self._wake.wait(), self.cfg.heartbeat_interval)
@@ -310,6 +336,14 @@ class TeamAgent:
             self._remember(f"Concluído: {task['title']}")
             await self.notify(f"Task completed: {task['title']}")
             await self._release("COMPLETED", result=self._result)
+        elif not result.ok and (until := limit_reset(f"{result.error} {result.text}", time.time())):
+            when = time.strftime("%H:%M", time.localtime(until))
+            log.info("TASK-%s: Claude's plan limit; back in the queue until %s", tid, when)
+            self._limited_until = until
+            self._remember(f"Limite do Claude: volta às {when}")
+            await self.record("note", f"Limite do Claude: a tarefa volta à fila e recomeça sozinha às {when}.")
+            await self._release("ASSIGNED", current_action=f"À espera do limite do Claude: recomeça às {when}")
+            self.state.current_action = f"À espera do limite do Claude até às {when}"
         elif not result.ok:
             log.info("TASK-%s error: %s", tid, result.error)
             self._remember(f"Erro: {result.error.split(':')[0][:50]}")

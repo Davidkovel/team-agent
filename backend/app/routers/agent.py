@@ -39,7 +39,8 @@ class Heartbeat(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    status: Literal["IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP", "COMPLETED", "FAILED", "STOPPED"] | None = None
+    # ASSIGNED: the agent puts the task back in its queue (Claude's plan limit stopped it; it starts again by itself after the reset)
+    status: Literal["ASSIGNED", "IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP", "COMPLETED", "FAILED", "STOPPED"] | None = None
     progress: int | None = Field(None, ge=0, le=100)
     current_action: str | None = None
     last_action: str | None = None

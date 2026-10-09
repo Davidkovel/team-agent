@@ -202,7 +202,7 @@ Coisas que custaram tempo e não se devem repetir:
 Pedido do David a 9 out (um reel de um «agente de trading do Claude» com dados de insiders, alertas e paper trading):
 `#/mercados`, `frontend/hub/mercados.js` + `mercados.css` (carregados à primeira visita, `lazyView`) e
 `backend/app/routers/trading.py` (`/api/trading/*`). Oito secções: Painel, Gráfico, Notícias, Insiders, Investidores, Paper
-trading, Estratégias, Mapas. Nenhuma fonte precisa de chave:
+trading, Estratégias, Mapas (desde a simplificação, ver abaixo, quatro à vista e quatro em «Mais»). Nenhuma fonte precisa de chave:
 
 - **TradingView**: preço, variação, sinal técnico (−1 a 1, os limites deles) e todos os indicadores de qualquer símbolo pelo
   scanner (`scanner.tradingview.com/global/scan` e `/symbol`), os movers (`america/scan`, `crypto/scan`) e as notícias
@@ -214,6 +214,21 @@ trading, Estratégias, Mapas. Nenhuma fonte precisa de chave:
 - **Alertas e investidores seguidos** (`MarketItem`): o `trading.loop()` do Hub de cada PC vigia só os da sua pessoa
   (`sync.whoami`) e toca uma notificação. **Pergunta ao Claude** é um pedido `kind="markets"` para o agente de quem pergunta
   (`MARKETS_SYSTEM` no `agent.py`); sem agente ligado o Hub diz isso.
+
+**Simplificada a 9 out a pedido do Marco** («demasiado completo e confuso», as notícias em inglês difíceis de ler). A equipa só
+negoceia **ouro (XAU/USD), EUR/USD, GER40 e GBP/USD** (`FOCUS` no `trading.py`, `MK_FOCUS` no `mercados.js`: mudar nos dois):
+- Separadores: **Painel** (os quatro em cartões com preço, variação, intervalo do dia e o sinal a 1 h · 4 h · dia; notícias de hoje;
+  agenda; alertas), **Notícias**, **Gráfico** (pílulas dos quatro e «Outro símbolo») e **Paper trading**. Estratégias, Insiders,
+  Investidores e Mapas continuam inteiros debaixo de **«Mais»**. A lista pessoal, os movers, a fita e os insiders do painel saíram.
+- **Notícias em português** (`/api/trading/feed`, `news_feed()`): Reuters pelo TradingView em PT (`lang=pt`; o `/v3/story` dá
+  os 3 pontos do resumo e o texto inteiro, lido dentro do Hub em `/api/trading/story`) e o Investing.com **Brasil** (RSS com
+  foto; o pt.investing.com parou em 2023). As duas mesas são do Brasil: `ELSEWHERE` tira Ibovespa, real, Lula, Selic...; `topics_of`
+  diz a que mercado é (as do dólar contam para ouro, EUR/USD e GBP/USD) e `same_story` junta a mesma notícia contada duas vezes.
+  Notícia sem foto leva uma foto livre do mercado (`frontend/assets/mercados/`, Wikimedia Commons; `MK_PHOTOS` com o autor e a
+  licença, e as CC BY mostram o crédito na foto). «Explica-me isto» pede ao Claude do agente a notícia em linguagem simples.
+- **Agenda** (`/api/trading/calendar`): o JSON grátis da semana do ForexFactory, só dólar/euro/libra de impacto alto e médio,
+  com os nomes em português (`calendar_title`). Só há a semana corrente: a seguinte aparece no domingo.
+- O Google Translate grátis responde 429 e o Unsplash 403: não servem para traduzir nem para fotos.
 
 Armadilhas que custaram tempo:
 - **SQLite: nunca esperar pela rede com uma transacção aberta.** O `db.py` abre tudo com `BEGIN IMMEDIATE`; o `current_user`

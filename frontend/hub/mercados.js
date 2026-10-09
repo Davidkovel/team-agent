@@ -1,16 +1,21 @@
 // Mercados: the trading desk of the Hub (backend/app/routers/trading.py), fetched the first time somebody opens it.
-// Prices, ratings and every indicator come from TradingView, and so do the charts, heatmaps, screener and calendar (its
-// own widgets, put in the page). Insiders come from the SEC's Form 4 (the whole market through OpenInsider), the big
-// investors from their 13F. Paper trading with 80 000 virtual dollars, the same rules for the whole team. The strategy
-// tests run here, in the browser, on daily candles. A figure is live or it says it is missing: never a made-up zero.
+// Built around what the team trades (FOCUS on the Hub: gold, EUR/USD, GER40, GBP/USD; Marco, 9 Oct): four cards with the
+// price and TradingView's signal, the news about them in Portuguese as cards with a photo or the market's own picture and
+// a three-point summary (read whole inside the Hub), and the week's diary. The rest of David's desk (strategy tests,
+// insiders, investors, heatmaps) is one click away under «Mais». A figure is live or it says it is missing: never a made-up zero.
 
-const MK = { tab: "painel", symbol: localStorage.getItem("mk.symbol") || "NASDAQ:NVDA", news: "all", source: "", ins: "buys", map: "stocks",
-  board: null, last: {}, timer: null, beat: 0, charts: {}, hist: {},
+const MK = { tab: "painel", symbol: localStorage.getItem("mk.symbol") || "OANDA:XAUUSD", topic: "all", ins: "buys", map: "stocks",
+  board: null, last: {}, timer: null, beat: 0, charts: {}, hist: {}, feed: null, cal: null,
   tk: { side: "buy", mode: "amount", symbol: "", name: "", quote: null },
   bt: { symbol: "", strat: "sma", range: "2y", capital: 10000, fee: 0.1, params: {}, result: null, ranking: null } };
-const MK_TABS = [["painel", "Painel", "candles"], ["grafico", "Gráfico", "trend"], ["noticias", "Notícias", "news"],
-  ["insiders", "Insiders", "users"], ["investidores", "Investidores", "eye"], ["paper", "Paper trading", "wallet"],
-  ["estrategias", "Estratégias", "flask"], ["mapas", "Mapas", "grid"]];
+const MK_TABS = [["painel", "Painel", "candles"], ["noticias", "Notícias", "news"], ["grafico", "Gráfico", "trend"], ["paper", "Paper trading", "wallet"]];
+const MK_MORE = [["estrategias", "Estratégias", "flask"], ["insiders", "Insiders", "users"], ["investidores", "Investidores", "eye"], ["mapas", "Mapas", "grid"]];
+// the team's four, as the Hub sends them in /board; also what the chart's pills and the news filter offer
+const MK_FOCUS = [["gold", "OANDA:XAUUSD", "XAU/USD", "Ouro"], ["eurusd", "FX:EURUSD", "EUR/USD", "Euro · Dólar"],
+  ["ger40", "OANDA:DE30EUR", "GER40", "DAX · Alemanha"], ["gbpusd", "FX:GBPUSD", "GBP/USD", "Libra · Dólar"]];
+const MK_TOPIC = { gold: "Ouro", eurusd: "EUR/USD", ger40: "GER40", gbpusd: "GBP/USD", usd: "Dólar" };
+const MK_FLAGS = { gold: ["metal/gold"], eurusd: ["country/EU", "country/US"], ger40: ["country/DE"], gbpusd: ["country/GB", "country/US"], usd: ["country/US"],
+  USD: ["country/US"], EUR: ["country/EU"], GBP: ["country/GB"] };
 const MK_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "Etc/UTC";
 const MK_COLORS = { strat: "#3987e5", hold: "#d95926" }; // validated pair on the dark surface (dataviz validator)
 
@@ -19,8 +24,10 @@ const mkFx = (n, d) => Number(n).toLocaleString("pt-PT", { minimumFractionDigits
 function mkPrice(n) {
   if (n == null) return "—";
   const a = Math.abs(n);
-  return mkFx(n, a >= 1 ? 2 : a >= 0.01 ? 4 : 6);
+  return mkFx(n, a >= 10 ? 2 : a >= 0.01 ? 4 : 6);
 }
+// forex is read to the fifth decimal (the pip and its tenth); everything else as mkPrice
+const mkQuote = (q) => (q.price == null ? "—" : /forex/.test(q.type || "") || /USD$/.test(q.code || "") && q.price < 20 ? mkFx(q.price, 5) : mkPrice(q.price));
 const mkPct = (n) => (n == null ? "—" : (n > 0 ? "+" : n < 0 ? "−" : "") + mkFx(Math.abs(n), Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2) + "%");
 const mkUsd = (n, d = 2) => (n == null ? "—" : (n < 0 ? "−" : "") + "$" + mkFx(Math.abs(n), d));
 const mkSignedUsd = (n) => (n == null ? "—" : Math.abs(n) < 0.005 ? "$0,00" : (n > 0 ? "+" : "−") + "$" + mkFx(Math.abs(n), 2));
@@ -41,9 +48,13 @@ function mkLogo(q, cls = "") {
   const letter = esc((mkTicker(q.symbol)[0] || "?").toUpperCase());
   return `<span class="mk-logo ${cls}"><b>${letter}</b>${q.logo ? `<img src="${esc(q.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>`;
 }
+// a market's own picture: the gold coin, the flags of a pair (TradingView's round logos), one over the other
+function mkFlags(key, cls = "") {
+  const ids = MK_FLAGS[key] || [];
+  return `<span class="mk-flags ${cls} n${ids.length}">${ids.map((id) => `<img src="https://s3-symbol-logo.tradingview.com/${id}.svg" alt="" loading="lazy" onerror="this.remove()">`).join("")}</span>`;
+}
 const mkHead = (title, right = "") => `<header class="bd-ph"><b>${t(title)}</b>${right ? `<span>${right}</span>` : ""}</header>`;
 const mkNone = (text) => `<p class="faint mk-none">${esc(t(text))}</p>`;
-const mkSrc = (text) => `<span class="mk-src">${esc(t(text))}</span>`;
 
 function mkSetSymbol(sym, name = "") {
   if (!sym) return;
@@ -90,32 +101,32 @@ function mkPick(title, onPick) {
 
 /* ---------- the page ---------- */
 HUB_VIEWS.mercados = async function (r) {
-  const tab = MK_TABS.some(([id]) => id === r.company) ? r.company : "painel";
+  const all = MK_TABS.concat(MK_MORE);
+  const tab = all.some(([id]) => id === r.company) ? r.company : "painel";
   const arg = r.section ? decodeURIComponent(r.section) : "";
   if (tab === "grafico" && arg) mkSetSymbol(arg);
   MK.tab = tab;
   let root = document.querySelector("#view .mk");
-  if (!root) { // the shell (and TradingView's ticker tape) stays while moving between the sections
+  if (!root) { // the shell stays while moving between the sections
     page(`<div class="mk">
-      <header class="ph mk-top"><div><div class="ph-eyebrow">${t("Mercados · TradingView · SEC")}</div><h1>${t("Mercados")}</h1>
-        <p>${t("Preços e sinais do TradingView, notícias ao minuto, insiders e grandes investidores da SEC, paper trading e o Claude a ler tudo por ti.")}</p></div>
+      <header class="ph mk-top"><div><div class="ph-eyebrow">${t("Mercados · os nossos quatro")}</div><h1>${t("Mercados")}</h1>
+        <p>${t("Ouro, EUR/USD, GER40 e GBP/USD: o preço, o sinal e as notícias que mexem com eles, em português.")}</p></div>
         <div class="ph-actions"><span class="mk-live" id="mk-live"></span>
-          <button class="btn" data-pick-go>${icon("search")}${t("Procurar símbolo")}</button>
           <button class="btn primary" data-ask>${icon("spark")}${t("Pergunta ao Claude")}</button></div></header>
-      <div class="mk-tape" id="mk-tape"></div>
-      <nav class="bd-nav mk-nav">${MK_TABS.map(([id, label, ic]) => `<a class="bd-pill" data-tab="${id}" href="#/mercados/${id}">${icon(ic)}<span>${t(label)}</span></a>`).join("")}</nav>
+      <nav class="bd-nav mk-nav">${MK_TABS.map(([id, label, ic]) => `<a class="bd-pill" data-tab="${id}" href="#/mercados/${id}">${icon(ic)}<span>${t(label)}</span></a>`).join("")}
+        <div class="mk-more"><button type="button" class="bd-pill" data-more>${icon("grid")}<span id="mk-more-l">${t("Mais")}</span>${icon("chevron")}</button>
+          <div class="mk-more-m" id="mk-more-m" hidden>${MK_MORE.map(([id, label, ic]) => `<a data-tab="${id}" href="#/mercados/${id}">${icon(ic)}<span>${t(label)}</span></a>`).join("")}</div></div></nav>
       <div id="mk-body"></div></div>`);
     root = document.querySelector("#view .mk");
     root.addEventListener("click", mkClick);
     root.addEventListener("submit", mkSubmit);
     root.addEventListener("input", mkInput);
-    mkTv($("mk-tape"), "ticker-tape", { displayMode: "adaptive", showSymbolLogo: true,
-      // the indices themselves are not free in TradingView's widgets (they show "!"): their CFDs move the same way
-      symbols: [["FOREXCOM:SPXUSD", "S&P 500"], ["FOREXCOM:NSXUSD", "Nasdaq 100"], ["FOREXCOM:DJI", "Dow Jones"], ["XETR:DAX", "DAX"], ["BINANCE:BTCUSDT", "Bitcoin"],
-        ["BINANCE:ETHUSDT", "Ethereum"], ["OANDA:XAUUSD", "Ouro"], ["OANDA:WTICOUSD", "Petróleo"], ["FX:EURUSD", "EUR/USD"], ["CAPITALCOM:DXY", "Dólar"],
-        ["CAPITALCOM:VIX", "VIX"], ["NASDAQ:NVDA", "NVIDIA"], ["NASDAQ:AAPL", "Apple"], ["NASDAQ:TSLA", "Tesla"]].map(([proName, title]) => ({ proName, title })) });
   }
-  root.querySelectorAll(".mk-nav .bd-pill").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
+  root.querySelectorAll(".mk-nav [data-tab]").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
+  const extra = MK_MORE.find(([id]) => id === tab);
+  root.querySelector("[data-more]").classList.toggle("on", !!extra);
+  $("mk-more-l").textContent = extra ? t(extra[1]) : t("Mais");
+  $("mk-more-m").hidden = true;
   const body = $("mk-body");
   body.className = `mk-body mk-${tab}`;
   body.innerHTML = "";
@@ -124,7 +135,8 @@ HUB_VIEWS.mercados = async function (r) {
   mkStartTimer();
 };
 
-// The page moves while it is open: prices every 20 s, the news and the movers every minute. Only while it is on screen.
+// The page moves while it is open: prices every 20 s, the news every minute (the Hub asks its sources every five).
+// Only while it is on screen.
 function mkStartTimer() {
   if (MK.timer) return;
   MK.timer = setInterval(() => {
@@ -132,9 +144,9 @@ function mkStartTimer() {
     if (document.hidden) return;
     MK.beat++;
     const tab = MK.tab;
-    if (tab === "painel") { mkLoadBoard(); if (MK.beat % 3 === 0) { mkLoadFlash(); mkLoadMovers(); } }
+    if (tab === "painel") { mkLoadBoard(); if (MK.beat % 3 === 0) mkLoadFeed(true); if (MK.beat % 15 === 0) mkLoadCal(); else mkPaintCal(); }
     if (tab === "grafico") mkLoadSymbol(true);
-    if (tab === "noticias" && MK.beat % 3 === 0) mkLoadNews(true);
+    if (tab === "noticias" && MK.beat % 3 === 0) { mkLoadFeed(true); mkPaintCal(); }
     if (tab === "paper") mkLoadPaper(true);
   }, 20000);
 }
@@ -146,35 +158,30 @@ function mkLive(at) {
 
 /* ---------- clicks, forms and inputs of the whole page ---------- */
 async function mkClick(e) {
-  const el = e.target.closest("[data-pick-go],[data-ask],[data-watch-add],[data-unwatch],[data-watch-toggle],[data-alert],[data-alert-del],[data-trade],[data-news-cat],[data-news-src],[data-ins-view],[data-follow],[data-map],[data-tk-pick],[data-tk-side],[data-tk-mode],[data-tk-pct],[data-paper-reset],[data-bt-pick],[data-bt-range],[data-bt-all],[data-bt-strat],[data-ask-q],[data-sym-pick],[data-inv],[data-sym]");
+  const more = $("mk-more-m");
+  if (more && !more.hidden && !e.target.closest(".mk-more")) more.hidden = true;
+  const el = e.target.closest("[data-more],[data-ask],[data-alert],[data-alert-del],[data-trade],[data-topic],[data-news],[data-ins-view],[data-follow],[data-map],[data-tk-pick],[data-tk-side],[data-tk-mode],[data-tk-pct],[data-tk-focus],[data-paper-reset],[data-bt-pick],[data-bt-range],[data-bt-all],[data-bt-strat],[data-ask-q],[data-sym-pick],[data-inv],[data-sym]");
   if (!el || el.closest("a[href^='http']")) return;
   const d = el.dataset;
-  if (d.pickGo !== undefined || d.symPick !== undefined) return mkPick("Abrir um símbolo", (x) => { mkSetSymbol(x.symbol, x.name); location.hash = mkGo(x.symbol); });
+  if (d.more !== undefined) { more.hidden = !more.hidden; return; }
+  if (d.symPick !== undefined) return mkPick("Abrir um símbolo", (x) => { mkSetSymbol(x.symbol, x.name); location.hash = mkGo(x.symbol); });
   if (d.ask !== undefined) return mkAskModal(d.ask || "");
   if (d.askQ) { const form = el.closest("form"); form.querySelector("textarea").value = d.askQ; return form.requestSubmit(); }
-  if (d.watchAdd !== undefined) return mkPick("Juntar à minha lista", async (x) => { await mkWatch(x.symbol, x.name); mkLoadBoard(); });
-  if (d.unwatch) { e.preventDefault(); e.stopPropagation(); await api(`/api/trading/items/${d.unwatch}`, { method: "DELETE" }); return mkLoadBoard(); }
-  if (d.watchToggle) {
-    const item = (MK.board?.watch || []).find((q) => q.symbol === d.watchToggle);
-    if (item) await api(`/api/trading/items/${item.item_id}`, { method: "DELETE" });
-    else await mkWatch(d.watchToggle, d.name || "");
-    await mkLoadBoard();
-    return mkPaintSymbolHead();
-  }
   if (d.alert) { e.preventDefault(); e.stopPropagation(); return mkAlertModal(d.alert, d.name || "", Number(d.price) || null); }
-  if (d.alertDel) { await api(`/api/trading/items/${d.alertDel}`, { method: "DELETE" }); return mkLoadBoard(); }
+  if (d.alertDel) { e.stopPropagation(); await api(`/api/trading/items/${d.alertDel}`, { method: "DELETE" }); return mkLoadBoard(); }
   if (d.trade) {
     e.preventDefault(); e.stopPropagation();
     Object.assign(MK.tk, { symbol: d.trade, name: d.name || "", side: d.side || "buy", quote: null });
     location.hash = "#/mercados/paper";
     return;
   }
-  if (d.newsCat) { MK.news = d.newsCat; MK.source = ""; return mkLoadNews(); }
-  if (d.newsSrc !== undefined) { MK.source = MK.source === d.newsSrc ? "" : d.newsSrc; return mkPaintNews(); }
+  if (d.topic) { MK.topic = d.topic; return mkPaintFeed(); }
+  if (d.news) { const x = (MK.feed?.items || []).concat(MK.symNews || []).find((n) => n.id === d.news); if (x) mkReader(x); return; }
   if (d.insView) { MK.ins = d.insView; return mkLoadInsiders(); }
   if (d.follow) { e.preventDefault(); e.stopPropagation(); return mkFollow(d.follow, d.name || "", d.item || ""); }
   if (d.map) { MK.map = d.map; return mkPaintMap(); }
   if (d.tkPick !== undefined) return mkPick("Símbolo da ordem", (x) => { Object.assign(MK.tk, { symbol: x.symbol, name: x.name, quote: null }); mkPaintTicket(); mkTicketQuote(); });
+  if (d.tkFocus) { Object.assign(MK.tk, { symbol: d.tkFocus, name: d.name || "", quote: null }); mkPaintTicket(); return mkTicketQuote(); }
   if (d.tkSide) { MK.tk.side = d.tkSide; if (d.tkSide === "sell") MK.tk.mode = "qty"; return mkPaintTicket(); }
   if (d.tkMode) { MK.tk.mode = d.tkMode; return mkPaintTicket(); }
   if (d.tkPct) return mkTicketPct(Number(d.tkPct));
@@ -190,7 +197,6 @@ async function mkClick(e) {
 
 function mkSubmit(e) {
   const form = e.target;
-  if (form.id === "mk-claude-f") { e.preventDefault(); const q = form.querySelector("textarea").value.trim(); if (q) mkAskRun(q, "", $("mk-claude-out")); }
   if (form.id === "mk-tk") { e.preventDefault(); mkOrder(); }
   if (form.id === "mk-bt-f") { e.preventDefault(); mkRunBt(); }
   if (form.id === "mk-ins-f") { e.preventDefault(); mkInsiderCompany(form.querySelector("input").value.trim()); }
@@ -204,16 +210,11 @@ function mkInput(e) {
   }
 }
 
-async function mkWatch(symbol, name) {
-  try { await api("/api/trading/items", { method: "POST", body: { kind: "watch", symbol, name } }); flash(t("{s} está na tua lista", { s: name || symbol })); }
-  catch (e) { flash(e.message); }
-}
-
 /* ---------- Pergunta ao Claude ---------- */
-const MK_ASK_MARKET = ["Resume o mercado de hoje em cinco linhas", "O que dizem os indicadores da minha lista?",
-  "Que riscos vês na minha carteira de paper trading?", "Que notícias de hoje mexem com a minha lista?"];
-const mkAskSymbol = (s) => [`Faz a análise técnica completa de ${s}`, `Que níveis de suporte e resistência devo vigiar em ${s}?`,
-  `Os insiders de ${s} estão a comprar ou a vender? O que isso indica?`, `Resume as notícias de ${s} e o impacto provável`];
+const MK_ASK_MARKET = ["Como estão hoje o ouro, o EUR/USD, o GER40 e a libra?", "Que notícias de hoje mexem com os nossos quatro?",
+  "O que há na agenda desta semana que possa mexer com o mercado?", "Que riscos vês na minha carteira de paper trading?"];
+const mkAskSymbol = (s) => [`Faz a análise técnica de ${s} em linguagem simples`, `Que níveis de suporte e resistência devo vigiar em ${s}?`,
+  `O que dizem as notícias de hoje sobre ${s}?`, `Há algum evento esta semana que possa mexer com ${s}?`];
 
 function mkMd(text) {
   return esc(text).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
@@ -252,8 +253,8 @@ function mkAskForm(id, suggestions, placeholder) {
 function mkAskModal(symbol) {
   const sym = symbol || "";
   openModal(`<h3>${t("Pergunta ao Claude")}</h3>
-    <p class="faint mk-ask-sub">${sym ? t("Sobre {s}, com tudo o que o Hub sabe dele agora: preço, sinais do TradingView, indicadores, notícias e insiders.", { s: mkTicker(sym) })
-      : t("Com o que o Hub sabe do mercado agora: a tua lista, o pulso do mercado, as notícias e a tua carteira de paper trading.")}</p>
+    <p class="faint mk-ask-sub">${sym ? t("Sobre {s}, com tudo o que o Hub sabe dele agora: preço, sinais do TradingView, indicadores e notícias.", { s: mkTicker(sym) })
+      : t("Com o que o Hub sabe agora: os nossos quatro mercados, as notícias em português, a agenda da semana e a tua carteira de paper trading.")}</p>
     ${mkAskForm("mk-ask-modal", sym ? mkAskSymbol(mkTicker(sym)) : MK_ASK_MARKET, t("Escreve a tua pergunta…"))}
     <div id="mk-ask-modal-out" class="mk-ask-out"></div>
     <div class="form-foot"><button type="button" class="btn quiet" data-close>${t("Fechar")}</button></div>`);
@@ -282,46 +283,29 @@ function mkAlertModal(symbol, name, price) {
 const MK_VIEWS = {};
 
 MK_VIEWS.painel = async (body) => {
-  body.innerHTML = `<div class="mk-pulse" id="mk-pulse">${ui.skeleton(1)}</div>
+  body.innerHTML = `<div class="mk-four" id="mk-four">${MK_FOCUS.map(() => `<div class="panel mk-fc">${ui.skeleton(3)}</div>`).join("")}</div>
     <div class="mk-cols">
-      <div class="mk-main">
-        <section class="panel mk-card" id="mk-watch">${ui.skeleton(6)}</section>
-        <section class="mk-movers" id="mk-movers">${ui.skeleton(4)}</section>
-      </div>
+      <section class="panel mk-card" id="mk-today">${mkHead("Notícias de hoje", `<a href="#/mercados/noticias">${t("Ver todas")} →</a>`)}<div class="mk-grid">${ui.skeleton(6)}</div></section>
       <aside class="mk-side">
-        <section class="panel mk-card mk-claude">${mkHead("Claude · analista", `<span id="mk-agent"></span>`)}
-          <p class="mk-claude-sub">${t("Lê os preços, os sinais, as notícias e os insiders do Hub e responde. Não inventa números.")}</p>
-          ${mkAskForm("mk-claude-f", MK_ASK_MARKET, t("Pergunta o que quiseres sobre o mercado…"))}<div id="mk-claude-out" class="mk-ask-out"></div></section>
-        <section class="panel mk-card" id="mk-flash">${ui.skeleton(6)}</section>
+        <section class="panel mk-card" id="mk-cal">${ui.skeleton(5)}</section>
         <section class="panel mk-card" id="mk-alerts"></section>
-        <section class="panel mk-card" id="mk-ins-mini">${ui.skeleton(4)}</section>
       </aside>
     </div>`;
   const board = mkLoadBoard(); // first: it is the fast one, and the browser only opens a few connections at a time
-  mkLoadMovers();
-  mkLoadFlash();
-  mkLoadInsMini();
+  mkLoadFeed();
+  mkLoadCal();
   await board;
 };
 
 async function mkLoadBoard() {
   let b;
-  try { b = await api("/api/trading/board"); } catch (e) { const w = $("mk-watch"); if (w) w.innerHTML = ui.error(e.message); return; }
+  try { b = await api("/api/trading/board"); } catch (e) { const w = $("mk-four"); if (w) w.innerHTML = ui.error(e.message); return; }
   MK.board = b;
   mkLive(b.fetched_at);
-  const agent = $("mk-agent");
-  if (agent) agent.innerHTML = b.agent ? `<span class="mk-dot ok"></span>${t("agente ligado")}` : `<span class="mk-dot"></span>${t("agente desligado")}`;
-  const pulse = $("mk-pulse");
-  if (pulse) pulse.innerHTML = b.pulse.map((q) => `<a class="mk-pc" data-sym="${esc(q.symbol)}" data-name="${esc(q.name)}" href="${mkGo(q.symbol)}">
-      <span>${esc(t(q.name))}</span><b class="mono ${mkFlashClass(q)}">${q.missing ? "—" : mkPrice(q.price)}</b>${q.missing ? `<em class="faint">${t("sem preço")}</em>` : mkChg(q)}</a>`).join("");
-  const watch = $("mk-watch");
-  if (watch) watch.innerHTML = mkHead("A minha lista", `${t("{n} símbolos", { n: b.watch.length })} · <button class="btn sm" data-watch-add>${icon("plus")}${t("Juntar")}</button>`)
-    + (b.watch.length ? `<div class="mk-wl">
-      <div class="mk-wl-h"><span></span><span>${t("Símbolo")}</span><span>${t("Hoje: mín. · máx.")}</span><span class="r">${t("Preço")}</span><span class="r">${t("Dia")}</span><span>${t("Sinal")}</span><span class="r">RSI</span><span class="r">${t("Ano")}</span><span></span></div>
-      ${b.watch.map(mkWatchRow).join("")}</div>`
-      : ui.empty("candles", "A tua lista está vazia", "Junta ações, cripto, ouro ou moedas para os seguir aqui."));
+  const four = $("mk-four");
+  if (four) four.innerHTML = b.focus.map(mkFourCard).join("");
   mkPaintAlerts();
-  b.watch.concat(b.pulse).forEach((q) => { if (q.price != null) MK.last[q.symbol] = q.price; });
+  b.focus.forEach((q) => { if (q.price != null) MK.last[q.symbol] = q.price; });
 }
 
 // a price that moved since the last look blinks green or red, once
@@ -330,19 +314,15 @@ function mkFlashClass(q) {
   return before == null || q.price == null || before === q.price ? "" : q.price > before ? "tick-up" : "tick-down";
 }
 
-function mkWatchRow(q) {
-  if (q.missing) return `<div class="mk-wr" data-sym="${esc(q.symbol)}"><span class="mk-logo"><b>?</b></span><div class="mk-id"><b>${esc(mkTicker(q.symbol))}</b><span>${esc(q.name)}</span></div>
-    <span class="faint" style="grid-column:3/-2">${t("O TradingView não deu preço para este símbolo.")}</span><span class="mk-acts"><button class="tool" data-unwatch="${q.item_id}" title="${t("Tirar da lista")}">${icon("x")}</button></span></div>`;
+function mkFourCard(q) {
+  const head = `<div class="mk-fc-h">${mkFlags(q.topic)}<div><b>${esc(q.code)}</b><span>${esc(t(q.label))}</span></div>
+    <button class="tool" data-alert="${esc(q.symbol)}" data-name="${esc(q.code)}" data-price="${q.price ?? ""}" title="${t("Avisar-me quando o preço lá chegar")}">${icon("bell")}</button></div>`;
+  if (q.missing) return `<article class="panel mk-fc" data-sym="${esc(q.symbol)}">${head}<p class="faint mk-none">${t("O TradingView não deu preço agora.")}</p></article>`;
   const span = q.high != null && q.low != null && q.high > q.low ? Math.max(0, Math.min(100, (q.price - q.low) / (q.high - q.low) * 100)) : null;
-  return `<div class="mk-wr" data-sym="${esc(q.symbol)}" data-name="${esc(q.name)}">${mkLogo(q)}
-    <div class="mk-id"><b>${esc(mkTicker(q.symbol))}</b><span class="ell">${esc(q.full_name || q.name)}</span></div>
-    <div class="mk-range" title="${esc(t("Mínimo {l} · máximo {h}", { l: mkPrice(q.low), h: mkPrice(q.high) }))}">${span == null ? "" : `<i style="left:${span}%"></i>`}<small>${mkPrice(q.low)}</small><small>${mkPrice(q.high)}</small></div>
-    <b class="mono r ${mkFlashClass(q)}">${mkPrice(q.price)}<small>${esc(q.currency)}</small></b>${mkChg(q)}${mkRate(q.rating)}
-    <span class="mono r ${q.rsi > 70 ? "warn" : q.rsi < 30 ? "ok" : "faint"}">${q.rsi == null ? "—" : Math.round(q.rsi)}</span>
-    <span class="mono r ${mkTone(q.perf_ytd)}">${mkPct(q.perf_ytd)}</span>
-    <span class="mk-acts"><button class="tool" data-alert="${esc(q.symbol)}" data-name="${esc(q.name)}" data-price="${q.price}" title="${t("Criar alerta")}">${icon("bell")}</button>
-      <button class="tool" data-trade="${esc(q.symbol)}" data-name="${esc(q.name)}" title="${t("Paper trading")}">${icon("wallet")}</button>
-      <button class="tool" data-unwatch="${q.item_id}" title="${t("Tirar da lista")}">${icon("x")}</button></span></div>`;
+  return `<article class="panel mk-fc t-${q.topic}" data-sym="${esc(q.symbol)}" data-name="${esc(q.code)}">${head}
+    <div class="mk-fc-p"><b class="mono ${mkFlashClass(q)}">${mkQuote(q)}</b>${mkChg(q)}</div>
+    <div class="mk-range" title="${esc(t("Hoje: mínimo {l} · máximo {h}", { l: mkPrice(q.low), h: mkPrice(q.high) }))}">${span == null ? "" : `<i style="left:${span}%"></i>`}<small>${mkPrice(q.low)}</small><small>${mkPrice(q.high)}</small></div>
+    <div class="mk-fc-s">${[["1 h", q.r1h], ["4 h", q.r4h], ["Dia", q.rating]].map(([l, r]) => `<div><span>${t(l)}</span>${mkRate(r)}</div>`).join("")}</div></article>`;
 }
 
 function mkPaintAlerts() {
@@ -357,60 +337,170 @@ function mkPaintAlerts() {
         <span>${a.fired_at ? t("Tocou {w}", { w: fmt.ago(a.fired_at) }) : dist == null ? esc(a.note || t("a vigiar")) : t("a {p} do preço atual", { p: mkPct(dist) })}</span></div>
         <button class="tool" data-alert-del="${a.id}" title="${t("Apagar")}">${icon("x")}</button></div>`;
     }).join("")}</div>`
-      : `<p class="faint mk-none">${t("Sem alertas. Toca no sino de um símbolo para seres avisado quando o preço lá chegar.")}</p>`);
+      : `<p class="faint mk-none">${t("Toca no sino de um dos quatro para seres avisado aqui e no telemóvel quando o preço lá chegar.")}</p>`);
 }
 
-async function mkLoadMovers() {
-  if (!$("mk-movers")) return;
-  const m = await api("/api/trading/movers").catch(() => null);
-  const el = $("mk-movers"); // the page may have been drawn again meanwhile: paint the one on screen now
-  if (!el) return;
-  if (!m) { el.innerHTML = ui.error(t("O TradingView não respondeu.")); return; }
-  const list = (title, sub, rows, extra) => `<section class="panel mk-card mk-mv">${mkHead(title, sub)}${rows.length ? rows.slice(0, 6).map((q) => `<a class="mk-mv-r" data-sym="${esc(q.symbol)}" data-name="${esc(q.name)}" href="${mkGo(q.symbol)}">
-      ${mkLogo(q, "sm")}<div class="mk-id"><b>${esc(q.ticker || mkTicker(q.symbol))}</b><span class="ell">${esc(q.name)}</span></div>
-      <span class="mono">${mkPrice(q.price)}</span>${extra ? `<span class="mono faint">${extra(q)}</span>` : ""}${mkChg(q)}</a>`).join("") : mkNone("Sem dados agora.")}</section>`;
-  el.innerHTML = list("Sobem mais", t("EUA · acima de 2 mil M"), m.gainers) + list("Descem mais", t("EUA · acima de 2 mil M"), m.losers)
-    + list("Mais negociadas", t("EUA · valor negociado"), m.active)
-    + list("Volume fora do normal", t("× a média de 10 dias"), m.unusual, (q) => (q.rel_vol == null ? "" : mkFx(q.rel_vol, 1) + "×"))
-    + list("Cripto a subir", t("Binance · 24 h"), m.crypto_up) + list("Cripto a descer", t("Binance · 24 h"), m.crypto_down);
+/* ================================================================ the news, as cards */
+async function mkLoadFeed(refresh = false) {
+  if (!$("mk-today") && !$("mk-feed")) return;
+  const d = await api("/api/trading/feed").catch((e) => ({ source: "error", error: e.message, items: [] }));
+  if (refresh && d.source !== "live") return; // keep what is on screen when a refresh fails
+  const before = MK.feed?.items?.map((x) => x.id).join() || "";
+  MK.feed = d;
+  if (refresh && before === d.items.map((x) => x.id).join()) return; // nothing new: leave the photos where they are
+  mkLive(d.fetched_at);
+  mkPaintFeed();
 }
 
-async function mkLoadFlash() {
-  if (!$("mk-flash")) return;
-  const n = await api("/api/trading/news?cat=all").catch(() => null);
-  const el = $("mk-flash");
-  if (!el) return;
-  el.innerHTML = mkHead("Última hora", `<a href="#/mercados/noticias">${t("Todas")} →</a>`)
-    + (n?.items?.length ? `<div class="mk-fl">${n.items.slice(0, 9).map((x) => mkNewsLine(x, true)).join("")}</div>` : mkNone("Sem notícias agora."));
+const mkTopicOf = (x) => x.topics.find((k) => k !== "usd") || x.topics[0] || "usd";
+const mkTags = (topics) => topics.map((k) => `<span class="mk-tag t-${k}">${esc(t(MK_TOPIC[k]))}</span>`).join("");
+
+// Free photos of each market (Wikimedia Commons, assets/mercados), for the stories that bring none of their own (most
+// of Reuters'). [file, author, licence]: a CC BY licence wants the author named under the photo.
+const MK_PHOTOS = {
+  gold: [["gold-1", "Stevebidmead", "CC0"], ["gold-2", "Ank Kumar", "CC BY-SA 4.0"]],
+  eurusd: [["eurusd-1", "Avij", "Domínio público"], ["eurusd-2", "DiscoA340", "CC0"], ["eurusd-3", "DXR", "CC BY-SA 4.0"]],
+  ger40: [["ger40-1", "Schlurcher", "CC BY 4.0"], ["ger40-2", "Jörg Braukmann", "CC BY-SA 4.0"]],
+  gbpusd: [["gbpusd-1", "VirtuallyLondonBecky", "CC BY-SA 4.0"], ["gbpusd-2", "M R Karim Reza", "CC BY-SA 4.0"], ["gbpusd-3", "Diliff", "CC BY-SA 3.0"]],
+  usd: [["usd-1", "Federal Reserve", "Domínio público"], ["usd-2", "Hamster28", "Domínio público"], ["usd-3", "Billie Grace Ward", "CC0"]],
+};
+
+// the picture of a card: the story's own photo, or one of its market's (the same story always gets the same one)
+function mkArt(x, cls = "") {
+  const list = MK_PHOTOS[mkTopicOf(x)] || MK_PHOTOS.usd;
+  let h = 0;
+  for (const c of x.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const [file, by, lic] = list[h % list.length];
+  const credit = /^CC BY/.test(lic) ? `<small class="mk-credit" ${x.image ? "hidden" : ""}>${t("Foto")}: ${esc(by)} · ${esc(lic)} · Wikimedia Commons</small>` : "";
+  const own = x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.querySelector('.mk-credit')?.removeAttribute('hidden'); this.remove()">` : "";
+  return `<div class="mk-nc-img ${cls}"><img src="assets/mercados/${file}.jpg" alt="" loading="lazy">${own}${credit}</div>`;
 }
 
-async function mkLoadInsMini() {
-  if (!$("mk-ins-mini")) return;
-  const d = await api("/api/trading/insiders?view=clusters").catch(() => null);
-  const el = $("mk-ins-mini");
-  if (!el) return;
-  el.innerHTML = mkHead("Insiders a comprar em grupo", `<a href="#/mercados/insiders">${t("Ver")} →</a>`)
-    + (d?.items?.length ? `<div class="mk-im">${d.items.slice(0, 6).map((x) => `<div class="mk-im-r" ${x.symbol ? `data-sym="${esc(x.symbol)}" data-name="${esc(x.company)}"` : ""}>
-        <b>${esc(x.ticker)}</b><span class="ell">${esc(x.company)}</span><em>${t("{n} insiders", { n: x.insiders || "?" })}</em><b class="mono up">${mkBig(x.value, true)}</b></div>`).join("")}</div>
-        <p class="mk-foot">${t("Quando vários administradores compram ações da própria empresa com o seu dinheiro na mesma semana.")}</p>`
-      : mkNone(d?.error || "Sem dados agora."));
+function mkCard(x) {
+  const fresh = Date.now() / 1000 - x.ts < 3600;
+  const text = x.bullets?.length ? `<ul>${x.bullets.slice(0, 2).map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : x.lead ? `<p>${esc(x.lead)}</p>` : "";
+  return `<article class="mk-nc" data-news="${esc(x.id)}" tabindex="0">${mkArt(x)}
+    <div class="mk-nc-b"><div class="mk-nc-t">${mkTags(x.topics)}${fresh ? `<span class="mk-new"><i class="mk-dot live"></i>${t("nova")}</span>` : ""}</div>
+      <h3>${esc(x.title)}</h3>${text}
+      <footer>${esc(x.source)} · ${fmt.ago(x.at)}${x.read_min ? ` · ${t("{n} min de leitura", { n: x.read_min })}` : ""}</footer></div></article>`;
 }
+
+function mkPaintFeed() {
+  const d = MK.feed;
+  if (!d) return;
+  const today = $("mk-today");
+  if (today) {
+    const grid = today.querySelector(".mk-grid");
+    grid.innerHTML = d.source !== "live" ? ui.error(d.error) : d.items.length ? d.items.slice(0, 6).map(mkCard).join("") : mkNone("Sem notícias dos nossos quatro agora.");
+  }
+  const el = $("mk-feed");
+  if (!el) return;
+  const topics = $("mk-topics");
+  const count = (k) => (k === "all" ? d.items.length : d.items.filter((x) => mkShows(x, k)).length);
+  if (topics) topics.innerHTML = [["all", "Tudo"]].concat(MK_FOCUS.map(([k, , code]) => [k, code]))
+    .map(([k, l]) => `<button class="${MK.topic === k ? "on" : ""}" data-topic="${k}">${k === "all" ? "" : mkFlags(k, "sm")}${esc(t(l))}<i>${count(k)}</i></button>`).join("");
+  if (d.source !== "live") { el.innerHTML = ui.error(d.error); return; }
+  const items = d.items.filter((x) => mkShows(x, MK.topic));
+  if (!items.length) { el.innerHTML = ui.empty("news", "Sem notícias aqui agora", "Nos últimos cinco dias não houve nada em português sobre isto."); return; }
+  const groups = [];
+  items.forEach((x) => {
+    const key = fmt.day(x.at);
+    const g = groups[groups.length - 1];
+    if (g && g.key === key) g.items.push(x); else groups.push({ key, items: [x] });
+  });
+  el.innerHTML = groups.map((g) => `<div class="mk-day"><h4>${esc(g.key)}<i>${g.items.length}</i></h4><div class="mk-grid">${g.items.map(mkCard).join("")}</div></div>`).join("");
+}
+
+// the dollar is the other half of gold, EUR/USD and GBP/USD: its news count for the three
+const mkShows = (x, k) => k === "all" || x.topics.includes(k) || (k !== "ger40" && x.topics.includes("usd"));
+
+async function mkReader(x) {
+  const k = mkTopicOf(x), sym = (MK_FOCUS.find(([id]) => id === k) || [])[1] || "";
+  const names = x.topics.map((tp) => MK_TOPIC[tp]).join(", ");
+  openModal(`<article class="mk-rd">${mkArt(x, "wide")}
+    <div class="mk-nc-t">${mkTags(x.topics)}</div>
+    <h2>${esc(x.title)}</h2>
+    <p class="mk-rd-m">${esc(x.source)} · ${esc(fmt.day(x.at))} ${t("às")} ${fmt.hhmm(x.at)}${x.read_min ? ` · ${t("{n} min de leitura", { n: x.read_min })}` : ""}</p>
+    <div class="mk-rd-a"><button type="button" class="btn primary" id="mk-rd-explain">${icon("spark")}${t("Explica-me isto")}</button>
+      ${x.url ? `<a class="btn" href="${esc(x.url)}" target="_blank" rel="noopener">${t("Abrir no site")} ↗</a>` : ""}</div>
+    <div class="mk-rd-ask" id="mk-rd-ask"></div>
+    ${x.bullets?.length ? `<div class="mk-rd-pts"><b>${t("Em resumo")}</b><ul>${x.bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul></div>` : ""}
+    <div class="mk-rd-text" id="mk-rd-text">${x.story ? ui.skeleton(5) : `<p class="faint">${t("O texto completo está no site da {s}.", { s: esc(x.source) })}</p>`}</div>
+    <div class="form-foot"><button type="button" class="btn quiet" data-close>${t("Fechar")}</button></div></article>`);
+  $("modal-box").classList.add("wide");
+  $("mk-rd-explain").onclick = (e) => {
+    e.currentTarget.disabled = true;
+    const gist = x.bullets?.length ? x.bullets.join(" ") : x.lead || "";
+    mkAskRun(`Explica-me em linguagem simples, em 4 ou 5 frases, esta notícia e o que pode significar para ${names}. Notícia: «${x.title}». ${gist}`.slice(0, 1900), sym, $("mk-rd-ask"));
+  };
+  if (!x.story) return;
+  const s = await api(`/api/trading/story?id=${encodeURIComponent(x.id)}`).catch((e) => ({ source: "error", error: e.message }));
+  const el = $("mk-rd-text");
+  if (!el) return;
+  el.innerHTML = s.source === "live" && s.paragraphs?.length ? s.paragraphs.map((p) => `<p>${esc(p)}</p>`).join("")
+    : `<p class="faint">${t("Não deu para trazer o texto agora.")} ${x.url ? t("Abre no site.") : ""}</p>`;
+}
+
+/* ================================================================ the week's diary */
+async function mkLoadCal() {
+  if (!$("mk-cal")) return;
+  const d = await api("/api/trading/calendar").catch((e) => ({ source: "error", error: e.message, events: [] }));
+  MK.cal = d;
+  mkPaintCal();
+}
+
+function mkPaintCal() {
+  const el = $("mk-cal"), d = MK.cal;
+  if (!el || !d) return;
+  const full = MK.tab === "noticias";
+  const now = Date.now() / 1000;
+  const next = d.events.find((e) => e.ts > now - 600);
+  const shown = full ? d.events : d.events.filter((e) => e.ts > now - 3600).slice(0, 7);
+  const head = mkHead(full ? "Agenda da semana" : "Agenda", t("dólar, euro e libra"));
+  if (d.source !== "live") { el.innerHTML = head + mkNone(d.error || "Sem agenda agora."); return; }
+  if (!shown.length) { el.innerHTML = head + mkNone("Esta semana já não há mais nada importante. A agenda da próxima semana chega no domingo."); return; }
+  const groups = [];
+  shown.forEach((e) => {
+    const key = fmt.day(e.at);
+    const g = groups[groups.length - 1];
+    if (g && g.key === key) g.items.push(e); else groups.push({ key, items: [e] });
+  });
+  const soon = (e) => {
+    const min = Math.round((e.ts - now) / 60);
+    return min > 0 && min < 180 ? `<em>${min < 60 ? t("daqui a {n} min", { n: min }) : t("daqui a {n} h", { n: Math.round(min / 60) })}</em>` : "";
+  };
+  el.innerHTML = head + groups.map((g) => `<div class="mk-cal-d"><h4>${esc(g.key)}</h4>${g.items.map((e) => `<div class="mk-ev ${e.ts < now - 600 ? "past" : ""} ${e === next ? "next" : ""}" title="${esc(e.title_en)}">
+      <time>${fmt.hhmm(e.at)}</time>${mkFlags(e.currency, "sm")}<div><b><i class="mk-imp ${e.impact}" title="${esc(t(e.impact === "high" ? "Impacto alto" : "Impacto médio"))}"></i>${esc(e.title)}</b>
+      <span>${[e.actual ? `${t("Saiu")} <b>${esc(e.actual)}</b>` : "", e.forecast ? `${t("Previsto")} ${esc(e.forecast)}` : "", e.previous ? `${t("Anterior")} ${esc(e.previous)}` : ""].filter(Boolean).join(" · ") || esc(e.currency)}${soon(e)}</span></div></div>`).join("")}</div>`).join("")
+    + `<p class="mk-foot"><i class="mk-imp high"></i>${t("impacto alto")} <i class="mk-imp medium"></i>${t("impacto médio")} · ${t("o que pode mexer o mercado · ForexFactory")}</p>`;
+}
+
+/* ================================================================ Notícias */
+MK_VIEWS.noticias = async (body) => {
+  body.innerHTML = `<div class="mk-news-top"><div class="segx mk-topics" id="mk-topics"></div>
+      <span class="faint">${t("Em português · Reuters e Investing.com · toca numa notícia para a ler")}</span></div>
+    <div class="mk-news-cols"><section class="mk-feed" id="mk-feed"><div class="mk-grid">${ui.skeleton(8)}</div></section>
+      <aside class="panel mk-card mk-cal-side" id="mk-cal">${ui.skeleton(8)}</aside></div>`;
+  if (MK.feed) mkPaintFeed();
+  mkLoadCal();
+  await mkLoadFeed();
+};
 
 /* ================================================================ Gráfico */
 MK_VIEWS.grafico = async (body) => {
   const sym = MK.symbol;
-  body.innerHTML = `<section class="panel mk-sym" id="mk-sym">${ui.skeleton(2)}</section>
+  const focus = MK_FOCUS.find(([, s]) => s === sym);
+  body.innerHTML = `<div class="mk-symbar">${MK_FOCUS.map(([k, s, code]) => `<a class="mk-sp ${s === sym ? "on" : ""}" href="${mkGo(s)}">${mkFlags(k, "sm")}${esc(code)}</a>`).join("")}
+      <button class="mk-sp quiet" data-sym-pick>${icon("search")}${t("Outro símbolo")}</button></div>
+    <section class="panel mk-sym" id="mk-sym">${ui.skeleton(2)}</section>
     <div class="mk-chart-row"><div class="panel mk-chart" id="mk-chart"></div><aside class="panel mk-tech" id="mk-tech">${ui.skeleton(8)}</aside></div>
-    <div class="mk-3" id="mk-ind"></div>
-    <div class="mk-2"><section class="panel mk-card" id="mk-sym-ins">${ui.skeleton(5)}</section><section class="panel mk-card" id="mk-sym-news">${ui.skeleton(5)}</section></div>
+    <div class="mk-below" id="mk-below"><section class="panel mk-card" id="mk-sym-news">${ui.skeleton(5)}</section>${focus ? "" : `<section class="panel mk-card" id="mk-sym-ins" hidden></section>`}</div>
     <section class="panel mk-fin" id="mk-fin" hidden></section>`;
-  mkTv($("mk-chart"), "advanced-chart", { autosize: true, symbol: sym, interval: "D", timezone: MK_TZ, theme: "dark", style: "1",
+  mkTv($("mk-chart"), "advanced-chart", { autosize: true, symbol: sym, interval: "60", timezone: MK_TZ, theme: "dark", style: "1",
     backgroundColor: "rgba(14, 16, 19, 1)", gridColor: "rgba(255, 255, 255, 0.04)", allow_symbol_change: false, withdateranges: true,
     hide_side_toolbar: false, details: false, calendar: false, studies: ["STD;RSI"], support_host: "https://www.tradingview.com" });
-  if (!MK.board) api("/api/trading/board").then((b) => { MK.board = b; mkPaintSymbolHead(); }).catch(() => {});
   await mkLoadSymbol();
-  mkSymbolInsiders(sym);
-  mkSymbolNews(sym);
+  mkSymbolNews(sym, focus);
 };
 
 async function mkLoadSymbol(refresh = false) {
@@ -425,35 +515,29 @@ async function mkLoadSymbol(refresh = false) {
     return;
   }
   paint($("mk-tech"), mkTechPanel(d));
-  if (!refresh) {
-    $("mk-ind").innerHTML = mkIndicators(d);
-    if (d.type === "stock" || d.type === "dr") {
-      const fin = $("mk-fin");
-      fin.hidden = false;
-      fin.innerHTML = `${mkHead("Dados financeiros", t("TradingView"))}<div class="mk-fin-w" id="mk-fin-w"></div>`;
-      mkTv($("mk-fin-w"), "financials", { symbol: sym, displayMode: "regular", width: "100%", height: "100%", largeChartUrl: "" });
-    }
-  } else {
-    const pivots = $("mk-pivots");
-    if (pivots) pivots.outerHTML = mkPivots(d);
+  if (!refresh && (d.type === "stock" || d.type === "dr")) { // a company: who inside it buys and sells, and its accounts
+    mkSymbolInsiders(sym);
+    const fin = $("mk-fin");
+    fin.hidden = false;
+    fin.innerHTML = `${mkHead("Dados financeiros", t("TradingView"))}<div class="mk-fin-w" id="mk-fin-w"></div>`;
+    mkTv($("mk-fin-w"), "financials", { symbol: sym, displayMode: "regular", width: "100%", height: "100%", largeChartUrl: "" });
   }
 }
 
 function mkPaintSymbolHead() {
   const el = $("mk-sym"), d = MK.detail;
   if (!el || !d) return;
-  const sym = MK.symbol, name = d.name || MK.names?.[sym] || sym;
-  const watched = (MK.board?.watch || []).some((q) => q.symbol === sym);
-  el.innerHTML = `<div class="mk-sym-l">${mkLogo(d, "xl")}<div><div class="ph-eyebrow">${esc([d.exchange || sym.split(":")[0], d.type, d.currency].filter(Boolean).join(" · "))}</div>
-      <h2>${esc(name)}</h2><span class="mono faint">${esc(sym)}</span></div></div>
-    <div class="mk-sym-p">${d.missing ? `<b class="mk-big">—</b>` : `<b class="mk-big mono ${mkFlashClass(d)}">${mkPrice(d.price)}<small>${esc(d.currency)}</small></b>
-      <span class="mk-chg ${mkTone(d.change_pct)}">${d.change == null ? "" : (d.change > 0 ? "+" : d.change < 0 ? "−" : "") + mkPrice(Math.abs(d.change))} (${mkPct(d.change_pct)})</span>${mkRate(d.rating)}`}</div>
+  const sym = MK.symbol, focus = MK_FOCUS.find(([, s]) => s === sym);
+  const name = focus ? focus[2] : d.name || MK.names?.[sym] || sym;
+  const sub = focus ? t(focus[3]) : d.full_name || sym;
+  el.innerHTML = `<div class="mk-sym-l">${focus ? mkFlags(focus[0], "lg") : mkLogo(d, "xl")}<div><div class="ph-eyebrow">${esc([d.exchange || sym.split(":")[0], d.currency].filter(Boolean).join(" · "))}</div>
+      <h2>${esc(name)}</h2><span class="faint">${esc(sub)}</span></div></div>
+    <div class="mk-sym-p">${d.missing ? `<b class="mk-big">—</b>` : `<b class="mk-big mono ${mkFlashClass(d)}">${mkQuote({ ...d, code: name })}<small>${esc(d.currency)}</small></b>
+      <span class="mk-chg ${mkTone(d.change_pct)}">${d.change == null ? "" : (d.change > 0 ? "+" : d.change < 0 ? "−" : "") + mkPrice(Math.abs(d.change))} (${mkPct(d.change_pct)})</span>`}</div>
     <div class="mk-sym-a">
-      <button class="btn ${watched ? "ok" : ""}" data-watch-toggle="${esc(sym)}" data-name="${esc(name)}">${icon(watched ? "tick" : "plus")}${t(watched ? "Na minha lista" : "Seguir")}</button>
       <button class="btn" data-alert="${esc(sym)}" data-name="${esc(name)}" data-price="${d.price ?? ""}">${icon("bell")}${t("Alerta")}</button>
       <button class="btn ok" data-trade="${esc(sym)}" data-name="${esc(name)}" data-side="buy">${t("Comprar")}</button>
       <button class="btn danger" data-trade="${esc(sym)}" data-name="${esc(name)}" data-side="sell">${t("Vender")}</button>
-      <button class="btn" data-sym-pick>${icon("search")}${t("Outro símbolo")}</button>
       <button class="btn primary" data-ask="${esc(sym)}">${icon("spark")}${t("Análise do Claude")}</button></div>`;
   if (d.price != null) MK.last[sym] = d.price;
 }
@@ -475,51 +559,42 @@ function mkGauge(value, title, rate) {
     <span>${t(title)}</span>${mkRate(rate)}</div>`;
 }
 
+// what a trader reads at a glance: the signal on four time frames, how far it moved, and the month's levels
 function mkTechPanel(d) {
   const f = d.fundamentals, r = d.ratings;
   const hi = f.hi52, lo = f.lo52, pos = hi != null && lo != null && hi > lo ? Math.max(0, Math.min(100, (d.price - lo) / (hi - lo) * 100)) : null;
   const stat = (label, value) => (value == null || value === "—" ? "" : `<div><span>${t(label)}</span><b>${value}</b></div>`);
-  return `${mkHead("Sinal técnico", t("TradingView · diário"))}
-    <div class="mk-gauges">${mkGauge(r.values.osc, "Osciladores", r.osc)}${mkGauge(r.values.all, "Resumo", r.all)}${mkGauge(r.values.ma, "Médias móveis", r.ma)}</div>
+  const company = d.type === "stock" || d.type === "dr";
+  return `${mkHead("Sinal técnico", t("TradingView"))}
+    <div class="mk-gauges one">${mkGauge(r.values.all, "Resumo do dia", r.all)}</div>
     <div class="mk-tf">${[["1 h", r.h1], ["4 h", r.h4], ["1 dia", r.all], ["1 semana", r.w1]].map(([l, v]) => `<div><span>${t(l)}</span>${mkRate(v)}</div>`).join("")}</div>
+    <p class="mk-foot mk-tf-note">${t("O resumo dos indicadores técnicos do TradingView. Ajuda a ler o momento, não é uma recomendação.")}</p>
     <div class="mk-perf">${Object.entries(d.perf).map(([k, v]) => `<div class="${mkTone(v)}"><span>${k}</span><b>${mkPct(v)}</b></div>`).join("")}</div>
     ${pos == null ? "" : `<div class="mk-52"><span>${t("52 semanas")}</span><div class="mk-range wide"><i style="left:${pos}%"></i><small>${mkPrice(lo)}</small><small>${mkPrice(hi)}</small></div></div>`}
-    <div class="mk-stats">${stat("Capitalização", f.mcap == null ? null : mkBig(f.mcap, true))}${stat("P/L", f.pe == null ? null : mkFx(f.pe, 1))}
-      ${stat("Lucro por ação", f.eps == null ? null : mkPrice(f.eps))}${stat("Dividendo", f.dividend == null ? null : mkFx(f.dividend, 2) + "%")}
-      ${stat("Beta (1 ano)", f.beta == null ? null : mkFx(f.beta, 2))}${stat("Volume hoje", d.volume == null ? null : mkBig(d.volume))}
-      ${stat("Volume vs média", f.rel_vol == null ? null : mkFx(f.rel_vol, 2) + "×")}${stat("ATR (14)", d.atr == null ? null : mkPrice(d.atr))}
-      ${stat("Volatilidade (dia)", d.volatility == null ? null : mkFx(d.volatility, 2) + "%")}${stat("Próximos resultados", f.earnings ? fmt.date(f.earnings) : null)}
-      ${stat("Setor", f.sector ? esc(f.sector) : null)}${stat("Indústria", f.industry ? esc(f.industry) : null)}</div>`;
+    ${mkPivots(d)}
+    <div class="mk-stats">${stat("Volatilidade (dia)", d.volatility == null ? null : mkFx(d.volatility, 2) + "%")}${stat("ATR (14)", d.atr == null ? null : mkPrice(d.atr))}
+      ${company ? `${stat("Capitalização", f.mcap == null ? null : mkBig(f.mcap, true))}${stat("P/L", f.pe == null ? null : mkFx(f.pe, 1))}
+      ${stat("Dividendo", f.dividend == null ? null : mkFx(f.dividend, 2) + "%")}${stat("Próximos resultados", f.earnings ? fmt.date(f.earnings) : null)}` : ""}</div>`;
 }
-
-const MK_ACT = { buy: ["Compra", "up"], sell: ["Venda", "down"], neutral: ["Neutro", "flat"] };
-const mkAct = (a) => (a ? `<span class="mk-rate ${MK_ACT[a][1]}">${t(MK_ACT[a][0])}</span>` : `<span class="mk-rate none">—</span>`);
 
 function mkPivots(d) {
   const p = d.pivots, rows = [["R3", p.R3], ["R2", p.R2], ["R1", p.R1], ["P", p.Middle], ["S1", p.S1], ["S2", p.S2], ["S3", p.S3]].filter(([, v]) => v != null);
-  if (!rows.length) return `<section class="panel mk-card" id="mk-pivots">${mkHead("Pivots")}${mkNone("Sem pivots para este símbolo.")}</section>`;
+  if (!rows.length) return "";
   const vals = rows.map(([, v]) => v).concat(d.price), hi = Math.max(...vals), lo = Math.min(...vals), y = (v) => (hi === lo ? 50 : (hi - v) / (hi - lo) * 100);
-  return `<section class="panel mk-card" id="mk-pivots">${mkHead("Pivots clássicos", t("mensais"))}
+  return `<div class="mk-pivots"><div class="mk-sec">${t("Níveis do mês")}</div>
     <div class="mk-piv">${rows.map(([k, v]) => `<div class="mk-piv-r ${k[0] === "R" ? "res" : k[0] === "S" ? "sup" : "mid"}" style="top:${y(v)}%"><span>${k}</span><i></i><b class="mono">${mkPrice(v)}</b></div>`).join("")}
       <div class="mk-piv-now" style="top:${y(d.price)}%"><span>${t("agora")}</span><i></i><b class="mono">${mkPrice(d.price)}</b></div></div>
-    <p class="mk-foot">${t("R = resistências, S = suportes, P = pivot do mês. Os traders vigiam estes níveis.")}</p></section>`;
-}
-
-function mkIndicators(d) {
-  const table = (title, rows) => {
-    const n = { buy: 0, sell: 0, neutral: 0 };
-    rows.forEach((x) => x.action && n[x.action]++);
-    return `<section class="panel mk-card">${mkHead(title, `<span class="up">${n.buy} ${t("compra")}</span> · <span class="flat">${n.neutral} ${t("neutro")}</span> · <span class="down">${n.sell} ${t("venda")}</span>`)}
-      <table class="tbl mk-tbl"><tbody>${rows.map((x) => `<tr><td>${esc(t(x.name))}</td><td class="r mono">${x.value == null ? "—" : mkPrice(x.value)}</td><td class="r">${mkAct(x.action)}</td></tr>`).join("")}</tbody></table></section>`;
-  };
-  return table("Osciladores", d.oscillators) + table("Médias móveis", d.mas) + mkPivots(d);
+    <p class="mk-foot">${t("R = resistências, S = suportes, P = pivot do mês. Os traders vigiam estes níveis.")}</p></div>`;
 }
 
 async function mkSymbolInsiders(sym) {
   let el = $("mk-sym-ins");
+  if (!el) return;
   const d = await api(`/api/trading/insiders?symbol=${encodeURIComponent(sym)}`).catch((e) => ({ source: "error", error: e.message, items: [] }));
   el = $("mk-sym-ins");
   if (!el || MK.symbol !== sym) return;
+  el.hidden = false;
+  $("mk-below").classList.add("mk-2");
   const buys = d.items.filter((x) => x.kind === "buy"), sells = d.items.filter((x) => x.kind === "sell");
   const sum = (l) => l.reduce((s, x) => s + (x.value || 0), 0);
   el.innerHTML = mkHead("Insiders desta empresa", d.source === "live" ? t("SEC · Form 4") : "")
@@ -536,72 +611,25 @@ const MK_KIND = { buy: ["Compra", "up"], sell: ["Venda", "down"], award: ["Atrib
   tax: ["Retenção p/ impostos", "flat"], gift: ["Doação", "flat"], disposal: ["Alienação", "flat"], conversion: ["Conversão", "flat"], other: ["Outro", "flat"] };
 const mkKind = (k) => `<span class="mk-rate ${(MK_KIND[k] || MK_KIND.other)[1]}">${t((MK_KIND[k] || MK_KIND.other)[0])}</span>`;
 
-async function mkSymbolNews(sym) {
-  let el = $("mk-sym-news");
+// one of our four: its cards from the Portuguese feed; any other symbol: TradingView's own headlines for it
+async function mkSymbolNews(sym, focus) {
+  if (focus) {
+    const d = MK.feed?.source === "live" ? MK.feed : await api("/api/trading/feed").catch(() => null);
+    if (d?.source === "live") MK.feed = d;
+    const el = $("mk-sym-news");
+    if (!el || MK.symbol !== sym) return;
+    const items = (d?.items || []).filter((x) => mkShows(x, focus[0])).slice(0, 6);
+    el.innerHTML = mkHead(t("Notícias de {s}", { s: focus[2] }), `<a href="#/mercados/noticias" data-topic="${focus[0]}">${t("Ver todas")} →</a>`)
+      + (items.length ? `<div class="mk-grid">${items.map(mkCard).join("")}</div>` : mkNone("Sem notícias em português nos últimos dias."));
+    return;
+  }
   const d = await api(`/api/trading/news?symbol=${encodeURIComponent(sym)}`).catch(() => null);
-  el = $("mk-sym-news");
+  const el = $("mk-sym-news");
   if (!el || MK.symbol !== sym) return;
-  el.innerHTML = mkHead("Notícias deste símbolo", t("TradingView"))
-    + (d?.items?.length ? `<div class="mk-fl">${d.items.slice(0, 12).map((x) => mkNewsLine(x, false)).join("")}</div>` : mkNone("Sem notícias recentes deste símbolo."));
-}
-
-/* ================================================================ Notícias */
-const MK_CATS = [["all", "Tudo"], ["mine", "A minha lista"], ["stock", "Ações"], ["crypto", "Cripto"], ["forex", "Forex"], ["economic", "Economia"], ["index", "Índices"], ["futures", "Futuros"]];
-
-MK_VIEWS.noticias = async (body) => {
-  body.innerHTML = `<div class="chipbar mk-cats" id="mk-cats"></div>
-    <div class="mk-news-cols"><section class="panel mk-card mk-feed" id="mk-feed">${ui.skeleton(10)}</section>
-      <aside class="panel mk-card mk-cal">${mkHead("Calendário económico", t("TradingView"))}<div class="mk-cal-w" id="mk-cal-w"></div></aside></div>`;
-  mkTv($("mk-cal-w"), "events", { locale: "en", width: "100%", height: "100%", importanceFilter: "0,1", countryFilter: "us,eu,de,gb,fr,it,es,pt,cn,jp" }); // the calendar has no Portuguese
-  await mkLoadNews();
-};
-
-function mkNewsLine(x, short) {
-  const min = (Date.now() / 1000 - x.ts) / 60;
-  const syms = x.symbols.slice(0, short ? 2 : 4).map((s) => `<button type="button" class="mk-chip" data-sym="${esc(s)}">${esc(mkTicker(s))}</button>`).join("");
-  return `<div class="mk-n ${min < 15 ? "hot" : ""}"><time>${fmt.hhmm(x.at)}</time><div>
-    <a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
-    <span class="mk-n-m">${min < 15 ? `<i class="mk-dot live"></i>` : ""}${esc(x.source)} · ${fmt.ago(x.at)}${syms ? ` <span class="mk-n-s">${syms}</span>` : ""}</span></div></div>`;
-}
-
-async function mkLoadNews(refresh = false) {
-  const cats = $("mk-cats");
-  if (!cats) return;
-  cats.innerHTML = MK_CATS.map(([id, label]) => `<button class="chp ${id === MK.news ? "on" : ""}" data-news-cat="${id}">${t(label)}</button>`).join("");
-  const cat = MK.news;
-  if (!refresh) $("mk-feed").innerHTML = ui.skeleton(10);
-  const d = await api(`/api/trading/news?cat=${cat}`).catch((e) => ({ source: "error", error: e.message, items: [] }));
-  if (MK.news !== cat || !$("mk-feed")) return;
-  const seen = new Set((MK.newsItems || []).map((x) => x.id));
-  d.items.forEach((x) => { x.isNew = refresh && !seen.has(x.id); });
-  MK.newsItems = d.items;
-  MK.newsError = d.source === "error" ? d.error : "";
-  mkLive();
-  mkPaintNews();
-}
-
-function mkPaintNews() {
-  const el = $("mk-feed");
-  if (!el) return;
-  if (MK.newsError) { el.innerHTML = ui.error(MK.newsError); return; }
-  const all = MK.newsItems || [];
-  const counts = {};
-  all.forEach((x) => { counts[x.source] = (counts[x.source] || 0) + 1; });
-  const sources = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 7);
-  const items = MK.source ? all.filter((x) => x.source === MK.source) : all;
-  const now = Date.now() / 1000;
-  const groups = [];
-  items.forEach((x) => {
-    const age = (now - x.ts) / 60;
-    const key = age < 15 ? t("Agora · últimos 15 minutos") : age < 60 ? t("Na última hora") : fmt.day(x.at) === t("Hoje") ? t("Hoje às {h}", { h: new Date(x.at).getHours() + "h" }) : fmt.day(x.at);
-    const g = groups[groups.length - 1];
-    if (g && g.key === key) g.items.push(x); else groups.push({ key, items: [x] });
-  });
-  el.innerHTML = mkHead("Notícias ao minuto", `${t("{n} notícias", { n: items.length })} · ${t("TradingView")}`)
-    + `<div class="mk-srcs">${sources.map(([s, n]) => `<button class="chp ${MK.source === s ? "on" : ""}" data-news-src="${esc(s)}">${esc(s)}<span class="mem-n">${n}</span></button>`).join("")}</div>`
-    + (items.length ? groups.map((g) => `<div class="mk-ng"><div class="mk-ng-h">${esc(g.key)}<i>${g.items.length}</i></div>
-      ${g.items.map((x) => mkNewsLine(x, false).replace('class="mk-n', `class="mk-n${x.isNew ? " fresh" : ""}`)).join("")}</div>`).join("")
-      : mkNone("Sem notícias nesta categoria."));
+  el.innerHTML = mkHead("Notícias deste símbolo", t("TradingView · em inglês"))
+    + (d?.items?.length ? `<div class="mk-fl">${d.items.slice(0, 12).map((x) => `<div class="mk-n"><time>${fmt.hhmm(x.at)}</time><div>
+      <a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a><span class="mk-n-m">${esc(x.source)} · ${fmt.ago(x.at)}</span></div></div>`).join("")}</div>`
+      : mkNone("Sem notícias recentes deste símbolo."));
 }
 
 /* ================================================================ Insiders */
@@ -774,6 +802,7 @@ function mkPaintTicket() {
   const q = tk.quote, buy = tk.side === "buy";
   const held = (MK.paper?.me.positions || []).find((p) => p.symbol === tk.symbol);
   f.innerHTML = `${mkHead("Nova ordem", t("ao preço do TradingView"))}
+    <div class="mk-tk-four">${MK_FOCUS.map(([, s, code]) => `<button type="button" class="${s === tk.symbol ? "on" : ""}" data-tk-focus="${s}" data-name="${code}">${code}</button>`).join("")}</div>
     <button type="button" class="mk-tk-sym" data-tk-pick>${q ? mkLogo(q) : `<span class="mk-logo"><b>${esc(mkTicker(tk.symbol)[0] || "?")}</b></span>`}
       <div><b>${esc(mkTicker(tk.symbol) || t("Escolher símbolo"))}</b><span class="ell">${esc(q?.name || tk.name || "")}</span></div>
       <div class="r">${q && !q.missing ? `<b class="mono">${mkPrice(q.price)} <small>${esc(q.currency)}</small></b>${mkChg(q)}` : q?.missing ? `<span class="faint">${t("sem preço")}</span>` : ui.skeleton(1)}</div></button>

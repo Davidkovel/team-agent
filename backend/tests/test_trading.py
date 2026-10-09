@@ -59,3 +59,44 @@ def test_13f_names_find_their_ticker():
 
 def test_tradingview_ratings_use_its_own_thresholds():
     assert [rating(v) for v in (0.6, 0.3, 0, -0.3, -0.7, None)] == ["strong_buy", "buy", "neutral", "sell", "strong_sell", None]
+
+
+def test_a_headline_counts_only_for_the_markets_it_names_and_never_for_brazil():
+    from app.routers.trading import topics_of
+    assert topics_of("O ouro registra alta, à medida que dados sobre a inflação enfraquecem o Fed") == ["gold", "usd"]
+    assert topics_of("Libra esterlina sobe levemente com recuo do dólar") == ["gbpusd", "usd"]
+    assert topics_of("Ações europeias têm ganho semanal modesto") == ["ger40"]
+    assert topics_of("Alemanha planeja indicar candidato para o conselho do BCE") == ["eurusd", "ger40"]
+    assert topics_of("Ibovespa bate recorde e dólar vai abaixo de R$5") == []
+    assert topics_of("Dólar canadense cai após perda de empregos") == []
+    assert topics_of("Produção colombiana de café aumenta em setembro") == []
+    assert topics_of("Títulos, bombas e barricadas", ("ger40",)) == ["ger40"]  # filed by TradingView under the DAX
+
+
+def test_the_same_story_told_twice_is_one_card():
+    from app.routers.trading import same_story, words_of
+    card = lambda title, ts: {"title": title, "ts": ts, "words": words_of(title)}
+    a = card("Ações europeias têm ganho semanal modesto com queda de preços do petróleo e rendimentos dos títulos", 1000)
+    b = card("Ações europeias registram ganho semanal modesto com a queda dos preços do petróleo e dos rendimentos", 3000)
+    assert same_story(a, b)
+    assert not same_story(a, card("Euro caminha para 5ª queda semanal consecutiva", 2000))
+    assert not same_story(a, {**b, "ts": 1000 + 2 * 86400})  # the same words two days later are another day's story
+
+
+def test_a_story_reads_as_its_points_and_paragraphs_without_the_byline():
+    from app.routers.trading import story_parts
+    s = {"read_time": 190, "astDescription": {"type": "root", "children": [
+        {"type": "p", "children": ["Por Dhara Ranasinghe e Ankur Banerjee"]},
+        {"type": "p", "children": ["O euro ", {"type": "symbol", "params": {"symbol": "FX:EURUSD", "text": "FX:EURUSD"}}, " caía 0,1%."]}]},
+        "summary": {"type": "root", "children": [{"type": "list", "children": [{"type": "*", "children": ["Euro sob pressão"]}]}]}}
+    assert story_parts(s) == {"bullets": ["Euro sob pressão"], "paragraphs": ["O euro EURUSD caía 0,1%."], "read_min": 3}
+
+
+def test_the_diary_speaks_portuguese_and_keeps_what_it_does_not_know():
+    from app.routers.trading import calendar_title
+    assert calendar_title("Non-Farm Employment Change") == "Payroll: empregos criados"
+    assert calendar_title("Core CPI m/m") == "Inflação core (CPI) do mês"
+    assert calendar_title("German Flash Manufacturing PMI") == "Alemanha · PMI indústria (preliminar)"
+    assert calendar_title("FOMC Member Waller Speaks") == "Discurso: Waller, da Fed"
+    assert calendar_title("BOE Gov Bailey Speaks") == "Discurso: Bailey, governador do Banco de Inglaterra"
+    assert calendar_title("Something New") == "Something New"

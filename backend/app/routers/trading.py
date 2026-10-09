@@ -7,6 +7,10 @@ What the page shows comes from three places, none of which needs a key:
 - SEC EDGAR: what company insiders buy and sell (Form 4) and what the big investors hold each quarter (13F).
 - Yahoo Finance and Binance: daily candles for the strategy tests (TradingView gives no history without an account).
 
+The page is built around what the team trades (FOCUS: gold, EUR/USD, GER40, GBP/USD; Marco, 9 Oct). Its news are in
+Portuguese and only about those four (`feed`: Reuters through TradingView's Portuguese desk, with its three-point summary and
+the whole text, and Investing.com Brasil, with its photos), and its diary is ForexFactory's week (`calendar`).
+
 Each person keeps a watchlist, price alerts and investors to follow (MarketItem), and a paper-trading account with
 80 000 virtual dollars (PaperTrade). The real Hub of a PC watches its own person's alerts and investors in `loop()` and
 rings a notification when one fires. "Pergunta ao Claude" is a question for the asker's own agent, with the market data
@@ -18,6 +22,7 @@ import html
 import logging
 import re
 import time
+import unicodedata
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from typing import Literal
@@ -46,9 +51,13 @@ SEC_HEAD = {"User-Agent": "AgenteAMG hub@baredesk.store", "Accept-Encoding": "gz
 _sec_gate = asyncio.Semaphore(4)
 
 START_CASH = 80_000.0
-DEFAULT_WATCH = [("BINANCE:BTCUSDT", "Bitcoin"), ("BINANCE:ETHUSDT", "Ethereum"), ("NASDAQ:NVDA", "NVIDIA"),
-                 ("NASDAQ:AAPL", "Apple"), ("NASDAQ:TSLA", "Tesla"), ("NASDAQ:MSFT", "Microsoft"), ("SP:SPX", "S&P 500"),
-                 ("OANDA:XAUUSD", "Ouro"), ("FX:EURUSD", "EUR / USD")]
+# What the team trades (Marco, 9 Oct): the page is built around these four. (topic, symbol, code, name, news symbol): the
+# DAX's news hang on the index, not on the CFD that is traded as GER40.
+FOCUS = [("gold", "OANDA:XAUUSD", "XAU/USD", "Ouro", "OANDA:XAUUSD"),
+         ("eurusd", "FX:EURUSD", "EUR/USD", "Euro · Dólar", "FX:EURUSD"),
+         ("ger40", "OANDA:DE30EUR", "GER40", "DAX · Alemanha", "XETR:DAX"),
+         ("gbpusd", "FX:GBPUSD", "GBP/USD", "Libra · Dólar", "FX:GBPUSD")]
+DEFAULT_WATCH = [(symbol, code) for _, symbol, code, _, _ in FOCUS]
 # The strip on top of the page: the market at a glance.
 PULSE = [("SP:SPX", "S&P 500"), ("NASDAQ:NDX", "Nasdaq 100"), ("DJ:DJI", "Dow Jones"), ("XETR:DAX", "DAX"),
          ("TVC:VIX", "VIX"), ("TVC:DXY", "Dólar (DXY)"), ("OANDA:XAUUSD", "Ouro"), ("NYMEX:CL1!", "Petróleo"),
@@ -180,6 +189,289 @@ async def tv_news(category: str = "", symbol: str = "") -> list[dict]:
             r.raise_for_status()
             return [_news_item(x) for x in r.json().get("items", [])]
     return await cached(f"news:{category}:{symbol}", 60 if not symbol else 120, make)
+
+
+async def focus_quotes() -> list[dict]:
+    """The team's four, with the rating on the hour and the four hours next to the day's."""
+    fields = QUOTE + ["Recommend.All|60", "Recommend.All|240"]
+    try:
+        found = await tv_scan([f[1] for f in FOCUS], fields)
+    except (httpx.HTTPError, ValueError) as exc:
+        log.info("TradingView scanner: %s", exc)
+        found = {}
+    out = []
+    for topic, symbol, code, name, _ in FOCUS:
+        d = found.get(symbol)
+        q = {**quote_out(symbol, d, code), "topic": topic, "code": code, "label": name}
+        if d:
+            q.update(r1h=rating(d.get("Recommend.All|60")), r4h=rating(d.get("Recommend.All|240")))
+        out.append(q)
+    return out
+
+
+# ---------------------------------------------------------------- news in Portuguese about our four
+# Marco (9 Oct): the English one-liners were hard to read. Two Portuguese desks, merged: Reuters through TradingView (a
+# three-point summary and the whole text, read inside the Hub) and Investing.com Brasil (a photo for each). Both are
+# written in Brazil, so Brazil's own news is left out, and so is anything that does not touch gold, the euro, the DAX,
+# the pound or the dollar.
+BROWSER = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"}
+INVESTING = ("news_1", "news_11", "news_14", "news_95")  # câmbio, commodities, economia, indicadores (pt.investing.com stopped in 2023)
+TOPICS = ("gold", "eurusd", "ger40", "gbpusd", "usd")
+TOPIC_WORDS = {
+    "gold": r"\bouro\b|\bxau|metais preciosos|metal precioso",
+    "eurusd": r"\beuros?\b|eur/usd|\bbce\b|banco central europeu|lagarde|zona do euro|zona euro",
+    "ger40": r"\bdax\b|alemanh|\balema(o|es|s)?\b|frankfurt|ger ?40|bundesbank|stoxx|(acoes|bolsas|mercados|indices) europe",
+    "gbpusd": r"\blibras?\b|\bgbp|esterlina|banco da inglaterra|\bboe\b|bailey|reino unido|britanic|\bftse\b|bolsa de londres",
+    "usd": r"\bfed\b|federal reserve|powell|\bfomc\b|payroll|treasur|\bdolar\b|\bdxy\b|\bcpi\b|\bpce\b|"
+           r"\b(juros|inflacao|empregos?|desemprego|economia|pib|consumidor) (nos|dos) (eua|estados unidos)\b|"
+           r"\b(juros|inflacao|economia) american|\beua\b.{0,40}\b(inflacao|juros|empregos?|desemprego|pib)\b",
+}
+OTHER_DOLLARS = r"dolar (canadense|australiano|neozelandes|de hong kong|de singapura|taiwanes)"
+ELSEWHERE = (r"ibovespa|\bb3\b|r\$|\blula\b|bolsonaro|copom|selic|petrobras|brasil|haddad|galipolo|\bipca\b|"
+             r"\b(o|do|ao|no) real\b|argentin|milei|\bmexic|\bpeso (mexicano|argentino|chileno|colombiano)")
+
+
+def plain(text: str) -> str:
+    """Lower case without accents, so one pattern finds «alemã» and «alema»."""
+    return "".join(c for c in unicodedata.normalize("NFKD", (text or "").lower()) if not unicodedata.combining(c))
+
+
+def topics_of(text: str, given: tuple[str, ...] = ()) -> list[str]:
+    """Which of our markets a headline is about. Empty = not ours (Brazil's own news always is not)."""
+    t = plain(text)
+    if re.search(ELSEWHERE, t):
+        return []
+    found = set(given)
+    for topic, words in TOPIC_WORDS.items():
+        if re.search(words, re.sub(OTHER_DOLLARS, "", t) if topic == "usd" else t):
+            found.add(topic)
+    return [k for k in TOPICS if k in found]
+
+
+def words_of(title: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", plain(title)) if len(w) > 3}
+
+
+def same_story(a: dict, b: dict) -> bool:
+    """The same story told twice: Investing Brasil republishes Reuters, and Reuters rewrites its headline as the day goes
+    («Ações europeias têm ganho…», then «Ações europeias registram ganho…»). Most words shared, a few hours apart."""
+    wa, wb = a["words"], b["words"]
+    return bool(wa and wb) and abs(a["ts"] - b["ts"]) < 10 * 3600 and len(wa & wb) / len(wa | wb) >= 0.45
+
+
+def _ast_text(node) -> str:
+    if isinstance(node, str):
+        return node
+    if not isinstance(node, dict):
+        return ""
+    if node.get("type") == "symbol":
+        return (node.get("params") or {}).get("text", "").split(":")[-1]
+    return "".join(_ast_text(c) for c in node.get("children") or [])
+
+
+def story_parts(s: dict) -> dict:
+    """A TradingView story as plain text: its summary points and its paragraphs (the byline left out)."""
+    paras = [re.sub(r"\s+", " ", _ast_text(p)).strip() for p in ((s.get("astDescription") or {}).get("children") or [])]
+    paras = [p for p in paras if p]
+    if paras and re.match(r"^(Por|Reportagem de|By) [^.]{0,90}$", paras[0]):
+        paras = paras[1:]
+    bullets = []
+
+    def walk(n):
+        if isinstance(n, dict):
+            if n.get("type") == "*":
+                bullets.append(re.sub(r"\s+", " ", _ast_text(n)).strip())
+                return
+            for c in n.get("children") or []:
+                walk(c)
+    walk(s.get("summary"))
+    return {"bullets": [b for b in bullets if b][:4], "paragraphs": paras, "read_min": max(1, round((s.get("read_time") or 0) / 60)) if s.get("read_time") else None}
+
+
+_stories: dict[str, tuple[float, dict]] = {}
+
+
+async def tv_story(client: httpx.AsyncClient, story_id: str) -> dict:
+    hit = _stories.get(story_id)
+    if hit and time.time() - hit[0] < 6 * 3600:
+        return hit[1]
+    r = await client.get("https://news-headlines.tradingview.com/v3/story", params={"id": story_id, "lang": "pt"}, timeout=10)
+    r.raise_for_status()
+    s = r.json()
+    provider = s.get("provider")
+    out = {"title": html.unescape(s.get("title") or ""), "source": s.get("source") or (provider.get("name") if isinstance(provider, dict) else provider) or "",
+           "ts": s.get("published") or 0, **story_parts(s)}
+    if len(_stories) > 600:  # a few days of stories; the rest is fetched again if anybody opens it
+        _stories.clear()
+    _stories[story_id] = (time.time(), out)
+    return out
+
+
+async def _investing_feed(client: httpx.AsyncClient, feed: str) -> list[dict]:
+    r = await client.get(f"https://br.investing.com/rss/{feed}.rss", timeout=10)
+    r.raise_for_status()
+    out = []
+    for it in ET.fromstring(r.content).iter("item"):
+        title = html.unescape((it.findtext("title") or "").strip())
+        try:  # Investing writes UTC as "2026-10-09 17:49:19"
+            when = datetime.strptime((it.findtext("pubDate") or "").strip(), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        enc = it.find("enclosure")
+        out.append({"id": "inv:" + (it.findtext("link") or title)[-90:], "title": title, "source": (it.findtext("author") or "Investing.com").strip(),
+                    "ts": int(when.timestamp()), "url": (it.findtext("link") or "").strip(), "image": enc.get("url") if enc is not None else "",
+                    "topics": topics_of(title), "story": False})
+    return out
+
+
+async def _tv_pt(client: httpx.AsyncClient, symbol: str = "", category: str = "", topic: str = "") -> list[dict]:
+    params = {"client": "web", "lang": "pt"}
+    if symbol:
+        r = await client.get("https://news-headlines.tradingview.com/v2/view/headlines/symbol", params={**params, "symbol": symbol}, timeout=10)
+    else:
+        r = await client.get("https://news-headlines.tradingview.com/v2/headlines", params={**params, "streaming": "false", "category": category}, timeout=10)
+    r.raise_for_status()
+    out = []
+    for x in r.json().get("items", []):
+        title = re.sub(r"\s+", " ", html.unescape(x.get("title") or "")).strip()
+        path = x.get("storyPath") or ""
+        out.append({"id": x.get("id") or "", "title": title, "source": x.get("source") or "Reuters", "ts": x.get("published") or 0,
+                    "url": "https://br.tradingview.com" + path if path.startswith("/") else x.get("link") or "", "image": "",
+                    "topics": topics_of(title, (topic,) if topic else ()), "story": x.get("permission") != "preview" and bool(x.get("id"))})
+    return out
+
+
+async def news_feed() -> list[dict]:
+    """The news about our four, newest first, from the last five days: one card per story."""
+    async def make():
+        async with httpx.AsyncClient(headers=BROWSER, follow_redirects=True) as inv, httpx.AsyncClient(headers=TV_HEAD) as tv:
+            jobs = [_investing_feed(inv, f) for f in INVESTING]
+            jobs += [_tv_pt(tv, symbol=news, topic=topic) for topic, _, _, _, news in FOCUS]
+            jobs += [_tv_pt(tv, category=c) for c in ("forex", "economic", "index", "futures")]
+            lists = await asyncio.gather(*jobs, return_exceptions=True)
+            since = time.time() - 5 * 86400
+            fresh = []
+            for lst in lists:
+                if isinstance(lst, BaseException):
+                    log.info("Mercados, notícias: %s", lst)
+                    continue
+                fresh += [{**x, "words": words_of(x["title"])} for x in lst if x["ts"] >= since and x["topics"]]
+            merged: list[dict] = []
+            for x in sorted(fresh, key=lambda x: (-x["ts"], not x["story"])):
+                have = next((m for m in merged if same_story(m, x)), None)
+                if not have:
+                    merged.append(x)
+                    continue
+                have["topics"] = [k for k in TOPICS if k in set(have["topics"]) | set(x["topics"])]
+                have["image"] = have["image"] or x["image"]
+                if x["story"] and not have["story"]:  # the Reuters copy can be read in the Hub: keep its id and link
+                    have.update(id=x["id"], url=x["url"], story=True, source=x["source"])
+            for x in merged:
+                del x["words"]
+            items = merged[:80]
+            gate = asyncio.Semaphore(6)
+
+            async def summary(x):
+                async with gate:
+                    try:
+                        s = await tv_story(tv, x["id"])
+                    except (httpx.HTTPError, ValueError):
+                        return
+                    x.update(bullets=s["bullets"], lead=s["paragraphs"][0] if s["paragraphs"] else "", read_min=s["read_min"])
+            await asyncio.gather(*(summary(x) for x in items if x["story"]))  # each story is fetched once, then kept
+            for x in items:
+                x["at"] = iso(datetime.fromtimestamp(x["ts"], timezone.utc))
+                x.setdefault("bullets", [])
+                x.setdefault("lead", "")
+                x.setdefault("read_min", None)
+            return items
+    return await cached("feed:pt", 300, make)
+
+
+# ---------------------------------------------------------------- the week's diary (ForexFactory), in Portuguese
+# Only what moves our four: the dollar, the euro and the pound, high and medium impact. The free JSON is the week of
+# ForexFactory's own calendar, refreshed by them every hour.
+CAL_WHO = {"Fed Chair Powell": "Powell, presidente da Fed", "ECB President Lagarde": "Lagarde, presidente do BCE",
+           "BOE Gov Bailey": "Bailey, governador do Banco de Inglaterra", "President Trump": "o presidente Trump"}
+CAL_WHAT = [  # (English, Portuguese), the longest first: "Core CPI" must win over "CPI"
+    ("Non-Farm Employment Change", "Payroll: empregos criados"), ("ADP Non-Farm Employment Change", "Empregos no privado (ADP)"),
+    ("Unemployment Claims", "Pedidos de subsídio de desemprego"), ("Unemployment Rate", "Taxa de desemprego"),
+    ("Claimant Count Change", "Novos pedidos de subsídio"), ("Average Hourly Earnings", "Salário médio por hora"),
+    ("Average Earnings Index 3m/y", "Salários (3 meses)"), ("JOLTS Job Openings", "Ofertas de emprego (JOLTS)"),
+    ("Core CPI", "Inflação core (CPI)"), ("CPI", "Inflação (CPI)"), ("Core PCE Price Index", "Inflação core (PCE)"),
+    ("PCE Price Index", "Inflação (PCE)"), ("Core PPI", "Preços no produtor core (PPI)"), ("PPI", "Preços no produtor (PPI)"),
+    ("Core Retail Sales", "Vendas a retalho core"), ("Retail Sales", "Vendas a retalho"), ("GDP", "PIB"),
+    ("Federal Funds Rate", "Decisão de juros da Fed"), ("FOMC Statement", "Comunicado da Fed"),
+    ("FOMC Press Conference", "Conferência de imprensa da Fed"), ("FOMC Meeting Minutes", "Atas da reunião da Fed"),
+    ("FOMC Economic Projections", "Projeções da Fed"), ("Main Refinancing Rate", "Decisão de juros do BCE"),
+    ("Monetary Policy Statement", "Comunicado de política monetária"), ("ECB Press Conference", "Conferência de imprensa do BCE"),
+    ("Official Bank Rate", "Decisão de juros do Banco de Inglaterra"), ("MPC Official Bank Rate Votes", "Votos do Banco de Inglaterra"),
+    ("ISM Manufacturing PMI", "ISM indústria"), ("ISM Services PMI", "ISM serviços"), ("Manufacturing PMI", "PMI indústria"),
+    ("Services PMI", "PMI serviços"), ("ifo Business Climate", "Clima de negócios Ifo"), ("ZEW Economic Sentiment", "Confiança ZEW"),
+    ("UoM Consumer Sentiment", "Confiança do consumidor (Michigan)"), ("UoM Inflation Expectations", "Inflação esperada (Michigan)"),
+    ("CB Consumer Confidence", "Confiança do consumidor"), ("Durable Goods Orders", "Encomendas de bens duradouros"),
+    ("Empire State Manufacturing Index", "Indústria de Nova Iorque"), ("Philly Fed Manufacturing Index", "Indústria de Filadélfia"),
+    ("Trade Balance", "Balança comercial"), ("Crude Oil Inventories", "Reservas de petróleo"), ("Bank Holiday", "Feriado"),
+    ("Industrial Production", "Produção industrial"), ("Building Permits", "Licenças de construção"),
+    ("Existing Home Sales", "Venda de casas usadas"), ("New Home Sales", "Venda de casas novas"), ("Housing Starts", "Obras de casas novas"),
+]
+CAL_WHEN = {"Flash": "preliminar", "Prelim": "preliminar", "Advance": "1.ª estimativa", "Final": "final", "Revised": "revisto"}
+CAL_PERIOD = {"m/m": "do mês", "q/q": "do trimestre", "y/y": "do ano"}
+CAL_LAND = {"German": "Alemanha", "French": "França", "Italian": "Itália", "Spanish": "Espanha"}
+
+
+def calendar_title(title: str) -> str:
+    """ForexFactory's English event name in plain Portuguese; an event it does not know keeps its own name."""
+    t = title.strip()
+    m = re.fullmatch(r"(.+?) Speaks", t)
+    if m:
+        who = m.group(1)
+        who = CAL_WHO.get(who) or re.sub(r"^FOMC Member (.+)$", r"\1, da Fed", re.sub(r"^ECB (?:Member|Vice President) (.+)$", r"\1, do BCE",
+                                                                                     re.sub(r"^MPC Member (.+)$", r"\1, do Banco de Inglaterra", who)))
+        return f"Discurso: {who}"
+    land = when = period = ""
+    first = t.split(" ", 1)
+    if first[0] in CAL_LAND and len(first) > 1:
+        land, t = CAL_LAND[first[0]], first[1]
+    first = t.split(" ", 1)
+    if first[0] in CAL_WHEN and len(first) > 1:
+        when, t = CAL_WHEN[first[0]], first[1]
+    m = re.fullmatch(r"(.+?) (m/m|q/q|y/y)", t)
+    if m:
+        t, period = m.group(1), CAL_PERIOD[m.group(2)]
+    for en, pt in sorted(CAL_WHAT, key=lambda p: -len(p[0])):
+        if t == en:
+            t = pt
+            break
+    else:
+        return title
+    words = " ".join(w for w in (t, period) if w) + (f" ({when})" if when else "")
+    return f"{land} · {words}" if land else words
+
+
+CAL_TOPICS = {"USD": ["gold", "eurusd", "gbpusd"], "EUR": ["eurusd", "ger40"], "GBP": ["gbpusd"]}
+
+
+async def calendar() -> list[dict]:
+    async def make():
+        async with httpx.AsyncClient(headers=BROWSER) as client:
+            r = await client.get("https://nfs.faireconomy.media/ff_calendar_thisweek.json", timeout=10)
+            r.raise_for_status()
+            rows = r.json()
+        out = []
+        for x in rows:
+            if x.get("country") not in CAL_TOPICS or x.get("impact") not in ("High", "Medium"):
+                continue
+            try:
+                when = datetime.fromisoformat(x["date"])
+            except (KeyError, ValueError):
+                continue
+            out.append({"at": iso(when.astimezone(timezone.utc)), "ts": int(when.timestamp()), "currency": x["country"],
+                        "impact": "high" if x["impact"] == "High" else "medium", "title": calendar_title(x.get("title") or ""),
+                        "title_en": x.get("title") or "", "forecast": x.get("forecast") or "", "previous": x.get("previous") or "",
+                        "actual": x.get("actual") or "", "topics": CAL_TOPICS[x["country"]]})
+        return sorted(out, key=lambda e: e["ts"])
+    return await cached("calendar:ff", 1800, make)
 
 
 # ---------------------------------------------------------------- SEC EDGAR
@@ -663,15 +955,13 @@ async def my_items(db: AsyncSession, user: User, seed: bool = False) -> list[Mar
 
 @router.get("/board")
 async def board(user: User = Depends(viewer), db: AsyncSession = Depends(get_db)):
-    """The first paint of the page: the market strip, the watchlist with its prices, the alerts, the investors followed."""
+    """The first paint of the page: the team's four markets, the alerts, the investors followed."""
     items = await my_items(db, user, seed=True)
     await db.commit()
-    watch = [i for i in items if i.kind == "watch"]
     alerts = [i for i in items if i.kind == "alert"]
-    pulse_q, watch_q, alert_q = await asyncio.gather(quotes(PULSE), quotes([(i.symbol, i.name) for i in watch]),
-                                                     quotes(list(dict.fromkeys((i.symbol, i.name) for i in alerts))))
-    return {"pulse": pulse_q, "watch": [{**q, "item_id": i.id} for q, i in zip(watch_q, watch)],
-            "alerts": [item_out(i) for i in alerts], "alert_quotes": {q["symbol"]: q for q in alert_q if not q.get("missing")}, "investors": [item_out(i) for i in items if i.kind == "investor"],
+    focus_q, alert_q = await asyncio.gather(focus_quotes(), quotes(list(dict.fromkeys((i.symbol, i.name) for i in alerts))))
+    return {"focus": focus_q, "alerts": [item_out(i) for i in alerts], "alert_quotes": {q["symbol"]: q for q in alert_q if not q.get("missing")},
+            "investors": [item_out(i) for i in items if i.kind == "investor"],
             "agent": await agent_connected(user.id), "fetched_at": iso(datetime.now(timezone.utc))}
 
 
@@ -781,6 +1071,42 @@ async def news(cat: str = "all", symbol: str = "", user: User = Depends(viewer),
         return {"source": "error", "error": str(exc), "items": []}
     now = time.time()
     return {"source": "live", "items": [{**x, "fresh": now - x["ts"] < 3600} for x in items[:150]]}
+
+
+@router.get("/feed")
+async def feed(topic: str = "all", user: User = Depends(viewer)):
+    """The news about our four in Portuguese, one card per story. `topic` = gold, eurusd, ger40 or gbpusd; the dollar's
+    news count for the three quoted in dollars."""
+    try:
+        items = await news_feed()
+    except (httpx.HTTPError, ValueError, ET.ParseError) as exc:
+        return {"source": "error", "error": str(exc), "items": []}
+    if topic in ("gold", "eurusd", "gbpusd"):
+        items = [x for x in items if topic in x["topics"] or "usd" in x["topics"]]
+    elif topic == "ger40":
+        items = [x for x in items if "ger40" in x["topics"]]
+    return {"source": "live", "items": items, "fetched_at": iso(datetime.now(timezone.utc))}
+
+
+@router.get("/story")
+async def story(id: str, user: User = Depends(viewer)):
+    """A Reuters story from TradingView's Portuguese desk, whole, to read inside the Hub."""
+    if not re.fullmatch(r"[\w:.,/@-]{4,200}", id):
+        raise HTTPException(422, "Notícia inválida")
+    try:
+        async with httpx.AsyncClient(headers=TV_HEAD) as client:
+            return {**await tv_story(client, id), "source": "live"}  # the story's own source (Reuters) is on the card already
+    except (httpx.HTTPError, ValueError) as exc:
+        return {"source": "error", "error": str(exc)}
+
+
+@router.get("/calendar")
+async def diary(user: User = Depends(viewer)):
+    """This week's events for the dollar, the euro and the pound (ForexFactory), high and medium impact."""
+    try:
+        return {"source": "live", "events": await calendar()}
+    except (httpx.HTTPError, ValueError) as exc:
+        return {"source": "error", "error": str(exc), "events": []}
 
 
 MOVER_COLUMNS = ["name", "description", "close", "change", "volume", "logoid", "market_cap_basic", "Recommend.All",
@@ -935,7 +1261,7 @@ async def market_context(db: AsyncSession, user: User, symbol: str) -> dict:
     items = await my_items(db, user)
     await db.commit()
     watch = [(i.symbol, i.name) for i in items if i.kind == "watch"]
-    jobs = [quotes(PULSE), quotes(watch), tv_news()]
+    jobs = [quotes(PULSE), quotes(watch), tv_news(), focus_quotes(), news_feed(), calendar()]
     if symbol:
         jobs += [symbol_detail(symbol, user), tv_news(symbol=symbol), company_insiders(symbol) if sec_ticker(symbol) else asyncio.sleep(0)]
     res = await asyncio.gather(*jobs, return_exceptions=True)
@@ -948,20 +1274,27 @@ async def market_context(db: AsyncSession, user: User, symbol: str) -> dict:
         "now": datetime.now(timezone.utc).astimezone().isoformat(timespec="minutes"),
         "asked_by": user.display_name,
         "sources": "Prices, ratings and indicators: TradingView (rating from -1 strong sell to 1 strong buy). News: TradingView's "
-                   "newsroom. Insiders: SEC Form 4. The paper account is virtual money, not a real portfolio.",
+                   "newsroom; team_news is in Portuguese (Reuters, Investing.com Brasil). Diary: ForexFactory. Insiders: SEC Form 4. "
+                   "The paper account is virtual money, not a real portfolio.",
+        "team_markets": "What the team trades: gold (XAU/USD), EUR/USD, GER40 (the DAX) and GBP/USD. Answer about these first, in "
+                        "plain Portuguese from Portugal, for a trader who is not an economist.",
         "market": [slim(q) for q in ok(res[0]) or [] if not q.get("missing")],
         "watchlist": [slim(q) for q in ok(res[1]) or [] if not q.get("missing")],
         "headlines": [{"title": n["title"], "source": n["source"], "at": n["at"], "symbols": n["symbols"]} for n in (ok(res[2]) or [])[:25]],
+        "team_quotes": [{**slim(q), "rating_1h": q.get("r1h"), "rating_4h": q.get("r4h")} for q in ok(res[3]) or [] if not q.get("missing")],
+        "team_news": [{"title": n["title"], "points": n["bullets"], "topics": n["topics"], "at": n["at"]} for n in (ok(res[4]) or [])[:25]],
+        "diary": [{k: e[k] for k in ("at", "currency", "impact", "title_en", "forecast", "previous", "actual")} for e in ok(res[5]) or []
+                  if e["ts"] > time.time() - 86400][:20],
         "paper_account": {"cash_usd": round(acc["cash"], 2), "equity_usd": round(acc["equity"], 2), "return_pct": round(acc["pnl_pct"], 2),
                           "positions": [{"symbol": p["symbol"], "qty": p["qty"], "avg_usd": round(p["avg"], 4),
                                          "pnl_pct": None if p["pnl_pct"] is None else round(p["pnl_pct"], 2)} for p in acc["positions"]]},
     }
     if symbol:
-        detail = ok(res[3]) or {}
+        detail = ok(res[6]) or {}
         context["focus"] = {k: detail.get(k) for k in ("symbol", "name", "price", "currency", "change_pct", "ratings", "oscillators",
                                                        "mas", "pivots", "perf", "fundamentals", "atr", "volatility") if detail.get(k) is not None}
-        context["focus_news"] = [{"title": n["title"], "source": n["source"], "at": n["at"]} for n in (ok(res[4]) or [])[:15]]
-        ins = ok(res[5])
+        context["focus_news"] = [{"title": n["title"], "source": n["source"], "at": n["at"]} for n in (ok(res[7]) or [])[:15]]
+        ins = ok(res[8])
         if isinstance(ins, dict) and ins.get("items"):
             context["focus_insiders"] = [{k: x.get(k) for k in ("owner", "role", "kind", "shares", "price", "value", "date")} for x in ins["items"][:15]]
     return context
@@ -1044,7 +1377,7 @@ async def _filings(db: AsyncSession, user: User, items: list[MarketItem]):
 
 async def _warm():
     """What is slow the first time (the SEC's list of tickers, OpenInsider, the news) is fetched before anybody asks."""
-    for make in (sec_tickers, lambda: latest_insiders("buys"), lambda: latest_insiders("clusters"), tv_news):
+    for make in (sec_tickers, lambda: latest_insiders("buys"), lambda: latest_insiders("clusters"), tv_news, news_feed, calendar):
         try:
             await make()
         except Exception:  # noqa: BLE001 - a cache that is not warm only means a slower first look

@@ -349,3 +349,38 @@ class PcHealth(Base):
     web_cpu: Mapped[float | None] = mapped_column(Float, nullable=True)
     web_ram: Mapped[int | None] = mapped_column(Integer, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MarketItem(Base):
+    """Mercados: what one person follows. A symbol of the watchlist (kind "watch"), a price alert ("alert": op "above" or
+    "below" a value) or an investor whose SEC filings are watched ("investor": symbol is the CIK). Symbols are
+    TradingView's own ids ("NASDAQ:AAPL", "BINANCE:BTCUSDT"). `seen` is the last filing already told about."""
+    __tablename__ = "market_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(10), default="watch")  # watch | alert | investor
+    symbol: Mapped[str] = mapped_column(String(60))
+    name: Mapped[str] = mapped_column(String(120), default="")
+    op: Mapped[str] = mapped_column(String(10), default="")  # above | below (alerts)
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    note: Mapped[str] = mapped_column(String(200), default="")
+    seen: Mapped[str] = mapped_column(String(40), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PaperTrade(Base):
+    """Paper trading (no real money): one order at the TradingView price of that moment, in US dollars. The account is
+    worked out from the orders after the last "reset", whose price is the starting cash."""
+    __tablename__ = "paper_trades"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    side: Mapped[str] = mapped_column(String(10))  # buy | sell | reset
+    symbol: Mapped[str] = mapped_column(String(60), default="")
+    name: Mapped[str] = mapped_column(String(120), default="")
+    qty: Mapped[float] = mapped_column(Float, default=0)
+    price: Mapped[float] = mapped_column(Float, default=0)  # per unit, in USD
+    local_price: Mapped[float | None] = mapped_column(Float, nullable=True)  # in the symbol's own currency
+    currency: Mapped[str] = mapped_column(String(10), default="USD")
+    note: Mapped[str] = mapped_column(String(200), default="")
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

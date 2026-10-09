@@ -30,7 +30,8 @@ log = logging.getLogger("team.backend")
 # 15: claude_sessions.request, the whole last request of a window.
 # 16: claude_sessions.title and claude_sessions.result: the goal of a window in a few words (Claude Code's own title of the
 #     conversation) and what it did (the start of its last answer), for the board of Empresa AMG.
-SCHEMA_VERSION = 16
+# 17: market_items and paper_trades, for Mercados (routers/trading.py): watchlist, alerts, investors, paper trading.
+SCHEMA_VERSION = 17
 
 
 def current_version(conn) -> int:

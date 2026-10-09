@@ -197,6 +197,34 @@ Coisas que custaram tempo e não se devem repetir:
 - **O holofote do miradouro** varre a gruta e, quando chega uma missão, projeta o bat-sinal na parede do escritório (já não sai de
   dentro do escritório).
 
+### Mercados (TradingView, SEC, paper trading) — desde 9 out
+
+Pedido do David a 9 out (um reel de um «agente de trading do Claude» com dados de insiders, alertas e paper trading):
+`#/mercados`, `frontend/hub/mercados.js` + `mercados.css` (carregados à primeira visita, `lazyView`) e
+`backend/app/routers/trading.py` (`/api/trading/*`). Oito secções: Painel, Gráfico, Notícias, Insiders, Investidores, Paper
+trading, Estratégias, Mapas. Nenhuma fonte precisa de chave:
+
+- **TradingView**: preço, variação, sinal técnico (−1 a 1, os limites deles) e todos os indicadores de qualquer símbolo pelo
+  scanner (`scanner.tradingview.com/global/scan` e `/symbol`), os movers (`america/scan`, `crypto/scan`) e as notícias
+  (`news-headlines.tradingview.com`, por categoria ou símbolo). Gráfico, heatmaps, screener e calendário são os widgets deles.
+- **SEC**: insiders de uma empresa (Form 4, o `.txt` de cada entrega) e a carteira 13F dos investidores (`INVESTORS`). Os
+  insiders do mercado todo vêm do **OpenInsider** (uma página, 0,7 s): ler 90 Form 4 da SEC um a um demorava 37 s.
+- **Paper trading**: `PaperTrade`, 80 000 $ virtuais, ao preço do TradingView convertido para dólares; a liga é da equipa.
+  **Estratégias**: backtests no browser sobre velas diárias do Yahoo/Binance, sinal executado na abertura do dia seguinte.
+- **Alertas e investidores seguidos** (`MarketItem`): o `trading.loop()` do Hub de cada PC vigia só os da sua pessoa
+  (`sync.whoami`) e toca uma notificação. **Pergunta ao Claude** é um pedido `kind="markets"` para o agente de quem pergunta
+  (`MARKETS_SYSTEM` no `agent.py`); sem agente ligado o Hub diz isso.
+
+Armadilhas que custaram tempo:
+- **SQLite: nunca esperar pela rede com uma transacção aberta.** O `db.py` abre tudo com `BEGIN IMMEDIATE`; o `current_user`
+  já começa uma. Os endpoints do `trading.py` usam `Depends(viewer)`, que larga o lock logo, e fazem `commit` antes de cada
+  chamada lá fora — sem isso o Hub inteiro dava «database is locked» enquanto a SEC respondia.
+- **iframes do TradingView ficam brancos** porque o Hub diz `color-scheme: dark`: `.mk .tradingview-widget-container
+  { color-scheme: light }`. O calendário (`events`) não tem português: `locale: "en"`. Os índices (`SP:SPX`, `TVC:VIX`) não são
+  grátis nos widgets e aparecem com «!»: na fita usam-se os CFD (`FOREXCOM:SPXUSD`...). O scanner dá-os na mesma.
+- Os 13F escrevem os nomes cortados («BANK OF AMER CORP»): `by_name` expande abreviaturas e tenta palavras ordenadas e sem
+  espaços. Alguns gestores ainda declaram em milhares: detectado pelo preço mediano por ação.
+
 ### Testar uma mudança no Hub
 
 1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".

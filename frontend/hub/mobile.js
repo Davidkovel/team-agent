@@ -62,7 +62,7 @@
     if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
     return null;
   };
-  const MORE_PAGES = ["empresa", "novidades", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
+  const MORE_PAGES = ["empresa", "novidades", "mercados", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
   const titleOf = (r, fallback) => {
     if (r.tab === "baredesk") return r.company ? companies.find((c) => c.id === "baredesk")?.sections.find((x) => x.id === r.company)?.label || (r.company === "loja" ? "Loja" : "BareDesk") : "BareDesk";
     if (r.tab === "empresas" && r.company) return r.section ? companies.find((c) => c.id === r.company)?.sections.find((x) => x.id === r.section)?.label || coName(r.company) : coName(r.company);
@@ -105,7 +105,7 @@
 
   // "Mais": who you are on top, the rest of the Hub as a grid of chrome keys, then the phone's own settings
   function openMore() {
-    const keys = [["play", "Empresa AMG", "#/empresa"], ["spark", "Novidades", "#/novidades"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"],
+    const keys = [["play", "Empresa AMG", "#/empresa"], ["spark", "Novidades", "#/novidades"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"], ["candles", "Mercados", "#/mercados"],
       ["layers", "Memória", "#/memoria"], ["pulse", "Saúde", "#/saude"], ["gear", "Definições", "#/definicoes"]];
     const here = location.hash;
     sheet.querySelector(".m-box").innerHTML = `<i class="m-grab"></i>

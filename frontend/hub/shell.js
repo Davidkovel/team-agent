@@ -243,6 +243,7 @@ const COMMANDS = [
   ["Uso de IA", "token", "#/uso"], ["Despesas", "wallet", "#/despesas"], ["Memória", "layers", "#/memoria"], ["Definições", "gear", "#/definicoes"],
   ["Início", "home", "#/home"],
   ["BareDesk", "bag", "#/baredesk"],
+  ["Mercados", "candles", "#/mercados"], ["Paper trading", "wallet", "#/mercados/paper"], ["Notícias dos mercados", "news", "#/mercados/noticias"],
 ];
 const RESULT_ICON = { person: "users", task: "tasks", project: "folder", company: "building", memory: "layers", approval: "check", activity: "history", code: "code" };
 const RESULT_LABEL = { person: "Pessoa", task: "Tarefa", project: "Projeto", company: "Empresa", memory: "Memória", approval: "Aprovação", activity: "Atividade", code: "Código" };

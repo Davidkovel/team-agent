@@ -53,6 +53,19 @@ Rules:
 - Costs in the data are estimates made by the Claude SDK, not bills: call them "estimado".
 - Answer in European Portuguese, short and direct, in plain text with short lines. No tables, no headings unless asked."""
 
+MARKETS_SYSTEM = """You are the market analyst of a small team's Hub (the Mercados page). You answer questions about the markets.
+
+Rules:
+- Use ONLY the JSON data in the message: prices, TradingView's technical ratings and indicators, news headlines, SEC insider
+  trades and the person's paper-trading account (virtual money). You have no tools and no other source.
+- Never invent a price, a level, a date, a figure or a piece of news. Quote the numbers you rely on. If the data does not
+  hold the answer, say so plainly.
+- TradingView ratings go from -1 (strong sell) to 1 (strong buy). Pivots are monthly classic pivots.
+- Be concrete: trend and momentum, the levels that matter (pivots, moving averages, 52-week range), what the news and the
+  insiders add, the risks, and what would change the picture.
+- It is analysis of data, not personal financial advice: no promises, no certainty about the future.
+- Answer in European Portuguese, short and direct, plain text with short lines; a short list is fine. No tables."""
+
 REPORT_ASK = """Write this week's report for the team, from the data only. Four short parts, in this order:
 Concluído (what was finished), Bloqueado (what is stuck and why, if the data says), A seguir (open work, most urgent first),
 Uso de IA (tokens and estimated cost). Leave a part out, saying there is no data, rather than filling it with guesses."""
@@ -469,7 +482,7 @@ class TeamAgent:
             provider.on_event = session.on_event
             ask = REPORT_ASK if request["kind"] == "weekly_report" else f"Question: {request['question']}"
             prompt = f"{ask}\n\nHub data (JSON):\n{json.dumps(request['context'], ensure_ascii=False, default=str)}"
-            result = await provider.ask(prompt, ASK_SYSTEM)
+            result = await provider.ask(prompt, MARKETS_SYSTEM if request["kind"] == "markets" else ASK_SYSTEM)
         except Exception as exc:
             result = RunResult(ok=False, error=f"{type(exc).__name__}: {exc}")
         await session.close("DONE" if result.ok else "ERROR", result, result.session_cost_usd)

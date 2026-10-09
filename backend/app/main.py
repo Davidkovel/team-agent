@@ -12,7 +12,7 @@ from . import claude_hooks, health, limits, migrate, push, selfupdate, sync, web
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
-from .routers import agent, agents, ai, analytics, auth, hub, local, markets, office, ponto, tasks, team, week, work, ws
+from .routers import agent, agents, ai, analytics, auth, hub, local, markets, office, ponto, tasks, team, trading, week, work, ws
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -103,7 +103,10 @@ async def lifespan(app: FastAPI):
     pushing = asyncio.create_task(webpush.loop())
     limiting = asyncio.create_task(limits.loop())
     measuring = asyncio.create_task(health.loop()) if settings.sync else None  # the real Hub of a PC: Saúde
+    watching = asyncio.create_task(trading.loop()) if settings.sync else None  # Mercados: alerts and SEC filings
     yield
+    if watching:
+        watching.cancel()
     if measuring:
         measuring.cancel()
     limiting.cancel()
@@ -116,7 +119,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
-for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, office, selfupdate, ws, sync, push, webpush):
+for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, trading, office, selfupdate, ws, sync, push, webpush):
     app.include_router(module.router)
 
 @app.middleware("http")

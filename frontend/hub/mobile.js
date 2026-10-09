@@ -1,4 +1,4 @@
-// The phone: the Hub as an iOS app. A bar on top, tabs at the bottom (Início, Tarefas, Empresa, Avisos, Trabalho, Mais) and a screen for each,
+// The phone: the Hub as an iOS app. A bar on top, tabs at the bottom (Início, Tarefas, Escritório, Avisos, Trabalho, Mais) and a screen for each,
 // instead of the computer's single long page. mobile.css shows all of it only under html.is-phone, which is set on a small touch screen
 // (or with ?phone=1 to try it on a computer). On a computer nothing changes: the phone's Início and Avisos are only used when
 // html.is-phone is set, and the computer keeps its own Início (home.js).
@@ -20,7 +20,7 @@
   const TABS = [
     ["home", "Início", "home", ["home"]],
     ["tarefas", "Tarefas", "tasks", ["tarefas", "aprovacoes", "semana"]],
-    ["empresa", "Empresa", "bot", ["empresa"]],   // the agents' control room, one touch away (Marco, 9 out); it has its own tabs (crew-board.js)
+    ["escritorio", "Escritório", "bot", ["escritorio"]],   // the command centre, one touch away (Marco, 9 out); it has its own tabs (crew-board.js)
     ["avisos", "Avisos", "bell", ["avisos"]],
     ["empresas", "Trabalho", "building", ["empresas", "projetos", "codigo", "entregas", "baredesk"]],
   ];
@@ -62,7 +62,7 @@
     if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
     return null;
   };
-  const MORE_PAGES = ["novidades", "escritorio", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
+  const MORE_PAGES = ["empresa", "novidades", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
   const titleOf = (r, fallback) => {
     if (r.tab === "baredesk") return r.company ? companies.find((c) => c.id === "baredesk")?.sections.find((x) => x.id === r.company)?.label || (r.company === "loja" ? "Loja" : "BareDesk") : "BareDesk";
     if (r.tab === "empresas" && r.company) return r.section ? companies.find((c) => c.id === r.company)?.sections.find((x) => x.id === r.section)?.label || coName(r.company) : coName(r.company);
@@ -105,7 +105,7 @@
 
   // "Mais": who you are on top, the rest of the Hub as a grid of chrome keys, then the phone's own settings
   function openMore() {
-    const keys = [["spark", "Novidades", "#/novidades"], ["bot", "Escritório", "#/escritorio"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"],
+    const keys = [["play", "Empresa AMG", "#/empresa"], ["spark", "Novidades", "#/novidades"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"],
       ["layers", "Memória", "#/memoria"], ["pulse", "Saúde", "#/saude"], ["gear", "Definições", "#/definicoes"]];
     const here = location.hash;
     sheet.querySelector(".m-box").innerHTML = `<i class="m-grab"></i>

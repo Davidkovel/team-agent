@@ -825,3 +825,9 @@ html.is-phone .nv-head { font-size: 16px; }
 .tl-office:hover { border-color: rgba(255, 255, 255, .4); color: var(--text); }
 .tl-office .i { width: 11px; height: 11px; }
 .tl-office:disabled { opacity: .5; cursor: progress; }
+
+/* the mini window (?mini=1, crew.js openMini): only the page, no sidebar, panel, bars or buttons around it */
+html.is-mini .hside, html.is-mini #hpanel, html.is-mini #ai-fab, html.is-mini #ai-panel, html.is-mini #m-bar, html.is-mini #m-tabs, html.is-mini .subtabs { display: none !important; }
+html.is-mini .hub, html.is-mini .hub.paneled, html.is-mini .hub.collapsed { grid-template-columns: minmax(0, 1fr) !important; }
+html.is-mini #view { padding: 0 !important; max-width: none !important; overflow: hidden; }
+html.is-mini body { background: #030407; }

@@ -37,10 +37,12 @@ const meter = (title, pct, hint = "") => `
   <div class="meter"><div class="row"><span>${esc(title)}${hint ? ` · ${esc(hint)}` : ""}</span><b>${pct == null ? "—" : pct + "%"}</b></div>
   <div class="track"><i class="${meterClass(pct)}" style="width:${pct ?? 0}%"></i></div></div>`;
 
+// ?mini=1: the cave alone, in the mini window the widget or the browser opens over everything (crew.js openMini)
+if (/[?&]mini=1(&|$)/.test(location.search)) document.documentElement.classList.add("is-mini");
 const handoff = location.hash.match(/^#login=([^&]+)(?:&to=(\/.+))?$/); // opened from the widget: already signed in, maybe on a given page
 if (handoff) {
   sessionStorage.setItem("token", handoff[1]);
-  history.replaceState(null, "", location.pathname + "#" + (handoff[2] || "/home"));
+  history.replaceState(null, "", location.pathname + location.search + "#" + (handoff[2] || "/home"));   // ?mini=1 and ?phone=1 stay: a reload keeps them
 }
 let token = sessionStorage.getItem("token");
 let me = null;

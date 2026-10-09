@@ -1,25 +1,22 @@
-// Empresa AMG (formerly My Niggaz): the crew's Batcave (docs/empresa-amg.md, the 2D phase with characters; the redesign
-// Marco asked for on 7 Oct is docs/batcave-redesenho.md). One isometric world, seen through a camera that pans:
-// - the office: eight posts, one per sector, always the same agent's (DESKS), with the sector written on the floor. Work
-//   goes to the post of its sector by one rule (routeOf: a subagent by its kind, a request by its words, the rest to
-//   Operations; busy, the most alike free colleague; nobody free, the queue). Over each busy post a card says who asked
-//   (in that partner's colour), the request, what is being done now, the skills and subagents, the model, the tokens and
-//   since when. A line of light joins the post of a Claude to the post of the subagent it launched;
-// - the lounge: sofas in a U round the table with the team's Memória on it, its notes as points grouped by theme. Free
-//   agents sit and talk there, in turns, about what the team finished. A mission starts at the table (its agent takes the
-//   notes) and ends there (the note drops on it; the coins fly to the vault). Reunião sends Gordon a real mission;
-// - the walls: the partners' screens on the back one (lit in their colour while a Claude of theirs works), the arsenal of
-//   skills and the Memória's board on the left one. A Claude that uses a skill has the agent of its post fetch it;
-// - the garage with its cars, and around it all the island over the abyss (MAP): the river, the vault, the bar, the lookout.
-// The page itself is the board (crew-board.js: who works on what, said in words, nothing moving); the cave is entered
-// from it and opens over everything, with the agent under the pointer read large at its side (8 out).
-// Everything says what it is when the pointer is on it; clicking an agent brings the camera to their post.
-// It only reads /api/tasks, /api/office (with the arsenal), /api/memory and /api/team, and creates tasks (POST
-// /api/tasks with `crew`). Its own files, fetched the first time the page opens (lazyView in ui.js). Weight rules:
-// nothing animates until the cave is entered, and then only while it is on screen and in the front tab (12 frames a
-// second, 26 while somebody walks or the camera moves); the cave, the stands and the cars are drawn once per size, the
-// walls once per content, into pictures the camera crops.
+// Two pages run on this engine (docs/batcave-redesenho.md):
+// - Empresa AMG (#/empresa): the cave itself, the crew's Batcave in isometric pixel art, as big as the page. Eight Batman
+//   characters (crew-people.js), each with a post of their own; with nothing to do they sit in the lounge with the
+//   Memória; when work comes in (a task, a Claude working on one of the three PCs, a subagent) the bat-signal lights up
+//   and one of them walks to their post. Around them the island over the abyss (MAP): the river, the vault, the bar, the
+//   lookout, and the garage with its cars (crew-cars.js). Clicking an agent opens their mission panel. It can also float
+//   in a mini window over everything else (openMini, ?mini=1).
+// - Escritório (#/escritorio): the command centre (crew-board.js), drawn from this engine's state: the partners, the
+//   cameras of the agents (camFrame films small pieces of the cave for them), the missions.
+// Each of the crew is their own Claude conversation on the agent (backend/app/crew.py, agent/.../core/agent.py).
+// It only reads /api/tasks, /api/office (with the arsenal), /api/memory, /api/team and /api/limits/team, and creates
+// tasks (POST /api/tasks with `crew`). Its own files, fetched the first time one of the two pages opens (lazyView in
+// ui.js). Weight rules: the cave only animates while its page is open, on screen and in the front tab (12 frames a second,
+// 26 while somebody walks or the camera moves; the mini window 6 and 15); the cameras film once a second, about seven
+// times while somebody walks, and only while they are on screen; the cave, the stands and the cars are drawn once per size,
+// the walls once per content, into pictures the camera crops.
 (function () {
+  const MINI = document.documentElement.classList.contains("is-mini");   // the cave alone in its mini window (?mini=1, app.js)
+  ICONS.pip = ICONS.pip || '<rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12.5" y="11.5" width="6" height="5" rx="1" fill="currentColor" stroke="none"/>';
   // ================================================================ the world, in tiles
   // x runs to the right and down, y to the left and down; z is height in pixels. P() is where a point lands on the small
   // canvas (LW × LH); the camera shows a piece of it blown up. The cave is not a rectangle: it is an island of rock over an
@@ -2125,7 +2122,7 @@
     tickParticles(dt);
     if (bg) draw();
     const busy = camAnim.to || agents.some((a) => a.path.length || a.hop > 0) || particles.some((p) => p.grav || p.kind === "coin" || p.kind === "note") || clock - signal < 3.4;
-    timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(frame); }, busy ? 1000 / 26 : 1000 / 12);
+    timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(frame); }, busy ? 1000 / (MINI ? 15 : 26) : 1000 / (MINI ? 6 : 12));
   }
   function wake() {
     if (raf || !caveOpen || !stage || !stage.isConnected) return;
@@ -2520,7 +2517,7 @@
     const el = $("cr-panel");
     panel = p; panelTask = null;
     el.hidden = false; requestAnimationFrame(() => el.classList.add("open"));
-    $("cr-tip").hidden = true;
+    hideCaveTip();
     refreshPanel(true);
     if (p.kind === "vault") fetchVaultExtra();
     if (p.kind === "agent") focusPost(p.ref);
@@ -2574,9 +2571,8 @@
   }
 
   // ================================================================ the page around it
-  // The page is the board (crew-board.js): what the company is doing, said in order and in words, with nothing moving.
-  // The cave is entered from it and opens over everything; only then does anything animate, so the page costs the PC
-  // nothing while it is only being read (Marco, 8 out: «não roubar FPS», «as coisas muito grandes»).
+  // The two pages: Empresa AMG is the cave, Escritório the command centre (crew-board.js). Marco, 9 out: «a Empresa AMG é
+  // literalmente a cave; no escritório é que estão as câmaras, uma central de comando mesmo crazy».
   const ago = (iso) => (iso ? fmt.ago(iso) : "");
   function stat(n, label, c) { return `<div class="cr-stat ${n ? "lit" : ""}" style="--c:${c}"><i></i><b>${n}</b><span>${esc(t(label))}</span></div>`; }
   // The partners' screens in the cave: each Claude of theirs that is open and the missions of their automatic agent
@@ -2600,43 +2596,39 @@
       return { i, id, name, color, claudes, missions, working, lines, sig: `${id}:${working}:${lines.map((l) => l.c + l.who + l.text).join("¦")}` };
     });
   }
-  // a partner's screen clicked in the cave: out of the cave, to their column of the board
+  // a partner's screen clicked in the cave: their card in the command centre, lit for a moment
   function showColumn(id) {
-    closeCave();
-    const col = $(`cb-col-${id}`);
-    if (!col) return;
-    col.scrollIntoView({ behavior: "smooth", block: "center" });
-    col.classList.remove("flash"); void col.offsetWidth; col.classList.add("flash");
+    sessionStorage.setItem("cb.flash", id);
+    location.hash = "#/escritorio";
   }
   // ---- the cameras of the control room (crew-board.js)
   // A camera per agent, following them: a piece of the cave copied into a small canvas a few times a second, like a
-  // security camera, and only while the wall of monitors is on screen. The cave itself stays closed: the page shows the
-  // crew at work without ever drawing the whole of it at full speed (a picture a second at rest, six while somebody
-  // walks). Measured 9 out, 1920 px, no graphics card: 3,7% of one core with the cameras on screen; the cave open, 42%.
+  // security camera, and only while the wall of monitors is on screen. The cave itself is not drawn: the command centre
+  // shows the crew at work without ever drawing the whole of it at full speed (a picture a second at rest, about seven
+  // while somebody walks, the small cameras a third as often then).
   let camTimer = 0, camLast = 0, camSeen = false, camWatch = null;
-  const camsLive = () => camSeen && !caveOpen && !document.hidden && !!$("cb-cams");
+  const camsLive = () => camSeen && !caveOpen && !document.hidden && !!$("cb-cams") && !!world;
   // where an agent's camera looks: their post while they sit at it, themselves anywhere else; it follows without jumping
   function camAim(a) {
     const [x, y] = a.seated && a.desk ? P(a.desk.x + 1, a.desk.y + .95, 17) : P(a.x, a.y, 11);
     if (a.camX == null || Math.hypot(x - a.camX, y - a.camY) > 70) { a.camX = x; a.camY = y; }
     else { a.camX += (x - a.camX) * .45; a.camY += (y - a.camY) * .45; }
   }
-  // c: { el: the canvas, i: whose camera, w: how much of the cave fits across it }
+  // c: { el: the canvas, i: whose camera, w: how much of the cave it should take in, main: the big monitor }. Each pixel of
+  // the crew is a whole number of pixels on the screen and the picture sits on their grid: the uneven pixels of a free
+  // zoom were what made the cameras look broken (Marco, 9 out). The cave and the walls are drawn sharp at their own size,
+  // so they are scaled smoothly; the crew is pixel art, so it is not.
+  let camTick = 0;
   function shoot(c) {
-    const a = agents[c.i], g = c.el.getContext("2d"), W = c.el.width, H = c.el.height, w = c.w, h = w * H / W, sx = a.camX - w / 2, sy = a.camY - h / 2, k = W / w;
-    g.imageSmoothingEnabled = false;
+    const a = agents[c.i], g = c.el.getContext("2d"), W = c.el.width, H = c.el.height;
+    const k = Math.max(WS, Math.round(W / c.w / WS) * WS), w = W / k, h = H / k;
+    const sx = Math.round((a.camX - w / 2) * WS) / WS, sy = Math.round((a.camY - h / 2) * WS) / WS;
     g.fillStyle = "#030407"; g.fillRect(0, 0, W, H);
+    g.imageSmoothingEnabled = true;
     g.drawImage(bg, sx * BS, sy * BS, w * BS, h * BS, 0, 0, W, H);
     for (const pic of [sign, screensPic(), arsenalPic(), boardPic()]) g.drawImage(pic.c, (pic.box.x - sx) * k, (pic.box.y - sy) * k, pic.box.w * k, pic.box.h * k);
+    g.imageSmoothingEnabled = false;
     g.drawImage(world, sx * WS, sy * WS, w * WS, h * WS, 0, 0, W, H);
-    // whose camera it is: four corners round the agent it follows, as a camera that tracks somebody draws them
-    const b = a.box;
-    if (!b) return;
-    const x0 = (b[0] - 2 - sx) * k, y0 = (b[1] - 3 - sy) * k, x1 = (b[2] + 2 - sx) * k, y1 = (b[3] + 2 - sy) * k, n = Math.max(4, 3.2 * k);
-    g.strokeStyle = "rgba(223,232,242,.9)"; g.lineWidth = Math.max(1, k * .45);
-    g.beginPath();
-    for (const [x, y, dx, dy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { g.moveTo(x + dx * n, y); g.lineTo(x, y); g.lineTo(x, y + dy * n); }
-    g.stroke();
   }
   function camFrame() {
     camTimer = 0;
@@ -2649,15 +2641,29 @@
     if (!bg) buildBg();
     drawWorld();
     for (const a of agents) camAim(a);
-    for (const c of window.CrewBoard.cams()) shoot(c);
-    camTimer = setTimeout(camFrame, agents.some((a) => a.path.length || a.hop > 0) ? 160 : 1000);
+    const moving = agents.some((a) => a.path.length || a.hop > 0);
+    camTick++;
+    for (const c of window.CrewBoard.cams()) if (c.main || !moving || camTick % 3 === 0) shoot(c);   // walking: the small ones a third as often
+    camTimer = setTimeout(camFrame, moving ? 150 : 1000);
   }
   function film() { if (!camTimer && camsLive()) camTimer = setTimeout(camFrame, 0); }
 
-  // at the side of the cave: the agent under the pointer, read large; with the pointer on nobody, the whole team
+  // over the cave, at its right: the agent under the pointer, read large (on a big enough screen; elsewhere the small tip)
   let cave = null, side = null, sideAgent = null;
-  const sideOn = () => !!(side && side.offsetWidth);
-  function paintSide() { if (sideOn() && window.CrewBoard) paint(side, sideAgent ? window.CrewBoard.ficha(sideAgent) : window.CrewBoard.roster()); }
+  const sideOn = () => !!side && !MINI && window.innerWidth > 1100 && !document.documentElement.classList.contains("is-phone");
+  function paintSide() {
+    if (!side || !window.CrewBoard) return;
+    side.classList.toggle("on", !!sideAgent && sideOn());
+    if (sideAgent && sideOn()) paint(side, window.CrewBoard.ficha(sideAgent));
+  }
+  // the mini window has no side: a line at the bottom says who is working on what
+  function paintTicker() {
+    const el = $("cr-ticker");
+    if (!el || !MINI) return;
+    const busy = agents.filter((a) => a.job && a.mode !== "done");
+    paint(el, busy.length ? busy.slice(0, 3).map((a) => { const p = partnerOf(a.job.who); return `<p style="--p:${p.color}"><i></i><b>${esc(a.name)}</b> <em>${esc(t("para"))} ${esc(p.name || a.job.who)} ·</em> ${esc(a.job.goal || a.job.title)}</p>`; }).join("")
+      : `<p><em>${esc(t("Ninguém a trabalhar agora: estão todos na sala."))}</em></p>`);
+  }
   function paintLists() {
     if (caveOpen) {
       const busy = agents.filter((a) => a.job && a.mode !== "done"), n = (f) => busy.filter((a) => f(a.job.state)).length;
@@ -2669,14 +2675,15 @@
         return `<button class="cr-mate st-${st}" data-mate="${a.i}" style="--c:${{ work: NEON.green, wait: NEON.amber }[st] || "#8b95a1"}" title="${esc(a.name)} · ${esc(t(a.what))}${done ? ` · ${esc(t("{n} missões feitas", { n: done }))}` : ""}"><img class="cr-px" src="${a.portrait}" alt=""><i></i>${done ? `<b class="cr-medal">${done}</b>` : ""}<span>${esc(a.name)}</span></button>`;
       }).join(""));
       paintSide();
+      paintTicker();
     }
     buildPartners();
-    if (window.CrewBoard) window.CrewBoard.paint();
+    if (window.CrewBoard && $("cr-board")) window.CrewBoard.paint();
     if (panel && panel.kind === "agent") refreshPanel(false);
   }
 
   let lastLoad = 0, later = null;
-  const onPage = () => !!$("cr-board");
+  const onPage = () => !!($("cr-board") || $("cr-host"));
   async function load() {
     if (!onPage()) return;
     const wait = 2500 - (Date.now() - lastLoad);
@@ -2686,7 +2693,7 @@
       const [o, ts] = await Promise.all([api("/api/office"), api("/api/tasks")]);
       office = o; tasks = ts; arsenalList = o.arsenal || [];
     } catch (e) {
-      if (e.message !== "unauthorized" && $("cb-now") && firstLoad) $("cb-now").innerHTML = ui.error(e.message);
+      if (e.message !== "unauthorized" && $("cx-sum") && firstLoad) $("cx-sum").textContent = e.message;
       return;
     }
     if (!onPage()) return;
@@ -2710,12 +2717,13 @@
     }
     particles = [];
   }
-  // who has their automatic agent connected (the board says why a task in the queue waits): asked for now and then
-  let teamInfo = [], teamAt = 0;
+  // who is online and has their automatic agent connected, and how much Claude each partner has left: asked now and then
+  let teamInfo = [], teamLimits = {}, teamAt = 0;
   function loadTeam() {
     if (Date.now() - teamAt < 30e3) return;
     teamAt = Date.now();
-    api("/api/team").then((m) => { teamInfo = m; if (window.CrewBoard) window.CrewBoard.paint(); }).catch(() => { teamAt = 0; });
+    Promise.all([api("/api/team"), api("/api/limits/team").catch(() => ({}))])
+      .then(([m, lim]) => { teamInfo = m; teamLimits = lim || {}; if (window.CrewBoard && $("cr-board")) window.CrewBoard.paint(); }).catch(() => { teamAt = 0; });
   }
 
   // the Memória, read when the page opens and again every five minutes, or a little after a task drops its note
@@ -2790,13 +2798,34 @@
     el.textContent = t(busy ? "Vai para {a} {n} · {s}, que tem outra missão: fica à vez." : "Vai para {a} {n} · {s}", { a: art(home), n: home.name, s: t(home.what) });
   }
 
-  // ================================================================ the cave, entered
-  // Built once and kept: closing it only hides it and stops it, so it opens again at once and as it was. It takes all
-  // the room of the window at its own proportions; beside it, the agent under the pointer read large.
+  // ================================================================ the mini window
+  // Like YouTube's: the cave in a small window of its own, over whatever else is on the screen, the size of a terminal.
+  // In the widget it is a window of the widget's own (amg.openMini, widget/team_widget/ui/mini.py), always on top; in
+  // Chrome or Edge, a picture-in-picture window; anywhere else, a small browser window. It opens the page with ?mini=1:
+  // only the cave, a line of who is working on what, and fewer pictures a second.
+  async function openMini() {
+    const url = `${location.origin}/?mini=1#login=${encodeURIComponent(token || "")}&to=/empresa`;
+    if (typeof amgNative !== "undefined" && amgNative && amgNative.openMini) { amgNative.openMini(url); return; }
+    if (window.documentPictureInPicture) {
+      try {
+        const pip = await documentPictureInPicture.requestWindow({ width: 560, height: 400 });
+        pip.document.title = "Empresa AMG";
+        pip.document.body.style.cssText = "margin:0;background:#030407;overflow:hidden";
+        pip.document.body.innerHTML = `<iframe src="${esc(url)}" style="border:0;width:100vw;height:100vh;display:block" allow="fullscreen"></iframe>`;
+        return;
+      } catch { /* refused (no click behind it, or not allowed here): a small window instead */ }
+    }
+    window.open(url, "amg-mini", "popup,width=560,height=400");
+  }
+
+  // ================================================================ the cave: the page Empresa AMG
+  // Built once and kept: leaving the page only stops it, so it comes back at once and as it was. It takes all the room of
+  // the page at its own proportions; beside it, the agent under the pointer read large.
   function buildCave() {
-    cave = Object.assign(document.createElement("div"), { className: "cr-cave", id: "cr-cave", hidden: true });
-    cave.innerHTML = `<div class="cr-cave-bar"><b>${esc(t("Empresa AMG"))}</b><span>${esc(t("A cave · arrasta para andar, roda do rato para aproximar, Esc para sair"))}</span>
-        <button type="button" class="btn" id="cr-cave-x">${icon("x")}${esc(t("Sair da cave"))}</button></div>
+    cave = Object.assign(document.createElement("div"), { className: "cr-cave", id: "cr-cave" });
+    cave.innerHTML = `<div class="cr-cave-bar"><div><small>${esc(t("Agente AMG · a cave dos agentes"))}</small><b>${esc(t("Empresa AMG"))}</b>
+          <span>${esc(t("Ao vivo · arrasta para andar, roda do rato para aproximar, clica num agente para a missão dele"))}</span></div>
+        <div class="cx-acts"><a class="btn" href="#/escritorio">${icon("bot")}${esc(t("Escritório"))}</a><button type="button" class="btn cx-mini" id="cr-mini" title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div></div>
       <div class="cr-cave-body" id="cr-cave-body">
         <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>
           <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>
@@ -2804,11 +2833,12 @@
           <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
           <div class="cr-legend" aria-label="${esc(t("Legenda"))}">${[["a trabalhar", NEON.green], ["à espera", NEON.amber], ["precisa de ajuda", NEON.red], ["livre", "#8b95a1"]]
             .map(([l, c]) => `<span><i class="st" style="--c:${c}"></i>${esc(t(l))}</span>`).join("")}<b></b>${PARTNERS.map(([, n, c]) => `<span><i style="--c:${c}"></i>${esc(n)}</span>`).join("")}</div>
-          <div class="cr-tip" id="cr-tip" hidden></div></section>
-        <aside class="cr-side" id="cr-side"></aside></div>`;
+          <div class="cr-ticker" id="cr-ticker"></div>
+          <aside class="cr-side" id="cr-side"></aside>
+          <div class="cr-tip" id="cr-tip" hidden></div></section></div>`;
     const drawer = Object.assign(document.createElement("aside"), { className: "cr-panel", id: "cr-panel", hidden: true });
-    document.body.append(cave, drawer);
-    stage = $("cr-stage"); cv = $("cr-canvas"); g2 = cv.getContext("2d"); side = $("cr-side");
+    document.body.append(drawer);
+    stage = cave.querySelector("#cr-stage"); cv = cave.querySelector("#cr-canvas"); g2 = cv.getContext("2d"); side = cave.querySelector("#cr-side");
     world = document.createElement("canvas"); world.width = LW * WS; world.height = LH * WS; wg = world.getContext("2d"); wg.k = WS;
     const img = new Image();
     img.onload = () => { star = img; if (bg) { buildBg(); if (caveOpen) draw(); } };
@@ -2818,7 +2848,10 @@
     document.addEventListener("visibilitychange", () => { wake(); film(); });
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", () => { if (caveOpen) fitCave(); });
-    window.addEventListener("hashchange", () => { if (!/^#\/(empresa|niggaz)/.test(location.hash)) { closeCave(); if (panel) closePanel(); } });
+    window.addEventListener("hashchange", () => {
+      if (!/^#\/(empresa|niggaz)/.test(location.hash)) closeCave();
+      if (!/^#\/(empresa|niggaz|escritorio)/.test(location.hash) && panel) closePanel();
+    });
     stage.onpointermove = onMove;
     stage.onpointerdown = onDown;
     stage.onpointerup = onUp;
@@ -2830,77 +2863,90 @@
     cv.addEventListener("wheel", onWheel, { passive: false });
     stage.querySelector(".cr-views").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) goView(b.dataset.view); };
     stage.querySelector(".cr-views").addEventListener("pointerup", (e) => e.stopPropagation());
-    $("cr-cave-x").onclick = closeCave;
+    cave.querySelector("#cr-mini").onclick = openMini;
     side.onclick = (e) => { const b = e.target.closest("[data-agent]"); if (b) openPanel({ kind: "agent", ref: agents[Number(b.dataset.agent)] }); };
     drawer.onclick = panelClick; drawer.onsubmit = panelSubmit;
-    const crew = $("cr-crew");
+    const crew = cave.querySelector("#cr-crew");
     crew.onmouseover = (e) => { const b = e.target.closest("[data-mate]"); focus = b ? agents[Number(b.dataset.mate)] : null; };
     crew.onmouseleave = () => { focus = null; };
     crew.onclick = (e) => { const b = e.target.closest("[data-mate]"); if (b) { if (view !== "office") goView("office"); openPanel({ kind: "agent", ref: agents[Number(b.dataset.mate)] }); } };
     for (const type of ["pointerdown", "pointerup"]) crew.addEventListener(type, (e) => e.stopPropagation());
   }
+  // the page's room for the cave: down to the bottom of the window, so the cave is as big as it can be
   function fitCave() {
-    const body = $("cr-cave-body");
-    if (!body) return;
-    const room = body.clientWidth - (sideOn() ? side.offsetWidth + 12 : 0);
-    stage.style.width = `${Math.max(280, Math.floor(Math.min(room, body.clientHeight * ASPECT)))}px`;
+    const host = $("cr-host"), body = $("cr-cave-body");
+    if (!host || !body) return;
+    const pad = MINI ? 0 : (parseFloat(getComputedStyle($("view")).paddingBottom) || 0) + 6;
+    host.style.height = `${Math.max(MINI ? 120 : 420, window.innerHeight - host.getBoundingClientRect().top - pad)}px`;
+    stage.style.width = `${Math.max(240, Math.floor(Math.min(body.clientWidth, body.clientHeight * ASPECT)))}px`;
   }
   function openCave() {
     if (!cave || caveOpen) return;
-    caveOpen = true; cave.hidden = false; onScreen = true;
-    if (window.CrewBoard) window.CrewBoard.hideTip();
+    caveOpen = true; onScreen = true;
     stage.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
     fitCave(); resize(true); paintLists(); wake();
   }
+  // the cave's own tip, also while the cave is not on the page (the command centre opens the same panels)
+  function hideCaveTip() { const tip = cave && cave.querySelector("#cr-tip"); if (tip) tip.hidden = true; }
   function closeCave() {
     if (!cave || !caveOpen) return;
-    caveOpen = false; cave.hidden = true; stop();
-    $("cr-tip").hidden = true; hovered = null; hoverCar = null; hoverVault = false; sideAgent = null; drag = null;
+    caveOpen = false; stop();
+    hideCaveTip(); hovered = null; hoverCar = null; hoverVault = false; sideAgent = null; drag = null;
     if (camsLive()) film(); else settleAll();
   }
 
-  // what the board asks of the cave's engine: the state it draws, and the things only the engine can do
+  // what the command centre asks of the engine: the state it draws, and the things only the engine can do
   const boardHost = {
-    state: () => ({ agents, office, tasks, arsenal: arsenalList, memory: memoryNotes, team: teamInfo }),
+    state: () => ({ agents, office, tasks, arsenal: arsenalList, memory: memoryNotes, team: teamInfo, limits: teamLimits }),
     partners: PARTNERS, partnerOf, clean: cleanPrompt, stateOf, doneBy,
-    ready: () => !firstLoad, film, openCave,
+    ready: () => !firstLoad, film, openMini,
     light: (st) => (st === "idle" ? "#8b95a1" : (WORD[st] || [0, COLD])[1]),
     openAgent: (i) => openPanel({ kind: "agent", ref: agents[i] }),
     openPanel: (kind) => openPanel({ kind, ref: kind }),
     meet, release: startQueued,
   };
-  function mount(composer) {
+  async function loadEngine() {
+    await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/crew-cars.js"), lazyFile("hub/crew-board.js"), lazyFile("hub/crew-board.css").catch(() => {})]);
+    if (!agents.length) { agents = CREW.map(makeAgent); agents.forEach(placeIdle); }
     if (!cave) buildCave();
+  }
+  // the line to send a mission, at the top of the command centre's missions
+  function composer(users) {
+    return `<form class="cr-send" id="cr-send" autocomplete="off">
+        <label class="cr-in">${icon("bolt")}<input id="cr-title" maxlength="200" placeholder="${esc(t("Qual é a missão?"))}"></label>
+        <label class="cr-who" title="${esc(t("Quem faz. Automático: vai para o setor do pedido (design, pesquisa, testes, revisão, marketing, código, engenharia; o resto, Operações)"))}">${icon("bot")}<select id="cr-does">
+          ${options([["", t("Automático: o escritório escolhe")], ...agents.map((a) => [a.id, `${a.name} · ${t(a.what)}`])], "")}</select></label>
+        ${users.length ? `<label class="cr-who" title="${esc(t("No agente automático de quem"))}">${icon("users")}<select id="cr-who">${options(users.map((u) => [u.username, t("No computador de {n}", { n: u.display_name })]), me.username)}</select></label>` : ""}
+        <button type="button" class="btn cr-hold" id="cr-hold" title="${esc(t("Fica na fila de espera, já com o agente do setor, e só arranca quando a mandares"))}">${esc(t("Pôr na fila"))}</button>
+        <button class="btn primary cr-go" id="cr-go">${t("Mandar")}${icon("arrow")}</button>
+        <p class="cr-route" id="cr-route" aria-live="polite" hidden></p>
+      </form>`;
+  }
+
+  HUB_VIEWS.escritorio = async function () {
+    await loadEngine();
+    const users = me.lead ? await api("/api/users").catch(() => []) : [];
+    page(`<div class="cb" id="cr-board"></div>`);
     closeCave();
-    if (panel) closePanel();
-    window.CrewBoard.mount($("cr-board"), boardHost, composer);
+    window.CrewBoard.mount($("cr-board"), boardHost, composer(users));
     $("cr-send").onsubmit = (e) => send(e, false);
     $("cr-hold").onclick = (e) => send(e, true);
     $("cr-title").oninput = routeHint;
     $("cr-send").onchange = routeHint;
-    $("cr-enter").onclick = openCave;
     if (camWatch) camWatch.disconnect();
     camSeen = false;
     camWatch = new IntersectionObserver(([en]) => { camSeen = en.isIntersecting; film(); });   // the cameras film only while their wall is on screen
     camWatch.observe($("cb-cams"));
-  }
-
+    lastLoad = 0;
+    await load();
+  };
   HUB_VIEWS.empresa = async function () {
-    await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/crew-cars.js"), lazyFile("hub/crew-board.js"), lazyFile("hub/crew-board.css").catch(() => {})]);
-    const users = me.lead ? await api("/api/users").catch(() => []) : [];
-    if (!agents.length) { agents = CREW.map(makeAgent); agents.forEach(placeIdle); }
-    page(`${ui.head("Agentes", "Empresa AMG", t("O que a empresa está a fazer, por ordem: quem trabalha em quê, o que espera por alguém, o que já ficou feito e o que está na fila. A cave animada abre à parte, para não pesar."),
-        `<button type="button" class="btn primary cr-enter" id="cr-enter" title="${esc(t("Os oito agentes na Batcave, ao vivo. Só mexe enquanto lá estiveres"))}">${icon("play")}${esc(t("Entrar na cave"))}</button>`)}
-      <div class="cb" id="cr-board"></div>`);
-    mount(`<form class="cr-send" id="cr-send" data-pane="queue" autocomplete="off">
-        <label class="cr-in">${icon("bolt")}<input id="cr-title" maxlength="200" placeholder="${esc(t("Qual é a missão?"))}"></label>
-        <label class="cr-who" title="${esc(t("Quem faz. Automático: vai para o setor do pedido (design, pesquisa, testes, revisão, marketing, código, engenharia; o resto, Operações)"))}">${icon("bot")}<select id="cr-does">
-          ${options([["", t("Automático")], ...agents.map((a) => [a.id, `${a.name} · ${t(a.what)}`])], "")}</select></label>
-        ${users.length ? `<label class="cr-who" title="${esc(t("No agente automático de quem"))}">${icon("users")}<select id="cr-who">${options(users.map((u) => [u.username, u.display_name]), me.username)}</select></label>` : ""}
-        <button type="button" class="btn cr-hold" id="cr-hold" title="${esc(t("Fica na fila de espera, já com o agente do setor, e só arranca quando a mandares"))}">${esc(t("Pôr na fila"))}</button>
-        <button class="btn primary cr-go" id="cr-go">${t("Mandar")}${icon("arrow")}</button>
-        <p class="cr-route" id="cr-route" aria-live="polite" hidden></p>
-      </form>`);
+    await loadEngine();
+    page(`<div class="cr-host" id="cr-host"></div>`);
+    $("cr-host").append(cave);
+    if (camWatch) { camWatch.disconnect(); camWatch = null; camSeen = false; }
+    caveOpen = false;
+    openCave();
     lastLoad = 0;
     await load();
   };

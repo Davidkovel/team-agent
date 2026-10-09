@@ -38,7 +38,7 @@ function lazyView(id, script, style) {
   };
   HUB_VIEWS[id] = standIn;
 }
-lazyView("escritorio", "hub/office.js", "hub/office.css");
+lazyView("escritorio", "hub/crew.js", "hub/crew.css");   // the command centre (crew-board.js) runs on the cave's engine
 lazyView("saude", "hub/health.js", "hub/office.css");
 lazyView("empresa", "hub/crew.js", "hub/crew.css");
 

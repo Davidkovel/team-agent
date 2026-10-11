@@ -71,13 +71,28 @@ function paint(el, html) {
   if (el && el._html !== html) { el._html = html; el.innerHTML = html; }
 }
 
-async function request(path, options = {}) {
+// A sign-in lasts 24 h (jwt_ttl_hours) but the widget keeps the Hub open for days: when it runs out, this computer gets a
+// new one the way it got the first (/api/auth/auto) and the request is made again. Before 11 Oct the page fell to the
+// sign-in form and stayed there until something reloaded it (Marco: "porque está sempre a aparecer a página do login").
+let renewing = null;
+function renewToken() {
+  renewing ||= fetch("/api/auth/auto", { method: "POST" })
+    .then(async (r) => { if (!r.ok) return false; token = (await r.json()).token; sessionStorage.setItem("token", token); return true; })
+    .catch(() => false)
+    .finally(() => setTimeout(() => { renewing = null; }, 5000));   // many requests at once share one renewal
+  return renewing;
+}
+
+async function request(path, options = {}, again = false) {
   const res = await fetch(path, {
     ...options,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  if (res.status === 401) { logout(); throw new Error("unauthorized"); }
+  if (res.status === 401) {
+    if (!again && await renewToken()) return request(path, options, true);
+    logout(); throw new Error("unauthorized");
+  }
   if (!res.ok) {
     const detail = (await res.json().catch(() => ({}))).detail;
     throw new Error(typeof detail === "string" ? detail : res.statusText);

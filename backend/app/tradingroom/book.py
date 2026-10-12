@@ -18,6 +18,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from .markets import BY_ID, INSTRUMENTS
+from .sessions import london_offset
 
 UTC = timezone.utc
 AGENTS = {"penguin": "Pinguim", "twoface": "Duas-Caras", "model": "Modelo SMC"}
@@ -43,6 +44,31 @@ def num(v) -> float | None:
 
 def iso(t: datetime) -> str:
     return t.isoformat(timespec="seconds")
+
+
+def local(ts: float) -> datetime:
+    """A moment in Lisbon time (the room speaks Lisbon time; it is also this PC's)."""
+    t = datetime.fromtimestamp(ts, UTC)
+    return (t + timedelta(hours=london_offset(t))).replace(tzinfo=None)
+
+
+def hm(ts: float) -> str:
+    return local(ts).strftime("%H:%M")
+
+
+def window(text, now: datetime) -> tuple[str, str] | None:
+    """ "14:30-16:00" (Lisbon) as UTC, today or, when it has already gone by, tomorrow."""
+    m = re.findall(r"(\d{1,2})[:hH.]?(\d{2})?", str(text or ""))
+    if len(m) < 2:
+        return None
+    off = timedelta(hours=london_offset(now))
+    day = (now + off).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
+    a, b = [day + timedelta(hours=int(h) % 24, minutes=int(mm or 0)) for h, mm in m[:2]]
+    if b <= a:
+        b += timedelta(days=1)
+    if b < (now + off).replace(tzinfo=None):
+        a, b = a + timedelta(days=1), b + timedelta(days=1)
+    return iso((a - off).replace(tzinfo=UTC)), iso((b - off).replace(tzinfo=UTC))
 
 
 def _ts(s: str | None) -> float:
@@ -87,6 +113,12 @@ class Book:
              "tp1": tps[0] if tps else None, "tp2": tps[1] if len(tps) > 1 else None, "why": str(it.get("porque") or it.get("why") or "")[:600],
              "grade": it.get("grade"), "status": "pending", "note": "", "r": None, "half": False, "mfe": 0.0, "mae": 0.0, "review": "",
              "valid": iso(now + timedelta(hours=max(1, min(MAX_HOURS, float(num(it.get("validade_h")) or 6))))), "checked": now.timestamp()}
+        zone = sorted(x for x in (num(z) for z in (it.get("zona") or it.get("zone") or [])[:2]) if x is not None)
+        if t["entry"] is None and len(zone) == 2:
+            t["entry"] = (zone[0] + zone[1]) / 2
+        win = window(it.get("janela"), now)
+        t.update(plan=str(it.get("plano") or "")[:600], trigger=str(it.get("gatilho") or "")[:300], zone=zone if len(zone) == 2 else None,
+                 win_from=win[0] if win else None, win_to=win[1] if win else None, invalid=num(it.get("invalida")), best=None, best_at=None)
         a = view.get(sym)
         inst = BY_ID.get(sym)
 
@@ -127,6 +159,10 @@ class Book:
         if any(x["symbol"] == sym and x["dir"] == side for x in self.active(t["agent"])):
             return refuse("já tem uma trade igual ativa")
         t["cost"] = inst.get("spread", 0) / risk
+        if t["zone"]:   # the entry is inside its zone
+            t["zone"] = [min(t["zone"][0], e), max(t["zone"][1], e)]
+        if t["invalid"] is None or (e - t["invalid"]) * sign < 0:   # what cancels it sits on the stop's side
+            t["invalid"] = s
         if t.get("market"):
             t.update(status="open", filled_at=t["at"], fill=e)
         return t
@@ -161,6 +197,10 @@ class Book:
     def _step(self, t: dict, c):
         _, o, h, low, close = c[:5]
         buy = t["dir"] == "buy"
+        if t["status"] in ("pending", "open"):   # the best price the zone gave (looking back: the perfect entry)
+            p = max(low, t["stop"]) if buy else min(h, t["stop"])
+            if t.get("best") is None or ((p < t["best"]) if buy else (p > t["best"])):
+                t["best"], t["best_at"] = p, iso(datetime.fromtimestamp(c[0], UTC))
         if t["status"] == "pending":
             if c[0] > _ts(t["valid"]):
                 return
@@ -170,7 +210,10 @@ class Book:
                     self._close(t, t["stop"], c[0], "stop no candle da entrada")
                 return
             if (h >= t["tp1"]) if buy else (low <= t["tp1"]):
-                t.update(status="missed", closed_at=iso(datetime.fromtimestamp(c[0], UTC)), note="o preço foi ao alvo sem entrar")
+                t.update(status="missed", closed_at=iso(datetime.fromtimestamp(c[0], UTC)), note="o preço foi ao alvo sem passar na entrada")
+            elif t.get("invalid") is not None and ((close < t["invalid"]) if buy else (close > t["invalid"])):
+                t.update(status="invalidated", closed_at=iso(datetime.fromtimestamp(c[0], UTC)),
+                         note=f"o preço fechou {'abaixo' if buy else 'acima'} de {t['invalid']:.{t.get('dp', 2)}f} antes de entrar: a ideia morreu")
             return
         risk, e = t["risk"], t["entry"]
         t["mfe"] = max(t["mfe"], ((h - e) if buy else (e - low)) / risk)
@@ -275,7 +318,7 @@ class Book:
             lines.append(f"  ativa #{t['id']} {t['symbol']} {'compra' if t['dir'] == 'buy' else 'venda'} {'aberta' if t['status'] == 'open' else 'pendente'}"
                          f" · entrada {t['entry']:.{t.get('dp', 2)}f} · stop {t['stop']:.{t.get('dp', 2)}f} · alvo {t['tp1']:.{t.get('dp', 2)}f}"
                          + (f" e {t['tp2']:.{t.get('dp', 2)}f}" if t.get("tp2") else "") + (f" · agora {lr:+.2f}R" if lr is not None else "")
-                         + f" · válida até {t['valid'][11:16]} UTC")
+                         + f" · válida até às {hm(_ts(t['valid']))}" + (f" · plano: {t['plan'][:160]}" if t.get("plan") else ""))
         cut = _ts(since) if since else 0
         for t in self.trades:
             if t["agent"] == agent and t["status"] in DONE + ("refused",) and _ts(t.get("closed_at") or t["at"]) >= cut and not t["review"]:
@@ -283,6 +326,46 @@ class Book:
                 lines.append(f"  por rever #{t['id']} {t['symbol']} {'compra' if t['dir'] == 'buy' else 'venda'}: {what}")
         return "\n".join(lines)
 
+    def now(self, t: dict, view: dict) -> dict:
+        """In words, for whoever looks: what it is waiting for, whether the entry is still on, whether it is gone.
+        can: "yes" (the order is on: put it in), "late" (it entered, but the price is still at the entry), "in" (it entered
+        and went: wait for another chance), "no" (over)."""
+        a, dp, now = view.get(t["symbol"]), t.get("dp", 2), time.time()
+        f = lambda v: f"{v:,.{dp}f}".replace(",", " ").replace(".", ",") if v is not None else "—"
+        buy, st = t["dir"] == "buy", t["status"]
+        if st == "pending" and a:
+            p, e = a["price"], t["entry"]
+            gap, atr = abs(p - e), a["atr"] or 1
+            where = f"o preço tem de {'descer' if p > e else 'subir'} {f(gap)} ({gap / atr:.1f} ATR H1) até à entrada {f(e)}".replace(".", ",", 1)
+            if t.get("zone"):
+                where += f", dentro da zona {f(t['zone'][0])}–{f(t['zone'][1])}"
+            wtxt = ""
+            if t.get("win_from"):
+                wa, wb = _ts(t["win_from"]), _ts(t["win_to"])
+                if now < wa:
+                    mins = int((wa - now) // 60)
+                    wtxt = f"Hora ideal: {hm(wa)}–{hm(wb)} (daqui a {mins // 60}h{mins % 60:02d})." if mins >= 60 else f"Hora ideal: {hm(wa)}–{hm(wb)} (daqui a {mins} min)."
+                elif now <= wb:
+                    wtxt = f"Hora ideal AGORA, até às {hm(wb)}."
+                else:
+                    wtxt = f"A hora ideal ({hm(wa)}–{hm(wb)}) já passou; a ordem ainda vale."
+            cancel = f"Cancela se fechar {'abaixo' if buy else 'acima'} de {f(t.get('invalid'))} antes de entrar." if t.get("invalid") is not None else ""
+            return {"can": "yes", "line": f"À espera: {where}. {wtxt} {cancel} Vale até às {hm(_ts(t['valid']))}.".replace("  ", " ")}
+        if st == "open" and a:
+            lr = self.live_r(t, view)
+            near = abs(a["price"] - t["entry"]) <= .25 * t["risk"] and not t["half"]
+            lrt = f"{lr:+.2f}".replace(".", ",") if lr is not None else ""
+            head = f"Entrou às {hm(_ts(t['filled_at']))} a {f(t['entry'])}; agora {lrt}R." if lr is not None else f"Entrou às {hm(_ts(t['filled_at']))}."
+            if near:
+                return {"can": "late", "line": f"{head} O preço ainda está junto à entrada: ainda dá, com o mesmo stop {f(t['stop'])}."}
+            return {"can": "in", "line": f"{head} Já não é a entrada: quem não entrou espera por um novo retest à zona."
+                    + (" Metade já fechou no 1.º alvo e o stop está na entrada." if t["half"] else "")}
+        at = hm(_ts(t["closed_at"])) if t.get("closed_at") else "—"
+        lines = {"won": f"Fechou às {at} a ganhar: {t['note']}.", "lost": f"Fechou às {at} a perder: {t['note']}.", "be": f"Fechou às {at} na entrada: {t['note']}.",
+                 "missed": f"Perdida: às {at} o preço foi ao alvo sem passar pela entrada.", "expired": f"Expirou às {at} sem o preço chegar à entrada.",
+                 "invalidated": f"Cancelada às {at}: {t['note']}.", "cancelled": f"Cancelada às {at}: {t['note']}.", "refused": f"Recusada pelo Hub: {t['note']}."}
+        return {"can": "no", "line": lines.get(st, t.get("note") or "")}
+
     def out(self, t: dict, view: dict) -> dict:
-        return {**{k: v for k, v in t.items() if k not in ("checked", "key")}, "live_r": self.live_r(t, view),
+        return {**{k: v for k, v in t.items() if k not in ("checked", "key")}, "live_r": self.live_r(t, view), "now": self.now(t, view),
                 "outcome": {"won": "boa", "lost": "má", "be": "neutra"}.get(t["status"])}

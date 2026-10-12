@@ -306,6 +306,14 @@ Armadilhas que custaram tempo:
   (referência). Estatística por agente em `Book.stats` (acerto, R total, % da conta a 1% por trade, profit factor,
   expectativa, drawdown, série, curva). Página: placar dos três por baixo do radar, «Diário de trades» com filtros (clicar numa
   linha abre o porquê, a revisão, MFE/MAE), as trades no gráfico, os chips na fala. Cave: o placar de cada um na secretária.
+- **Cada trade com plano** (12 out, pedido do David: «não percebo quando era a entry perfeita e se já perdi a trade»): o
+  agente escreve o `plano` (o que esperamos que o preço faça antes e depois da entrada), a `zona`, o `gatilho`, a `janela`
+  (hora ideal em hora de Lisboa, `book.window`; se já passou hoje, é amanhã) e o `invalida` (fecho além dele antes da entrada
+  = `invalidated`). O briefing traz as killzones do dia em hora de Lisboa. `Book.now` diz em palavras onde está cada trade e
+  `can`: `yes` (ainda dá), `late` (entrou mas o preço está junto à entrada), `in` (já andou: perdeste a entrada), `no` (acabou);
+  e guarda a entrada perfeita vista depois (`best`, `best_at`). Página: «Trades em jogo agora» (um cartão por trade, com
+  «HORA IDEAL AGORA»), a zona e a hora ideal desenhadas no gráfico, o plano nos chips da reunião e no aviso grande. O gatilho
+  é para quem lê: no papel o Hub entra quando o preço toca na entrada.
 - **Fontes mais finas** (12 out): o Pinguim pesquisa na web na fala 1 (`--tools WebSearch`, máx. 4, as `fontes` aparecem
   por baixo da fala); COT da CFTC (`institutional.py`, API pública, de 6 em 6 h: managed money no ouro, leveraged funds e
   asset managers nos financeiros, índice COT de 3 anos; o DAX não tem); juros a 2 anos EUA/Alemanha/Reino Unido, juro real

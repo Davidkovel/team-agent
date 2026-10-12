@@ -56,6 +56,7 @@
       <div class="tr-tape" id="tr-tape"><div></div></div>
       <section class="tr-radar" id="tr-radar"></section>
       <section class="tr-score" id="tr-score"></section>
+      <section class="tr-live" id="tr-live"></section>
       <div class="tr-main">
         <section class="tr-chartbox">
           <div class="tr-chartbar">
@@ -132,7 +133,7 @@
     finally { if (b) b.disabled = false; }
   }
 
-  function paintAll() { paintHead(); paintClocks(); paintTape(); paintRadar(); paintScore(); paintBar(); paintRead(); paintInst(); paintTable(); paintBook(); paintCal(); paintNews(); }
+  function paintAll() { paintHead(); paintClocks(); paintTape(); paintRadar(); paintScore(); paintLive(); paintBar(); paintRead(); paintInst(); paintTable(); paintBook(); paintCal(); paintNews(); }
 
   function paintHead() {
     const st = S && S.settings; if (!st) return;
@@ -262,9 +263,42 @@
 
   // ================================================================ the book: every trade, good or bad
   const STATUS = { pending: ["pendente", "amber"], open: ["aberta", "blue"], won: ["ganha", "up"], lost: ["perdida", "down"], be: ["a zero", "grey"],
-    expired: ["expirou", "dim"], missed: ["fugiu sem entrar", "dim"], cancelled: ["cancelada", "dim"], refused: ["recusada", "dim"] };
+    expired: ["expirou", "dim"], missed: ["fugiu sem entrar", "dim"], cancelled: ["cancelada", "dim"], refused: ["recusada", "dim"],
+    invalidated: ["ideia cancelada", "dim"] };
+  const CAN = { yes: "ainda dá para entrar", late: "entrou · ainda dá, junto à entrada", in: "já entrou · perdeste a entrada", no: "acabou" };
   const dt = (iso) => (iso ? new Date(iso).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
   const dur = (a, b) => { if (!a) return "—"; const m = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 60000); return m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`; };
+  // the trades in play now, one card each, in plain words: what we wait for, at what time, and whether it is still on
+  function paintLive() {
+    const live = bookRows.filter((tr) => tr.status === "pending" || tr.status === "open");
+    const el = $("tr-live");
+    if (!live.length) { paint(el, ""); el.hidden = true; return; }
+    el.hidden = false;
+    const PILL = { yes: ["À ESPERA DA ENTRADA", "amber"], late: ["ENTROU · AINDA DÁ", "blue"], in: ["ENTROU · JÁ ANDOU", "up"], no: ["ACABOU", "dim"] };
+    paint(el, `<h2>${icon("target")}${esc(t("Trades em jogo agora"))}<small>${esc(t("o plano de cada uma, a hora ideal e se ainda dá para entrar"))}</small></h2>
+      <div class="tr-live-g">${live.map((tr) => {
+        const dp = tr.dp != null ? tr.dp : 2, can = (tr.now && tr.now.can) || "yes", [pill, tone] = PILL[can];
+        const inWin = tr.win_from && Date.now() >= Date.parse(tr.win_from) && Date.now() <= Date.parse(tr.win_to);
+        const who = tr.agent === "model" ? `<span class="tr-who-s">${bars()}</span>` : `<img src="${portrait(tr.agent)}" alt="">`;
+        return `<article class="tr-lc ${tr.dir} ${can}" data-trade="${tr.id}">
+          <header>${who}<div><b>${esc(tr.symbol)} <span class="tr-side ${tr.dir}">${esc(t(tr.dir === "buy" ? "Compra" : "Venda"))}</span></b><small>${esc(t(NAMES[tr.agent] || tr.agent))} · ${dt(tr.at)}</small></div>
+            <span class="tr-pill ${inWin && can === "yes" ? "hot" : tone}">${esc(t(inWin && can === "yes" ? "HORA IDEAL AGORA" : pill))}</span></header>
+          ${tr.plan ? `<p class="tr-lc-plan">${esc(tr.plan)}</p>` : `<p class="tr-lc-plan">${esc(tr.why)}</p>`}
+          <dl class="tr-lc-k">
+            ${tr.zone ? `<div><dt>${esc(t("Zona"))}</dt><dd>${num(tr.zone[0], dp)} – ${num(tr.zone[1], dp)}</dd></div>` : ""}
+            <div><dt>${esc(t("Entrada"))}</dt><dd>${num(tr.entry, dp)}</dd></div>
+            <div><dt>${esc(t("Stop"))}</dt><dd class="down">${num(tr.stop, dp)}</dd></div>
+            <div><dt>${esc(t("Alvos"))}</dt><dd class="up">${num(tr.tp1, dp)}${tr.tp2 ? " · " + num(tr.tp2, dp) : ""}</dd></div>
+            <div><dt>${esc(t("Hora ideal"))}</dt><dd>${tr.win_from ? `${hm(tr.win_from)}–${hm(tr.win_to)}` : "—"}</dd></div>
+            <div><dt>${esc(t("Vale até"))}</dt><dd>${hm(tr.valid)}</dd></div>
+          </dl>
+          ${tr.trigger ? `<p class="tr-lc-trig"><b>${esc(t("Gatilho"))}:</b> ${esc(tr.trigger)}</p>` : ""}
+          ${tr.now ? `<p class="tr-nowl ${can}">${esc(tr.now.line)}</p>` : ""}
+        </article>`;
+      }).join("")}</div>`);
+    el.onclick = (e) => { const c = e.target.closest("[data-trade]"); if (c) { openTrade = c.dataset.trade; bookFilter.agent = ""; paintBook(); $("tr-book").scrollIntoView({ behavior: "smooth", block: "start" }); } };
+  }
+
   function paintBook() {
     const sf = $("tr-book-f").querySelector('[data-f="symbol"]');
     if (sf.options.length < 2 && S) sf.innerHTML += S.instruments.map((a) => `<option value="${a.id}">${a.id}</option>`).join("");
@@ -286,11 +320,17 @@
       <td>${tr.dir ? `<span class="tr-side ${tr.dir}">${esc(t(tr.dir === "buy" ? "Compra" : "Venda"))}</span>` : "—"}</td>
       <td class="n">${tr.entry != null ? num(tr.entry, dp) : "—"}${tr.market ? `<small>${esc(t("a mercado"))}</small>` : ""}</td><td class="n">${tr.stop != null ? num(tr.stop, dp) : "—"}</td>
       <td class="n">${tr.tp1 != null ? num(tr.tp1, dp) : "—"}${tr.tp2 ? ` · ${num(tr.tp2, dp)}` : ""}</td><td class="n">${tr.rr ? nfx(tr.rr, 1) : "—"}</td>
-      <td><span class="tr-st ${tone}">${esc(t(label))}${tr.half && tr.status === "open" ? " · ½" : ""}</span></td>
+      <td><span class="tr-st ${tone}">${esc(t(label))}${tr.half && tr.status === "open" ? " · ½" : ""}</span>${tr.now ? `<small class="tr-can ${tr.now.can}">${esc(t(CAN[tr.now.can]))}</small>` : ""}</td>
       <td class="n ${res == null ? "" : res >= 0 ? "up" : "down"}">${res == null ? "—" : `${rfmt(res)}${tr.r == null ? "" : `<small>${res >= 0 ? "+" : ""}${pctTxt(res, 2)}</small>`}`}</td><td>${grade}</td></tr>
       ${open ? `<tr class="tr-detail"><td colspan="11"><div class="tr-detail-g">
-        <div><h4>${esc(t("Porquê"))}</h4><p>${esc(tr.why || "—")}</p>${tr.review ? `<h4>${esc(t("Revisão de quem a fez"))}</h4><p class="rev">${esc(tr.review)}</p>` : ""}</div>
-        <dl><div><dt>${esc(t("Entrou"))}</dt><dd>${dt(tr.filled_at)}</dd></div><div><dt>${esc(t("Saiu"))}</dt><dd>${dt(tr.closed_at)}</dd></div>
+        <div>${tr.now ? `<p class="tr-nowl ${tr.now.can}">${esc(tr.now.line)}</p>` : ""}
+          ${tr.plan ? `<h4>${esc(t("Plano"))}</h4><p>${esc(tr.plan)}</p>` : ""}${tr.trigger ? `<h4>${esc(t("Gatilho da entrada"))}</h4><p>${esc(tr.trigger)}</p>` : ""}
+          <h4>${esc(t("Porquê"))}</h4><p>${esc(tr.why || "—")}</p>${tr.review ? `<h4>${esc(t("Revisão de quem a fez"))}</h4><p class="rev">${esc(tr.review)}</p>` : ""}</div>
+        <dl>${tr.zone ? `<div><dt>${esc(t("Zona"))}</dt><dd>${num(tr.zone[0], dp)} – ${num(tr.zone[1], dp)}</dd></div>` : ""}
+          ${tr.win_from ? `<div><dt>${esc(t("Hora ideal"))}</dt><dd>${hm(tr.win_from)}–${hm(tr.win_to)}</dd></div>` : ""}
+          ${tr.invalid != null ? `<div><dt>${esc(t("Cancela se fechar além de"))}</dt><dd>${num(tr.invalid, dp)}</dd></div>` : ""}
+          ${tr.best != null ? `<div><dt>${esc(t("Entrada perfeita (visto depois)"))}</dt><dd>${num(tr.best, dp)} ${esc(t("às"))} ${hm(tr.best_at)}</dd></div>` : ""}
+          <div><dt>${esc(t("Entrou"))}</dt><dd>${dt(tr.filled_at)}</dd></div><div><dt>${esc(t("Saiu"))}</dt><dd>${dt(tr.closed_at)}</dd></div>
           <div><dt>${esc(t("Duração"))}</dt><dd>${tr.filled_at ? dur(tr.filled_at, tr.closed_at) : "—"}</dd></div><div><dt>${esc(t("Saída"))}</dt><dd>${tr.exit != null ? num(tr.exit, dp) : "—"}</dd></div>
           <div><dt>${esc(t("Melhor momento"))}</dt><dd class="up">${tr.mfe ? "+" + nfx(tr.mfe) + "R" : "—"}</dd></div><div><dt>${esc(t("Pior momento"))}</dt><dd class="down">${tr.mae ? "−" + nfx(tr.mae) + "R" : "—"}</dd></div>
           <div><dt>${esc(t("Custo (spread)"))}</dt><dd>${tr.cost ? nfx(tr.cost) + "R" : "—"}</dd></div><div><dt>${esc(t("Válida até"))}</dt><dd>${dt(tr.valid)}</dd></div></dl>
@@ -367,7 +407,7 @@
   function tradeChip(tr) {
     const dp = tr.dp != null ? tr.dp : 2;
     if (tr.status === "refused") return `<span class="tr-chip refused" title="${esc(tr.note)}">${esc(tr.symbol || "?")} ${esc(t("recusada"))}: ${esc(tr.note)}</span>`;
-    return `<span class="tr-chip ${tr.dir}">${esc(t(tr.dir === "buy" ? "Compra" : "Venda"))} ${esc(tr.symbol)} @ ${num(tr.entry, dp)} · SL ${num(tr.stop, dp)} · TP ${num(tr.tp1, dp)}${tr.tp2 ? " / " + num(tr.tp2, dp) : ""} · RR ${num(tr.rr, 1)}</span>`;
+    return `<span class="tr-chip ${tr.dir}" title="${esc(tr.plan || tr.why || "")}">${esc(t(tr.dir === "buy" ? "Compra" : "Venda"))} ${esc(tr.symbol)} @ ${num(tr.entry, dp)} · SL ${num(tr.stop, dp)} · TP ${num(tr.tp1, dp)}${tr.tp2 ? " / " + num(tr.tp2, dp) : ""} · RR ${num(tr.rr, 1)}${tr.win_from ? ` · ${esc(t("hora ideal"))} ${hm(tr.win_from)}–${hm(tr.win_to)}` : ""}</span>${tr.plan ? `<span class="tr-chip-plan">${esc(tr.plan)}</span>` : ""}`;
   }
   function verdictCard(v) {
     return `<article class="tr-verdict l${v.importancia}">
@@ -555,6 +595,13 @@
       for (const tr of d.trades) {
         const col = COL[tr.agent] || "#ccc", x0 = Math.max(0, XT(Date.parse(tr.filled_at || tr.at) / 1000));
         if (tr.status === "pending" || tr.status === "open") {
+          // the zone it waits in, and the ideal hour as a band (in the space to the right of the last candle when it is ahead)
+          const lastT = all[all.length - 1][0], XF = (ts) => Math.min(right, ts <= lastT ? XT(ts) : X(all.length - 1) + ((ts - lastT) / TF_SEC[d.tf]) * slot);
+          if (tr.zone) { g.fillStyle = tr.dir === "buy" ? "rgba(22,224,138,.10)" : "rgba(255,59,92,.10)"; g.fillRect(x0, Y(tr.zone[1]), right - x0, Y(tr.zone[0]) - Y(tr.zone[1])); }
+          if (tr.win_from && tr.status === "pending") {
+            const wa = XF(Date.parse(tr.win_from) / 1000), wb = XF(Date.parse(tr.win_to) / 1000);
+            if (wb > wa + 1) { g.fillStyle = "rgba(245,196,81,.08)"; g.fillRect(wa, 0, wb - wa, PH); g.strokeStyle = GOLD; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(Math.round(wa) + .5, 0); g.lineTo(Math.round(wa) + .5, PH); g.stroke(); g.setLineDash([]); tag(g, wa + 3, 20, `${t("hora ideal")} ${hm(tr.win_from)}–${hm(tr.win_to)}`, GOLD, "rgba(7,9,12,.85)"); }
+          }
           dashed(g, x0, Y(tr.entry), right, col, tr.status === "open" ? [] : [6, 3]);
           dashed(g, x0, Y(tr.half ? tr.entry : tr.stop), right, "rgba(255,59,92,.8)", [3, 3]);
           for (const p of [tr.tp1, tr.tp2]) if (p != null) dashed(g, x0, Y(p), right, "rgba(22,224,138,.8)", [3, 3]);
@@ -634,11 +681,13 @@
         <div class="tr-alert-sym">${a.symbol ? `<strong>${esc(a.symbol)}</strong>` : ""}<span class="tr-alert-dir">${esc(t(DIR_PT[dirKey] || (tone === "news" ? "Atenção" : a.dir || "")))}</span></div>
         <h1>${esc(a.title)}</h1>
         <p class="tr-alert-body">${esc(a.body)}</p>
+        ${f.plano ? `<p class="tr-alert-scen"><b>${esc(t("O plano"))}</b>${esc(f.plano)}</p>` : ""}
         ${f.zona || f.stop || (f.alvos || []).length ? `<div class="tr-alert-plan">
-          ${f.zona ? `<div><small>${esc(t("Zona de entrada"))}</small><b>${esc(f.zona)}</b></div>` : ""}
+          ${f.zona ? `<div><small>${esc(t("Zona de entrada"))}</small><b>${esc(f.zona)}</b>${f.entrada ? `<em>${esc(t("entrada"))} ${esc(f.entrada)}</em>` : ""}</div>` : ""}
           ${f.stop ? `<div class="sl"><small>${esc(t("Stop"))}</small><b>${esc(f.stop)}</b></div>` : ""}
           ${(f.alvos || []).length ? `<div class="tp"><small>${esc(t("Alvos"))}</small><b>${esc(f.alvos.join(" · "))}</b></div>` : ""}
-          ${f.condicao ? `<p>${icon("alert")}${esc(f.condicao)}</p>` : ""}</div>` : ""}
+          ${f.janela ? `<div class="win"><small>${esc(t("Hora ideal da entrada"))}</small><b>${esc(f.janela.replace("-", "–"))}</b></div>` : ""}
+          ${f.condicao ? `<p>${icon("alert")}<span><b>${esc(t("Gatilho"))}:</b> ${esc(f.condicao)}${f.invalida ? ` · <b>${esc(t("Cancela se"))}:</b> ${esc(f.invalida)}` : ""}</span></p>` : ""}</div>` : ""}
         <div class="tr-alert-duo">${(a.turns || []).slice(-2).map((x) => `<figure class="${x.who}"><img src="${portrait(x.who)}" alt=""><figcaption><b>${esc(t(PEOPLE[x.who] ? PEOPLE[x.who].name : x.who))}</b><span>${esc(clip(x.text, 190))}</span></figcaption></figure>`).join("")}</div>
         ${(a.attention || []).length ? `<ul class="tr-alert-att">${a.attention.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
         <div class="tr-alert-acts"><button type="button" class="btn primary" data-a="open">${icon("trend")}${esc(t("Abrir a Sala de Trading"))}</button><button type="button" class="btn" data-a="ok">${esc(t("Visto"))}</button>

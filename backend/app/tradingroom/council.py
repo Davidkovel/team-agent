@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .analysis import fmt
-from .sessions import killzone, london_offset, ny, sessions
+from .sessions import killzone, killzones_local, london_offset, ny, sessions
 
 log = logging.getLogger("tradingroom")
 UTC = timezone.utc
@@ -53,13 +53,23 @@ TWOFACE = ("És o Duas-Caras, Harvey Dent, o técnico da Sala de Trading da Empr
            "(nunca inventes um nível). Sem emojis, sem markdown.")
 
 # how each of them writes the trades they take; the Hub checks and follows them (book.py)
-TRADES = """"trades": [{"simbolo": "XAUUSD", "direcao": "compra ou venda", "entrada": 4182.6, "stop": 4176.4, "alvos": [4196.5, 4210.0],
-              "validade_h": 6, "porque": "a confluência numa frase: liquidez, estrutura, zona, macro"}],
+TRADES = """"trades": [{"simbolo": "XAUUSD", "direcao": "compra ou venda",
+              "plano": "o cenário passo a passo, como o dirias a um sócio: o que esperamos que o preço faça ANTES da entrada, onde
+                        entramos e para onde vai depois (ex.: esperamos que o preço desça ao FVG H4 4150–4160, que varra o fundo
+                        da Ásia em 4148 e que mostre força lá dentro; aí compramos e o preço continua a subir até aos topos iguais 4196)",
+              "zona": [4150.0, 4160.0], "entrada": 4155.0,
+              "gatilho": "o sinal concreto que confirma a entrada no momento (ex.: CHoCH de alta em M5 dentro do FVG, ou uma vela M15
+                          a fechar acima de 4158 depois de tocar na zona)",
+              "janela": "14:30-16:00", "invalida": 4146.0, "stop": 4144.5, "alvos": [4196.5, 4210.0], "validade_h": 6,
+              "porque": "a confluência numa frase: liquidez, estrutura, zona, macro"}],
   "fechar": [{"id": 1791563000123, "porque": "a tese morreu porque..."}],
   "revisoes": [{"id": 1791563000123, "nota": "uma frase honesta: o que correu bem ou mal e o que aprendes"}]
-Regras das trades: no máximo 2 novas; números simples com ponto decimal (4182.6, 1.11905); a entrada é uma ordem limite
-(se estiver do outro lado do preço entra a mercado); o stop onde a ideia fica errada; o 1.º alvo com RR de pelo menos 1,5 e o
-2.º opcional (no 1.º fecha metade e o stop vai para a entrada); validade de 1 a 24 horas. Não repitas uma trade que já tens
+Regras das trades: no máximo 2 novas; números simples com ponto decimal (4182.6, 1.11905). A "zona" é a área onde a entrada
+faz sentido (o FVG, o OB) e a "entrada" o preço exato dentro dela, uma ordem limite (se estiver do outro lado do preço entra a
+mercado). A "janela" é a hora ideal para a entrada acontecer, em hora de Lisboa (HH:MM-HH:MM), normalmente uma killzone. O
+"invalida" é o preço que, fechado antes da entrada, cancela a ideia. O stop fica onde a ideia está errada; o 1.º alvo com RR de
+pelo menos 1,5 e o 2.º opcional (no 1.º fecha metade e o stop vai para a entrada); validade de 1 a 24 horas. Sê específico: um
+sócio tem de ler o plano e saber exatamente o que esperar, a que horas e quando já não vale. Não repitas uma trade que já tens
 ativa. Nada de trade é uma decisão válida: trades: []. Em "fechar" ficam as tuas ordens ou posições ativas cuja tese morreu;
 em "revisoes" uma nota para cada trade tua marcada "por rever" no diário."""
 
@@ -69,8 +79,10 @@ VERDICT = """{
   "resumo": "2 a 3 frases: o que interessa agora e porquê",
   "importancia": 3,
   "alerta": false,
-  "foco": [{"simbolo": "XAUUSD", "direcao": "compra | venda | esperar", "zona": "4 182,66–4 184,94", "stop": "4 180,49",
-            "alvos": ["4 196,54"], "condicao": "o que tem de acontecer antes de entrar", "confianca": 3}],
+  "foco": [{"simbolo": "XAUUSD", "direcao": "compra | venda | esperar", "plano": "o cenário numa frase: o que esperamos que o preço
+            faça antes da entrada e depois dela", "zona": "4 182,66–4 184,94", "entrada": "4 183,50", "janela": "14:30-16:00",
+            "stop": "4 180,49", "alvos": ["4 196,54"], "condicao": "o gatilho que confirma a entrada", "invalida": "o que cancela a ideia
+            antes de entrar", "confianca": 3}],
   "atencao": ["frases curtas: horas a evitar, níveis a vigiar"]
 }
 Regras: importancia de 1 (nada a fazer) a 5 (exige atenção já: sweep de um nível-chave com setup A ou A+, ou notícia de alto
@@ -115,6 +127,7 @@ def brief(room: dict, now: datetime, reason: str, focus: list[str]) -> str:
     open_s = [s["name"] for s in sessions(now) if s["open"]]
     lines.append(f"AGORA: {DAYS[lisbon(now).weekday()]} {lisbon(now):%d/%m/%Y %H:%M} em Lisboa ({now:%H:%M} UTC, {ny(now):%H:%M} em Nova Iorque). "
                  f"Sessões abertas: {', '.join(open_s) or 'nenhuma'}. Killzone: {kz['name'] if kz else 'nenhuma'}.")
+    lines.append("Killzones de hoje em hora de Lisboa: " + " · ".join(f"{k['name']} {k['from']}–{k['to']}" for k in killzones_local(now, lisbon)) + ".")
     lines.append(f"MOTIVO DA REUNIÃO: {reason}")
     cal = [e for e in room.get("calendar", []) if e["imp"] >= 3 and e["ccy"] in ("USD", "EUR", "GBP", "JPY")]
     near = [e for e in cal if -6 * 60 <= (datetime.fromisoformat(e["t"].replace("Z", "+00:00")) - now).total_seconds() / 60 <= 26 * 60]
@@ -325,7 +338,12 @@ def auto_meeting(room: dict, now: datetime, reason: str, focus: list[str]) -> tu
         if s:
             foco.append({"simbolo": a["id"], "direcao": "venda" if s["dir"] == "sell" else "compra", "zona": f"{fmt(s['zone'][0], a['dp'])}–{fmt(s['zone'][1], a['dp'])}",
                          "stop": fmt(s["stop"], a["dp"]), "alvos": [fmt(t["p"], a["dp"]) for t in s["targets"]],
-                         "condicao": "só com o preço de volta à zona e sem notícia de alto impacto à porta", "confianca": 4 if s["grade"] in ("A+", "A") else 3})
+                         "condicao": "só com o preço de volta à zona e sem notícia de alto impacto à porta", "confianca": 4 if s["grade"] in ("A+", "A") else 3,
+                         "plano": f"Esperamos que o preço {'suba' if s['dir'] == 'sell' else 'desça'} de volta à zona e daí {'caia' if s['dir'] == 'sell' else 'suba'} até "
+                                  + (f"{s['targets'][0]['label']} ({fmt(s['targets'][0]['p'], a['dp'])})" if s["targets"] else "o alvo") + ".",
+                         "entrada": fmt(s["entry"], a["dp"]), "invalida": f"fecho além de {fmt(s['stop'], a['dp'])}",
+                         "janela": next((f"{k['from']}-{k['to']}" for d in (now, now + timedelta(days=1)) for k in killzones_local(d, lisbon)
+                                         if k["key"] in ("london", "ny") and datetime.fromisoformat(k["end"]) > now), "")})
         else:
             foco.append({"simbolo": a["id"], "direcao": "esperar", "zona": "", "stop": "", "alvos": [], "condicao": "esperar um sweep e um CHoCH", "confianca": 2})
     title = (f"{best['grade']} de {'venda' if best['dir'] == 'sell' else 'compra'} no {next(a['id'] for a in picks if best in a['setups'])}" if best and best["grade"] in ("A+", "A")

@@ -58,6 +58,19 @@ def killzone(t: datetime) -> dict | None:
     return None
 
 
+def killzones_local(t: datetime, tolocal) -> list[dict]:
+    """Today's killzones (New York's day) as local hours: tolocal turns a UTC datetime into a naive local one."""
+    day = ny(t).replace(hour=0, minute=0, second=0, microsecond=0)
+    off = timedelta(hours=ny_offset(t))
+    out = []
+    for key, name, a, b in KILLZONES:
+        start = (day + timedelta(hours=a) + off).replace(tzinfo=UTC)
+        end = (day + timedelta(hours=b) + off).replace(tzinfo=UTC)
+        out.append({"key": key, "name": name, "from": tolocal(start).strftime("%H:%M"), "to": tolocal(end).strftime("%H:%M"),
+                    "start": start.isoformat(), "end": end.isoformat()})
+    return out
+
+
 def sessions(t: datetime) -> list[dict]:
     """The four sessions now: open or not, and the minutes to their next open or close."""
     out = []

@@ -11,7 +11,7 @@
       const a = await api("/api/trading-room/alert");
       if (a && a.id !== shown) {
         shown = a.id;
-        await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/trading-room.css").catch(() => {}), lazyFile("hub/trading-room.js")]);
+        await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/trading-room.css").catch(() => {}), lazyFile("hub/trading-book.css").catch(() => {}), lazyFile("hub/trading-room.js")]);
         window.TradingRoom.showAlert(a);
       }
     } catch (e) { /* the next event tries again */ }

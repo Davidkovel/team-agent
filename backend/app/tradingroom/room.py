@@ -281,7 +281,12 @@ class Room:
                     dp = a["dp"]
                     self.book.propose("model", [{"simbolo": a["id"], "direcao": "compra" if st["dir"] == "buy" else "venda", "entrada": round(st["entry"], dp),
                                                  "stop": round(st["stop"], dp), "alvos": [round(x["p"], dp) for x in st["targets"]], "validade_h": 6,
-                                                 "porque": f"Setup {st['grade']} ({st['score']}/100) em {st['tf']}: " + "; ".join(st["why"])}],
+                                                 "porque": f"Setup {st['grade']} ({st['score']}/100) em {st['tf']}: " + "; ".join(st["why"]),
+                                                 "zona": st["zone"], "invalida": round(st["stop"], dp), "janela": next_killzone(now),
+                                                 "gatilho": "o preço voltar à zona (ordem limite no meio dela)",
+                                                 "plano": f"Depois do sweep do {st['sweep']['label']} e do {st['brk']['kind']} de {'baixa' if st['dir'] == 'sell' else 'alta'} em {st['tf']}, "
+                                                          f"esperamos que o preço {'suba' if st['dir'] == 'sell' else 'desça'} de volta à zona {st['zone'][0]:.{dp}f}–{st['zone'][1]:.{dp}f} "
+                                                          f"e daí {'caia' if st['dir'] == 'sell' else 'suba'} até {st['targets'][0]['label'] if st['targets'] else 'o alvo'}."}],
                                       None, self.view, now, key)
                     changed = True
         if changed:
@@ -371,3 +376,12 @@ async def loop():
         except Exception:
             log.exception("trading room tick")
         await asyncio.sleep(max(5.0, 20 - (time.time() - started)))
+
+
+def next_killzone(now: datetime) -> str:
+    """The next London or New York AM killzone (or the one on now), as Lisbon "HH:MM-HH:MM"."""
+    for day in (now, now + timedelta(days=1)):
+        for k in sessions.killzones_local(day, council.lisbon):
+            if k["key"] in ("london", "ny") and datetime.fromisoformat(k["end"]) > now:
+                return f"{k['from']}-{k['to']}"
+    return ""

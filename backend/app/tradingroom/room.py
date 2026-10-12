@@ -18,6 +18,8 @@ import httpx
 
 from . import council, sessions
 from .analysis import analyse
+from .book import Book
+from .institutional import Institutional, drivers
 from .markets import CONTEXT, INSTRUMENTS, UA, CandleStore, calendar, headlines, split_live
 
 log = logging.getLogger("tradingroom")
@@ -49,10 +51,13 @@ class Room:
         self.first = True
         self.published = 0.0
         self.state = self._load()
+        self.book = Book(self.state)
+        self.inst = Institutional()
+        self.macro: dict = {}
 
     # ---------------------------------------------------------------- the file
     def _load(self) -> dict:
-        st = {"claude": False, "model": "sonnet", "cap": 16, "meetings": [], "alerts": [], "seen": {}, "acks": {}}
+        st = {"claude": False, "model": "sonnet", "cap": 16, "meetings": [], "alerts": [], "seen": {}, "acks": {}, "trades": []}
         try:
             st.update(json.loads((DIR / "state.json").read_text("utf-8")))
         except (OSError, ValueError):
@@ -104,17 +109,24 @@ class Room:
         ctx = []
         for c in CONTEXT:
             d1, m15 = self.store.get(c["id"], "D1"), self.store.get(c["id"], "M15")
-            if not m15:
+            if not (m15 or d1):
                 continue
-            price = m15[-1][4]
+            price = (m15 or d1)[-1][4]
             closed_d, live_d = split_live(d1, "D1", now.timestamp())
             prev = (closed_d[-1][4] if live_d else closed_d[-2][4] if len(closed_d) > 1 else None) if closed_d else None
             ctx.append({"id": c["id"], "name": c["name"], "dp": c["dp"], "price": price, "chg": (price / prev - 1) * 100 if prev else None})
         self.context = ctx
+        try:
+            await self.inst.refresh_cot()
+            self.macro = drivers(self.store)
+        except Exception:
+            log.exception("trading room: the institutional layer")
         self.updated = time.time()
 
     def room(self) -> dict:
-        return {"instruments": list(self.view.values()), "context": self.context, "calendar": self.calendar, "news": self.news}
+        last = next((m["at"] for m in self.state["meetings"] if m["status"] == "done" and m["mode"] == "claude"), None)
+        return {"instruments": list(self.view.values()), "context": self.context, "calendar": self.calendar, "news": self.news,
+                "macro": self.macro, "cot": self.inst.cot, "journals": {a: self.book.journal(a, self.view, last) for a in ("penguin", "twoface")}}
 
     # ---------------------------------------------------------------- when to meet
     def triggers(self, now: datetime) -> list[dict]:
@@ -177,8 +189,19 @@ class Room:
         return rec
 
     async def _run(self, rec: dict):
-        async def said(who: str, text: str):
-            rec["turns"].append({"who": who, "text": text, "at": iso()})
+        async def said(who: str, text: str, data: dict | None = None):
+            turn = {"who": who, "text": text, "at": iso()}
+            if data:
+                now_ = datetime.now(UTC)
+                self.book.review(who, data.get("revisoes"))
+                closed = self.book.close_now(who, data.get("fechar"), self.view, now_)
+                booked = self.book.propose(who, data.get("trades"), rec["id"], self.view, now_)
+                turn["trades"] = [t["id"] for t in booked]
+                turn["closed"] = [t["id"] for t in closed]
+                srcs = [x for x in (data.get("fontes") or []) if isinstance(x, dict) and str(x.get("url", "")).startswith("http")]
+                if srcs:
+                    turn["sources"] = [{"title": str(x.get("titulo") or x.get("title") or x["url"])[:140], "url": x["url"]} for x in srcs[:6]]
+            rec["turns"].append(turn)
             self.save()
             await publish()
         await publish()
@@ -249,6 +272,21 @@ class Room:
     async def tick(self):
         await self.refresh()
         now = datetime.now(UTC)
+        changed = self.book.update(self.store, now)
+        for a in self.view.values():
+            for st in a["setups"]:
+                key = f"model:{a['id']}:{st['dir']}:{st['tf']}:{st['sweep']['x']:.6f}"
+                if st["grade"] in ("A+", "A") and st["status"] == "armed" and st["age"] <= 3 and key not in self.state["seen"]:
+                    self.state["seen"][key] = time.time()
+                    dp = a["dp"]
+                    self.book.propose("model", [{"simbolo": a["id"], "direcao": "compra" if st["dir"] == "buy" else "venda", "entrada": round(st["entry"], dp),
+                                                 "stop": round(st["stop"], dp), "alvos": [round(x["p"], dp) for x in st["targets"]], "validade_h": 6,
+                                                 "porque": f"Setup {st['grade']} ({st['score']}/100) em {st['tf']}: " + "; ".join(st["why"])}],
+                                      None, self.view, now, key)
+                    changed = True
+        if changed:
+            self.save()
+            await publish()
         found = self.triggers(now)
         if found:
             top = found[0]
@@ -291,6 +329,7 @@ class Room:
         return {"wall": wall, "meeting": meeting, "alert": live_alert and {"id": live_alert["id"], "level": live_alert["level"], "title": live_alert["title"]},
                 "ticker": [{"id": a["id"], "price": a["price"], "chg": a["chg"], "dp": a["dp"]} for a in self.view.values()]
                 + [{"id": c["id"], "price": c["price"], "chg": c["chg"], "dp": c["dp"]} for c in self.context],
+                "score": {a: {k: v for k, v in self.book.stats(a).items() if k in ("wins", "losses", "total_r", "open", "winrate")} for a in ("penguin", "twoface")},
                 "updated": self.updated}
 
 

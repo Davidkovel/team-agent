@@ -33,17 +33,35 @@ PEOPLE = {
 }
 
 PENGUIN = ("És o Pinguim, Oswald Cobblepot, o homem do dinheiro da Empresa AMG, dono do Iceberg Lounge e trader macro de "
-           "velha escola. Na Sala de Trading cuidas das notícias e do macro: calendário económico, bancos centrais, dólar "
-           "(DXY), juros (US10Y), petróleo, medo (VIX) e manchetes. Falas português de Portugal, frases curtas, com uma ponta "
-           "de vaidade e a ironia de quem já viu tudo, mas nunca inventas: só usas os números e as notícias do briefing, e "
-           "dizes as horas em hora de Lisboa. Estás a falar com os sócios e com o teu colega, não a dar conselhos de "
-           "investimento. Sem emojis, sem markdown, sem listas.")
-TWOFACE = ("És o Duas-Caras, Harvey Dent, o técnico da Sala de Trading da Empresa AMG. Lês o preço com Smart Money Concepts "
-           "(ICT): liquidez (topos e fundos iguais, PDH e PDL, máximos e mínimos da Ásia e de Londres, semana passada), sweeps, "
-           "BOS e CHoCH, fair value gaps, order blocks, premium e desconto, killzones. Vês sempre as duas caras do mercado: "
-           "dizes o cenário de alta e o de baixa e o que invalida cada um, e só escolhes um lado quando há confluência. Se os "
-           "dois empatam, a moeda fica no bolso e não se entra. Português de Portugal, direto, níveis com o número exato do "
-           "briefing (nunca inventes um nível). Sem emojis, sem markdown, sem listas.")
+           "velha escola. Na Sala de Trading cuidas do macro e das notícias: calendário económico e surpresas, bancos centrais, "
+           "dólar (DXY), juros nominais e reais, spreads de juros entre países, petróleo, medo (VIX), o posicionamento dos "
+           "grandes fundos no relatório COT da CFTC, e as manchetes. Pensas como um gestor de um fundo macro: primeiro o "
+           "regime (risk-on ou risk-off, o que move o dólar e os juros), depois o catalisador (a notícia, a hora), depois o "
+           "preço. Tens a tua própria conta de trades e o teu historial conta: só arriscas quando o macro e o preço dizem o "
+           "mesmo. Falas português de Portugal, frases curtas, com uma ponta de vaidade e a ironia de quem já viu tudo, mas "
+           "nunca inventas: usas os números do briefing e o que pesquisaste na web, e dizes de onde veio. Horas em hora de "
+           "Lisboa. Estás a falar com os sócios e com o teu colega, não a dar conselhos de investimento. Sem emojis, sem "
+           "markdown.")
+TWOFACE = ("És o Duas-Caras, Harvey Dent, o técnico da Sala de Trading da Empresa AMG. Lês o preço de cima para baixo (D1, H4, "
+           "H1, M15, M5) com Smart Money Concepts (ICT): a liquidez que o preço procura (topos e fundos iguais, PDH e PDL, "
+           "semana passada, Ásia e Londres), sweeps, BOS e CHoCH, fair value gaps, order blocks, premium e desconto, killzones; "
+           "e confirmas com o que os profissionais olham: médias de 21, 50 e 200, RSI e divergências, o ADR já gasto, o perfil "
+           "de volume de ontem (POC e value area). Vês sempre as duas caras do mercado: o cenário de alta e o de baixa e o que "
+           "invalida cada um, e só escolhes um lado quando há confluência. Se os dois empatam, a moeda fica no bolso e não se "
+           "entra. Tens a tua própria conta de trades e o teu historial conta: entradas em zonas, stops onde a ideia morre, "
+           "alvos na liquidez, nunca um RR abaixo de 1,5. Português de Portugal, direto, níveis com o número exato do briefing "
+           "(nunca inventes um nível). Sem emojis, sem markdown.")
+
+# how each of them writes the trades they take; the Hub checks and follows them (book.py)
+TRADES = """"trades": [{"simbolo": "XAUUSD", "direcao": "compra ou venda", "entrada": 4182.6, "stop": 4176.4, "alvos": [4196.5, 4210.0],
+              "validade_h": 6, "porque": "a confluência numa frase: liquidez, estrutura, zona, macro"}],
+  "fechar": [{"id": 1791563000123, "porque": "a tese morreu porque..."}],
+  "revisoes": [{"id": 1791563000123, "nota": "uma frase honesta: o que correu bem ou mal e o que aprendes"}]
+Regras das trades: no máximo 2 novas; números simples com ponto decimal (4182.6, 1.11905); a entrada é uma ordem limite
+(se estiver do outro lado do preço entra a mercado); o stop onde a ideia fica errada; o 1.º alvo com RR de pelo menos 1,5 e o
+2.º opcional (no 1.º fecha metade e o stop vai para a entrada); validade de 1 a 24 horas. Não repitas uma trade que já tens
+ativa. Nada de trade é uma decisão válida: trades: []. Em "fechar" ficam as tuas ordens ou posições ativas cuja tese morreu;
+em "revisoes" uma nota para cada trade tua marcada "por rever" no diário."""
 
 VERDICT = """{
   "fala": "a tua última fala na reunião, 2 a 4 frases: se concordas com o Duas-Caras e qual é o plano",
@@ -139,6 +157,54 @@ def brief(room: dict, now: datetime, reason: str, focus: list[str]) -> str:
             lines.append(f"  setup {s['tf']} {'VENDA' if s['dir'] == 'sell' else 'COMPRA'} {s['grade']} ({s['score']}/100, {_status(s['status'])}): zona {fmt(s['zone'][0], dp)}–{fmt(s['zone'][1], dp)} · "
                          f"stop {fmt(s['stop'], dp)} · alvo {tg} · RR {_dec(s['rr'])}"
                          + f" · porquê: {'; '.join(s['why'])}" + (f" · notícia perto: {'; '.join(s['news_risk'])}" if s.get("news_risk") else ""))
+    # the classic read, one line per instrument
+    lines.append("\nLEITURA CLÁSSICA (EMA 21/50/200, RSI 14, ADR = amplitude média diária, perfil de volume da sessão de ontem):")
+    for a in room.get("instruments", []):
+        tech, dp, bits = a.get("tech") or {}, a["dp"], []
+        for tf in ("D1", "H4", "H1"):
+            ma = (tech.get("ma") or {}).get(tf)
+            if ma:
+                stack = {"up": "médias em escada de alta", "down": "médias em escada de baixa", "mixed": "médias cruzadas"}[ma["stack"]]
+                above = "acima das três médias" if len(ma["above"]) == 3 else "abaixo das três médias" if not ma["above"] else f"acima da EMA {'/'.join(ma['above'])}"
+                bits.append(f"{tf}: {above}, {stack}")
+        rs = tech.get("rsi") or {}
+        if rs:
+            bits.append("RSI " + ", ".join(f"{tf} {_dec(v, 0)}" for tf, v in rs.items()))
+        for tf, dv in (tech.get("div") or {}).items():
+            bits.append(f"divergência {'de baixa' if dv['dir'] == 'bear' else 'de alta'} no RSI {tf} ({dv['rsi'][0]}→{dv['rsi'][1]})")
+        adr = tech.get("adr")
+        if adr and adr.get("used") is not None:
+            bits.append(f"ADR {fmt(adr['adr'], dp)}, hoje já {round(adr['used'] * 100)}% gasto")
+        vp = tech.get("vp")
+        if vp:
+            bits.append(f"ontem POC {fmt(vp['poc'], dp)}, value area {fmt(vp['val'], dp)}–{fmt(vp['vah'], dp)}")
+        if bits:
+            lines.append(f"{a['id']}: " + " · ".join(bits))
+    # the institutional layer
+    macro = room.get("macro") or {}
+    board = macro.get("board") or {}
+    names = {"DXY": "DXY", "US10Y": "US10Y", "US02Y": "US02Y", "REAL10": "juro real 10a (TIPS)", "BE10": "inflação implícita 10a", "VIX": "VIX",
+             "SPX": "S&P 500", "USDJPY": "USD/JPY", "USOIL": "WTI", "US_DE_2Y": "spread 2a EUA−Alemanha", "US_GB_2Y": "spread 2a EUA−R.Unido",
+             "US_DE_10Y": "spread 10a EUA−Alemanha"}
+    if board:
+        lines.append("\nINSTITUCIONAL (nível · variação em 5 dias):")
+        lines.append(" · ".join(f"{names[k]} {_num(round(v['v'], 3))} ({'+' if (v['d5'] or 0) >= 0 else ''}{_num(round(v['d5'] or 0, 3))})"
+                                for k, v in board.items() if k in names and v.get("v") is not None))
+        if macro.get("regime"):
+            lines.append(f"Regime de risco: {macro['regime']}.")
+        for sym, cs in (macro.get("corr") or {}).items():
+            if cs:
+                lines.append(f"Correlação 20 dias {sym}: " + ", ".join(f"com {c['with']} {_dec(c['r'], 2)}" for c in cs))
+    for sym, c in (room.get("cot") or {}).items():
+        gs = " · ".join(f"{g['label']} líquido {g['net']:+,.0f} contratos ({g['change']:+,.0f} na semana), índice COT {g['index']}/100".replace(",", " ")
+                        for g in c["groups"])
+        lines.append(f"COT {sym} (CFTC, posições de {c['date']}): {gs}")
+    # each one's own book
+    journals = room.get("journals") or {}
+    if journals:
+        lines.append("\nDIÁRIO DE TRADES (cada um tem a sua conta; R = múltiplos do risco, com o spread descontado):")
+        for text in journals.values():
+            lines.append(text)
     return "\n".join(lines)
 
 
@@ -159,15 +225,15 @@ def claude_exe() -> str | None:
     return found
 
 
-async def ask_claude(system: str, prompt: str, model: str, workdir: Path, timeout: float = 240) -> tuple[str, float]:
-    """One answer from Claude: (text, cost in dollars). No tools, no hooks (only project settings, and the folder has
-    none), nothing saved; the prompt goes in by stdin."""
+async def ask_claude(system: str, prompt: str, model: str, workdir: Path, timeout: float = 240, tools: str = "") -> tuple[str, float]:
+    """One answer from Claude: (text, cost in dollars). No tools unless asked (the Pinguim searches the web), no hooks
+    (only project settings, and the folder has none), nothing saved; the prompt goes in by stdin."""
     exe = claude_exe()
     if not exe:
         raise RuntimeError("Claude Code não está instalado neste PC")
     workdir.mkdir(parents=True, exist_ok=True)
-    args = [exe, "-p", "--model", model, "--output-format", "json", "--setting-sources", "project", "--tools", "",
-            "--no-session-persistence", "--system-prompt", system]
+    args = [exe, "-p", "--model", model, "--output-format", "json", "--setting-sources", "project", "--tools", tools,
+            "--no-session-persistence", "--system-prompt", system] + (["--allowedTools", tools] if tools else [])
     flags = 0x08000000 if sys.platform == "win32" else 0   # CREATE_NO_WINDOW: the Hub runs under pythonw
     env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "CLAUDECODE")}
     proc = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
@@ -272,26 +338,49 @@ def auto_meeting(room: dict, now: datetime, reason: str, focus: list[str]) -> tu
     return [" ".join(p1), " ".join(p2), p3], verdict
 
 
+def parse_json(text: str) -> dict | None:
+    """The object in an answer (the model sometimes adds a line or the list of sources around it)."""
+    m = re.search(r"\{.*\}", text, re.S)
+    if not m:
+        return None
+    try:
+        v = json.loads(m.group(0))
+    except ValueError:
+        return None
+    return v if isinstance(v, dict) else None
+
+
 async def claude_meeting(room: dict, now: datetime, reason: str, focus: list[str], model: str, workdir: Path, on_turn) -> tuple[list[str], dict, float]:
-    """The three turns, each one as soon as it is said (on_turn(who, text))."""
+    """The three turns, each one as soon as it is said: on_turn(who, text, data) with the trades, the closes, the reviews
+    and (the Pinguim's) the sources he read."""
     b = brief(room, now, reason, focus)
     cost = 0.0
-    t1, c = await ask_claude(PENGUIN, f"{b}\n\nAbres a reunião com o Duas-Caras. Em 4 a 6 frases: o que o calendário e as manchetes dizem "
-                                      "para as próximas horas, que instrumentos isso mexe e para que lado, e a que horas ninguém deve estar "
-                                      "exposto. Acaba com uma pergunta concreta ao Duas-Caras sobre o gráfico que mais te interessa.", model, workdir)
+    t1, c = await ask_claude(PENGUIN, f"{b}\n\nAbres a reunião com o Duas-Caras. Antes de falar, pesquisa na web (no máximo 4 pesquisas, "
+                                      "fontes sérias: Reuters, Bloomberg, Financial Times, WSJ, CNBC, ForexLive, FXStreet, os bancos centrais) "
+                                      "o que está a mexer hoje no ouro, no dólar, no euro, na libra e nos índices: bancos centrais, geopolítica, "
+                                      "fluxos, o que os grandes bancos dizem. Depois responde só com um objeto JSON válido, sem texto à volta:\n"
+                                      "{\n  \"fala\": \"6 a 9 frases: o regime de risco, o que o calendário, as notícias, os juros e o COT dizem para "
+                                      "as próximas horas, que instrumentos isso mexe e para que lado, a que horas ninguém deve estar exposto, e uma "
+                                      "pergunta concreta ao Duas-Caras\",\n  \"fontes\": [{\"titulo\": \"...\", \"url\": \"...\"}],\n  "
+                                      f"{TRADES}\n}}", model, workdir, timeout=420, tools="WebSearch")
     cost += c
-    await on_turn("penguin", t1)
-    t2, c = await ask_claude(TWOFACE, f"{b}\n\nO Pinguim abriu a reunião assim:\n«{t1}»\n\nResponde-lhe em 5 a 8 frases. Para os 2 ou 3 "
-                                      "instrumentos que mais importam agora: onde está a liquidez, o que já foi varrido, o cenário de alta e o "
-                                      "de baixa com os níveis exatos do briefing, e qual preferes e porquê. Se a notícia dele chocar com o "
-                                      "gráfico, diz como se gere (esperar pela notícia, só entrar depois do sweep, etc.).", model, workdir)
+    d1 = parse_json(t1) or {"fala": t1}
+    await on_turn("penguin", str(d1.get("fala") or t1), d1)
+    t2, c = await ask_claude(TWOFACE, f"{b}\n\nO Pinguim abriu a reunião assim:\n«{d1.get('fala') or t1}»\n\nResponde-lhe. Lê de cima para baixo os 2 "
+                                      "ou 3 instrumentos que mais importam agora: a liquidez que o preço procura, o que já foi varrido, a "
+                                      "estrutura em cada tempo gráfico, a zona onde entrarias e o cenário contrário com o que o invalida; usa a "
+                                      "leitura clássica para confirmar ou desconfiar. Se o macro dele chocar com o gráfico, diz como se gere. "
+                                      "Responde só com um objeto JSON válido, sem texto à volta:\n{\n  \"fala\": \"7 a 10 frases\",\n  "
+                                      f"{TRADES}\n}}", model, workdir, timeout=300)
     cost += c
-    await on_turn("twoface", t2)
-    t3, c = await ask_claude(PENGUIN, f"{b}\n\nA reunião até agora:\nPinguim: «{t1}»\nDuas-Caras: «{t2}»\n\nFecha a reunião. Responde só com "
-                                      f"um objeto JSON válido (sem texto à volta, sem ```), com estes campos:\n{VERDICT}", model, workdir)
+    d2 = parse_json(t2) or {"fala": t2}
+    await on_turn("twoface", str(d2.get("fala") or t2), d2)
+    t3, c = await ask_claude(PENGUIN, f"{b}\n\nA reunião até agora:\nPinguim: «{d1.get('fala') or t1}»\nDuas-Caras: «{d2.get('fala') or t2}»\n\n"
+                                      f"Fecha a reunião. Responde só com um objeto JSON válido (sem texto à volta, sem ```), com estes campos:\n{VERDICT}",
+                             model, workdir)
     cost += c
     v = parse_verdict(t3)
     if not v:
         raise RuntimeError("a ata do Pinguim não veio em JSON")
-    await on_turn("penguin", v["fala"] or v["resumo"])
-    return [t1, t2, v["fala"] or v["resumo"]], v, cost
+    await on_turn("penguin", v["fala"] or v["resumo"], {})
+    return [str(d1.get("fala") or t1), str(d2.get("fala") or t2), v["fala"] or v["resumo"]], v, cost

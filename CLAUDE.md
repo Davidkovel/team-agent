@@ -296,6 +296,24 @@ Armadilhas que custaram tempo:
 - **Armadilhas:** um `onLive` tem de devolver uma promessa (o `refresh` do `app.js` faz `fn().catch`): uma função que devolve
   `undefined` rebenta e cala os seguintes. Os retratos dos dois na sala são guardados como imagem (`faces`): um frame da cache do
   `crew-people.js` pode voltar em branco. Os endpoints fecham a transação do `current_user` antes de esperar pela rede (`viewer`).
+- **Cada um tem a sua conta** (12 out, `book.py`): nas falas 1 e 2 cada agente responde em JSON com as suas `trades` (entrada
+  limite, stop, 1 ou 2 alvos, validade, porquê), as que quer `fechar` e as `revisoes` das que fecharam (o diário de cada um vai
+  no briefing, com os ids «por rever»). O Hub confere (stop e alvo do lado certo, entrada a ≤ 4 ATR H1, stop entre 0,15 e 6
+  ATR, RR ≥ 1, máximo 2 novas e 4 ativas, nada repetido) e as recusadas ficam na tabela com o motivo. Segue cada trade vela a
+  vela (M5, e H1 para o que o M5 já não cobre): na mesma vela stop e alvo contam como stop; na vela da entrada só o stop; com
+  2 alvos fecha metade no 1.º e o stop vai para a entrada; 72 h abertas fecha ao preço. Resultado em R menos o spread típico
+  (`spread` em `INSTRUMENTS`). Boa = ganha, má = perdida. O **Modelo SMC** abre uma trade por cada setup A/A+ armado
+  (referência). Estatística por agente em `Book.stats` (acerto, R total, % da conta a 1% por trade, profit factor,
+  expectativa, drawdown, série, curva). Página: placar dos três por baixo do radar, «Diário de trades» com filtros (clicar numa
+  linha abre o porquê, a revisão, MFE/MAE), as trades no gráfico, os chips na fala. Cave: o placar de cada um na secretária.
+- **Fontes mais finas** (12 out): o Pinguim pesquisa na web na fala 1 (`--tools WebSearch`, máx. 4, as `fontes` aparecem
+  por baixo da fala); COT da CFTC (`institutional.py`, API pública, de 6 em 6 h: managed money no ouro, leveraged funds e
+  asset managers nos financeiros, índice COT de 3 anos; o DAX não tem); juros a 2 anos EUA/Alemanha/Reino Unido, juro real
+  e inflação implícita (FRED, pelo websocket da TradingView: o fred.stlouisfed.org não responde nesta rede), S&P 500,
+  USD/JPY, correlações de 20 dias; e a leitura clássica (`technicals.py`: EMA 21/50/200, RSI e divergências, ADR gasto,
+  perfil de volume da sessão anterior). Tudo isto entra no briefing e no painel «Contexto institucional» da página.
+- **Escrever código destes ficheiros pelo Bash** (heredoc): as barras invertidas chegam mal ao ficheiro (`\\p{L}` virou
+  `\p{L}`). Para texto com `\`, usar a ferramenta de editar ou um script escrito com ela.
 
 ### Testar uma mudança no Hub
 

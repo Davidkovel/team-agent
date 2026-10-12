@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from . import sessions, smc
+from . import sessions, smc, technicals
 from .markets import BY_ID, INSTRUMENTS, split_live
 
 UTC = timezone.utc
@@ -228,7 +228,7 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
         "pd": pd, "range": {"hi": h4.hi, "lo": h4.lo} if h4.ok else None, "atr": atr_h1,
         "keys": [{k2: k[k2] for k2 in ("key", "label", "p", "state", "above") if k2 in k} | ({"at": k["t"], "x": k["x"]} if "t" in k else {}) for k in keys],
         "above": above[:3], "below": below[:3], "pois": pois[:6], "setups": ideas[:4], "events": events[:12],
-        "news": soon, "ccy": inst["ccy"],
+        "news": soon, "ccy": inst["ccy"], "tech": technicals.read(fr, now),
     }
 
 

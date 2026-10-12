@@ -16,6 +16,7 @@ from ..security import current_user
 from ..tradingroom import council, sessions
 from ..tradingroom.analysis import chart as chart_of
 from ..tradingroom.markets import BY_ID, INSTRUMENTS, TF
+from ..tradingroom.book import AGENTS
 from ..tradingroom.room import MODELS, ROOM, loop, publish  # noqa: F401  (loop: started by main.py)
 
 router = APIRouter(prefix="/api/trading-room")
@@ -46,7 +47,9 @@ async def state(user: User = Depends(viewer)):
             "instruments": [ROOM.view[i["id"]] for i in INSTRUMENTS if i["id"] in ROOM.view], "context": ROOM.context,
             "calendar": cal, "news": ROOM.news[:30], "meetings": meetings, "alert": ROOM.alert_for(user.username),
             "settings": _settings(), "people": council.PEOPLE, "pending": ROOM.pending and {k: ROOM.pending[k] for k in ("reason", "kind")},
-            "sources": {i: ROOM.store.source.get(i, "") for i in BY_ID}}
+            "sources": {i: ROOM.store.source.get(i, "") for i in BY_ID},
+            "stats": [ROOM.book.stats(a) for a in AGENTS], "trades": [ROOM.book.out(t, ROOM.view) for t in ROOM.book.trades[:80]],
+            "macro": ROOM.macro, "cot": ROOM.inst.cot}
 
 
 @router.get("/chart")
@@ -62,7 +65,18 @@ async def chart(id: str, tf: str = "M15", user: User = Depends(viewer)):
     if a:
         out["keys"], out["setups"] = a["keys"], [s for s in a["setups"] if s["tf"] == tf] or (a["setups"][:1] if tf in ("H1", "H4", "D1") else [])
         out["price"], out["bias"] = a["price"], a["bias"]
+    t0 = out["candles"][0][0] if out["candles"] else 0
+    out["trades"] = [ROOM.book.out(t, ROOM.view) for t in ROOM.book.trades
+                     if t["symbol"] == id and t["status"] not in ("refused", "cancelled") and (t["status"] in ("pending", "open") or (t.get("closed_at") and datetime.fromisoformat(t["closed_at"]).timestamp() >= t0))][:30]
     return out
+
+
+@router.get("/trades")
+async def trades(agent: str = "", status: str = "", symbol: str = "", limit: int = 200, user: User = Depends(viewer)):
+    """The book: every trade of the room, newest first, and the numbers of each agent."""
+    rows = [t for t in ROOM.book.trades if (not agent or t["agent"] == agent) and (not symbol or t["symbol"] == symbol)
+            and (not status or t["status"] in status.split(","))]
+    return {"trades": [ROOM.book.out(t, ROOM.view) for t in rows[: max(1, min(600, limit))]], "stats": [ROOM.book.stats(a) for a in AGENTS]}
 
 
 @router.get("/pulse")

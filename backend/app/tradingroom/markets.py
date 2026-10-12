@@ -24,13 +24,13 @@ TV_HEAD = {**UA, "Origin": "https://www.tradingview.com", "Referer": "https://ww
 # what the room follows. tv: the chart feed's symbol; news: the symbol whose headlines are about it; ccy: the
 # currencies whose news move it; dp: decimals.
 INSTRUMENTS = [
-    {"id": "XAUUSD", "name": "Ouro", "tv": "OANDA:XAUUSD", "yahoo": "GC=F", "news": "OANDA:XAUUSD", "dp": 2, "ccy": ["USD"]},
-    {"id": "EURUSD", "name": "Euro / Dólar", "tv": "OANDA:EURUSD", "yahoo": "EURUSD=X", "news": "FX:EURUSD", "dp": 5, "ccy": ["EUR", "USD"]},
-    {"id": "GER40", "name": "DAX 40", "tv": "OANDA:DE30EUR", "yahoo": "^GDAXI", "news": "XETR:DAX", "dp": 1, "ccy": ["EUR"]},
-    {"id": "NAS100", "name": "Nasdaq 100", "tv": "OANDA:NAS100USD", "yahoo": "NQ=F", "news": "NASDAQ:NDX", "dp": 1, "ccy": ["USD"]},
-    {"id": "GBPUSD", "name": "Libra / Dólar", "tv": "OANDA:GBPUSD", "yahoo": "GBPUSD=X", "news": "FX:GBPUSD", "dp": 5, "ccy": ["GBP", "USD"]},
-    {"id": "US30", "name": "Dow Jones", "tv": "OANDA:US30USD", "yahoo": "YM=F", "news": "DJ:DJI", "dp": 1, "ccy": ["USD"]},
-    {"id": "BTCUSD", "name": "Bitcoin", "tv": "BITSTAMP:BTCUSD", "yahoo": "BTC-USD", "news": "BITSTAMP:BTCUSD", "dp": 0, "ccy": ["USD"], "crypto": True},
+    {"id": "XAUUSD", "name": "Ouro", "tv": "OANDA:XAUUSD", "yahoo": "GC=F", "news": "OANDA:XAUUSD", "spread": 0.35, "dp": 2, "ccy": ["USD"]},
+    {"id": "EURUSD", "name": "Euro / Dólar", "tv": "OANDA:EURUSD", "yahoo": "EURUSD=X", "news": "FX:EURUSD", "spread": 0.0001, "dp": 5, "ccy": ["EUR", "USD"]},
+    {"id": "GER40", "name": "DAX 40", "tv": "OANDA:DE30EUR", "yahoo": "^GDAXI", "news": "XETR:DAX", "spread": 1.2, "dp": 1, "ccy": ["EUR"]},
+    {"id": "NAS100", "name": "Nasdaq 100", "tv": "OANDA:NAS100USD", "yahoo": "NQ=F", "news": "NASDAQ:NDX", "spread": 1.5, "dp": 1, "ccy": ["USD"]},
+    {"id": "GBPUSD", "name": "Libra / Dólar", "tv": "OANDA:GBPUSD", "yahoo": "GBPUSD=X", "news": "FX:GBPUSD", "spread": 0.00014, "dp": 5, "ccy": ["GBP", "USD"]},
+    {"id": "US30", "name": "Dow Jones", "tv": "OANDA:US30USD", "yahoo": "YM=F", "news": "DJ:DJI", "spread": 2.5, "dp": 1, "ccy": ["USD"]},
+    {"id": "BTCUSD", "name": "Bitcoin", "tv": "BITSTAMP:BTCUSD", "yahoo": "BTC-USD", "news": "BITSTAMP:BTCUSD", "spread": 40, "dp": 0, "ccy": ["USD"], "crypto": True},
 ]
 # the backdrop the macro side reads: the dollar, the 10-year yield, oil and fear
 CONTEXT = [
@@ -38,6 +38,15 @@ CONTEXT = [
     {"id": "US10Y", "name": "Juro a 10 anos (EUA)", "tv": "TVC:US10Y", "yahoo": "^TNX", "dp": 3},
     {"id": "USOIL", "name": "Petróleo WTI", "tv": "TVC:USOIL", "yahoo": "CL=F", "dp": 2},
     {"id": "VIX", "name": "VIX (medo)", "tv": "TVC:VIX", "yahoo": "^VIX", "dp": 2},
+    # read once a day (D1 only): what drives each pair, the yields of two years and the real yield behind gold
+    {"id": "US02Y", "name": "Juro a 2 anos (EUA)", "tv": "TVC:US02Y", "yahoo": "^IRX", "dp": 3, "tfs": ["D1"]},
+    {"id": "DE02Y", "name": "Juro a 2 anos (Alemanha)", "tv": "TVC:DE02Y", "yahoo": "", "dp": 3, "tfs": ["D1"]},
+    {"id": "GB02Y", "name": "Juro a 2 anos (Reino Unido)", "tv": "TVC:GB02Y", "yahoo": "", "dp": 3, "tfs": ["D1"]},
+    {"id": "DE10Y", "name": "Juro a 10 anos (Alemanha)", "tv": "TVC:DE10Y", "yahoo": "", "dp": 3, "tfs": ["D1"]},
+    {"id": "REAL10", "name": "Juro real a 10 anos (TIPS)", "tv": "FRED:DFII10", "yahoo": "", "dp": 2, "tfs": ["D1"]},
+    {"id": "BE10", "name": "Inflação implícita a 10 anos", "tv": "FRED:T10YIE", "yahoo": "", "dp": 2, "tfs": ["D1"]},
+    {"id": "SPX", "name": "S&P 500", "tv": "OANDA:SPX500USD", "yahoo": "^GSPC", "dp": 1, "tfs": ["D1"]},
+    {"id": "USDJPY", "name": "Dólar / Iene", "tv": "FX:USDJPY", "yahoo": "JPY=X", "dp": 3, "tfs": ["D1"]},
 ]
 BY_ID = {i["id"]: i for i in INSTRUMENTS + CONTEXT}
 TF = {"M5": ("5", 300), "M15": ("15", 300), "H1": ("60", 300), "H4": ("240", 300), "D1": ("1D", 260)}
@@ -87,7 +96,7 @@ async def tv_candles(wanted: list[tuple[str, str]], seconds: float = 20) -> dict
                         continue
                     if m == "timescale_update":
                         rows = ((p[1] or {}).get("s1") or {}).get("s") or []
-                        out[jobs[p[0]]] = [tuple(float(x) for x in r["v"][:5]) for r in rows if len(r.get("v", [])) >= 5]
+                        out[jobs[p[0]]] = [tuple(float(x) for x in (list(r["v"]) + [0])[:6]) for r in rows if len(r.get("v", [])) >= 5]
                     elif m in ("series_completed", "symbol_error", "series_error", "critical_error"):
                         if m != "series_completed":
                             log.info("tradingview %s: %s", m, jobs[p[0]])
@@ -102,12 +111,14 @@ YAHOO = {"M5": ("5m", "5d"), "M15": ("15m", "10d"), "H1": ("60m", "1mo"), "H4": 
 
 
 async def yahoo_candles(client: httpx.AsyncClient, sym: str, tf: str) -> list[tuple]:
+    if not sym:
+        return []
     interval, rng = YAHOO[tf]
     try:
         r = await client.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}", params={"range": rng, "interval": interval}, timeout=12)
         res = r.json()["chart"]["result"][0]
         q = res["indicators"]["quote"][0]
-        rows = [(float(t), o, h, low, c) for t, o, h, low, c in zip(res["timestamp"], q["open"], q["high"], q["low"], q["close"])
+        rows = [(float(t), o, h, low, c, float(v or 0)) for t, o, h, low, c, v in zip(res["timestamp"], q["open"], q["high"], q["low"], q["close"], q.get("volume") or [0] * len(q["close"]))
                 if None not in (o, h, low, c)]
     except Exception:
         return []
@@ -116,10 +127,10 @@ async def yahoo_candles(client: httpx.AsyncClient, sym: str, tf: str) -> list[tu
         for row in rows:
             b = row[0] - row[0] % 14400
             if out and out[-1][0] == b:
-                t0, o, h, low, _ = out[-1]
-                out[-1] = (t0, o, max(h, row[2]), min(low, row[3]), row[4])
+                t0, o, h, low, _, v = out[-1]
+                out[-1] = (t0, o, max(h, row[2]), min(low, row[3]), row[4], v + row[5])
             else:
-                out.append((b, row[1], row[2], row[3], row[4]))
+                out.append((b, row[1], row[2], row[3], row[4], row[5]))
         rows = out
     return rows
 
@@ -135,7 +146,7 @@ class CandleStore:
 
     def due(self, ids: list[str], force: bool = False) -> list[tuple[str, str]]:
         now = time.time()
-        return [(i, tf) for i in ids for tf in TF if force or now - self.at.get((i, tf), 0) >= self.EVERY[tf]]
+        return [(i, tf) for i in ids for tf in BY_ID[i].get("tfs", TF) if force or now - self.at.get((i, tf), 0) >= self.EVERY[tf]]
 
     async def refresh(self, ids: list[str], force: bool = False) -> int:
         need = self.due(ids, force)

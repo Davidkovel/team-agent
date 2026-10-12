@@ -2183,6 +2183,20 @@
       g.fillStyle = (d.chg || 0) >= 0 ? NEON.green : NEON.red; g.fillText(chg, bx + 7 * k + nw + pw2, by + h / 2);
       placed.push({ x: bx, y: by, w, h });
     });
+    // each trader's account, on the front of their desk: won, lost, and the R of all of it
+    for (const d of DESKS.filter((x) => x.trader)) {
+      const s = (pulse.score || {})[d.crew];
+      if (!s) continue;
+      const [sx, sy] = P(d.x + 1, d.y + 1, -2), X = SX(sx), Y = SY(sy);
+      const txt = `${s.wins}V · ${s.losses}D`, r = `${s.total_r >= 0 ? "+" : ""}${s.total_r.toFixed(1).replace(".", ",")}R`;
+      g.font = `700 ${8.5 * k}px ${DISPLAY}`; const w1 = g.measureText(txt + "  ").width, w2 = g.measureText(r).width;
+      const w = Math.ceil(w1 + w2 + 14 * k), h = Math.round(16 * k), bx = Math.round(X - w / 2), by = Math.round(Y);
+      rr(g, bx, by, w, h, 5 * k); g.fillStyle = "rgba(5,7,10,.9)"; g.fill();
+      g.strokeStyle = d.crew === "penguin" ? "rgba(167,123,255,.6)" : "rgba(233,233,236,.5)"; g.lineWidth = k; g.stroke();
+      g.textBaseline = "middle"; g.fillStyle = "#e6e9ed"; g.fillText(txt, bx + 7 * k, by + h / 2);
+      g.fillStyle = s.total_r >= 0 ? NEON.green : NEON.red; g.fillText(r, bx + 7 * k + w1, by + h / 2);
+      placed.push({ x: bx, y: by, w, h });
+    }
   }
   // the tape along the front of the floor, LED by LED like the vault's marquee
   const tickerCache = { text: "", c: null, w: 0 };

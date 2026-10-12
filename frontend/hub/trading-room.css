@@ -1,5 +1,6 @@
 /* Sala de Trading (trading-room.js): a trading floor in the Hub's AMG finish. Black glass and chrome, and three
-   colours that mean something: green up, red down, gold the liquidity. Numbers are tabular. The big alert is at the end. */
+   colours that mean something: green up, red down, gold the liquidity. Numbers are tabular. The big alert is at the end;
+   the scoreboard, the book of trades and the institutional layer are in trading-book.css. */
 .tr { --up: #16e08a; --down: #ff3b5c; --gold: #f5c451; --blue: #5aa9ff; --violet: #a77bff; --glass: rgba(14, 17, 21, .78);
   --mono-n: "Inter", system-ui; display: grid; gap: 14px; font-variant-numeric: tabular-nums; }
 .tr .up { color: var(--up); } .tr .down { color: var(--down); }

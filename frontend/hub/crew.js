@@ -21,7 +21,7 @@
   // x runs to the right and down, y to the left and down; z is height in pixels. P() is where a point lands on the small
   // canvas (LW × LH); the camera shows a piece of it blown up. The cave is not a rectangle: it is an island of rock over an
   // abyss, and MAP says what each tile is. o the office · ~ the underground river · b the bridge over it · g the garage ·
-  // v the vault · t the bar terrace · p the lookout · . nothing (the drop). Walls stand only along y = 0 and x = 0; every
+  // v the vault · t the bar terrace · p the lookout · x the trading floor · . nothing (the drop). Walls stand only along y = 0 and x = 0; every
   // other edge is a drop with a light along it. A new wing: letters here, then its furniture, its spots and its blocked tiles.
   const MAP = [
     "oooooooooooooooo~gggggggggggggg",
@@ -37,10 +37,10 @@
     "oooooooooooooooobgggggggggggggg",
     "vvvvvvv.ttttttt.........ppppppp",
     "vvvvvvv.ttttttt.........ppppppp",
-    "vvvvvvv..ttttt...........ppppp.",
-    "vvvvvvv...ttt.............ppp..",
-    "vvvvvv.........................",
-    "vvvv...........................",
+    "vvvvvvv..ttttt....xxxxxxxppppp.",
+    "vvvvvvv...ttt.....xxxxxxx.ppp..",
+    "vvvvvv............xxxxxxx......",
+    "vvvv..............xxxxxxx......",
   ];
   const W = MAP[0].length, D = MAP.length, WALL = 64, OFFICE_W = 17, GD = 11;   // GD: how deep the office and the garage are
   const tile = (x, y) => (x >= 0 && y >= 0 && x < W && y < D ? MAP[y][x] : ".");
@@ -50,7 +50,7 @@
   const LW = (W + D) * 16 + 20, LH = OY + (W + D) * 8 + 24;
   const P = (x, y, z = 0) => [OX + (x - y) * 16, OY + (x + y) * 8 - z];
   const ASPECT = 468 / 334, WS = 2;                     // WS: the moving world is drawn at twice the cave's pixels
-  const VIEWS = { office: { x: 40, y: 34, w: 512 }, vault: { x: -26, y: 104, w: 312 }, garage: { x: 354, y: 150, w: 438 }, all: { x: -8, y: -30, w: 806 } };
+  const VIEWS = { office: { x: 40, y: 34, w: 512 }, vault: { x: -26, y: 104, w: 312 }, garage: { x: 354, y: 150, w: 438 }, trading: { x: 228, y: 258, w: 300 }, all: { x: -8, y: -30, w: 806 } };
   const NEON = { cyan: "#7fe3ff", blue: "#4fb4ff", yellow: "#ffd23f", red: "#ff2d4f", green: "#4dff9a", amber: "#ffbf3c", violet: "#a66bff", white: "#eef5ff", pink: "#ff4fa3" };
   const FONT = '"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
   const DISPLAY = '"Space Grotesk", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
@@ -97,6 +97,11 @@
     { id: "gordon", name: "Gordon", full: "Jim Gordon", what: "Operações", role: "custom", kinds: ["Plan"], color: "#ffb84d",
       bio: "As operações. Pega no que vier: organizar, planear, pequenas correções, fechar pontas soltas.",
       look: { skin: "#eecbad", suit: "#8b6b45", coat: true, pants: "#3b2f25", shoes: "#1a1410", shirt: "#f1f3f5", tie: "#2b2f38", hair: "#b8743a", style: "short", mustache: "#b8743a", glasses: true } },
+    // the Sala de Trading (trading-room.js): their looks are in crew-people.js (LOOKS), their meetings come from the Hub
+    { id: "penguin", name: "Pinguim", full: "Oswald Cobblepot", what: "Notícias", role: "custom", kinds: [], color: "#a77bff", wing: "trading",
+      bio: "O macro da Sala de Trading. Calendário económico, bancos centrais, dólar, juros, manchetes. Abre e fecha as reuniões.", look: null },
+    { id: "twoface", name: "Duas-Caras", full: "Harvey Dent", what: "Gráfico", role: "custom", kinds: [], color: "#e6e6e6", wing: "trading",
+      bio: "O técnico da Sala de Trading. Liquidez, sweeps, FVG, order blocks, BOS e CHoCH. Vê sempre as duas caras do mercado.", look: null },
   ];
   const crewById = (id) => agents.find((a) => a.id === id);
 
@@ -126,8 +131,10 @@
   // ================================================================ office furniture and where people go
   // one post per sector, always in the same place, two tiles wide, with the sector's name on the floor in front of it
   // (docs/batcave-redesenho.md). Each agent works at their own; whoever covers for a busy colleague works at their own too.
-  const DESKS = [["batman", 5, 2], ["lucius", 8, 2], ["riddler", 11, 2], ["catwoman", 14, 2], ["joker", 5, 6], ["alfred", 8, 6], ["robin", 11, 6], ["gordon", 14, 6]]
-    .map(([crew, x, y], i) => ({ i, crew, x, y, deco: ["batarang", "mug", "cowl", "phones", "mug", "mug", "batarang", "phones"][i], agent: null, boot: -9 }));
+  const DESKS = [["batman", 5, 2], ["lucius", 8, 2], ["riddler", 11, 2], ["catwoman", 14, 2], ["joker", 5, 6], ["alfred", 8, 6], ["robin", 11, 6], ["gordon", 14, 6],
+    ["penguin", 19, 14], ["twoface", 22, 14]]
+    .map(([crew, x, y], i) => ({ i, crew, x, y, deco: ["batarang", "mug", "cowl", "phones", "mug", "mug", "batarang", "phones", "mug", "coin"][i], agent: null, boot: -9,
+      trader: crew === "penguin" || crew === "twoface" }));
   const deskOf = (a) => DESKS.find((d) => d.crew === a.id);
   const seatOf = (d) => ({ x: d.x, y: d.y + 1, at: [d.x + 1, d.y + 1.42] });
   // the lounge (sala de estar): sofas in a U round the table with the team's Memória on it, open towards the posts. Free
@@ -154,7 +161,16 @@
     { x: 12, y: 12, at: [12.5, 12.3], pose: "drink", dir: "ne", bar: true, word: "no bar" },
     { x: 12, y: 13, pose: "phone", dir: "se", word: "na varanda" },
     { x: 26, y: 12, at: [26.4, 12.6], pose: "look", dir: "se", word: "no miradouro", far: true },
+    { x: 21, y: 14, at: [21.5, 14.4], pose: "look", dir: "ne", wing: "trading", word: "a ler o ouro no ecrã" },
+    { x: 24, y: 14, at: [24.45, 14.55], pose: "phone", dir: "sw", wing: "trading", word: "ao telefone com a corretora" },
+    { x: 20, y: 16, at: [20.4, 16.5], pose: "drink", dir: "se", wing: "trading", word: "um café a ver o mercado" },
+    { x: 24, y: 16, at: [24.5, 16.4], pose: "look", dir: "se", wing: "trading", word: "a olhar para o abismo" },
+    { x: 21, y: 15, at: [21.5, 15.5], pose: "think", dir: "sw", wing: "trading", word: "a pensar na próxima vela" },
   ];
+  // the trading floor: the video wall at its back, the meeting by the aisle, the bull in its corner (trading-room.js)
+  const TWALL = { x0: 18.9, x1: 23.1, y: 13.14, z0: 24, z1: 50 };
+  const MEET = [{ x: 21, y: 16, at: [21.2, 16.62], dir: "se" }, { x: 22, y: 16, at: [22.15, 16.32], dir: "sw" }];
+  const BULL = [18, 16];
   // what stands on the new wings: the vault's gold, its cart and its counter; the bar and its table; the searchlight and the telescope
   const FIXED = [[1, 12], [2, 12], [3, 12], [4, 13], [5, 13], [4, 14], [5, 14], [1, 14], [2, 14], [3, 14], [1, 15], [2, 15], [3, 15], [5, 11], [6, 11],
     [9, 11], [10, 11], [11, 11], [12, 11], [13, 11], [11, 13], [27, 13], [25, 11]];
@@ -164,8 +180,9 @@
     ...LOUNGE.west.map((y) => k2(0, y)), ...LOUNGE.north.map((x) => k2(x, 4)), ...LOUNGE.south.map((x) => k2(x, 8)), k2(0, 4), k2(0, 8),
     k2(...LOUNGE.table), ...[1, 2, 3].flatMap((x) => [k2(x, 3), k2(x, 9)]),
     ...ROCKS.map(([x, y]) => k2(x, y)), k2(2, 0), k2(4, 0), ...FIXED.map(([x, y]) => k2(x, y)),
+    ...[19, 20, 21, 22, 23].map((x) => k2(x, 13)), k2(...BULL),
   ]);
-  for (let x = 0; x < W; x++) for (let y = 0; y < D; y++) if (!"ogvtpb".includes(tile(x, y))) blocked.add(k2(x, y)); // the drop and the water
+  for (let x = 0; x < W; x++) for (let y = 0; y < D; y++) if (!"ogvtpbx".includes(tile(x, y))) blocked.add(k2(x, y)); // the drop and the water
   for (const c of CARS) for (let x = OFFICE_W; x < W; x++) for (let y = 0; y < D; y++) {
     if (x + 1 > c.cx - STAND.hx && x < c.cx + STAND.hx && y + 1 > c.cy - STAND.hy && y < c.cy + STAND.hy) blocked.add(k2(x, y));
   }
@@ -285,6 +302,7 @@
     const { x, y } = d;
     switch (d.deco) {
       case "mug": box(g, x + .76, y + .26, .1, .1, 13, 4, ["#f2f2f2", "#d5d7db", "#b4b8bf"]); dot(g, ...P(x + .81, y + .31, 17), "#4a2a18"); break;
+      case "coin": { const [cx, cy] = P(x + .8, y + .34, 13); oval(g, cx, cy - 1, 2.2, 1.1, "#e8c45a"); oval(g, cx, cy - 1.3, 1.6, .7, "#fff1b8"); break; }
       case "batarang": { const [cx, cy] = P(x + .8, y + .34, 13); g.fillStyle = "#0b0c10"; batPath(g, cx, cy - .5, 4, 3); g.fill(); g.strokeStyle = "rgba(160,180,210,.5)"; g.lineWidth = .4; g.stroke(); break; }
       case "cowl": { const [cx, cy] = P(x + .8, y + .32, 13); dot(g, cx - 2, cy - 5, "#101216", 5, 5); dot(g, cx - 2, cy - 7, "#101216", 1, 2); dot(g, cx + 2, cy - 7, "#101216", 1, 2); dot(g, cx - 1, cy - 3, "#e8f0ff"); dot(g, cx + 1, cy - 3, "#e8f0ff"); break; }
       case "phones": {
@@ -304,10 +322,11 @@
     return a.job ? a.job.state : "off";
   }
   function screen(g, d, x0, x1, y, z0, z1, k = 0) {
-    const mode = deskMode(d), since = clock - d.boot - k * .12;
+    const mode = deskMode(d), since = clock - d.boot - k * .12, trader = d.trader, seat = d.i;
     if (k) d = { i: d.i + k * 17 };
     const flash = mode !== "off" && since < .35;
     const f = face(g, x0 + .07, x1 - .07, y, z0 + 1, z1 - 1, flash ? "#dfe9ff" : SCREEN_BG[mode]);
+    if (trader && (mode === "off" || mode === "work")) { traderScreen(f, k + seat); return; }
     if (mode === "off") { glyphOn(f, "bat", "#10161f"); f.px(f.wpx - 2, f.hpx - 2, Math.floor(clock * .8) % 3 ? "#1a2230" : "#8fa0b5"); return; }
     if (flash) return;
     if (since < 1.1) { const w = f.wpx - 4, p = Math.floor((since - .35) / .75 * w); for (let u = 0; u < w; u++) f.px(2 + u, Math.floor(f.hpx / 2), u <= p ? NEON.white : "#1a2a40"); return; }
@@ -522,7 +541,7 @@
   // The vault (v): the strongroom's door stands open on the left wall, lit gold from inside, and on its floor lies the team's
   // gold: every mission completed is a bar (two pallets of thirty), this week's are bundles of notes on the cart. Lasers guard
   // its door and switch off for whoever walks in; the marquee over the door says the numbers; a click opens them all.
-  let vaultMemo = null, vaultOpen = false, vaultFlash = -9, hoverVault = false, vaultPlate = null;
+  let vaultMemo = null, vaultOpen = false, vaultFlash = -9, hoverVault = false, vaultPlate = null, hoverTrade = false;
   function vaultStats() {
     if (vaultMemo && vaultMemo.ref === tasks) return vaultMemo;
     const done = tasks.filter((x) => x.status === "COMPLETED" && x.trash_reason !== "mistake");
@@ -648,7 +667,7 @@
   // The lookout (p): a landing ring, a telescope, and the searchlight. It sweeps the back of the cave slowly; when a
   // mission comes in it swings round and throws the bat-signal on the office wall.
   const LAMP = { x: 27.5, y: 13.5, aim: [14, 0, 58], gold: 0 };
-  const BEACONS = [[24.05, 11.2], [24.05, 12.9], [25.05, 13.9], [26.05, 14.9], [28.95, 14.9], [29.95, 13.9], [30.95, 12.9]];
+  const BEACONS = [[24.05, 11.2], [24.05, 12.9], [26.05, 14.9], [28.95, 14.9], [29.95, 13.9], [30.95, 12.9], [18.05, 16.95], [21.5, 16.95], [24.95, 16.95], [24.95, 14.2]];
   function searchlight(g) {
     const { x, y } = LAMP;
     oval(g, ...P(x, y), 7, 3, "rgba(0,0,0,.45)");
@@ -671,7 +690,8 @@
   }
 
   // glass along the drops of the vault, the terrace and the lookout: one pane per tile edge, sorted where it stands
-  const RAIL = { v: ["rgba(255,207,90,.11)", "rgba(255,226,150,.9)"], t: ["rgba(150,205,255,.12)", "rgba(235,242,250,.85)"], p: ["rgba(255,60,80,.09)", "rgba(220,226,235,.85)"] };
+  const RAIL = { v: ["rgba(255,207,90,.11)", "rgba(255,226,150,.9)"], t: ["rgba(150,205,255,.12)", "rgba(235,242,250,.85)"], p: ["rgba(255,60,80,.09)", "rgba(220,226,235,.85)"],
+    x: ["rgba(245,196,81,.08)", "rgba(255,226,150,.8)"] };
   function pane(g, a, b, h, tint, edge, z0 = 0) {
     const A = P(a[0], a[1], z0), B = P(b[0], b[1], z0), C = P(b[0], b[1], z0 + h), E = P(a[0], a[1], z0 + h);
     poly(g, [A, B, C, E], tint);
@@ -755,10 +775,12 @@
     const odd = (x + y) % 2;
     const color = c === "g" ? ((Math.floor(x / 2) + Math.floor(y / 2)) % 2 ? "#15181e" : "#13161b")
       : c === "v" ? (odd ? "#18150e" : "#120f0a") : c === "t" ? (odd ? "#1b1713" : "#17130f") : c === "p" ? (odd ? "#181c23" : "#14181e")
+      : c === "x" ? (odd ? "#0f1218" : "#0c0f14")
       : x >= 5 ? (odd ? "#15181e" : "#13161b") : (odd ? "#1a1d23" : "#171a20");
     poly(b, [P(x, y), P(x + 1, y), P(x + 1, y + 1), P(x, y + 1)], color);
     if (c === "o" && x >= 5) { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(0,0,0,.32)", .4); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(0,0,0,.32)", .4); }
     if (c === "v") { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(201,162,39,.3)", .5); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(201,162,39,.3)", .5); }
+    else if (c === "x") { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(245,196,81,.16)", .4); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(245,196,81,.16)", .4); }
     else if (c === "t") for (let i = 1; i < 4; i++) seg(b, P(x + i / 4, y), P(x + i / 4, y + 1), "rgba(0,0,0,.28)", .5);
     else if (c === "p") for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) dot(b, ...P(x + .2 + i * .3, y + .2 + j * .3), "rgba(170,185,210,.1)");
   }
@@ -808,6 +830,10 @@
       for (let x = 15.85; x < 17.25; x += .2) seg(b, P(x, y0, 2), P(x, y1, 2), "rgba(0,0,0,.35)", .4);
     }
     for (const [x, y] of BEACONS) dot(b, ...P(x, y, .5), "#5a0d18", 1.5, 1);
+    poly(b, [P(18.15, 13.15), P(24.85, 13.15), P(24.85, 16.85), P(18.15, 16.85)], "rgba(0,0,0,0)");
+    for (const [a1, a2] of [[[18.15, 16.85], [24.85, 16.85]], [[24.85, 13.15], [24.85, 16.85]], [[18.15, 13.15], [18.15, 16.85]]]) seg(b, P(...a1), P(...a2), "rgba(245,196,81,.5)", .5);
+    const trend = [[18.6, 16.6], [19.6, 16.3], [20.4, 16.5], [21.4, 15.9], [22.2, 16.15], [23.1, 15.4], [24.5, 15.1]];
+    for (let i = 1; i < trend.length; i++) seg(b, P(...trend[i - 1]), P(...trend[i]), "rgba(77,255,154,.22)", .6);
   }
   // ================================================================ the showroom (drawn sharp, once per size, over the cave)
   // A stand: a mirror-black plinth with a light along its edge and the bat on its front; the car stands on it and is
@@ -869,6 +895,7 @@
   const SPEED = 2.7; // tiles a second
 
   function makeAgent(c, i) {
+    c = { ...c, look: c.look || window.CrewPeople.LOOKS[c.id] };
     return { ...c, i, x: 2.5, y: 4.5, dir: "se", pose: "stand", path: [], mode: "idle", spot: null, lastSpot: null, job: null, desk: null,
       seated: false, chairAt: null, timer: 0, wait: 0, bubble: null, hop: 0, phase: rnd(i) * 10, idleFor: rnd(i + 3) * 30, done: null, head: null, box: null,
       label: null, onArrive: null, brewUntil: 0, emit: 0, portrait: window.CrewPeople.portrait(c.look, c.id), figure: window.CrewPeople.portrait(c.look, c.id, true) };
@@ -913,7 +940,7 @@
   function wander(a, prefer) {
     release(a);
     a.reading = false; a.fetching = null;
-    const open = SPOTS.filter((s) => !s.taken && s !== a.lastSpot && (!s.far || Math.random() < .35));
+    const open = SPOTS.filter((s) => !s.taken && s !== a.lastSpot && (s.wing || null) === (a.wing || null) && (!s.far || Math.random() < .35));
     const lounge = open.filter((s) => s.lounge), free = lounge.length && Math.random() < .72 ? lounge : open;
     const s = prefer && !prefer.taken ? prefer : free[Math.floor(Math.random() * free.length)];
     if (!s) { a.timer = 3; return; }
@@ -921,7 +948,7 @@
     goTo(a, s, () => settle(a, s));
   }
   function placeIdle(a) {
-    const lounge = SPOTS.filter((s) => !s.taken && s.lounge), free = lounge.length ? lounge : SPOTS.filter((s) => !s.taken && !s.far);
+    const lounge = SPOTS.filter((s) => !s.taken && s.lounge && !a.wing), free = lounge.length ? lounge : SPOTS.filter((s) => !s.taken && !s.far && (s.wing || null) === (a.wing || null));
     const s = free[(a.i * 5 + 3) % free.length];
     s.taken = a; a.spot = s; a.lastSpot = s;
     const at = s.at || [s.x + .5, s.y + .5];
@@ -1121,6 +1148,8 @@
   // change both together.
   const word = (s) => new RegExp(`(?<![\\p{L}\\d])(${s})(?![\\p{L}\\d])`, "iu");
   const WORDS = [
+    ["twoface", word("sweep\\p{L}*|liquidez|fvg|order block\\p{L}*|bos|choch|smc|price action|an[áa]lise t[ée]cnica|gr[áa]fico\\p{L}* de velas")],
+    ["penguin", word("trading|trade\\p{L}*|trader\\p{L}*|forex|xauusd|eurusd|gbpusd|ger40|dax|nas100|nasdaq|us30|bolsa|a[çc][õo]es|cripto\\p{L}*|bitcoin|calend[áa]rio econ[óo]mico|not[íi]cias do mercado")],
     ["catwoman", word("design\\p{L}*|página\\p{L}*|pagina\\p{L}*|cor|cores|layout|ecrã\\p{L}*|visual|ícone\\p{L}*|logo\\p{L}*|estilo\\p{L}*|css|bonit\\p{L}*|interface\\p{L}*|aba|abas|bot[ãa]o|bot[õo]es")],
     ["riddler", word("pesquis\\p{L}*|preço\\p{L}*|preco\\p{L}*|procur\\p{L}*|concorr\\p{L}*|fornecedor\\p{L}*")],
     ["robin", word("test\\p{L}*")],
@@ -1132,7 +1161,7 @@
   const ROLE_CREW = { developer: "batman", research: "riddler", marketing: "joker", testing: "robin" };
   const NEAR = { batman: ["lucius", "robin", "alfred"], lucius: ["batman", "riddler", "alfred"], riddler: ["lucius", "joker", "gordon"],
     catwoman: ["joker", "batman", "robin"], joker: ["catwoman", "riddler", "gordon"], alfred: ["robin", "lucius", "batman"],
-    robin: ["alfred", "batman", "lucius"], gordon: ["alfred", "lucius", "riddler"] };
+    robin: ["alfred", "batman", "lucius"], gordon: ["alfred", "lucius", "riddler"], penguin: ["twoface", "riddler", "gordon"], twoface: ["penguin", "lucius", "batman"] };
   const byWords = (text) => (WORDS.find(([, re]) => re.test(text)) || [])[0];
   function sectorOf(j) {
     if (j.crew && NEAR[j.crew]) return j.crew;
@@ -1590,8 +1619,8 @@
   }
   // the vault's marquee: the text turned into LEDs once (each pixel of a 7 px line becomes a dot), scrolled along the wall
   const ledCache = { text: "", c: null, w: 0 };
-  function ledStrip(text) {
-    if (ledCache.text === text) return ledCache;
+  function ledStrip(text, cache = ledCache, lit = "#ffc35a", unlit = "rgba(255,170,60,.07)") {
+    if (cache.text === text) return cache;
     const font = "700 7px Arial, sans-serif", m = document.createElement("canvas").getContext("2d");
     m.font = font; const w = Math.ceil(m.measureText(text).width) + 2;
     const src = document.createElement("canvas"); src.width = w; src.height = 7;
@@ -1601,10 +1630,10 @@
     const q = c.getContext("2d");
     for (let y = 0; y < 7; y++) for (let x = 0; x < w; x++) {
       const on = d[(y * w + x) * 4 + 3] > 110;
-      q.fillStyle = on ? "#ffc35a" : "rgba(255,170,60,.07)";
+      q.fillStyle = on ? lit : unlit;
       q.beginPath(); q.arc(x * K + K / 2, y * K + K / 2, on ? K * .42 : K * .3, 0, Math.PI * 2); q.fill();
     }
-    return Object.assign(ledCache, { text, c, w });
+    return Object.assign(cache, { text, c, w });
   }
   function marquee(g, vs) {
     const text = `${t("Cofre da equipa")}  ·  ${t("{n} barras de ouro", { n: vs.total })}  ·  ${t("{n} esta semana", { n: vs.week })}  ·  ${t("{n} hoje", { n: vs.today })}  ·  ${t("Cada missão concluída é uma barra")}  ·  `;
@@ -1711,6 +1740,15 @@
     marquee(g, vs);
     glints(g, vs);
     for (const x of [.1, 6.9]) glow(g, ...P(x, GD, 12), 9, vaultOpen ? NEON.green : NEON.red, .45);
+    // the trading floor: its video wall lights the floor, the bull shines, the tape runs along its front, an alert flashes
+    if (pulse) {
+      const meeting = pulse.meeting && pulse.meeting.status === "running", alarm = pulse.alert && Math.floor(clock * 2.5) % 2;
+      glow(g, ...P(21, 13.4, 40), 52, alarm ? "#ff2d4f" : NEON.blue, .2 + Math.sin(clock * 1.3) * .03);
+      glow(g, ...P(21, 14.8, 0), 44, COLD, .13);
+      if (meeting) glow(g, ...P(21.7, 16.4, 8), 22, "#ffcf5a", .3 + Math.sin(clock * 3) * .06);
+      tradeTicker(g);
+    }
+    glow(g, ...P(BULL[0] + .5, BULL[1] + .5, 12), 15, "#ffcf5a", .26 + (hoverTrade ? .14 : 0));
     // the bar's light under its lip and its lamps; the river glowing from below; the lookout's beacons and its searchlight
     for (const x of BAR.lamps) { glow(g, ...P(x, 11.9, 2), 13, NEON.amber, .2); glow(g, ...P(x, 11.45, 33), 16, "#ffe2a8", .3); }
     for (let y = 1; y < GD; y += 2) glow(g, ...P(16.5, y, -3), 12, "#3fa9ff", .1 + Math.sin(clock * 2 + y) * .025);
@@ -1743,7 +1781,7 @@
   // ================================================================ labels (sharp, on the big canvas)
   const WORD = { work: ["a trabalhar", NEON.green], start: ["a começar", COLD], wait: ["à tua espera", NEON.amber], help: ["precisa de ajuda", NEON.red],
     pause: ["em pausa", "#9aa2ab"], go: ["vai trabalhar", NEON.green], done: ["feito", NEON.green], fail: ["falhou", NEON.red] };
-  const idleWord = (a) => (a.path.length ? "a caminho" : a.pose === "sleep" ? "a dormir" : a === talker ? "a conversar" : a.spot ? a.spot.word : "livre");
+  const idleWord = (a) => (a.path.length ? "a caminho" : a.mode === "meet" ? "em reunião de trading" : a.pose === "sleep" ? "a dormir" : a === talker ? "a conversar" : a.spot ? a.spot.word : "livre");
   function stateOf(a) { return !a.job ? "idle" : a.mode === "done" ? (a.done === "ok" ? "done" : "fail") : a.mode === "toDesk" ? "go" : a.job.state; }
   // each partner has a quiet colour of their own, apart from the colours of the states
   const PARTNERS = [["kovel", "Kovel", "#a99bff"], ["marco", "Marco", "#69b4ff"], ["david", "David", "#f28fb8"]];
@@ -1889,7 +1927,10 @@
     list.sort((p, q) => idle(p) - idle(q) || q.ay - p.ay);
     const placed = [], k = dpr * LS;
     carPlates(g, placed);
+    tradingPlates(g, placed);
     if (talker && talker.head && !(MINI && cv.width < 520 * dpr)) { const text = chatLine(); if (text) placed.push(speech(g, text, SX(talker.head[0]), SY(talker.head[1] - 7))); }
+    meetSay();
+    if (meetSpeaker && meetSpeaker.head && meetLine && !(MINI && cv.width < 520 * dpr)) placed.push(speech(g, meetLine, SX(meetSpeaker.head[0]), SY(meetSpeaker.head[1] - 7)));
     for (const it of list) {
       it.a.label = null;
       if (it.ax < -40 * k || it.ax > cv.width + 40 * k || it.ay < -20 * k || it.ay > cv.height + 60 * k) continue;
@@ -1998,6 +2039,164 @@
     return { x: bx, y: by, w, h };
   }
 
+  // ================================================================ the Sala de Trading (trading-room.js, backend/app/tradingroom/)
+  // An island off the lookout. Its video wall shows three markets live (M15 candles, the liquidity above and below in gold,
+  // the nearest gap); the traders' desks show candles instead of code; the tape runs along its front. When the Hub says the
+  // Pinguim and the Duas-Caras are meeting, they walk to the aisle and say, a few seconds at a time, what each one really
+  // said. All of it from /api/trading-room/pulse: on the "trading" event (about once a minute) and when the cave opens.
+  let pulse = null, pulseAt = 0, meetSpeaker = null, meetLine = "", tradePlate = null;
+  const tnum = (v, dp) => (v == null ? "—" : Number(v).toLocaleString("pt-PT", { minimumFractionDigits: dp, maximumFractionDigits: dp }));
+  const tpct = (v) => (v == null ? "" : `${v >= 0 ? "+" : ""}${v.toFixed(2).replace(".", ",")}%`);
+  async function loadPulse(force) {
+    if (!force && Date.now() - pulseAt < 10000) return;
+    pulseAt = Date.now();
+    try { pulse = await api("/api/trading-room/pulse"); } catch (e) { return; }
+    if (!pulse.wall.length) setTimeout(() => loadPulse(true), 15000);   // the Hub has only just started reading the markets
+    if (!agents.length) return;
+    meetMoves();
+    wake();
+  }
+  // a meeting on: the two of them leave what they were doing (unless it is a task) and meet in the aisle
+  function meetMoves() {
+    const m = pulse && pulse.meeting, on = !!(m && m.status === "running");
+    ["penguin", "twoface"].forEach((id, i) => {
+      const a = crewById(id);
+      if (!a || a.job) return;
+      if (on && a.mode !== "meet") {
+        release(a); a.mode = "meet"; a.seated = false; a.pose = "stand";
+        const s = MEET[i];
+        goTo(a, s, () => { a.dir = s.dir; a.pose = "talk"; });
+      } else if (!on && a.mode === "meet") { a.mode = "idle"; a.pose = "stand"; a.timer = 4 + i * 4; }
+    });
+  }
+  // who speaks at the meeting now and which piece of what they said; for a minute after it, the Pinguim reads the minutes
+  function meetSay() {
+    meetSpeaker = null; meetLine = "";
+    const m = pulse && pulse.meeting;
+    if (!m) return;
+    const live = m.status === "running";
+    if (!live && !(m.ended && Date.now() - Date.parse(m.ended) < 90000)) return;
+    const turns = m.turns || [];
+    let who = "penguin", text = "";
+    if (!live) text = m.title ? t("Ata: {t}", { t: m.title }) : "";
+    else if (!turns.length) text = "…";
+    else ({ who, text } = turns[turns.length - 1]);
+    const a = crewById(who);
+    if (!a || a.path.length || (live && a.mode !== "meet")) return;
+    const parts = chunks(text, 92);
+    meetSpeaker = a;
+    meetLine = parts[Math.floor(clock / 4.5) % parts.length] || "";
+  }
+  const chunkMemo = { text: null, parts: [] };
+  function chunks(text, n) {
+    if (chunkMemo.text === text) return chunkMemo.parts;
+    const parts = [];
+    let cur = "";
+    for (const w of String(text).split(/\s+/)) {
+      if (cur && (cur + " " + w).length > n) { parts.push(cur); cur = w; } else cur = cur ? cur + " " + w : w;
+    }
+    if (cur) parts.push(cur);
+    chunkMemo.text = text; chunkMemo.parts = parts;
+    return parts;
+  }
+  // the video wall: three panels on a truss, a gold beam on top
+  function tradeWall(g) {
+    const { x0, x1, y, z0, z1 } = TWALL, n = 3, gap = .06, pw = (x1 - x0 - gap * (n - 1)) / n;
+    for (const lx of [x0 + .04, x1 - .1]) box(g, lx, y - .04, .06, .06, 0, z0, METAL);
+    box(g, x0 - .05, y - .12, x1 - x0 + .1, .1, z0 - 2, z1 - z0 + 4, ["#1d2129", "#0a0c10", "#14171d"]);
+    box(g, x0 - .07, y - .14, x1 - x0 + .14, .14, z1 + 2, 2.5, ["#e0b84a", "#8a6418", "#6b4d12"]);
+    const w = (pulse && pulse.wall) || [], alarm = !!(pulse && pulse.alert);
+    for (let i = 0; i < n; i++) wallPanel(g, x0 + i * (pw + gap), pw, y, z0, z1, w[i], i, alarm);
+  }
+  function wallPanel(g, px, pw, y, z0, z1, d, i, alarm) {
+    const [sx, sy] = P(px, y, z1), k = g.k || 1, W = pw * 16, H = z1 - z0;
+    g.save(); g.setTransform(k, .5 * k, 0, k, sx * k, sy * k);
+    g.fillStyle = "#02050a"; g.fillRect(0, 0, W, H);
+    if (d) {
+      const top = 4, bot = H - 2, Y = (q) => bot - q * (bot - top);
+      g.fillStyle = d.bias === "bull" ? NEON.green : d.bias === "bear" ? NEON.red : "#8b95a1"; g.fillRect(0, 0, W, 1.5);
+      g.fillStyle = "rgba(120,170,230,.07)"; for (let v = 8; v < H - 2; v += 7) g.fillRect(0, v, W, .5);
+      if (d.gap) {
+        const a = Y(Math.min(1, d.gap[1])), b = Y(Math.max(0, d.gap[0]));
+        g.fillStyle = d.gap[2] === "up" ? "rgba(77,255,154,.2)" : "rgba(255,45,79,.2)"; g.fillRect(0, a, W, Math.max(.5, b - a));
+      }
+      g.fillStyle = "rgba(255,210,63,.9)";
+      for (const q of [d.up, d.down]) if (q != null && q >= 0 && q <= 1) for (let u = 0; u < W; u += 1.5) g.fillRect(u, Y(q), .75, .5);
+      const n = d.c.length, cw = W / n;
+      d.c.forEach(([o, h, l, c], j) => {
+        g.fillStyle = c >= o ? "#4dff9a" : "#ff2d4f";
+        g.fillRect(j * cw + cw / 2 - .25, Y(h), .5, Math.max(.5, Y(l) - Y(h)));
+        g.fillRect(j * cw + cw * .15, Y(Math.max(o, c)), Math.max(.5, cw * .7), Math.max(.5, Math.abs(Y(o) - Y(c))));
+      });
+      const last = d.c[n - 1];
+      if (last && Math.floor(clock * 2) % 2) { g.fillStyle = "rgba(255,255,255,.75)"; g.fillRect(0, Y(last[3]), W, .5); }
+    } else {
+      g.fillStyle = "#0e1622"; batPath(g, W / 2, H / 2, 6, 4); g.fill();
+    }
+    const sv = ((clock * 10 + i * 13) % (H + 8)) - 4;
+    g.fillStyle = "rgba(170,210,255,.05)"; g.fillRect(0, sv, W, 2.5);
+    if (alarm && Math.floor(clock * 3) % 2) { g.strokeStyle = "rgba(255,210,63,.95)"; g.lineWidth = .75; g.strokeRect(.4, .4, W - .8, H - .8); }
+    g.fillStyle = "rgba(255,255,255,.035)"; g.beginPath(); g.moveTo(0, 0); g.lineTo(W * .45, 0); g.lineTo(W * .15, H); g.lineTo(0, H); g.closePath(); g.fill();
+    g.restore();
+  }
+  // the charging bull, in gold on a black plinth, facing the room
+  function bull(g) {
+    const [x, y] = BULL, G = ["#f2c14e", "#b8862a", "#7a5614"];
+    box(g, x + .14, y + .16, .72, .62, 0, 6, ["#1a1d23", "#0b0c0f", "#08090b"]);
+    seg(g, P(x + .14, y + .78, 6), P(x + .86, y + .78, 6), "#c9a24a", .5);
+    seg(g, P(x + .86, y + .16, 6), P(x + .86, y + .78, 6), "#8a6a22", .5);
+    for (const [lx, ly] of [[.3, .38], [.3, .56], [.62, .38], [.62, .56]]) box(g, x + lx, y + ly, .06, .06, 6, 4, G);
+    box(g, x + .26, y + .36, .44, .28, 10, 5, G);
+    box(g, x + .5, y + .38, .16, .24, 14.5, 2.5, G);
+    box(g, x + .7, y + .4, .16, .2, 8.5, 4.5, G);
+    seg(g, P(x + .8, y + .41, 13), P(x + .9, y + .33, 16), "#fff0c0", .7);
+    seg(g, P(x + .8, y + .59, 13), P(x + .9, y + .67, 16), "#fff0c0", .7);
+    seg(g, P(x + .26, y + .5, 14), P(x + .16, y + .5, 17), "#b8862a", .6);
+  }
+  // a trader's screen: the candles of one of the wall's markets, one pixel each
+  function traderScreen(f, k) {
+    const w = pulse && pulse.wall, d = w && w.length ? w[k % w.length] : null;
+    if (!d) { glyphOn(f, "bat", "#10161f"); return; }
+    const cols = f.wpx - 2, H = f.hpx - 3, y = (q) => 1 + Math.round((1 - q) * H);
+    d.c.slice(-cols).forEach(([o, h, l, c], j) => { for (let v = y(h); v <= y(l); v++) f.px(1 + j, v, c >= o ? NEON.green : NEON.red); });
+  }
+  // sharp, on the big canvas: the plate of the room under its front, and the names over the screens up close
+  function tradingPlates(g, placed) {
+    const k = dpr * LS, m = pulse && pulse.meeting, live = m && m.status === "running";
+    const line = live ? t("Em reunião agora") : pulse && pulse.alert ? t("Aviso: {t}", { t: pulse.alert.title }) : t("Pinguim · Duas-Caras");
+    const [px, py] = P(21.5, 17.1, -22);
+    tradePlate = plateAt(g, SX(px), SY(py), t("AMG Capital"), t("Sala de Trading"), line.length > 44 ? line.slice(0, 43) + "…" : line, hoverTrade);
+    if (tradePlate) placed.push(tradePlate);
+    if (!pulse || S < 2.4) return;
+    const { x0, x1, y, z1 } = TWALL, gap = .06, pw = (x1 - x0 - gap * 2) / 3;
+    (pulse.wall || []).forEach((d, i) => {
+      const [sx, sy] = P(x0 + i * (pw + gap) + pw / 2, y, z1 + 5), X = SX(sx), Y = SY(sy);
+      const name = d.id, price = tnum(d.price, d.dp), chg = tpct(d.chg);
+      g.font = `700 ${9 * k}px ${DISPLAY}`; const nw = g.measureText(name + " ").width;
+      g.font = `600 ${9 * k}px ${FONT}`; const pw2 = g.measureText(price + " ").width, cw2 = g.measureText(chg).width;
+      const w = Math.ceil(nw + pw2 + cw2 + 14 * k), h = Math.round(17 * k), bx = Math.round(X - w / 2), by = Math.round(Y - h);
+      rr(g, bx, by, w, h, 6 * k); g.fillStyle = "rgba(5,7,10,.9)"; g.fill();
+      g.strokeStyle = "rgba(245,196,81,.45)"; g.lineWidth = k; g.stroke();
+      g.textBaseline = "middle";
+      g.font = `700 ${9 * k}px ${DISPLAY}`; g.fillStyle = "#fff"; g.fillText(name, bx + 7 * k, by + h / 2);
+      g.font = `600 ${9 * k}px ${FONT}`; g.fillStyle = "#cfd5dc"; g.fillText(price, bx + 7 * k + nw, by + h / 2);
+      g.fillStyle = (d.chg || 0) >= 0 ? NEON.green : NEON.red; g.fillText(chg, bx + 7 * k + nw + pw2, by + h / 2);
+      placed.push({ x: bx, y: by, w, h });
+    });
+  }
+  // the tape along the front of the floor, LED by LED like the vault's marquee
+  const tickerCache = { text: "", c: null, w: 0 };
+  function tradeTicker(g) {
+    if (!pulse || !pulse.ticker || !pulse.ticker.length) return;
+    const text = pulse.ticker.map((x) => `${x.id} ${tnum(x.price, x.dp)} ${tpct(x.chg)}`).join("   ·   ").toUpperCase() + "   ·   ";
+    const led = ledStrip(text, tickerCache, "#7dffb8", "rgba(80,255,160,.06)"), [sx, sy] = P(18.05, 17, -3), L = 6.9 * 16;
+    g.save(); g.setTransform(S, .5 * S, 0, S, SX(sx), SY(sy));
+    g.beginPath(); g.rect(0, 0, L, 7); g.clip();
+    const off = (clock * 13) % led.w;
+    g.drawImage(led.c, -off, 0, led.w, 7); g.drawImage(led.c, led.w - off, 0, led.w, 7);
+    g.restore();
+  }
+
   // ================================================================ one frame
   const FURN = [];
   const furn = (x, y, draw) => FURN.push({ k: x + y + 1, x, draw });
@@ -2016,6 +2215,8 @@
   furn(2, 6, memTable);
   ROCKS.forEach(([x, y]) => furn(x, y, still(`rock${x},${y}`, [x, y, x + 1, y + 1, 38], (q) => rock(q, x, y))));
   furn(2, 0, still("suit", [2, 0, 3, 1, 42], suitCase)); furn(4, 0, coffee);
+  item(TWALL.x0 + TWALL.y - .05, TWALL.x0, tradeWall);   // behind the traders' desks and whoever walks in front of it
+  furn(BULL[0], BULL[1], still("bull", [BULL[0], BULL[1], BULL[0] + 1, BULL[1] + 1, 24], bull));
   item(15.95, 2.5, (g) => { const n = Math.min(30, vaultStats().total); cachedDraw(g, "goldA" + n, [1.6, 12.05, 3.4, 13.05, 16], (q) => goldPile(q, 2.5, 12.55, n)); });
   item(19.5, 4.85, (g) => { const n = clamp(vaultStats().total - 30, 0, 30); cachedDraw(g, "goldB" + n, [3.95, 13.25, 5.75, 14.25, 16], (q) => goldPile(q, 4.85, 13.75, n)); });
   item(18.3, 2.4, (g) => { const n = Math.min(24, vaultStats().week); cachedDraw(g, "cash" + n, [1.55, 14.5, 3.25, 15.5, 14], (q) => cashPile(q, 2.4, 15, n)); });
@@ -2045,7 +2246,7 @@
       seat = 9; dir = "ne";
       pose = a.mode === "done" ? (a.done === "ok" ? "deskDone" : "deskWait") : !a.job || a.job.state === "work" || a.job.state === "start" ? "desk" : "deskWait";
     } else if (!a.path.length && a.spot && a.spot.seat && /^(sit|sleep)/.test(pose)) seat = a.spot.seat;
-    if (a === talker && !a.path.length) pose = pose === "sit" ? "sitTalk" : pose === "stand" || pose === "talk" ? "talk" : pose;
+    if ((a === talker || a === meetSpeaker) && !a.path.length) pose = pose === "sit" ? "sitTalk" : pose === "stand" || pose === "talk" ? "talk" : pose;
     else if (pose === "talk" && !a.path.length) pose = "stand";
     if (pose === "drink") { if (clock < a.brewUntil) { pose = "play"; dir = "ne"; } else dir = "sw"; }
     if (!seat) oval(g, fx, fy, 5, 2, "rgba(0,0,0,.45)");
@@ -2194,6 +2395,12 @@
       const v = BOARD.z1 - w.z, r = boardRows.find((x) => v >= x.v0 && v <= x.v1);
       return r ? { cat: r } : { board: true };
     }
+    { // the trading floor: its video wall, its plate, its bull
+      const { x0, x1, y, z0, z1 } = TWALL, [ax, ay] = P(x0, y, z1), [bx] = P(x1, y, z1);
+      if (wx >= ax && wx <= bx) { const top = ay + (wx - ax) * .5; if (wy >= top - 6 && wy <= top + (z1 - z0) + 4) return { trading: "wall" }; }
+      const tp = tradePlate; if (tp && mx >= tp.x && mx <= tp.x + tp.w && my >= tp.y && my <= tp.y + tp.h) return { trading: "plate" };
+      const [bx2, by2] = P(BULL[0] + .5, BULL[1] + .5, 9); if (Math.abs(wx - bx2) < 10 && Math.abs(wy - by2) < 11) return { trading: "bull" };
+    }
     for (const c of [...CARS].reverse()) {
       const p = c.plate; if (p && mx >= p.x && mx <= p.x + p.w && my >= p.y && my <= p.y + p.h) return { car: c };
       const b = c.bounds; if (b && mx >= SX(b[0]) && mx <= SX(b[2]) && my >= SY(b[1]) && my <= SY(b[3])) return { car: c };
@@ -2231,9 +2438,19 @@
     alfred: "Aqui chega a revisão: rever uma mudança antes de ir para todos. E o subagente revisor-hub.",
     robin: "Aqui chegam os testes: correr, tentar os casos difíceis, dizer o que falhou.",
     gordon: "Aqui chega tudo o resto: organizar, planear, pontas soltas. E as reuniões.",
+    penguin: "Aqui chega o trading: notícias, calendário, bancos centrais, dólar e juros. Abre e fecha as reuniões da Sala de Trading.",
+    twoface: "Aqui chega o gráfico: liquidez, sweeps, FVG, order blocks, BOS e CHoCH. A outra metade de cada reunião de trading.",
   };
   const tipHead = (kind, title, color) => `<div class="cr-tip-h"><div><span>${esc(t(kind))}</span><b${color ? ` style="color:${color}"` : ""}>${esc(title)}</b></div></div>`;
   function tipHtml(hit) {
+    if (hit.trading) {
+      const w = (pulse && pulse.wall) || [], m = pulse && pulse.meeting, live = m && m.status === "running";
+      const status = live ? t("Em reunião: o Pinguim e o Duas-Caras") : m && m.title ? t("Última reunião: {t}", { t: m.title }) : t("O Pinguim e o Duas-Caras");
+      return `${tipHead(hit.trading === "bull" ? "O touro da AMG Capital" : "AMG Capital", t("Sala de Trading"), "#f5c451")}
+        <dl>${w.map((x) => row(x.id, `${tnum(x.price, x.dp)}  ${tpct(x.chg)}${x.setup ? `  · setup ${x.setup}` : ""}`)).join("")}</dl>
+        <p class="cr-tip-idle"><i style="--c:${live ? NEON.amber : "#f5c451"}"></i>${esc(status)}</p>
+        <small>${esc(t("Clica para abrir a Sala de Trading"))}</small>`;
+    }
     if (hit.desk) {
       const d = hit.desk, c = crewById(d.crew), busy = c.job && c.mode !== "done" ? c : null;
       return `<div class="cr-tip-h"><img class="cr-px" src="${c.portrait}" alt=""><div><span>${esc(t("Posto"))} · ${esc(c.name)}</span><b>${esc(t(c.what))}</b></div></div>
@@ -2306,7 +2523,7 @@
       }
     }
     const hit = hitTest(e), tip = $("cr-tip"), target = Object.keys(hit).length ? hit : null;
-    hovered = hit.agent || null; hoverCar = hit.car || null; hoverVault = !!hit.vault;
+    hovered = hit.agent || null; hoverCar = hit.car || null; hoverVault = !!hit.vault; hoverTrade = !!hit.trading;
     stage.classList.toggle("point", !!target);
     if (!target) { tip.hidden = true; return; }
     tip.innerHTML = tipHtml(hit); tip.hidden = false;
@@ -2334,6 +2551,7 @@
     else if (hit.table || hit.board || hit.cat || hit.note) openPanel({ kind: "memory", ref: "memory" });
     else if (hit.car) openPanel({ kind: "car", ref: hit.car });
     else if (hit.vault) openPanel({ kind: "vault", ref: "vault" });
+    else if (hit.trading) location.hash = "#/trading";
     else closePanel();
   }
   // the wheel brings the cave closer or takes it away, around the point under the pointer
@@ -2855,7 +3073,7 @@
         <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>
           <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>
           <div class="cr-crew" id="cr-crew"></div>
-          <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
+          <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["trading", "Trading"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
           <div class="cr-legend" aria-label="${esc(t("Legenda"))}">${[["a trabalhar", NEON.green], ["à espera", NEON.amber], ["precisa de ajuda", NEON.red], ["livre", "#8b95a1"]]
             .map(([l, c]) => `<span><i class="st" style="--c:${c}"></i>${esc(t(l))}</span>`).join("")}<b></b>${PARTNERS.map(([, n, c]) => `<span><i style="--c:${c}"></i>${esc(n)}</span>`).join("")}</div>
           ${MINI ? `<div class="cr-mtop" id="cr-mtop"></div><div class="cr-np" id="cr-np"></div>` : ""}
@@ -2940,6 +3158,7 @@
     await Promise.all([lazyFile("hub/crew-people.js"), lazyFile("hub/crew-cars.js"), lazyFile("hub/crew-board.js"), lazyFile("hub/crew-board.css").catch(() => {})]);
     if (!agents.length) { agents = CREW.map(makeAgent); agents.forEach(placeIdle); }
     if (!cave) buildCave();
+    loadPulse(true);
   }
   // the line to send a mission, at the top of the command centre's missions
   function composer(users) {
@@ -2982,4 +3201,5 @@
     await load();
   };
   onLive(["task", "office", "tick"], () => load());
+  onLive(["trading"], async () => { if (agents.length) await loadPulse(true); });
 })();

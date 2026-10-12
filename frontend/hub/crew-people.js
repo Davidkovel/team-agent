@@ -74,6 +74,7 @@ window.CrewPeople = (function () {
     }
     // ---- the body
     S(4, 20, 12, 14, suit);
+    if (L.stout) { R(3, 24, 1, 9, suitL); R(16, 24, 1, 9, suitD); R(4, 33, 12, 1, suitD); }   // the Pinguim's belly
     if (!back) {
       R(5, 22, 2, 2, suitL); R(13, 22, 2, 2, suitD);                           // shoulders catching the light
       if (L.tie || L.bowtie) {                                                  // the jacket open over a shirt
@@ -199,6 +200,12 @@ window.CrewPeople = (function () {
           H(8, 13, 1, 1, "#34404f"); H(14, 13, 1, 1, "#34404f");
         }
         H(15, 13, 2, 3, skinD); H(15, 15, 1, 1, skinDD);                         // the nose, towards where we look
+        if (L.beak) { H(15, 12, 3, 2, skinD); H(17, 13, 2, 2, skinD); H(18, 14, 1, 1, skinDD); H(15, 12, 2, 1, skinL); }   // the Pinguim's nose
+        if (L.monocle) {
+          H(11, 10, 5, 1, L.monocle); H(11, 14, 5, 1, L.monocle); H(11, 10, 1, 5, L.monocle); H(15, 10, 1, 5, L.monocle);
+          H(12, 11, 1, 1, "#ffffff"); H(15, 15, 1, 2, L.monocle); R(15, 21, 1, 5, L.monocle);
+        }
+        if (L.scar) { H(11, 8, 5, 2, skinDD); H(12, 15, 4, 1, skinDD); H(14, 9, 1, 3, "#5a1e24"); H(10, 17, 5, 1, "#f2eadb"); H(11, 17, 1, 1, "#5a1e24"); H(13, 17, 1, 1, "#5a1e24"); }
         if (L.beard) { H(4, 16, 12, 4, L.beard); H(3, 14, 2, 5, L.beard); H(15, 14, 2, 5, L.beard); H(8, 17, 4, 1, skinDD); H(5, 18, 2, 1, sh(L.beard, .25)); }
         if (L.mustache) { H(7, 16, 7, 2, L.mustache); H(7, 16, 7, 1, sh(L.mustache, .25)); H(6, 17, 1, 1, L.mustache); }
         if (L.smile) {                                                            // the grin, ear to ear
@@ -206,8 +213,15 @@ window.CrewPeople = (function () {
           H(5, 17, 10, 1, "#fbfbf4"); H(7, 17, 1, 1, "#c9c9c0"); H(10, 17, 1, 1, "#c9c9c0"); H(13, 17, 1, 1, "#c9c9c0");
         } else if (!L.beard && !L.mustache) { H(8, 17, 5, 1, skinDD); H(9, 18, 3, 1, skinD); }
         else if (!L.beard) H(8, 18, 5, 1, skinDD);
+        if (L.holder) { H(12, 17, 6, 1, "#121214"); H(13, 17, 1, 1, "#d9b44a"); H(18, 16, 1, 1, "#ff8a3d"); H(18, 14, 1, 1, "rgba(210,215,225,.55)"); H(17, 12, 1, 1, "rgba(210,215,225,.35)"); }
       } else {
         H(2, 11, 2, 3, skinD); H(16, 11, 2, 3, skinD);                          // ears, from behind
+      }
+      if (L.topHat) {                                                           // the Pinguim's top hat
+        const c = L.topHat;
+        H(4, -8, 12, 13, c); H(5, -8, 2, 12, sh(c, .28)); H(7, -8, 1, 12, sh(c, .12)); H(14, -8, 2, 12, sh(c, -.35)); H(4, -8, 12, 1, sh(c, .2));
+        H(4, 2, 12, 2, L.hatBand || "#5b1f3a"); H(4, 2, 12, 1, sh(L.hatBand || "#5b1f3a", .25));
+        H(1, 5, 18, 2, sh(c, -.2)); H(1, 5, 18, 1, sh(c, .18));
       }
       if (L.hat) {                                                              // the bowler, with its question mark
         const c = L.hat;
@@ -216,7 +230,7 @@ window.CrewPeople = (function () {
         if (!back) { H(9, 0, 3, 1, L.hatBand); H(11, 1, 1, 1, L.hatBand); H(10, 2, 1, 1, L.hatBand); H(10, 4, 1, 0, L.hatBand); }
       }
     }
-    const crown = L.hat ? -2 : L.ears ? -1 : L.style === "spiky" ? -1 : L.style === "slick" ? 0 : 3;
+    const crown = L.topHat ? -9 : L.hat ? -2 : L.ears ? -1 : L.style === "spiky" ? -1 : L.style === "slick" ? 0 : 3;
     return MY + crown + up + hy;
   }
 
@@ -260,6 +274,13 @@ window.CrewPeople = (function () {
     const c = document.createElement("canvas"); c.width = FW; c.height = FH;
     const g = c.getContext("2d");
     const top = draw(g, L, o);
+    if (L.split) {   // the Duas-Caras: the other half of him (the grid's right half, cx 10 on) drawn from the other costume
+      const alt = document.createElement("canvas"); alt.width = FW; alt.height = FH;
+      draw(alt.getContext("2d"), { ...L, ...L.split, split: null }, o);
+      const flip = o.dir === "sw" || o.dir === "nw", half = MX + GW / 2, x0 = flip ? 0 : half, w = flip ? half : FW - half;
+      g.clearRect(x0, 0, w, FH);
+      g.drawImage(alt, x0, 0, w, FH, x0, 0, w, FH);
+    }
     // the outline: the figure's shape, one cell wider all round, in near-black under it
     const out = document.createElement("canvas"); out.width = FW; out.height = FH;
     const q = out.getContext("2d");
@@ -295,5 +316,12 @@ window.CrewPeople = (function () {
     c.getContext("2d").drawImage(fr.c, -2, full ? -4 : -6);
     return c.toDataURL();
   }
-  return { sprite, portrait, frame };
+  // the two traders of the Sala de Trading (crew.js draws them in the cave, trading-room.js at the meeting table)
+  const LOOKS = {
+    penguin: { skin: "#f0d8c6", suit: "#16171c", pants: "#16171c", shoes: "#0a0a0c", hands: "#eeeef0", shirt: "#f4f4f4", bowtie: "#0b0b0e", vestUnder: "#5b1f3a",
+      hair: "#141518", style: "short", topHat: "#121317", hatBand: "#5b1f3a", monocle: "#e0b84a", beak: true, holder: true, stout: true, brow: "#141518" },
+    twoface: { skin: "#e6b994", suit: "#24262c", pants: "#24262c", shoes: "#111216", shirt: "#f1f3f5", tie: "#1d1f24", hair: "#3a2a20", style: "short", brow: "#3a2a20",
+      split: { skin: "#a9565d", suit: "#ecebe6", pants: "#ecebe6", shoes: "#efeee9", hands: "#a9565d", shirt: "#141418", tie: "#c8102e", hair: "#8d8f93", eyes: "#ff2a2a", brow: "#4a1a20", scar: true } },
+  };
+  return { sprite, portrait, frame, LOOKS };
 })();

@@ -261,6 +261,42 @@ Armadilhas que custaram tempo:
 - Os 13F escrevem os nomes cortados («BANK OF AMER CORP»): `by_name` expande abreviaturas e tenta palavras ordenadas e sem
   espaços. Alguns gestores ainda declaram em milhares: detectado pelo preço mediano por ação.
 
+### A Sala de Trading (12 out, pedido do David)
+
+`#/trading` (`frontend/hub/trading-room.js` + `.css`) e uma ala nova na cave. Não é a página Mercados (`routers/trading.py`,
+`/api/trading`): esta é `routers/tradingroom.py`, `/api/trading-room`, e o motor está em `backend/app/tradingroom/`.
+
+- **Dados, sem chaves:** velas do websocket dos gráficos da TradingView (`markets.tv_candles`: CFDs da OANDA em tempo real,
+  XAUUSD, DE30EUR = GER40, NAS100USD, US30USD, mais EURUSD, GBPUSD, BTCUSD e o contexto DXY, US10Y, petróleo, VIX), o Yahoo
+  quando falha; calendário económico da TradingView (com o valor saído); manchetes por símbolo (Reuters, Dow Jones).
+- **Leitura SMC** (`smc.py`, `analysis.py`), em M5, M15, H1, H4 e D1: swings, BOS/CHoCH com o order block da perna, FVG e o
+  quanto já foram preenchidos, liquidez (topos/fundos iguais, PDH/PDL, PWH/PWL, Ásia, Londres) e se foi varrida ou rompida,
+  premium/desconto do range H4, killzones (horário de verão feito à mão: o Python deste PC não tem tzdata). O **modelo**:
+  sweep de liquidez → CHoCH/BOS ao contrário em ≤ 20 velas → FVG (ou OB) dessa perna para entrar, stop além do sweep, alvo
+  na liquidez do outro lado. Nota de 0 a 100 (A+, A, B) com o porquê.
+- **Os dois agentes** são personagens da cave (`CREW` no `crew.py` e no `crew.js`, papel `custom`): o **Pinguim** (notícias e
+  macro) e o **Duas-Caras** (gráfico). Os fatos estão em `crew-people.js` (`LOOKS`: cartola, monóculo, metade queimada).
+  **Reunião** (`council.py`): o Pinguim abre, o Duas-Caras responde, o Pinguim fecha com uma ata em JSON (título,
+  importância 1–5, alerta, foco com zona/stop/alvos, atenção). Com o Claude ligado cada fala é um `claude -p` sem
+  ferramentas, sem hooks (`--setting-sources project` numa pasta vazia) e sem sessão guardada, a correr o `claude.exe` direto
+  (o `.cmd` do npm passa por cmd.exe e estraga o prompt). ~80 s e 3 chamadas Sonnet por reunião.
+- **O Claude é por PC** (interruptor na página, `~/.team-agent/trading-room/state.json`, desligado por omissão): gasta o plano
+  desse PC. Desligado, a reunião é escrita a partir dos números. Máximo `cap` (16) reuniões Claude por dia.
+- **Quando se reúnem** (`room.triggers`): antes de Londres e da killzone de Nova Iorque, 12–25 min antes e 1–15 min depois de
+  uma notícia de alto impacto (USD, EUR, GBP), e quando aparece um evento de peso ≥ 4 (sweep de PDH/PDL/PWH/PWL, CHoCH H4,
+  setup A/A+). Intervalo de 20 min (8 para notícias e pedidos à mão). O primeiro ciclo depois de arrancar não dispara nada.
+- **O aviso grande** (`trading-alert.js`, sempre carregado, minúsculo): quando a ata diz `alerta`, aparece em qualquer página
+  e no widget, com o gráfico a desenhar-se por trás, a fita de cotações, zona/stop/alvos e o que cada um disse; e vai para os
+  telemóveis (web push). Nunca o mesmo instrumento duas vezes em 90 min, nem dois avisos em 20 (salvo importância 5).
+  «Ver o aviso» na página mostra um ensaio só no ecrã.
+- **Na cave:** uma ilha `x` no `MAP` (x 18–24, y 13–16) ligada ao miradouro, com uma parede de três ecrãs a mostrar o
+  XAUUSD, EURUSD e GER40 ao vivo (`tradeWall`, dados do `/api/trading-room/pulse`), as secretárias dos dois com velas em vez
+  de código, o touro de ouro, a fita LED à frente e a placa «AMG Capital». Numa reunião os dois vão para o corredor
+  (`MEET`) e dizem o que disseram de verdade, aos bocados. Câmara «Trading». Clicar na parede, na placa ou no touro abre a sala.
+- **Armadilhas:** um `onLive` tem de devolver uma promessa (o `refresh` do `app.js` faz `fn().catch`): uma função que devolve
+  `undefined` rebenta e cala os seguintes. Os retratos dos dois na sala são guardados como imagem (`faces`): um frame da cache do
+  `crew-people.js` pode voltar em branco. Os endpoints fecham a transação do `current_user` antes de esperar pela rede (`viewer`).
+
 ### Testar uma mudança no Hub
 
 1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".

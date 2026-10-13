@@ -79,6 +79,11 @@
           </div></div>
         <div class="tr-book-t" id="tr-book"></div>
       </section>
+      <section class="tr-book tr-bt">
+        <div class="tr-book-h"><h2>${icon("doc")}${esc(t("Backtest do Modelo SMC"))}<small>${esc(t("as mesmas regras da sala, vela a vela sobre as últimas semanas · sem olhar para o futuro, spread descontado"))}</small></h2>
+          <button type="button" class="btn" id="tr-bt-run">${esc(t("Correr o backtest"))}</button></div>
+        <div id="tr-bt"></div>
+      </section>
       <div class="tr-lower">
         <section class="tr-cal"><h2>${icon("calendar")}${esc(t("Calendário económico"))}<small>${esc(t("alto e médio impacto · hora de Lisboa"))}</small></h2><div id="tr-cal"></div></section>
         <section class="tr-news"><h2>${icon("doc")}${esc(t("Manchetes"))}<small>Reuters · Dow Jones · FXStreet</small></h2><div id="tr-news"></div></section>
@@ -103,13 +108,56 @@
       openTrade = openTrade === r.dataset.trade ? null : r.dataset.trade; paintBook();
     };
     root.querySelector("#tr-score").onclick = (e) => { const c = e.target.closest("[data-agent]"); if (c) { bookFilter.agent = bookFilter.agent === c.dataset.agent ? "" : c.dataset.agent; $("tr-book-f").querySelector('[data-f="agent"]').value = bookFilter.agent; paintBook(); $("tr-book").scrollIntoView({ behavior: "smooth", block: "start" }); } };
+    root.querySelector("#tr-bt-run").onclick = async () => { BT = { ...(BT || {}), ...(await api("/api/trading-room/backtest", { method: "POST" })) }; paintBacktest(); };
     bindChart($("tr-chart"));
     paintBar();
     clearInterval(clockTimer);
     clockTimer = setInterval(() => { if (!$("tr")) { clearInterval(clockTimer); return; } paintClocks(); paintCal(); }, 1000);
     await load();
     loadChart(true);
+    loadBacktest();
   };
+
+  // ================================================================ the backtest of the model
+  let BT = null, btTimer = 0;
+  async function loadBacktest() {
+    clearTimeout(btTimer);
+    if (!$("tr-bt")) return;
+    try { BT = await api("/api/trading-room/backtest"); } catch (e) { return; }
+    paintBacktest();
+  }
+  function paintBacktest() {
+    const el = $("tr-bt"), btn = $("tr-bt-run"); if (!el || !BT) return;
+    clearTimeout(btTimer);
+    if (BT.running) btTimer = setTimeout(loadBacktest, 4000);
+    btn.disabled = !!BT.running;
+    btn.textContent = BT.running ? `${t("A correr…")} ${Math.round((BT.progress || 0) * 100)}%` : t("Correr o backtest");
+    const r = BT.result, day = (ts) => new Date(ts * 1000).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
+    const note = BT.running ? `<p class="tr-bt-n">${esc(t("A reler o passado vela a vela: demora uns 5 minutos e não pára a sala."))}</p>`
+      : BT.error ? `<p class="tr-bt-n down">${esc(t("O último teste falhou:"))} ${esc(BT.error)}</p>` : "";
+    if (!r) { paint(el, note || `<p class="tr-bt-n">${esc(t("Ainda sem nenhum teste. Carrega em «Correr o backtest»."))}</p>`); return; }
+    const s = r.stats, c = r.counts || {};
+    const row = (name, g) => `<tr><td>${esc(name)}</td><td>${g.n}</td><td>${g.n ? Math.round(g.w / g.n * 100) : 0}%</td><td class="${g.r >= 0 ? "up" : "down"}">${rfmt(g.r)}</td></tr>`;
+    const table = (title, o, names = {}) => `<table class="tr-bt-t"><thead><tr><th>${esc(t(title))}</th><th>${esc(t("Trades"))}</th><th>${esc(t("Acerto"))}</th><th>R</th></tr></thead><tbody>${
+      Object.entries(o || {}).sort((p, q) => q[1].r - p[1].r).map(([k, g]) => row(t(names[k] || k), g)).join("")}</tbody></table>`;
+    paint(el, `${note}
+      <div class="tr-bt-top">
+        <div class="tr-sc-big"><strong class="${s.total_r >= 0 ? "up" : "down"}">${rfmt(s.total_r)}</strong><small>${s.return_pct >= 0 ? "+" : ""}${pctTxt(s.return_pct, 2)} ${esc(t("da conta (1% de risco por trade)"))}</small>
+          <small>${day(r.from)} – ${day(r.to)} · ${nfx(r.days, 0)} ${esc(t("dias"))} · ${esc((r.instruments || []).join(", "))}</small></div>
+        ${spark(s.curve, 320, 56)}
+        <dl class="tr-sc-k">
+          <div><dt>${esc(t("Trades"))}</dt><dd>${s.n}</dd></div>
+          <div><dt>${esc(t("Acerto"))}</dt><dd>${s.winrate == null ? "—" : pctTxt(s.winrate)}</dd></div>
+          <div><dt>${esc(t("Profit factor"))}</dt><dd>${s.pf == null ? "—" : nfx(s.pf)}</dd></div>
+          <div><dt>${esc(t("Expectativa"))}</dt><dd class="${(s.avg_r || 0) >= 0 ? "up" : "down"}">${s.avg_r == null ? "—" : rfmt(s.avg_r)}</dd></div>
+          <div><dt>${esc(t("Ganho / perda média"))}</dt><dd>${s.avg_win == null ? "—" : rfmt(s.avg_win)} / ${s.avg_loss == null ? "—" : rfmt(s.avg_loss)}</dd></div>
+          <div><dt>${esc(t("Drawdown máx."))}</dt><dd>${s.max_dd ? "−" + nfx(s.max_dd) + "R" : "0R"}</dd></div>
+        </dl>
+      </div>
+      <div class="tr-bt-g">${table("Instrumento", s.by_symbol)}${table("Nota", r.by_grade)}${table("Gráfico", r.by_tf)}${table("Lado", r.by_dir, { buy: "Compra", sell: "Venda" })}</div>
+      <p class="tr-bt-n">${r.setups} ${esc(t("setups A/A+"))}: ${s.n} ${esc(t("entraram"))}, ${c.missed || 0} ${esc(t("fugiram sem entrar"))}, ${c.expired || 0} ${esc(t("expiraram"))}, ${c.refused || 0} ${esc(t("recusados pelas regras da conta"))}.
+        ${esc(t("Só o modelo: o Pinguim e o Duas-Caras leem notícias e não dá para os repetir no passado. Testado a"))} ${dt(r.at)}.</p>`);
+  }
 
   async function load() {
     const [st, bk] = await Promise.all([api("/api/trading-room/state"), api("/api/trading-room/trades?limit=400").catch(() => null)]);

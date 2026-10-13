@@ -320,6 +320,14 @@ Armadilhas que custaram tempo:
   e inflação implícita (FRED, pelo websocket da TradingView: o fred.stlouisfed.org não responde nesta rede), S&P 500,
   USD/JPY, correlações de 20 dias; e a leitura clássica (`technicals.py`: EMA 21/50/200, RSI e divergências, ADR gasto,
   perfil de volume da sessão anterior). Tudo isto entra no briefing e no painel «Contexto institucional» da página.
+- **Backtest do Modelo SMC** (13 out, pedido do David: «ele não faz backtest»): `tradingroom/backtest.py` repete o passado
+  vela a vela (M5, ~4 semanas: 5000 velas da TradingView) com a mesma leitura (`analysis.analyse`) e a mesma conta
+  (`Book`, ordem de `room.model_trade`). `Replay` só mostra o que se sabia a cada minuto: velas fechadas e, nos gráficos
+  maiores, a vela em curso feita das M5 já fechadas. Só o modelo: os dois agentes e o filtro de notícias não se repetem.
+  O Hub corre-o noutro processo, com prioridade baixa (`backtest.start`, ~5 min; no mesmo processo parava o Hub);
+  resultado em `~/.team-agent/trading-room/backtest.json`, `GET/POST /api/trading-room/backtest`, painel por baixo do
+  diário. À mão: `python -m app.tradingroom.backtest` em `backend/`. De caminho, o `Book._step` deixou de contar duas
+  vezes a última vela (`fill_bar`, `half_bar`): dava o alvo na vela da entrada e parava a 2.ª metade na vela do 1.º alvo.
 - **Escrever código destes ficheiros pelo Bash** (heredoc): as barras invertidas chegam mal ao ficheiro (`\\p{L}` virou
   `\p{L}`). Para texto com `\`, usar a ferramenta de editar ou um script escrito com ela.
 

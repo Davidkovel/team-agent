@@ -205,7 +205,7 @@ class Book:
             if c[0] > _ts(t["valid"]):
                 return
             if (low <= t["entry"]) if buy else (h >= t["entry"]):
-                t.update(status="open", filled_at=iso(datetime.fromtimestamp(c[0], UTC)), fill=t["entry"])
+                t.update(status="open", filled_at=iso(datetime.fromtimestamp(c[0], UTC)), fill=t["entry"], fill_bar=c[0])
                 if (low <= t["stop"]) if buy else (h >= t["stop"]):   # on the fill candle, only the stop counts
                     self._close(t, t["stop"], c[0], "stop no candle da entrada")
                 return
@@ -216,8 +216,16 @@ class Book:
                          note=f"o preço fechou {'abaixo' if buy else 'acima'} de {t['invalid']:.{t.get('dp', 2)}f} antes de entrar: a ideia morreu")
             return
         risk, e = t["risk"], t["entry"]
+        # the last candle is read again on the next turn (it was still forming): on the fill candle it is still only the
+        # stop that counts, and the candle that gave the 1st target cannot also stop the other half at the entry
+        if c[0] == t.get("fill_bar"):
+            if (low <= t["stop"]) if buy else (h >= t["stop"]):
+                self._close(t, t["stop"], c[0], "stop no candle da entrada")
+            return
         t["mfe"] = max(t["mfe"], ((h - e) if buy else (e - low)) / risk)
         t["mae"] = max(t["mae"], ((e - low) if buy else (h - e)) / risk)
+        if t["half"] and c[0] == t.get("half_bar"):
+            return
         stop = e if t["half"] else t["stop"]
         hit_stop = (low <= stop) if buy else (h >= stop)
         target = t["tp2"] if t["half"] else t["tp1"]
@@ -226,7 +234,7 @@ class Book:
             self._close(t, stop, c[0], "stop na entrada depois do 1.º alvo" if t["half"] else "stop")
         elif hit_tp:
             if not t["half"] and t["tp2"] is not None:
-                t["half"] = True
+                t["half"], t["half_bar"] = True, c[0]
                 t["note"] = "metade fechada no 1.º alvo, stop na entrada"
             else:
                 self._close(t, target, c[0], "2.º alvo" if t["half"] else "alvo")

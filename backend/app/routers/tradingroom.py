@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_db
 from ..models import User
 from ..security import current_user
-from ..tradingroom import council, sessions
+from ..tradingroom import backtest, council, sessions
 from ..tradingroom.analysis import chart as chart_of
 from ..tradingroom.markets import BY_ID, INSTRUMENTS, TF
 from ..tradingroom.book import AGENTS
@@ -77,6 +77,18 @@ async def trades(agent: str = "", status: str = "", symbol: str = "", limit: int
     rows = [t for t in ROOM.book.trades if (not agent or t["agent"] == agent) and (not symbol or t["symbol"] == symbol)
             and (not status or t["status"] in status.split(","))]
     return {"trades": [ROOM.book.out(t, ROOM.view) for t in rows[: max(1, min(600, limit))]], "stats": [ROOM.book.stats(a) for a in AGENTS]}
+
+
+@router.get("/backtest")
+async def backtest_state(user: User = Depends(viewer)):
+    """The last backtest of the SMC model (None before the first) and whether one is running now."""
+    return {**backtest.status(), "result": backtest.last()}
+
+
+@router.post("/backtest")
+async def backtest_start(user: User = Depends(viewer)):
+    backtest.start()
+    return backtest.status()
 
 
 @router.get("/pulse")

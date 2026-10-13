@@ -59,8 +59,9 @@ def _frame(m: str, p: list) -> str:
     return f"~m~{len(s)}~m~{s}"
 
 
-async def tv_candles(wanted: list[tuple[str, str]], seconds: float = 20) -> dict[tuple[str, str], list[tuple]]:
-    """Candles for each (symbol, timeframe) in one connection: {(symbol, tf): [(t, o, h, l, c), ...]}. Missing on error."""
+async def tv_candles(wanted: list[tuple[str, str]], seconds: float = 20, bars: dict[str, int] | None = None) -> dict[tuple[str, str], list[tuple]]:
+    """Candles for each (symbol, timeframe) in one connection: {(symbol, tf): [(t, o, h, l, c), ...]}. Missing on error.
+    `bars` asks for more history than the room keeps ({timeframe: how many}), for the backtest."""
     import websockets
     out: dict[tuple[str, str], list[tuple]] = {}
     if not wanted:
@@ -74,6 +75,7 @@ async def tv_candles(wanted: list[tuple[str, str]], seconds: float = 20) -> dict
                 cs = "cs_" + "".join(random.choices(string.ascii_lowercase, k=12))
                 jobs[cs] = (sym, tf)
                 res, count = TF[tf]
+                count = (bars or {}).get(tf) or count
                 await ws.send(_frame("chart_create_session", [cs, ""]))
                 await ws.send(_frame("resolve_symbol", [cs, "sym", '={"symbol":"%s","adjustment":"splits"}' % sym]))
                 await ws.send(_frame("create_series", [cs, "s1", "s1", "sym", res, count, ""]))

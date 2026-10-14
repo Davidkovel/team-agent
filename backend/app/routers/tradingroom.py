@@ -92,11 +92,9 @@ async def backtest_start(user: User = Depends(viewer)):
 
 
 @router.get("/reaction")
-async def reaction_view(user: User = Depends(viewer)):
+def reaction_view(user: User = Depends(viewer)):
     """How gold, EUR/USD and GER40 reacted to past releases of the US number in play, and today's gold vs the closest ones."""
-    if not ROOM.calendar and time.time() - ROOM.updated > 30:
-        await ROOM.refresh(force=True)
-    return await reaction.refresh(ROOM.calendar, datetime.now(UTC))
+    return reaction.refresh(ROOM.calendar, datetime.now(UTC))   # plain def: FastAPI runs it in its thread pool
 
 
 @router.get("/pulse")

@@ -97,7 +97,7 @@ class Room:
                 if news:
                     self.news, self.news_at = news, time.time()
         try:   # history of the US release in play (page + briefing); Binance only after a release
-            await reaction.refresh(self.calendar, now)
+            await asyncio.to_thread(reaction.refresh, self.calendar, now)   # reaction is synchronous; keep Binance off the loop
         except Exception:
             log.exception("reaction")
         view = {}

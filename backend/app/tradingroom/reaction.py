@@ -91,13 +91,13 @@ def summary(data: dict) -> dict:
     return {"count": len(rel), "since": rel[0]["t"][:4] if rel else None, "table": table, "gold": gold, "recent": recent}
 
 
-async def live(e: dict, key: str, now: datetime) -> dict | None:
+def live(e: dict, key: str, now: datetime) -> dict | None:
     """Gold since the release (Binance XAUUSDT, 1 minute) and the past releases with the closest path."""
     t = _parse(e["t"])
     if not 60 <= (now - t).total_seconds() <= 4 * 3600:
         return None
-    async with httpx.AsyncClient(timeout=15) as c:
-        r = await c.get("https://fapi.binance.com/fapi/v1/klines", params={
+    with httpx.Client(timeout=15) as c:
+        r = c.get("https://fapi.binance.com/fapi/v1/klines", params={
             "symbol": "XAUUSDT", "interval": "1m", "startTime": int((t - timedelta(minutes=1)).timestamp() * 1000), "limit": 250})
         k = r.json()
     if not isinstance(k, list) or len(k) < 2:
@@ -118,7 +118,7 @@ async def live(e: dict, key: str, now: datetime) -> dict | None:
     return {"minutes": len(path), "now": path[-1], "low": round((low - ref) / ref * 100, 3), "price": float(k[-1][4]), "similar": similar[:4]}
 
 
-async def refresh(calendar: list[dict], now: datetime) -> dict:
+def refresh(calendar: list[dict], now: datetime) -> dict:
     """Called by the room every cycle and by the page. Binance only after a release, at most once a minute."""
     global LAST
     got = pick(calendar, now)
@@ -134,7 +134,7 @@ async def refresh(calendar: list[dict], now: datetime) -> dict:
         out["live"], out["live_at"] = LAST.get("live"), LAST["live_at"]
     else:
         try:
-            out["live"] = await live(e, key, now)
+            out["live"] = live(e, key, now)
         except Exception:
             out["live"] = LAST.get("live") if same else None
         out["live_at"] = time.time()

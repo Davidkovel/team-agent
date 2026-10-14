@@ -74,6 +74,13 @@ prompt, so keep them short, in Portuguese, and without secrets, IPs or keys.
 
 Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em português de Portugal.
 
+- **«Continua», «faz o que estavas a fazer», «vou de novo fazer aquilo»** (Marco, 14 out: «tu já devias ir ver no widget
+  aquilo que foi feito»): antes de responder ou perguntar, corre `.venv\Scripts\python scripts\continuar.py` aqui no team-agent.
+  Mostra as tuas janelas do Claude do último dia (vêm do Escritório, `/api/office`) e, de cada uma, lê o histórico deste PC: o que
+  a pessoa pediu (também o que mandou enquanto a janela trabalhava), o que o Claude disse no fim, os últimos passos, o que foi
+  cortado a meio e o que ficou por commitar. `continuar.py <início do id>` mostra uma janela em detalhe. Segue sozinho a partir
+  daí. No Escritório, cada janela tua acabada tem **«Continuar»**, que copia um prompt pronto a colar numa janela nova.
+
 - **O modelo certo para cada trabalho:** Haiku para pesquisar e procurar; Sonnet para rotina (textos, revisões, mudanças simples); Opus para decidir, desenhar e problemas difíceis.
 - **Subagentes só para trabalho grande ou em paralelo:** pesquisas largas, varrer muitos ficheiros, rever antes do push. Cada um começa do zero e gasta do limite do plano (5 h e semana): em paralelo fica mais rápido, não mais barato. Para uma coisa pequena, faz tu. Diz à pessoa quando lanças um e porquê.
 - **Limite do plano quase no fim** (sessão de 5 h acima de ~75%): nada de subagentes em paralelo, os que forem precisos em Haiku ou Sonnet, e acabar e fazer commit do que está a meio.

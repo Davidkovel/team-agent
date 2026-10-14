@@ -198,7 +198,24 @@ window.CrewBoard = (function () {
         (s.agents || []).length ? t((s.agents || []).length === 1 ? "1 subagente" : "{n} subagentes", { n: s.agents.length }) : "", ...(s.skills || []).map((k) => "/" + skill(k))].filter(Boolean).join(" · "))}</span>`;
     }
     return `<button type="button" class="cb-done ${isOpen ? "open" : ""} ${it.bad ? "bad" : ""}" data-toggle="${it.id}" style="--p:${it.p.color}"><i class="cb-tick">${icon(it.bad ? "x" : "tick")}</i>
-      <div><b>${esc(it.goal)}</b><p>${esc(text)}</p>${extra}</div><span class="cb-done-r"><em><i></i>${esc(it.p.name)}</em><time>${esc(ago(it.at))}</time></span></button>`;
+      <div><b>${esc(it.goal)}</b><p>${esc(text)}</p>${extra}</div><span class="cb-done-r"><em><i></i>${esc(it.p.name)}</em><time>${esc(ago(it.at))}</time>${carryOn(it)}</span></button>`;
+  }
+  // «Continuar» (Marco, 14 Oct: «quando digo continuar a fazer o que estavas a fazer, tu já devias ir ver no widget aquilo
+  // que foi feito... uma opção de prompt»): on your own windows, a prompt for a new Claude window that points it at
+  // scripts/continuar.py, which reads that window's transcript on this PC and says what was asked, done and left halfway
+  const carryOn = (it) => (it.kind === "claude" && it.p.me && it.s.key ? `<u class="cb-cont" data-continue="${it.s.id}" title="${esc(t("Copia um prompt para uma janela nova do Claude continuar este trabalho sozinha"))}">${icon("play")}${esc(t("Continuar"))}</u>` : "");
+  function carryPrompt(s) {
+    const when = s.updated_at ? new Date(s.updated_at).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+    return `Continua o trabalho da janela do Claude «${goalOf(s)}» (${[s.project, when].filter(Boolean).join(", ")}). `
+      + `Antes de mais nada corre \`python scripts/continuar.py ${s.key.slice(0, 8)}\` na pasta Desktop\\team-agent: diz o que pedi, `
+      + "o que ficou feito e o que ficou a meio. Depois acaba o que faltar, sem me perguntar, e publica como de costume.";
+  }
+  function copyText(text) {
+    const box = document.createElement("textarea");   // the widget's page and plain http have no clipboard.writeText
+    box.value = text; box.readOnly = true; box.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.appendChild(box); box.select();
+    const ok = document.execCommand("copy"); box.remove();
+    return ok;
   }
   function queueRow(it, i, p, s) {
     const x = it.x, a = it.agent, m = (s.team || []).find((u) => u.user === x.assignee), on = agentOn(m);
@@ -238,7 +255,7 @@ window.CrewBoard = (function () {
   // the company in one sentence, and four numbers
   function summary(people) {
     const n = (k) => people.reduce((sum, p) => sum + p[k].length, 0), working = people.filter((p) => p.working.length).map((p) => p.name);
-    const lead = working.length ? t(working.length === 1 ? "{n} agentes a trabalhar para o {a}" : "{n} agentes a trabalhar para {a}", { n: n("working"), a: working.join(working.length === 2 ? " e o " : ", ") })
+    const lead = working.length ? t(n("working") === 1 ? "1 agente a trabalhar para {a}" : "{n} agentes a trabalhar para {a}", { n: n("working"), a: (working.length === 1 ? "o " : "") + working.join(working.length === 2 ? " e o " : ", ") })
       : t("Ninguém a trabalhar agora");
     return [lead, n("needs") ? t(n("needs") === 1 ? "1 à espera de alguém" : "{n} à espera de alguém", { n: n("needs") }) : "",
       n("queue") ? t("{n} na fila", { n: n("queue") }) : "", t(n("done") === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: n("done") })].filter(Boolean).join(" · ");
@@ -504,6 +521,11 @@ window.CrewBoard = (function () {
     else if ((b = at(".cb-who [data-who]"))) showWho(b.dataset.who);
     else if ((b = at(".cx-view [data-view]"))) showView(b.dataset.view);
     else if ((b = at("[data-ficha]"))) openSheet(ficha(host.state().agents[Number(b.dataset.ficha)]));
+    else if ((b = at("[data-continue]"))) {
+      const s = (host.state().office.sessions || []).find((x) => String(x.id) === b.dataset.continue);
+      const ok = s && copyText(carryPrompt(s));
+      if (typeof flash === "function") flash(t(ok ? "Prompt copiado: abre uma janela nova do Claude e cola (Ctrl+V)." : "Não deu para copiar o prompt."));
+    }
     else if ((b = at("[data-release]"))) host.release(Number(b.dataset.release), b);
     else if ((b = at("[data-mini]"))) host.openMini();
     else if ((b = at("[data-href]"))) location.hash = b.dataset.href;

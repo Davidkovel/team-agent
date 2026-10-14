@@ -472,3 +472,8 @@ html.is-phone .cx-box { border-radius: 18px; }
 .cb-sheet .cf-grp > b { font-size: 13px; }
 /* the mission panel and the cave fill the phone, under the notch and over the tabs */
 html.is-phone .cr-panel { z-index: 95; padding-top: env(safe-area-inset-top, 0px); }
+/* «Continuar» on your own finished windows: copies the prompt a new Claude window starts from */
+.cb-cont { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 3px 8px; border-radius: 999px; text-decoration: none;
+  background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); color: #e9edf3; font: 600 10.5px var(--ui); cursor: pointer; }
+.cb-cont .i { width: 9px; height: 9px; }
+.cb-cont:hover { background: #fff; color: #000; }

@@ -414,7 +414,10 @@ git pull
 installs it in `/Applications` and copies `mac/widget_mac.py` to `~/.team-agent/mac/`. That launcher runs the same
 `widget/` from its own clone in `~/.team-agent/mac/team-agent` (with a `venv` there) and patches only what differs on
 macOS: no Dock icon, no screen sampling, the star toggles the panel, and every widget window follows you to every
-desktop (Space) and over full-screen apps. Mac-only fixes go in `widget_mac.py`, not in `widget/`.
+desktop (Space) and over full-screen apps. Like every PC, the Mac runs its own Hub on `127.0.0.1:8000` (the widget
+starts it, `~/.team-agent/hub.db`), signs in as the `user` of `widget.json`, is sync
+node 3, and trades changes over Tailscale with the Hubs in `widget.json`'s `"sync_peers": "100.x.x.x:8000"` (no Radmin).
+Mac-only fixes go in `widget_mac.py`, not in `widget/`.
 
 ## How it fits together
 

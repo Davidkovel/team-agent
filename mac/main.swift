@@ -4,7 +4,7 @@ import WebKit
 import ServiceManagement
 import Carbon
 
-let defaultHub = "https://desktop-njenvdr.tailcdbdef.ts.net/"
+let defaultHub = "http://127.0.0.1:8000/"  // o Hub deste Mac, que o widget arranca (widget_mac.py)
 
 func hubURL() -> URL {
     let s = UserDefaults.standard.string(forKey: "hubURL") ?? defaultHub

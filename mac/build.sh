@@ -47,4 +47,7 @@ pkill -x AgenteAMG 2>/dev/null || true
 rm -rf "/Applications/Agente AMG.app"
 cp -R "$APP" /Applications/
 mkdir -p ~/.team-agent/mac && cp widget_mac.py ~/.team-agent/mac/
+# O Mac corre o seu próprio Hub (widget_mac.py): o venv do widget precisa também do backend.
+VENV=~/.team-agent/mac/venv
+[ -x $VENV/bin/pip ] && $VENV/bin/pip install -q -r ~/.team-agent/mac/team-agent/backend/requirements.txt
 echo "Instalado em /Applications/Agente AMG.app"

@@ -1,4 +1,4 @@
-"""Arranca o widget do Agente AMG (team-agent/widget) no Mac sem mexer no repositório da equipa.
+"""Arranca o widget do Agente AMG (team-agent/widget) no Mac sem mexer no widget/ do repositório.
 
 A única diferença para o Windows: a app fica sem ícone no Dock e sem o nome "Python" na barra de cima
 (política "accessory" do macOS); o widget aparece no canto e a estrela da barra de menus abre-o.
@@ -33,6 +33,27 @@ from PySide6.QtCore import Qt, QTimer  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import team_widget.__main__ as entry  # noqa: E402
+
+
+def own_hub():
+    """Como nos PCs, o Mac corre o seu próprio Hub (127.0.0.1:8000) e troca as mudanças com os outros: antes abria o Hub
+    do PC pelo Tailscale e, com o PC desligado, o widget não abria nada. O hub.py só sabe arrancá-lo no Windows
+    (.venv\\Scripts\\python.exe); aqui arranca com este venv. Entra como a pessoa deste Mac (o «user» do widget.json,
+    não o «mark» de 127.0.0.1) e os Hubs com quem troca vêm do «sync_peers» do widget.json (pelo Tailscale, não Radmin)."""
+    from team_widget import hub
+
+    config = hub._config()
+    login = (config.get("user") or os.environ.get("USER", "david")).lower()
+    os.environ.setdefault("IP_USERS", f"127.0.0.1={login},::1={login}")
+    os.environ.setdefault("SYNC_NODE", "3")  # o número de um computador que não está no Radmin
+    if config.get("sync_peers"):
+        os.environ.setdefault("SYNC_PEERS", config["sync_peers"])
+    hub.hub_url = lambda: hub.DEFAULT_URL
+    # O hub.py arranca o Hub com .venv/Scripts/python.exe: aqui é um script que passa para este venv (.venv não vai para o git).
+    python = REPO / ".venv" / "Scripts" / "python.exe"
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+    python.chmod(0o755)
 
 
 def no_dock_icon():
@@ -151,6 +172,7 @@ def menu_bar_star_toggles():
     entry.listen_for_second_copy = listen
 
 
+own_hub()
 no_maximize_to_hub()
 no_wallpaper_look()
 menu_bar_star_toggles()

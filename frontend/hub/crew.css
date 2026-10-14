@@ -214,6 +214,7 @@
 .cp-sub span { color: #8b929c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-mind { display: flex; gap: 11px; align-items: center; margin: 4px 14px 2px; padding: 11px 12px; border-radius: 13px;
   background: linear-gradient(90deg, rgba(79, 180, 255, .1), rgba(79, 180, 255, .02)); border: 1px solid rgba(79, 180, 255, .22); }
+.cp-lib { display: flex; justify-content: center; gap: 8px; margin: 12px 14px 4px; height: 42px; border-radius: 12px; }
 .cp-mind .i { width: 18px; height: 18px; flex: none; color: #dfe8f2; filter: drop-shadow(0 0 6px rgba(223, 232, 242, .45)); }
 .cp-mind b { display: block; font: 600 12.5px var(--ui); color: #e9f6ff; }
 .cp-mind span { display: block; color: #8fa4b8; font-size: 11.5px; line-height: 1.4; }

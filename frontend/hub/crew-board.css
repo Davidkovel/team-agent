@@ -1,7 +1,8 @@
 /* O Escritório, the command centre (crew-board.js), and the page Empresa AMG, which is the cave itself (crew.js). AMG finish:
    black lacquer, graphite panels with a chrome edge; colour only for the states (green working, amber waiting, red in
-   trouble) and for the three partners. On a computer the command centre is one screen with no long page (.desk), most of
-   it the wall of cameras; on the phone it is an app with four tabs (the last part of this file). */
+   trouble) and for the three partners. On a computer the command centre is one screen with no long page (.desk) in two
+   views (data-view): Equipa, a column per partner with who works with them, and Câmaras, the wall of cameras; on the
+   phone it is an app with four tabs (the last part of this file). */
 
 .cb { display: grid; gap: 14px; margin-top: 2px; }
 .cb-seg, .cb-who { display: none; }   /* the phone's own: see the end */
@@ -59,13 +60,27 @@
 .cb-col > .cb-card + .cb-card { margin-top: 8px; }
 .cb-col > footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .06); }
 .cb-col > footer span { padding: 3px 8px; border-radius: 7px; background: rgba(255, 255, 255, .04); color: #8b95a1; font: 600 11px var(--ui); }
-.cb-quiet { margin: 6px 2px; color: #6b7380; font-size: 13px; line-height: 1.5; }
+.cb-quiet { margin: 6px 2px; color: #6b7380; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .cb-idle { margin: 10px 2px 0; color: #5f6874; font-size: 11.5px; }
 
 .cb-card { display: grid; gap: 8px; min-width: 0; padding: 12px 13px; border-radius: 14px; background: #090b0f; border: 1px solid rgba(255, 255, 255, .07); }
 .cb-card.work { border-color: rgba(77, 255, 154, .2); box-shadow: inset 2px 0 0 #4dff9a; }
 .cb-card.need { border-color: color-mix(in srgb, var(--c) 28%, transparent); box-shadow: inset 2px 0 0 var(--c); }
 .cb-card-h { display: flex; align-items: center; gap: 8px; }
+/* who works with the partner on this job: the agent's face, name and sector, then the state and since when */
+.cb-pair { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 11px; align-items: center; }
+.cb-pair > :first-child { grid-row: span 2; }
+.cb-pair-a { display: grid; place-items: end center; width: 40px; height: 44px; padding: 0; overflow: hidden; cursor: pointer; border-radius: 12px;
+  background: radial-gradient(90% 80% at 50% 100%, rgba(255, 255, 255, .1), rgba(255, 255, 255, .02)); border: 1px solid rgba(255, 255, 255, .1); transition: border-color .15s; }
+.cb-pair-a:hover { border-color: rgba(255, 255, 255, .35); }
+.cb-pair-a img { width: 30px; height: 42px; object-fit: cover; object-position: top; transform: translateY(4px); }
+.cb-pair-i { display: grid; place-items: center; width: 40px; height: 44px; border-radius: 12px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .08); color: #aeb5bf; }
+.cb-pair-i .i { width: 18px; height: 18px; }
+.cb-pair > div { min-width: 0; grid-row: span 2; }
+.cb-pair > div b { display: block; font: 700 15px/1.15 var(--display); color: #fff; }
+.cb-pair > div span { display: block; margin-top: 2px; color: #7d8794; font: 600 10px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.cb-pair > .cb-st { justify-self: end; }
+.cb-pair > time { justify-self: end; color: #6b7380; font-size: 11.5px; white-space: nowrap; }
 .cb-st { font: 700 10px var(--ui); font-style: normal; letter-spacing: .1em; text-transform: uppercase; color: var(--c); }
 .cb-tag { padding: 1px 7px; border-radius: 6px; background: rgba(255, 255, 255, .06); color: #8b95a1; font: 600 10px var(--ui); letter-spacing: .04em; }
 .cb-card-h time { margin-left: auto; color: #6b7380; font-size: 11.5px; white-space: nowrap; }
@@ -77,7 +92,7 @@
   border-radius: 10px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .06); color: #aeb5bf; font: 500 12.5px/1.45 var(--ui); }
 .cb-ask:hover { border-color: rgba(255, 255, 255, .16); color: #dfe5ec; }
 .cb-ask small { color: #6b7380; font: 700 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
-.cb-ask span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-ask span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; white-space: pre-line; overflow-wrap: anywhere; }
 .cb-ask.open { grid-template-columns: minmax(0, 1fr); }
 .cb-ask.open span { white-space: pre-wrap; overflow-wrap: anywhere; color: #dfe5ec; }
 .cb-ask.link { display: block; width: max-content; padding: 0; background: none; border: 0; color: #7d8794; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
@@ -86,12 +101,8 @@
   font: 600 11px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cb-chip.sub { background: none; border-style: dashed; color: #aeb5bf; font-family: var(--ui); }
 .cb-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.cb-foot small { color: #6b7380; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cb-agent { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px 0 4px; border-radius: 9px; cursor: pointer;
-  background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .09); color: #dfe5ec; font: 600 12px var(--ui); overflow: hidden; }
-.cb-agent:hover { border-color: rgba(255, 255, 255, .28); }
-.cb-agent img { width: 18px; height: 26px; object-fit: cover; object-position: top; margin-top: 6px; }
-.cb-agent span { color: #7d8794; font-weight: 500; }
+.cb-foot small { flex: 1; min-width: 0; color: #6b7380; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-foot .cb-link { margin-left: 0; }
 .cb-link { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; padding: 0; background: none; border: 0; color: #9aa2ab; font: 600 12px var(--ui); cursor: pointer; }
 .cb-link:hover { color: #fff; }
 .cb-link .i { width: 12px; height: 12px; }
@@ -208,6 +219,8 @@
   .cb.desk .cc-goal { font-size: 16px; } .cb.desk .cc-name b { font-size: 17px; } .cb.desk .cc-cap { padding-left: 13px; padding-right: 13px; } }
 @container (max-width: 240px) { .cc-cap { gap: 2px; padding: 22px 9px 7px; } .cc-name img, .cc-pill, .cc-goal, .cc-now, .cc-can, .cc-meta, .cc-ask, .cc-cap .cb-chips, .cc-tr { display: none; }
   .cc-name b { font-size: 13px; } .cc-tl { top: 6px; left: 6px; padding: 2px 6px; font-size: 8.5px; letter-spacing: .06em; } .cc-tl span { display: none; } }
+/* the smallest minis (the free ones in the Equipa row): the name whole, smaller, and no camera number */
+@container (max-width: 110px) { .cb.desk .cc-cap { padding: 16px 4px 6px; } .cb.desk .cc-name { justify-content: center; } .cb.desk .cc-name b { font-size: 11px; letter-spacing: -.02em; text-overflow: clip; } .cb.desk .cc-tl { display: none; } }
 
 /* the doors to what the cave keeps */
 .cb-doors { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
@@ -219,17 +232,38 @@
 .cb-door span { display: block; margin-top: 1px; color: #6b7380; font-size: 11px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ================================================================ one screen on a computer (.desk, set by crew-board.js)
-   The wall of cameras takes the room; at its right the partners, a few lines each, over the missions and the doors. Each
-   column scrolls inside itself, the page never does. */
-.cb.desk { gap: 12px; grid-template-columns: minmax(0, 1fr) 330px; grid-template-rows: auto auto minmax(0, 1fr) auto;
-  grid-template-areas: "top top" "cams people" "cams side" "cams doors"; }
+   Two views. Equipa (the default): a column per partner, each job a card with the agent working with them, what was asked
+   and what is being done. Câmaras: the wall of monitors. At the right of both, the missions and the doors. Each column
+   scrolls inside itself, the page never does. */
+.cb.desk { gap: 12px; grid-template-columns: minmax(0, 1fr) 330px; grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top top" "main side" "main doors"; }
+.cb.desk[data-view="cams"] > .cx-people { display: none; }
+/* Equipa: under the partners, a row of mini cameras, always on; those at work lit, twice as wide and first */
+.cb.desk[data-view="team"] { grid-template-areas: "top top" "main side" "minis doors"; }
+.cb.desk[data-view="team"] > .cc { grid-area: minis; gap: 6px; padding: 8px 10px 10px; }
+.cb.desk[data-view="team"] .cc-wall { display: none; }
+.cb.desk[data-view="team"] .cc-strip .cc-cam { height: 112px; }
+.cb.desk[data-view="team"] .cc-strip .cc-cam.busy { grid-column: span 2; }
+.cb.desk[data-view="team"] > .cb-doors { align-self: end; }
+.cb.desk > .cx-people { grid-area: main; display: flex; flex-direction: column; min-height: 0; }
+.cb.desk > .cx-people > .cx-k { margin: 0 4px 8px; }
+.cb.desk .cb-cols { flex: 1; min-height: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.cb.desk .cb-col { min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 14px; border-radius: 18px; }
+.cb.desk .cb-col > header { margin-bottom: 10px; }
+.cb.desk .cb-col > .cb-card + .cb-card { margin-top: 10px; }
+.cx-view { display: none; }
+.cb.desk .cx-view { display: grid; grid-auto-flow: column; gap: 2px; padding: 3px; border-radius: 12px; background: #06080b; border: 1px solid rgba(255, 255, 255, .08); }
+.cx-view button { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px; border: 0; border-radius: 9px; background: none; color: #8b95a1;
+  font: 600 12.5px var(--ui); cursor: pointer; }
+.cx-view button:hover { color: #fff; }
+.cx-view button.on { background: var(--chrome); color: #0b0c0e; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
+.cx-view .i { width: 14px; height: 14px; }
 .cb.desk.wide { grid-template-columns: minmax(0, 1fr) 384px; }
 .cb.desk > .cx-top { grid-area: top; padding: 12px 18px; }
 .cb.desk .cx-id h1 { font-size: 30px; }
-.cb.desk > .cc { grid-area: cams; min-height: 0; }
+.cb.desk > .cc { grid-area: main; min-height: 0; }
 .cb.desk .cc-wall { flex: 1; min-height: 0; }
 .cb.desk .cc-strip .cc-cam { aspect-ratio: auto; height: 82px; }
-.cb.desk > .cx-people { grid-area: people; max-height: 46vh; overflow-y: auto; scrollbar-width: thin; }
 .cb.desk > .cx-side { grid-area: side; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 .cb.desk > .cb-doors { grid-area: doors; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .cb.desk .cb-door:first-child { display: none; }   /* the cave is at the top already */
@@ -239,26 +273,10 @@
 .cb.desk .cb-door span { display: none; }
 .cb.desk:not(.wide) .cb-nums { grid-template-columns: repeat(4, 80px); }
 .cb.desk:not(.wide) .cx-acts .btn { padding: 0 12px; }
-/* the partners: a few lines each */
-.cb.desk .cx-k { margin-bottom: 8px; }
-.cb.desk .cb-cols { gap: 8px; }
-.cb.desk .cb-col { padding: 11px 12px; border-radius: 15px; }
-.cb.desk .cb-col > header { grid-template-columns: auto minmax(0, 1fr) 132px; gap: 10px; margin: 0; }
-.cb.desk .cx-face .av { width: 34px; height: 34px; font-size: 14px; }
-.cb.desk .cb-col > header b { font-size: 16.5px; }
-.cb.desk .cb-col > header span { font-size: 11.5px; }
-.cb.desk .cb-col > header .cx-lims { gap: 4px; margin: 0; padding: 0; background: none; border: 0; }
-.cb.desk .cx-lim { grid-template-columns: 30px minmax(0, 1fr) 30px; gap: 6px; }
-.cb.desk .cx-lim span { font-size: 10.5px; }
-.cb.desk .cx-lim em { font-size: 11px; }
-.cb.desk .cb-col > .cb-card { margin-top: 7px; }
-.cb.desk .cb-col > .cb-idle { margin-top: 6px; }
-.cb-wrow { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 9px; align-items: center; width: 100%; margin-top: 6px; padding: 7px 10px; text-align: left; cursor: pointer;
-  border-radius: 10px; background: rgba(77, 255, 154, .05); border: 1px solid rgba(77, 255, 154, .2); color: inherit; font: inherit; transition: border-color .15s; }
-.cb-wrow:hover { border-color: rgba(77, 255, 154, .5); }
-.cb-wrow > i { width: 7px; height: 7px; border-radius: 50%; background: #4dff9a; box-shadow: 0 0 8px #4dff9a; }
-.cb-wrow b { min-width: 0; font: 600 12.5px/1.3 var(--ui); color: #e9edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cb-wrow span { color: #8b95a1; font: 600 11px var(--ui); }
+/* a partner's column on a computer: who, their Claude left, then their jobs */
+.cb.desk .cb-col > header { grid-template-columns: auto minmax(0, 1fr) auto; }
+.cb.desk .cx-lims { margin-bottom: 12px; }
+.cb.desk .cb-col > footer { margin-top: 14px; }
 /* the missions: send one, then the queue or what got done, a tab each */
 .cb.desk .cx-side .cr-send { grid-template-columns: minmax(0, 1fr) auto; margin: 0; padding: 7px; gap: 6px; }
 .cb.desk .cx-side .cr-send > .cr-in { grid-column: 1; grid-row: 1; height: 42px; }

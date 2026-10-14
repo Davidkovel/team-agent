@@ -11,6 +11,7 @@ from .file_tool import FILE_TOOLS
 from .git_tool import Git
 from .notification_tool import Notify
 from .recall_tool import Recall
+from .skills_tool import Skills
 from .task_tool import TASK_TOOLS
 from .terminal_tool import RunCommand
 
@@ -69,5 +70,5 @@ class ToolRegistry:
 
 
 def build_registry(ctx: ToolContext) -> ToolRegistry:
-    classes = [*FILE_TOOLS, Git, RunCommand, *TASK_TOOLS, RequestApproval, Notify, Recall]
+    classes = [*FILE_TOOLS, Git, RunCommand, *TASK_TOOLS, RequestApproval, Notify, Recall, Skills]
     return ToolRegistry([cls() for cls in classes], ctx)

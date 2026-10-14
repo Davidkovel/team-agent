@@ -1,4 +1,7 @@
 // O Escritório: the company's command centre, the page #/escritorio. The cave itself is the page Empresa AMG (crew.js).
+// Since 14 Oct a computer has two views of it (Marco: "bué confuso, fica bué grande... quero saber quem está a trabalhar
+// com quem, o Kovel com o Batman e a prompt"): Equipa, the default, a column per partner with each job as a card that
+// says which agent works with them, on what, what was asked and what is being done now; and Câmaras, the wall below.
 // Asked for by Marco on 8-9 Oct: "o escritório tem de ser uma central de comando mesmo crazy", on one screen and with no
 // long scroll, clean like an app other companies would use. Rearranged on 9 Oct, when he found it a mess and the cameras
 // squeezed: on a computer the wall of cameras takes most of the screen, and whoever is working gets a large monitor with
@@ -14,6 +17,7 @@ window.CrewBoard = (function () {
   const open = new Set(), more = new Set();   // what the person opened: a request, a result, the rest of a list
   let mtab = sessionStorage.getItem("cb.mtab") || "";   // the missions' half shown on a computer (the queue or what got done); until chosen, the queue when it has something
   let wallSize = null;   // re-splits the wall when its room changes (the window, the sidebar folded)
+  let view = sessionStorage.getItem("cb.view") === "cams" ? "cams" : "team";   // a computer's view: the partners' columns or the wall of cameras
   const TABS = [["now", "Agora"], ["cams", "Câmaras"], ["people", "Sócios"], ["queue", "Missões"]];
   const SHOW_DONE = 8, DAY = 24 * 3600e3;
   const GREEN = "#4dff9a", AMBER = "#ffbf3c", RED = "#ff2d4f", GREY = "#8b95a1", COLD = "#dfe8f2";
@@ -35,9 +39,9 @@ window.CrewBoard = (function () {
   // what the person asked a window (not what Claude Code told it by itself: an agent finished, another session wrote)
   const MACHINE = /^\((aviso|mensagem de outra)/;
   const asked = (s) => { const p = host.clean(s.prompt); return MACHINE.test(p) ? "" : p; };
-  // The goal of a window, in a few words: the title Claude itself gives the conversation (the Hub keeps it); without
-  // one, the first sentence of what was asked.
-  const goalOf = (s) => s.title || sentence(asked(s)) || t("Claude em {p}", { p: s.project });
+  // The goal of a window, in a few words: the topic the Hub gives it, the first sentence of the person's latest request
+  // (Claude Code's own title of the conversation never follows a change of subject); then that title, then the prompt.
+  const goalOf = (s) => s.topic || s.title || sentence(asked(s)) || t("Claude em {p}", { p: s.project });
   const jobGoal = (j) => j.goal || sentence(j.title, 90) || j.title || "";
   const inUse = (j) => ({ skills: j.skills || [], subs: [...(j.subagents || []).filter((x) => x.state === "working").map((x) => x.kind), ...(j.type === "sub" ? [j.kind] : [])] });
 
@@ -104,47 +108,56 @@ window.CrewBoard = (function () {
   }
 
   // ---------------------------------------------------------------- pieces
-  const agentChip = (a) => (a ? `<button type="button" class="cb-agent" data-agent="${a.i}" title="${esc(t("Abrir o posto de {n}", { n: a.name }))}"><img class="cr-px" src="${a.portrait}" alt=""><b>${esc(a.name)}</b><span>${esc(t(a.what))}</span></button>` : "");
+  // who works with the partner on this job, at the top of its card: the agent (a click opens their post) or, for a Claude
+  // window no agent mirrors, the window itself; then the state and how long it has been going
+  function pair(it, word, c) {
+    const a = it.agent, when = `<em class="cb-st" style="--c:${c}">${esc(word)}</em><time>${esc(ago(it.at))}</time>`;
+    if (!a) return `<div class="cb-pair"><span class="cb-pair-i">${icon("bot")}</span><div><b>Claude</b><span>${esc(t(it.kind === "task" ? "agente automático" : "janela do Claude Code"))}</span></div>${when}</div>`;
+    return `<div class="cb-pair"><button type="button" class="cb-pair-a" data-agent="${a.i}" title="${esc(t("Abrir o posto de {n}", { n: a.name }))}"><img class="cr-px" src="${a.portrait}" alt=""></button>
+      <div><b>${esc(a.name)}</b><span>${esc(t(a.what))}</span></div>${when}</div>`;
+  }
+  const camLink = (it) => (it.agent ? `<button type="button" class="cb-link" data-spot="${it.agent.i}">${esc(t("Câmara"))}${icon("chevron")}</button>` : "");
   function chips(skills, subs) {
     const all = [...(skills || []).map((k) => `<span class="cb-chip" title="/${esc(k)}">/${esc(skill(k))}</span>`), ...(subs || []).map((k) => `<span class="cb-chip sub">${esc(k)}</span>`)];
     return all.length ? `<div class="cb-chips">${all.join("")}</div>` : "";
   }
-  // the request behind a goal: its first sentence, and the whole of it with a click
+  // The request behind a goal, in full sentences (Marco, 14 Oct: "nem completas umas frases"): its first lines on the
+  // card, all of it with a click. Nothing when the goal already says all of it.
   function askLine(it) {
-    const s = it.s, whole = s.request || asked(s), short = sentence(asked(s), 150);
+    const s = it.s, whole = s.request || asked(s);
     if (!whole) return "";
-    if (open.has(it.id)) return `<button type="button" class="cb-ask open" data-toggle="${it.id}"><small>${esc(t("O pedido"))}</small><span>${esc(whole)}</span></button>`;
-    if (short && !same(short, it.goal)) return `<button type="button" class="cb-ask" data-toggle="${it.id}" title="${esc(t("Ver o pedido inteiro"))}"><small>${esc(t("Pediu"))}</small><span>${esc(short)}</span></button>`;
-    return whole.length > it.goal.length + 12 ? `<button type="button" class="cb-ask link" data-toggle="${it.id}">${esc(t("Ver o pedido inteiro"))}</button>` : "";
+    const flat = whole.replace(/\s+/g, " ").trim(), goal = it.goal.replace(/…$/, "");
+    if (flat.length <= goal.length + 3 && same(flat, goal)) return "";
+    const isOpen = open.has(it.id);
+    return `<button type="button" class="cb-ask ${isOpen ? "open" : ""}" data-toggle="${it.id}" title="${esc(t(isOpen ? "Mostrar menos" : "Ver o pedido inteiro"))}"><small>${esc(t("Pediu"))}</small><span>${esc(whole)}</span></button>`;
   }
   function workCard(it) {
-    const head = (tag = "") => `<div class="cb-card-h"><em class="cb-st" style="--c:${GREEN}">${esc(t("A trabalhar"))}</em>${tag}<time>${esc(ago(it.at))}</time></div>`;
     if (it.kind === "task") {
       const x = it.x;
-      return `<article class="cb-card work">${head(`<span class="cb-tag">${esc(t("missão"))}</span>`)}<h4>${esc(x.title)}</h4>
+      return `<article class="cb-card work">${pair(it, t("Missão"), GREEN)}<h4>${esc(x.title)}</h4>
         ${x.current_action ? `<p class="cb-doing">${esc(x.current_action)}</p>` : ""}
         ${x.progress > 0 ? `<span class="cb-bar"><i style="width:${Math.min(100, x.progress)}%"></i></span>` : ""}
-        <div class="cb-foot">${agentChip(it.agent)}<button type="button" class="cb-link" data-href="#task-${x.id}">${esc(t("Abrir"))}${icon("chevron")}</button></div></article>`;
+        <div class="cb-foot"><small>${esc(x.progress > 0 ? t("{n}% feito", { n: Math.min(100, x.progress) }) : "")}</small>${camLink(it)}<button type="button" class="cb-link" data-href="#task-${x.id}">${esc(t("Abrir"))}${icon("chevron")}</button></div></article>`;
     }
     const s = it.s, subs = (s.agents || []).filter((x) => x.state === "working").map((x) => x.kind);
-    return `<article class="cb-card work">${head()}<h4>${esc(it.goal)}</h4>
-      ${s.action ? `<p class="cb-doing">${esc(s.action)}</p>` : ""}${askLine(it)}${chips(s.skills, subs)}
-      <div class="cb-foot">${agentChip(it.agent)}<small>${esc([s.project, model(s.model), tok(s.tokens)].filter(Boolean).join(" · "))}</small></div></article>`;
+    return `<article class="cb-card work">${pair(it, t("A trabalhar"), GREEN)}<h4>${esc(it.goal)}</h4>
+      ${askLine(it)}${s.action ? `<p class="cb-doing">${esc(s.action)}</p>` : ""}${chips(s.skills, subs)}
+      <div class="cb-foot"><small>${esc([s.project, model(s.model), tok(s.tokens)].filter(Boolean).join(" · "))}</small>${camLink(it)}</div></article>`;
   }
   function needCard(it, p) {
     if (it.kind === "task") {
       const x = it.x, c = x.status === "NEEDS_HELP" ? RED : x.status === "PAUSED" ? GREY : AMBER;
       const why = x.status === "WAITING_APPROVAL" ? t("À espera de aprovação") : x.status === "NEEDS_HELP" ? t("Precisa de ajuda") : t("Em pausa");
-      return `<article class="cb-card need" style="--c:${c}"><div class="cb-card-h"><em class="cb-st" style="--c:${c}">${esc(why)}</em><span class="cb-tag">${esc(t("missão"))}</span><time>${esc(ago(it.at))}</time></div>
+      return `<article class="cb-card need" style="--c:${c}">${pair(it, why, c)}
         <h4>${esc(x.title)}</h4>${x.blocked_reason ? `<p class="cb-why">${esc(x.blocked_reason)}</p>` : ""}
-        <div class="cb-foot">${agentChip(it.agent)}<button type="button" class="cb-link" data-href="${x.status === "WAITING_APPROVAL" ? "#/aprovacoes" : `#task-${x.id}`}">${esc(t(x.status === "WAITING_APPROVAL" ? "Aprovar" : "Abrir"))}${icon("chevron")}</button></div></article>`;
+        <div class="cb-foot"><small></small><button type="button" class="cb-link" data-href="${x.status === "WAITING_APPROVAL" ? "#/aprovacoes" : `#task-${x.id}`}">${esc(t(x.status === "WAITING_APPROVAL" ? "Aprovar" : "Abrir"))}${icon("chevron")}</button></div></article>`;
     }
     const s = it.s;
     const why = s.wait === "permission" ? (p.me ? t("Precisa da tua autorização para continuar") : t("Precisa da autorização do {n} para continuar", { n: p.name }))
       : (p.me ? t("Fez-te uma pergunta e espera a resposta") : t("Fez uma pergunta ao {n} e espera a resposta", { n: p.name }));
-    return `<article class="cb-card need" style="--c:${AMBER}"><div class="cb-card-h"><em class="cb-st" style="--c:${AMBER}">${esc(t(s.wait === "permission" ? "Autorização" : "Pergunta"))}</em><time>${esc(ago(it.at))}</time></div>
+    return `<article class="cb-card need" style="--c:${AMBER}">${pair(it, t(s.wait === "permission" ? "Autorização" : "Pergunta"), AMBER)}
       <h4>${esc(it.goal)}</h4><p class="cb-why">${esc(why)}</p>${askLine(it)}
-      <div class="cb-foot">${agentChip(it.agent)}<small>${esc([s.project, model(s.model)].filter(Boolean).join(" · "))}</small></div></article>`;
+      <div class="cb-foot"><small>${esc([s.project, model(s.model)].filter(Boolean).join(" · "))}</small>${camLink(it)}</div></article>`;
   }
   function doneRow(it) {
     const isOpen = open.has(it.id);
@@ -196,16 +209,6 @@ window.CrewBoard = (function () {
       ${p.idle ? `<p class="cb-idle">${esc(t(p.idle === 1 ? "1 janela do Claude aberta, sem pedido" : "{n} janelas do Claude abertas, sem pedido", { n: p.idle }))}</p>` : ""}
       <footer>${facts.map((f) => `<span>${esc(f)}</span>`).join("")}</footer>`;
   }
-  // A computer: the same partner in a few lines, because the cameras already show what their agents are doing. A line
-  // per job, which brings its camera up large; what waits for them stays a card, since it waits for a person.
-  function personRow(p) {
-    const row = (it) => {
-      const go = it.agent ? `data-spot="${it.agent.i}" title="${esc(t("Ver a câmara de {n}", { n: it.agent.name }))}"` : it.kind === "task" ? `data-href="#task-${it.x.id}"` : "";
-      return `<button type="button" class="cb-wrow" ${go}><i></i><b>${esc(it.goal)}</b>${it.agent ? `<span>${esc(it.agent.name)}</span>` : ""}</button>`;
-    };
-    return `${personHead(p, true)}${p.working.map(row).join("")}${p.needs.map((it) => needCard(it, p)).join("")}
-      ${p.me && !agentOn(p.m) ? `<p class="cb-idle">${esc(t("O teu agente automático está desligado"))}</p>` : ""}`;
-  }
   // the company in one sentence, and four numbers
   function summary(people) {
     const n = (k) => people.reduce((sum, p) => sum + p[k].length, 0), working = people.filter((p) => p.working.length).map((p) => p.name);
@@ -247,7 +250,7 @@ window.CrewBoard = (function () {
     const door = (attr, ic, title, sub) => `<button type="button" class="cb-door" ${attr} title="${esc(sub)}">${icon(ic)}<div><b>${esc(t(title))}</b><span>${esc(sub)}</span></div></button>`;
     return door('data-href="#/empresa"', "play", "A cave", t("Os oito agentes ao vivo"))
       + door('data-panel="memory"', "note", "Memória", s.memory ? t("{n} notas", { n: s.memory.length }) : t("O que os agentes sabem"))
-      + door('data-panel="arsenal"', "layers", "Skills", t("{n} no arsenal", { n: (s.arsenal || []).length }))
+      + door('data-href="#/skills"', "layers", "Skills", t("A biblioteca da empresa"))
       + door('data-panel="vault"', "bag", "Cofre", t("{n} missões feitas", { n: gold }))
       + door("data-meet", "spark", "Reunião", t("O Gordon liga as ideias"));
   }
@@ -293,9 +296,11 @@ window.CrewBoard = (function () {
   const camNo = (i) => String(i + 1).padStart(2, "0");
   const busy = (a) => !!a.job && a.mode !== "done";
   const WAITING = ["wait", "help", "pause"];
+  const minis = () => !!root && root.classList.contains("desk") && view === "team";   // the Equipa view: the cameras are a row of minis under the partners
   function wallPlan(s) {
     const on = s.agents.filter(busy).sort((p, q) => String(p.job.since || "").localeCompare(String(q.job.since || "")));   // oldest first: a new job joins at the end, nobody jumps
     const off = s.agents.filter((a) => !busy(a));
+    if (minis()) return { on, live: [], strip: [...on, ...off] };
     if (spot != null && s.agents[spot]) return { on, live: [s.agents[spot]], strip: [...on, ...off].filter((a) => a.i !== spot) };
     return on.length ? { on, live: on, strip: off } : { on, live: s.agents, strip: [] };
   }
@@ -376,12 +381,12 @@ window.CrewBoard = (function () {
   // ---------------------------------------------------------------- the page
   function draw() {
     if (!root || !root.isConnected) return;
-    const s = host.state(), people = build(s), desk = root.classList.contains("desk");
+    const s = host.state(), people = build(s);
     if (host.ready()) {   // before the Hub has answered there is nothing true to say: the page waits
       paint($("cx-sum"), esc(summary(people)));
       paint($("cb-nums"), nums(people));
       paint($("cb-say"), sayList(people));
-      for (const p of people) paint($(`cb-col-${p.id}`), desk ? personRow(p) : personCard(p));
+      for (const p of people) paint($(`cb-col-${p.id}`), personCard(p));
       paint($("cb-queue"), queuePane(people, s));
       paint($("cb-done"), donePane(people));
       const waiting = people.reduce((n, p) => n + p.queue.length, 0), done = people.reduce((n, p) => n + p.done.length, 0), seg = root.querySelector('.cb-seg [data-tab="queue"]');
@@ -443,6 +448,15 @@ window.CrewBoard = (function () {
     root.querySelectorAll(".cb-seg [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === id));
     host.film();
   }
+  // a computer's two views: the partners' columns (who works with whom) or the wall of cameras
+  function showView(id) {
+    view = id === "cams" ? "cams" : "team";
+    root.dataset.view = view; sessionStorage.setItem("cb.view", view);
+    root.querySelectorAll(".cx-view [data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+    hideTip();
+    draw();   // the cameras move between the wall and the row of minis
+    layoutWall(); host.film(true);
+  }
   function showWho(id) {
     $("cb-cols").dataset.who = id; sessionStorage.setItem("cb.who", id);
     root.querySelectorAll(".cb-who [data-who]").forEach((b) => b.classList.toggle("on", b.dataset.who === id));
@@ -452,6 +466,7 @@ window.CrewBoard = (function () {
     const col = $(`cb-col-${id}`);
     if (!col) return;
     showWho(id);
+    showView("team");
     if (document.documentElement.classList.contains("is-phone")) showTab("people");
     col.scrollIntoView({ behavior: "smooth", block: "nearest" });
     col.classList.remove("flash"); void col.offsetWidth; col.classList.add("flash");
@@ -461,6 +476,7 @@ window.CrewBoard = (function () {
     let b;
     if ((b = at(".cb-seg [data-tab]"))) { showTab(b.dataset.tab); window.scrollTo({ top: 0 }); }
     else if ((b = at(".cb-who [data-who]"))) showWho(b.dataset.who);
+    else if ((b = at(".cx-view [data-view]"))) showView(b.dataset.view);
     else if ((b = at("[data-ficha]"))) openSheet(ficha(host.state().agents[Number(b.dataset.ficha)]));
     else if ((b = at("[data-release]"))) host.release(Number(b.dataset.release), b);
     else if ((b = at("[data-mini]"))) host.openMini();
@@ -471,8 +487,8 @@ window.CrewBoard = (function () {
     else if ((b = at("[data-meet]"))) host.meet(b);
     else if ((b = at("[data-mtab]"))) { mtab = b.dataset.mtab; sessionStorage.setItem("cb.mtab", mtab); draw(); }
     else if ((b = at("[data-cam-all]"))) { spot = null; draw(); }
-    else if ((b = at("[data-spot]"))) { spot = Number(b.dataset.spot); hideTip(); draw(); if (document.documentElement.classList.contains("is-phone")) showTab("cams"); }
-    else if ((b = at("[data-cam]"))) { const i = Number(b.dataset.cam); spot = spot === i ? null : i; hideTip(); draw(); }
+    else if ((b = at("[data-spot]"))) { spot = Number(b.dataset.spot); hideTip(); showView("cams"); draw(); if (root.classList.contains("tabbed")) showTab("cams"); }
+    else if ((b = at("[data-cam]"))) { const i = Number(b.dataset.cam); hideTip(); if (minis()) { spot = i; showView("cams"); } else { spot = spot === i ? null : i; draw(); } }
     else if ((b = at("[data-more]"))) { flip(more, b.dataset.more); draw(); }
     else if ((b = at("[data-toggle]"))) { flip(open, b.dataset.toggle); draw(); }
   }
@@ -484,10 +500,10 @@ window.CrewBoard = (function () {
       <header class="cx-top" data-pane="now">
         <div class="cx-id"><small>${esc(t("Agente AMG · central de comando"))}</small><h1>${esc(t("Escritório"))}</h1><p id="cx-sum">${esc(t("A ler o que a empresa está a fazer…"))}</p></div>
         <div class="cb-nums" id="cb-nums"></div>
-        <div class="cx-acts"><a class="btn cx-cave" href="#/empresa">${icon("play")}${esc(t("A cave"))}</a><button type="button" class="btn cx-mini" data-mini title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div>
+        <div class="cx-acts"><nav class="cx-view"><button type="button" data-view="team">${icon("users")}${esc(t("Equipa"))}</button><button type="button" data-view="cams">${icon("grid")}${esc(t("Câmaras"))}</button></nav><a class="btn cx-cave" href="#/empresa">${icon("play")}${esc(t("A cave"))}</a><button type="button" class="btn cx-mini" data-mini title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div>
         <ul class="cb-say" id="cb-say"></ul>
       </header>
-      <section class="cx-people" data-pane="people"><small class="cx-k">${esc(t("Os sócios"))}</small>
+      <section class="cx-people" data-pane="people"><small class="cx-k">${esc(t("Quem trabalha com quem"))}</small>
         <nav class="cb-who">${host.partners.map(([id, name, color]) => `<button type="button" data-who="${id}" style="--p:${color}"><i></i>${esc(name)}</button>`).join("")}</nav>
         <div class="cb-cols" id="cb-cols">${host.partners.map(([id, , color]) => `<section class="cb-col" id="cb-col-${id}" style="--p:${color}">${ui.skeleton(2)}</section>`).join("")}</div></section>
       <section class="cc" id="cb-cams" data-pane="cams">
@@ -505,6 +521,7 @@ window.CrewBoard = (function () {
       </aside>
       <div class="cb-doors" id="cb-doors" data-pane="now"></div>`;
     showTab(sessionStorage.getItem("cb.tab") || "now");
+    showView(view);
     showWho(sessionStorage.getItem("cb.who") || mine);
     root.onclick = click;
     root.onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".cc-cam")) { e.preventDefault(); e.target.click(); } };

@@ -103,6 +103,7 @@
     { id: "twoface", name: "Duas-Caras", full: "Harvey Dent", what: "Gráfico", role: "custom", kinds: [], color: "#e6e6e6", wing: "trading",
       bio: "O técnico da Sala de Trading. Liquidez, sweeps, FVG, order blocks, BOS e CHoCH. Vê sempre as duas caras do mercado.", look: null },
   ];
+  window.CrewCast = CREW;   // the page Skills (skills.js) draws the same faces: who masters each skill
   const crewById = (id) => agents.find((a) => a.id === id);
 
   // ================================================================ the garage: the stands and the cars. project: what each will stand for.
@@ -1130,7 +1131,7 @@
       if (s.state === "working" || (s.state === "waiting" && now - Date.parse(s.since) < STILL_WAITING)) {
         // what Claude Code told the window by itself (an agent finished, another session wrote) is not what was asked
         const asked = cleanPrompt(s.prompt), said = /^\((aviso|mensagem de outra)/.test(asked) ? "" : asked;
-        out.push({ key: "c" + s.id, type: "claude", goal: s.title || "", title: said || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait", request: s.request || "",
+        out.push({ key: "c" + s.id, type: "claude", goal: s.topic || s.title || "", title: said || t("Claude a trabalhar em {p}", { p: s.project }), who: s.name, state: s.state === "working" ? "work" : "wait", request: s.request || "",
           action: s.state === "working" ? s.action || "" : "", since: s.since, project: s.project, model: s.model, tokens: s.tokens,
           subagents: (s.agents || []).map((x) => ({ kind: x.kind, state: x.state, description: x.description })), skills: s.skills || [], href: "#/escritorio" });
       }
@@ -2721,7 +2722,8 @@
         <button class="cp-x" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>${stripes()}
       <section class="cp-sec">${arsenalList.length ? arsenalList.map((k) => `<div class="cp-skill ${live.has(k.name) ? "on" : ""}"><div><b>/${esc(k.name)}</b><em>${esc(k.uses ? t("{n}× esta semana", { n: k.uses }) : t("por usar"))}</em></div>${k.about ? `<span>${esc(k.about)}</span>` : ""}<small>${esc([k.where, k.by.join(", "), k.last ? fmt.ago(k.last) : ""].filter(Boolean).join(" · "))}</small></div>`).join("")
         : `<p class="cp-empty">${esc(t("Ainda nenhuma skill usada esta semana nem encontrada nas pastas."))}</p>`}</section>
-      <div class="cp-mind">${icon("bolt")}<div><b>${esc(t("Como chega aqui"))}</b><span>${esc(t("Cada skill que um Claude da equipa usa fica guardada no Hub com a janela dele. Quando acontece, o agente do posto vem buscá-la e ela fica no cartão dele."))}</span></div></div>`;
+      <div class="cp-mind">${icon("bolt")}<div><b>${esc(t("Como chega aqui"))}</b><span>${esc(t("Cada skill que um Claude da equipa usa fica guardada no Hub com a janela dele. Quando acontece, o agente do posto vem buscá-la e ela fica no cartão dele."))}</span></div></div>
+      <a class="btn primary cp-lib" href="#/skills">${icon("layers")}${esc(t("Abrir a biblioteca de skills"))}</a>`;
   }
   function carPanel(c) {
     return `<header class="cp-head car" style="--c:${c.accent}">

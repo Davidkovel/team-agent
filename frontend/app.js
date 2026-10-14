@@ -134,6 +134,7 @@ const NAV = [
   ["Início", "home", [["home", "Início"]]],
   ["Escritório", "bot", [["escritorio", "Escritório"]]],
   ["Empresa AMG", "users", [["empresa", "Empresa AMG"]]],
+  ["Skills", "layers", [["skills", "Skills"]]],
   ["Novidades", "spark", [["novidades", "Novidades"]]],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]]],
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes", true], ["historico", "Histórico", true]]],

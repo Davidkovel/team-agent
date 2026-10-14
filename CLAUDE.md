@@ -113,9 +113,18 @@ que se fez e o que falta). Antes de mudar alguma coisa grande nestas páginas, l
   da imagem, mais pequenos (container queries no `crew.css`), e o `fitCave` volta a medir sempre que o espaço muda
   (`ResizeObserver`). No telemóvel a equipa, as vistas e a legenda continuam por baixo da imagem.
 - **Escritório** (`#/escritorio`) **é a central de comando**: `frontend/hub/crew-board.js` + `crew-board.css`. Num ecrã só no PC
-  (`.desk`, a partir de 760 px; cada coluna rola por dentro). Arrumado de novo a 9 out («completamente mal feito», «as câmaras
-  apertadas», «quem está a trabalhar tem de estar sempre mais destacado»):
-  - **A parede de câmaras ocupa a página** (`paintWall`, `wallPlan`, `gridFor`). Quem tem missão (a trabalhar ou à espera de alguém)
+  (`.desk`, a partir de 760 px; cada coluna rola por dentro). **Desde 14 out tem duas vistas no PC** (`data-view`, botões Equipa ·
+  Câmaras no topo; pedido do Marco: «bué confuso, fica bué grande... quero saber quem está a trabalhar com quem, o Kovel com o
+  Batman e a prompt»):
+  - **Equipa** (a de abrir): uma coluna por sócio (`personCard`). Cada trabalho é um cartão com o agente que trabalha com ele no
+    topo (`pair`: cara, nome, setor, estado, há quanto tempo), a meta, o pedido inteiro (`askLine`, 4 linhas e um clique para tudo:
+    «nem completas umas frases») e o que faz agora. Em baixo, sempre à vista, **uma fila de mini câmaras** dos dez (`minis()` no
+    `wallPlan`): quem trabalha primeiro, aceso e com o dobro da largura; clicar numa abre-a em grande na vista Câmaras.
+  - **A meta acompanha o assunto**: o Hub dá `topic` em `/api/office` (`_topic` no `office.py`), a 1.ª frase do último pedido da
+    pessoa. O título que o Claude Code dá à conversa (`ai-title`) é escrito uma vez e nunca muda com o assunto, por isso só serve
+    quando não há pedido. Um «sim», «ok» ou «continua» (`_ack`) não muda o pedido nem o assunto.
+  - **Câmaras**: a parede de antes (abaixo), com as missões à direita.
+  - **A parede de câmaras** (`paintWall`, `wallPlan`, `gridFor`). Quem tem missão (a trabalhar ou à espera de alguém)
     ganha um monitor grande, aceso na cor do estado, com o agente, a meta, o que faz agora e para quem escritos por cima da imagem
     (`hud`). Os monitores dividem a parede entre si (`gridFor` escolhe as colunas). Os livres ficam pequenos e escuros numa fila
     por baixo; sem ninguém a trabalhar, os oito dividem a parede. Monitor mais pequeno = menos texto (container queries).
@@ -217,6 +226,29 @@ Coisas que custaram tempo e não se devem repetir:
   abre o painel com a loja (`/api/store/summary`) e o custo da IA (`/api/usage/summary`). Quando um agente acaba, voam moedas para lá.
 - **O holofote do miradouro** varre a gruta e, quando chega uma missão, projeta o bat-sinal na parede do escritório (já não sai de
   dentro do escritório).
+
+### Skills: a biblioteca da Empresa AMG (14 out, pedido do Marco)
+
+«Buscar as skills e colocar todas aí, que vocês dominem todas e que fiquem no widget, fácil para cada agente usar.»
+`#/skills` (`frontend/hub/skills.js` + `.css`, na barra logo a seguir à Empresa AMG; no telemóvel em «Mais»; também pelo arsenal da
+cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/api/skills`).
+
+- **A biblioteca são ficheiros em git**: `library/skills/<nome>/SKILL.md` (e os ficheiros que a skill traz), como o resto da
+  `library/`. `library/skills/agentes.json` diz que agente domina cada uma (`{"skill": ["batman", ...]}`). Cada mudança feita na
+  página faz commit e push **só de `library/skills`** em segundo plano (`_push`), por isso chega aos outros PCs no próximo pull.
+- **Três metades na página**: Biblioteca (uma faixa por agente com as skills que domina; clicar abre a skill, com «Quem a domina»
+  um toque por agente e «Tirar da biblioteca»), Neste PC (as instaladas: `~/.claude/skills`, os plugins instalados segundo
+  `~/.claude/plugins/installed_plugins.json`, as do claude.ai em `plugins/synced`, e as `.claude/skills` dos repositórios da
+  equipa) e Loja (os catálogos dos marketplaces em `~/.claude/plugins/marketplaces`). «Trazer» copia para a biblioteca e dá-lhe o
+  agente do setor pelas palavras (`_guess_crew`); ficam de fora ficheiros acima de 1,5 MB e o que passe de 3 MB por skill.
+- **Do GitHub**: colar o link de um repositório, pasta ou SKILL.md traz todas as skills que lá houver (API de árvores do GitHub +
+  raw, sem chave; máximo 80 skills e 60 ficheiros por skill).
+- **Os agentes usam-nas** (`agent/team_agent/tools/skills_tool.py`): a ferramenta `skills` lista (com `query` filtra), lê uma
+  (`name`) e os ficheiros dela (`name` + `file`). O briefing de cada personagem diz quais domina (`skill_lines`) e manda ler a skill
+  antes de fazer esse trabalho, e listar todas quando a tarefa fala das skills da equipa. Depois de mudar o agente, reiniciá-lo.
+- **Para um Claude Code aberto à mão** («vai ver as skills que temos»): estão em `library/skills/`, lê `library/skills/agentes.json`
+  e o `SKILL.md` da que servir. Não estão em `.claude/skills` de propósito: 100+ descrições em cada sessão gastavam contexto.
+- Armadilha: uma classe CSS chamada `.src` já existe no `design.css` (rebentou o layout); nas páginas novas, prefixar as classes.
 
 ### Mercados (TradingView, SEC, paper trading) — desde 9 out
 

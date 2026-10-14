@@ -60,6 +60,31 @@ def _machine(prompt) -> bool:
     return str(prompt or "").lstrip().startswith(MACHINE)
 
 
+ACK = re.compile(r"^(sim|s|ok|okay|yes|yep|n[aã]o|continua|continue|segue|avan[cç]a|bora|vai|faz|faz isso|isso|perfeito|top|boa|"
+                 r"obrigado|obg|valeu|certo|claro|exato|go|y|1|2|3)[\s!.?,]*$", re.I)
+
+
+def _ack(prompt) -> bool:
+    """A follow-up that only says yes or go on («sim», «ok», «continua»): the topic stays the one asked before."""
+    text = " ".join(str(prompt or "").split())
+    return bool(ACK.match(text)) or len(text.split()) < 3 and len(text) < 16
+
+
+def _topic(row) -> str:
+    """What the window is about now, in a line: the first sentence of the person's latest request. Claude Code's own title
+    of the conversation (ai-title) is written once and never follows a change of subject (14 Oct, Marco: the card still
+    said «Escritório não abre no widget» while he was already asking for something else), so it is only the fallback."""
+    text = " ".join((row.request or "").split())
+    if not text or row.title and (_ack(text) or re.match(r"([A-Za-z]:\\|/|https?://)", text)):   # «ok», or a pasted path
+        return row.title or text
+    end = re.search(r"[.!?…](\s|$)", text)
+    if end and end.start() > 12:
+        text = text[:end.start() + (1 if text[end.start()] == "?" else 0)]
+    if len(text) > 120:
+        text = text[:119].rsplit(" ", 1)[0] + "…"
+    return text[0].upper() + text[1:]
+
+
 WHOLE = 1500  # characters of a request kept for whoever opens it
 
 
@@ -224,8 +249,9 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
         _status(row, "working", when)
         row.since = when  # a new request starts the clock again
         row.action, row.result = "a pensar", ""
-        # an agent that finished or another session writing wakes the window up, but what the person asked stays
-        if not (_machine(body.get("prompt")) and row.prompt):
+        # an agent that finished or another session writing wakes the window up, but what the person asked stays; so does
+        # the topic when the person only says yes or go on
+        if not ((_machine(body.get("prompt")) or _ack(body.get("prompt"))) and row.prompt):
             row.prompt, row.request = _request(body.get("prompt")), _whole(body.get("prompt"))
         if _typed_skill(body.get("prompt")):
             row.skills = _add_skill(row.skills, _typed_skill(body.get("prompt")))
@@ -371,8 +397,14 @@ def _about(skill_md: Path) -> str:
         head = skill_md.read_text(encoding="utf-8", errors="replace")[:3000]
     except OSError:
         return ""
-    found = re.search(r"^description:\s*(.+)$", head, re.M) if head.startswith("---") else None
-    return one_line(found.group(1).strip().strip("\"'"), 220) if found else ""
+    found = re.search(r"^description:[ \t]*(.*)$", head, re.M) if head.startswith("---") else None
+    if not found:
+        return ""
+    text = found.group(1).strip()
+    if text in ("", ">", "|", ">-", "|-", ">+", "|+"):   # a YAML block: the indented lines under it
+        block = re.match(r"((?:[ \t]+.*\n?)+)", head[found.end() + 1:])
+        text = block.group(1) if block else ""
+    return one_line(text.strip().strip("\"'"), 220)
 
 
 def skill_folders() -> dict[str, dict]:
@@ -434,7 +466,7 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
     for a in agents:
         by_session.setdefault(a.session_id, []).append(a)
     sessions = [{"id": r.id, "key": r.key, "user": r.user.username, "name": r.user.display_name, "project": r.project, "state": _state(r),
-                 "prompt": _request(r.prompt), "request": r.request or "", "title": r.title or "", "result": r.result or "",
+                 "prompt": _request(r.prompt), "request": r.request or "", "title": r.title or "", "topic": _topic(r), "result": r.result or "",
                  "wait": _wait(r, _state(r)), "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
                  "updated_at": iso(r.updated_at), "skills": _skills(r.skills), "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]}
                 for r in rows]

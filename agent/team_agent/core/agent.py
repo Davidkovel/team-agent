@@ -11,6 +11,7 @@ from ..providers import AIProvider, RunResult
 from ..storage import LocalStore
 from ..tasks import TaskProvider
 from ..tools import ToolContext, build_registry
+from ..tools.skills_tool import skill_lines
 from .config import Config
 from .logs import log
 from .session import SessionReport
@@ -268,6 +269,7 @@ class TeamAgent:
             lines += ["", "Finished lately by the team:", *[f"- {t['title']} ({t['by']}): {t['result']}" for t in b["finished"]]]
         if b.get("mine"):
             lines += ["", "Your own last tasks:", *[f"- {t['title']}: {t['result']}" for t in b["mine"]]]
+        lines += skill_lines((b.get("crew") or {}).get("id") or "")
         return lines
 
     def _crew_home(self, crew: str) -> Path:

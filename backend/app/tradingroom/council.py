@@ -21,6 +21,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from . import reaction
 from .analysis import fmt
 from .sessions import killzone, killzones_local, london_offset, ny, sessions
 
@@ -212,6 +213,9 @@ def brief(room: dict, now: datetime, reason: str, focus: list[str]) -> str:
         gs = " · ".join(f"{g['label']} líquido {g['net']:+,.0f} contratos ({g['change']:+,.0f} na semana), índice COT {g['index']}/100".replace(",", " ")
                         for g in c["groups"])
         lines.append(f"COT {sym} (CFTC, posições de {c['date']}): {gs}")
+    react = reaction.brief_text()
+    if react:
+        lines.append("\n" + react)
     # each one's own book
     journals = room.get("journals") or {}
     if journals:

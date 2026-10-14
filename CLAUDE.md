@@ -360,6 +360,14 @@ Armadilhas que custaram tempo:
   resultado em `~/.team-agent/trading-room/backtest.json`, `GET/POST /api/trading-room/backtest`, painel por baixo do
   diário. À mão: `python -m app.tradingroom.backtest` em `backend/`. De caminho, o `Book._step` deixou de contar duas
   vezes a última vela (`fill_bar`, `half_bar`): dava o alvo na vela da entrada e parava a 2.ª metade na vela do 1.º alvo.
+- **Reação à notícia** (14 out, pedido do Kovel depois do CPI): `tradingroom/reaction.py`, `GET /api/trading-room/reaction`,
+  painel por cima do calendário. Para a notícia dos EUA em jogo (CPI core, NFP, PPI, vendas a retalho, PCE core, Fed; a que
+  saiu nas últimas 4 h, senão a próxima em 36 h) mostra como o ouro, o EUR/USD e o GER40 se mexeram nos primeiros 5 min em cada
+  saída desde 2018, conforme o número veio acima, abaixo ou igual à previsão, e se o ouro voltou ao preço de antes. Depois da
+  saída lê o ouro de minuto a minuto na Binance (XAUUSDT) e mostra as 4 saídas passadas com o caminho mais parecido e o que
+  fizeram a seguir. O mesmo texto entra no briefing do Pinguim (`reaction.brief_text`). O histórico são JSON em
+  `tradingroom/reaction_data/<evento>.json`, feitos no repositório news-reaction do Kovel (`python newsreact.py export cpi`,
+  velas de 1 min da Dukascopy); um evento sem ficheiro simplesmente não aparece. Por agora só há `cpi.json`.
 - **Escrever código destes ficheiros pelo Bash** (heredoc): as barras invertidas chegam mal ao ficheiro (`\\p{L}` virou
   `\p{L}`). Para texto com `\`, usar a ferramenta de editar ou um script escrito com ela.
 

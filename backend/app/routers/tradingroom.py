@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_db
 from ..models import User
 from ..security import current_user
-from ..tradingroom import backtest, council, sessions
+from ..tradingroom import backtest, council, reaction, sessions
 from ..tradingroom.analysis import chart as chart_of
 from ..tradingroom.markets import BY_ID, INSTRUMENTS, TF
 from ..tradingroom.book import AGENTS
@@ -89,6 +89,14 @@ async def backtest_state(user: User = Depends(viewer)):
 async def backtest_start(user: User = Depends(viewer)):
     backtest.start()
     return backtest.status()
+
+
+@router.get("/reaction")
+async def reaction_view(user: User = Depends(viewer)):
+    """How gold, EUR/USD and GER40 reacted to past releases of the US number in play, and today's gold vs the closest ones."""
+    if not ROOM.calendar and time.time() - ROOM.updated > 30:
+        await ROOM.refresh(force=True)
+    return await reaction.refresh(ROOM.calendar, datetime.now(UTC))
 
 
 @router.get("/pulse")

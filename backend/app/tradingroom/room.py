@@ -16,7 +16,7 @@ from pathlib import Path
 
 import httpx
 
-from . import council, sessions
+from . import council, reaction, sessions
 from .analysis import analyse
 from .book import Book
 from .institutional import Institutional, drivers
@@ -96,6 +96,10 @@ class Room:
                 news = await headlines(client)
                 if news:
                     self.news, self.news_at = news, time.time()
+        try:   # history of the US release in play (page + briefing); Binance only after a release
+            await reaction.refresh(self.calendar, now)
+        except Exception:
+            log.exception("reaction")
         view = {}
         for inst in INSTRUMENTS:
             try:

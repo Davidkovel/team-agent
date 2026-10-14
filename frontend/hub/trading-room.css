@@ -291,3 +291,26 @@
   .tr-alert { padding: 40px 10px; align-items: start; } .tr-alert-card { padding: 20px 16px 16px; border-radius: 18px; }
   .tr-alert-plan, .tr-alert-duo { grid-template-columns: 1fr; } .tr-alert-acts small { margin-left: 0; width: 100%; }
 }
+
+/* reaction to the US number in play (history from news-reaction) */
+.tr-react { margin: 14px 0; padding: 14px; border-radius: 16px; background: linear-gradient(180deg, #0f1216, #0a0c0f); border: 1px solid rgba(255, 255, 255, .07); }
+.tr-react h2 { flex-wrap: wrap; }
+.tr-rx-h { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.tr-rx-h b { color: var(--text); }
+.tr-rx-s { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: rgba(255, 255, 255, .06); }
+.tr-rx-s.ABOVE { color: var(--down); background: color-mix(in srgb, var(--down) 14%, transparent); }
+.tr-rx-s.BELOW { color: var(--up); background: color-mix(in srgb, var(--up) 14%, transparent); }
+.tr-rx-g { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
+.tr-rx-t { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tr-rx-t th { white-space: nowrap; text-align: left; font-weight: 500; color: var(--faint); padding: 0 8px 6px 0; }
+.tr-rx-t td { padding: 7px 8px 7px 0; border-top: 1px solid rgba(255, 255, 255, .06); vertical-align: top; }
+.tr-rx-t td b { display: block; font-variant-numeric: tabular-nums; }
+.tr-rx-t td small { color: var(--faint); font-size: 11px; }
+.tr-rx-t tr.tr-rx-now td { background: rgba(255, 255, 255, .04); }
+.tr-rx-t tr.tr-rx-now td:first-child { box-shadow: inset 3px 0 0 var(--accent, #c9a227); padding-left: 8px; }
+.tr-rx-n, .tr-rx-f { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.tr-rx-f { color: var(--faint); font-size: 11px; }
+.tr-rx-live h4 { margin: 0 0 6px; font: 600 12px var(--ui); color: var(--faint); text-transform: uppercase; letter-spacing: .06em; }
+.tr-rx-live p { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.tr-rx-live p b { font-size: 15px; }
+@media (max-width: 900px) { .tr-rx-g { grid-template-columns: 1fr; } }

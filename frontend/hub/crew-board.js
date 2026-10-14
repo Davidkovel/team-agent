@@ -26,6 +26,20 @@ window.CrewBoard = (function () {
   const model = (m) => { const x = String(m || "").match(/opus|sonnet|haiku|fable/i); return x ? x[0][0].toUpperCase() + x[0].slice(1).toLowerCase() : ""; };
   const tok = (n) => (n > 0 ? (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(".", ",")}M` : `${Math.max(1, Math.round(n / 1e3))}k`) + " tokens" : "");
   const flip = (set, id) => (set.has(id) ? set.delete(id) : set.add(id));
+  // The tokens each one is spending (Marco, 14 Oct): a window's tokens with its subagents', and how fast they grow, from
+  // what this page saw of them in the last three minutes (the Hub reads them every ten seconds while the window works).
+  const seen = new Map();   // window id -> [[ms, tokens], ...]
+  const tokensOf = (s) => (s.tokens || 0) + (s.agents || []).reduce((n, a) => n + (a.tokens || 0), 0);
+  function burn(id, n) {
+    const now = Date.now(), h = seen.get(id) || [];
+    if (!h.length || h[h.length - 1][1] !== n) h.push([now, n]);
+    while (h.length > 2 && now - h[1][0] > 180e3) h.shift();
+    seen.set(id, h);
+    const [t0, n0] = h[0];
+    return now - t0 >= 30e3 && n > n0 ? Math.round((n - n0) / ((now - t0) / 60e3)) : 0;   // tokens a minute, once there is half a minute to go by
+  }
+  const perMin = (r) => (r > 0 ? `+${tok(r).replace(" tokens", "")}/min` : "");
+  const sameDay = (iso) => !!iso && new Date(iso).toDateString() === new Date().toDateString();
   const skill = (k) => String(k).split(":").pop();   // "superpowers:brainstorming" is read as "brainstorming"
   const same = (a, b) => a.toLowerCase().slice(0, 40) === b.toLowerCase().slice(0, 40);
   // the first sentence of a text, short enough to be read at a glance
@@ -102,6 +116,13 @@ window.CrewBoard = (function () {
       }
       const newest = (a, b) => String(b.at).localeCompare(String(a.at));
       p.working.sort(newest); p.needs.sort(newest); p.done.sort(newest);
+      p.tokens = 0; p.burn = 0;
+      for (const x of s.office.sessions || []) {
+        if (host.partnerOf(x.name).id !== id) continue;
+        const n = tokensOf(x), r = burn("c" + x.id, n);
+        if (sameDay(x.updated_at)) p.tokens += n;
+        if (x.state === "working") p.burn += r;
+      }
       p.queue.sort((a, b) => (a.held ? 1 : 0) - (b.held ? 1 : 0) || String(a.at).localeCompare(String(b.at)));   // those with the agent first, oldest first
       return p;
     });
@@ -142,7 +163,11 @@ window.CrewBoard = (function () {
     const s = it.s, subs = (s.agents || []).filter((x) => x.state === "working").map((x) => x.kind);
     return `<article class="cb-card work">${pair(it, t("A trabalhar"), GREEN)}<h4>${esc(it.goal)}</h4>
       ${askLine(it)}${s.action ? `<p class="cb-doing">${esc(s.action)}</p>` : ""}${chips(s.skills, subs)}
-      <div class="cb-foot"><small>${esc([s.project, model(s.model), tok(s.tokens)].filter(Boolean).join(" · "))}</small>${camLink(it)}</div></article>`;
+      <div class="cb-foot"><small>${esc([s.project, model(s.model)].filter(Boolean).join(" · "))}</small>${spent(it)}${camLink(it)}</div></article>`;
+  }
+  function spent(it) {
+    const n = tokensOf(it.s), r = burn(it.id, n);
+    return n ? `<span class="cb-burn ${r ? "on" : ""}" title="${esc(t("Tokens desta janela do Claude e dos subagentes dela"))}">${icon("bolt")}${esc(tok(n))}${r ? `<i>${esc(perMin(r))}</i>` : ""}</span>` : "";
   }
   function needCard(it, p) {
     if (it.kind === "task") {
@@ -193,10 +218,11 @@ window.CrewBoard = (function () {
     const bar = (label, pct) => (pct == null ? "" : `<div class="cx-lim"><span>${esc(t(label))}</span><i><b style="width:${Math.min(100, pct)}%;--c:${pct >= 90 ? RED : pct >= 70 ? AMBER : COLD}"></b></i><em>${Math.round(pct)}%</em></div>`);
     const lim = p.limits ? bar(short ? "5 h" : "Claude 5 h", p.limits.five) + bar(short ? "Sem." : "Semana", p.limits.week) : "";
     const n = p.working.length, head = n ? t(n === 1 ? "1 a trabalhar" : "{n} a trabalhar", { n }) : p.needs.length ? t(p.me ? "à tua espera" : "à espera dele") : t("nada a correr");
+    const spend = p.tokens ? `<div class="cx-spend ${p.burn ? "on" : ""}"><span>${esc(t("Hoje"))}</span><b>${esc(tok(p.tokens))}</b>${p.burn ? `<em>${esc(t("a gastar {r}", { r: perMin(p.burn) }))}</em>` : ""}</div>` : "";
     const who = `<span class="cx-face">${ui.avatar(p.name)}<i class="${on ? "on" : ""}"></i></span><div><b>${esc(p.name)}${p.me ? ` <small>${esc(t("tu"))}</small>` : ""}</b><span>${esc(place)}</span></div>`;
     // a row: the Claude left in the corner of the line, since the lines under it already say what is running
     if (short) return `<header>${who}${lim ? `<div class="cx-lims">${lim}</div>` : ""}</header>`;
-    return `<header>${who}<em>${esc(head)}</em></header>${lim ? `<div class="cx-lims">${lim}</div>` : ""}`;
+    return `<header>${who}<em>${esc(head)}</em></header>${lim || spend ? `<div class="cx-lims">${lim}${spend}</div>` : ""}`;
   }
   const lastLine = (p) => `<p class="cb-quiet">${p.done[0] ? esc(t("Acabou «{g}» {q}.", { g: p.done[0].goal, q: ago(p.done[0].at) })) : esc(t("Nada a correr agora."))}</p>`;
   // the phone: a partner's whole card, what their Claudes are doing and what waits for them

@@ -57,6 +57,12 @@
 .cx-lim > i { display: block; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .07); overflow: hidden; }
 .cx-lim > i b { display: block; height: 100%; border-radius: inherit; background: var(--c); }
 .cx-lim em { color: #dfe5ec; font: 700 11.5px var(--display); font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+/* the tokens a partner's windows spent today, and how fast those at work are spending now */
+.cx-spend { display: flex; align-items: baseline; gap: 9px; margin-top: 2px; padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, .06); }
+.cx-spend span { width: 74px; color: #7d8794; font: 600 11px var(--ui); }
+.cx-spend b { color: #dfe5ec; font: 700 12px var(--display); font-variant-numeric: tabular-nums; }
+.cx-spend em { margin-left: auto; color: #4dff9a; font: 700 11px var(--display); font-style: normal; font-variant-numeric: tabular-nums; }
+.cb.desk .cx-spend span { width: auto; }
 .cb-col > .cb-card + .cb-card { margin-top: 8px; }
 .cb-col > footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .06); }
 .cb-col > footer span { padding: 3px 8px; border-radius: 7px; background: rgba(255, 255, 255, .04); color: #8b95a1; font: 600 11px var(--ui); }
@@ -103,6 +109,13 @@
 .cb-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .cb-foot small { flex: 1; min-width: 0; color: #6b7380; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cb-foot .cb-link { margin-left: 0; }
+/* a window's tokens, and how fast they grow while it works */
+.cb-burn { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 2px 8px; border-radius: 7px; background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .08); color: #c3c9d2; font: 700 11px var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cb-burn .i { width: 11px; height: 11px; color: #8b95a1; }
+.cb-burn i { font-style: normal; color: #4dff9a; }
+.cb-burn.on { border-color: rgba(77, 255, 154, .28); }
+.cb-burn.on .i { color: #4dff9a; }
 .cb-link { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; padding: 0; background: none; border: 0; color: #9aa2ab; font: 600 12px var(--ui); cursor: pointer; }
 .cb-link:hover { color: #fff; }
 .cb-link .i { width: 12px; height: 12px; }

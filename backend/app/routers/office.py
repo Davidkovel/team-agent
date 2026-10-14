@@ -34,6 +34,8 @@ SHOWN = 24 * 3600       # the office shows the windows of the last day
 KEEP = timedelta(days=7)
 SUBAGENT_TOOLS = ("Agent", "Task")
 _last_write: dict[str, float] = {}  # session key -> when its row was last written
+TOKENS_EVERY = 10.0     # seconds between two reads of a working window's tokens (Marco, 14 Oct: the tokens each one is spending, live)
+_tokens_at: dict[str, float] = {}  # session key -> when its tokens were last read
 _last_prune = 0.0
 
 
@@ -316,9 +318,12 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
     elif event == "SessionEnd":
         _status(row, "ended", when)
         row.ended_at, row.action = when, "fechado"
-    if event in ("Stop", "SessionEnd"):
+    # the tokens: at the end of each answer, and every few seconds while the window works (transcripts.usage reads only
+    # what was added to the transcript since the last look, so this stays cheap)
+    if event in ("Stop", "SessionEnd") or event in ("PreToolUse", "UserPromptSubmit") and clock - _tokens_at.get(key, 0) >= TOKENS_EVERY:
         used = await _used(body.get("transcript_path"))
         if used:
+            _tokens_at[key] = clock
             row.tokens = used["tokens"]
             if used["model"]:
                 body["model"] = used["model"]

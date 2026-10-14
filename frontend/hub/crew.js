@@ -3083,7 +3083,7 @@
   function buildCave() {
     cave = Object.assign(document.createElement("div"), { className: "cr-cave", id: "cr-cave" });
     cave.innerHTML = `<div class="cr-cave-bar"><div><small>${esc(t("Agente AMG · a cave dos agentes"))}</small><b>${esc(t("Empresa AMG"))}</b>
-          <span>${esc(t("Ao vivo · arrasta para andar, roda do rato para aproximar, clica num agente para a missão dele"))}</span></div>
+          <span>${esc(t("Arrasta para andar · roda para aproximar · clica num agente"))}</span></div>
         <div class="cx-acts"><a class="btn" href="#/escritorio" title="${esc(t("Escritório"))}">${icon("bot")}<span>${esc(t("Escritório"))}</span></a><button type="button" class="btn cx-mini" id="cr-mini" title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}<span>${esc(t("Mini janela"))}</span></button></div></div>
       <div class="cr-cave-body" id="cr-cave-body">
         <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>

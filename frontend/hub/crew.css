@@ -498,3 +498,14 @@ html.is-mini #cr-cave .cr-views button { height: 24px; padding: 0 9px; border-ra
   .np-card > img { width: 22px; height: 31px; }
 }
 @media (max-height: 280px) { html.is-mini .np-for { display: none; } }
+
+/* 14 Oct (Marco: «organizado, tudo bonito, como o Escritório»): on a computer the crew is one row at the bottom, beside the
+   views, like the Escritório's mini cameras, and the legend takes the top corner; the cave's top right stays clear */
+html:not(.is-phone) .cr-crew { top: auto; bottom: 14px; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 46px; gap: 4px; padding: 3px;
+  border-radius: 14px; background: rgba(6, 8, 13, .78); border: 1px solid rgba(255, 255, 255, .09); backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+html:not(.is-phone) .cr-crew .cr-mate { height: 56px; padding-top: 5px; border-radius: 10px; background: radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--c) 22%, transparent), transparent 72%); }
+html:not(.is-phone) .cr-legend { top: 16px; bottom: auto; }
+@container (max-width: 900px) {
+  html:not(.is-phone) .cr-crew { bottom: 10px; right: 10px; grid-auto-columns: 32px; gap: 2px; }
+  html:not(.is-phone) .cr-crew .cr-mate { height: 38px; }
+}

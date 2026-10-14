@@ -310,11 +310,11 @@
 .cb.desk .cx-side[data-m="queue"] > [data-m="done"], .cb.desk .cx-side[data-m="done"] > [data-m="queue"] { display: none; }
 .cb.desk .cx-side .cx-box { margin-top: 8px; padding: 8px; }
 .cb.desk .cx-side .cx-box > .cb-k { display: none; }   /* the tab says it */
-/* the side panel (the widget's numbers) would only squeeze the cameras: the partners' Claude and who is here are on this page */
-html:not(.is-phone) .hub.paneled:has(#cr-board) { grid-template-columns: 236px minmax(0, 1fr); }
-html:not(.is-phone) .hub.paneled.collapsed:has(#cr-board) { grid-template-columns: 60px minmax(0, 1fr); }
-html:not(.is-phone) .hub.paneled:has(#cr-board) #hpanel { display: none; }
-html:not(.is-phone) body:has(#cr-board) #ai-fab { right: 20px; }
+/* the side panel (the widget's numbers) would only squeeze the cameras and the cave: the partners' Claude and who is here are on this page */
+html:not(.is-phone) .hub.paneled:has(:is(#cr-board, #cr-host)) { grid-template-columns: 236px minmax(0, 1fr); }
+html:not(.is-phone) .hub.paneled.collapsed:has(:is(#cr-board, #cr-host)) { grid-template-columns: 60px minmax(0, 1fr); }
+html:not(.is-phone) .hub.paneled:has(:is(#cr-board, #cr-host)) #hpanel { display: none; }
+html:not(.is-phone) body:has(:is(#cr-board, #cr-host)) #ai-fab { right: 20px; }
 /* below a computer's width (a narrow window): the monitors one under the other, the words under the picture */
 .cb:not(.desk) .cc-wall { gap: 12px; }
 .cb:not(.desk) .cc-wall .cc-cam { container-type: inline-size; }

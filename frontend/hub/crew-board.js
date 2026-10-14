@@ -51,6 +51,8 @@ window.CrewBoard = (function () {
     alfred: ["rever antes do push", "riscos e erros", "o que falta"],
     robin: ["correr os testes", "casos difíceis", "dizer o que falhou"],
     gordon: ["organizar e planear", "pontas soltas", "reuniões da equipa"],
+    penguin: ["notícias e macro", "calendário económico", "COT e juros"],
+    twoface: ["leitura SMC do gráfico", "setups e zonas", "diário de trades"],
   };
   const SECTOR_SKILLS = [
     ["catwoman", /design|front-?end|figma|canva|artifact|dataviz|css|adobe|motion|reel|higgsfield|image|photo|video|font|slides|pptx/i],
@@ -268,7 +270,7 @@ window.CrewBoard = (function () {
       <section><small class="cf-k">${esc(t("Skills"))}</small>
         ${grp("Em uso agora", [...use.skills.map((k) => `<span class="on">/${esc(skill(k))}</span>`), ...use.subs.map((k) => `<span class="on sub">${esc(k)}</span>`)].join(""))}
         ${grp("Do setor", sector.slice(0, 8).map((k) => `<span>/${esc(skill(k.name))}${k.uses ? `<i>${k.uses}×</i>` : ""}</span>`).join(""))}
-        ${grp("Sabe fazer", `<span class="plain">${esc(CAN[a.id].map((x) => t(x)).join(" · "))}</span>`)}
+        ${grp("Sabe fazer", `<span class="plain">${esc((CAN[a.id] || []).map((x) => t(x)).join(" · "))}</span>`)}
         ${grp("Subagentes do Claude que faz", (a.kinds || []).map((k) => `<span class="sub">${esc(k)}</span>`).join(""))}</section>
       ${done.length ? `<section><small class="cf-k">${esc(t(done.length === 1 ? "1 missão feita" : "{n} missões feitas", { n: done.length }))}</small>${done.slice(0, 2).map((x) => `<p class="cf-done"><i></i>${esc(x.title)}</p>`).join("")}</section>` : ""}</div>`;
   }
@@ -323,7 +325,7 @@ window.CrewBoard = (function () {
     const top = `<span class="cc-tl"><i></i><span>CAM </span>${camNo(a.i)} · ${esc(t(a.what))}</span>${j ? `<span class="cc-tr"><em>REC</em>${j.since ? `<time>${esc(ago(j.since))}</time>` : ""}</span>` : ""}`;
     const name = `<div class="cc-name"><img class="cr-px" src="${a.portrait}" alt=""><b>${esc(a.name)}</b><em class="cc-pill"><i></i>${esc(t(STATE_WORD[st] || st))}</em></div>`;
     const skills = `<button type="button" class="cb-link cc-skills" data-ficha="${a.i}">${esc(t("Skills"))}${icon("chevron")}</button>`;
-    if (!j) return `${top}<div class="cc-cap">${name}<p class="cc-can">${esc(CAN[a.id].map((x) => t(x)).join(" · "))}</p>
+    if (!j) return `${top}<div class="cc-cap">${name}<p class="cc-can">${esc((CAN[a.id] || []).map((x) => t(x)).join(" · "))}</p>
       <div class="cc-meta"><small>${esc(t("Sem missão, à espera de trabalho"))}</small>${skills}<button type="button" class="cb-link" data-open="${a.i}">${esc(t("Dar-lhe uma missão"))}${icon("chevron")}</button></div></div>`;
     const who = host.partnerOf(j.who), use = inUse(j), goal = jobGoal(j), ask = sentence(j.title, 160);
     return `${top}<div class="cc-cap">${name}<p class="cc-goal">${esc(goal)}</p><p class="cc-now">${esc(j.action || t("a pensar…"))}</p>
@@ -412,7 +414,7 @@ window.CrewBoard = (function () {
     return `<div class="cb-peek" style="--c:${host.light(st)}"><header><img class="cr-px" src="${a.portrait}" alt=""><b>${esc(a.name)}</b><em><i></i>${esc(t(STATE_WORD[st] || st))}</em></header>
       ${j ? `<p class="cb-peek-goal">${esc(jobGoal(j))}</p><p class="cb-peek-now">${esc(j.action || t("a pensar…"))}</p>
         <small><i class="cf-p" style="--p:${who.color}"></i>${esc([t("para {n}", { n: who.name || j.who }), j.since ? ago(j.since) : ""].filter(Boolean).join(" · "))}</small>`
-        : `<p class="cb-peek-now">${esc(CAN[a.id].map((x) => t(x)).join(" · "))}</p>`}
+        : `<p class="cb-peek-now">${esc((CAN[a.id] || []).map((x) => t(x)).join(" · "))}</p>`}
       <small class="cb-peek-k">${esc(t("Clicar: a câmara em grande"))}</small></div>`;
   }
   function hideTip() { if (tip) tip.hidden = true; tipFor = null; }

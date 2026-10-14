@@ -56,6 +56,41 @@ def own_hub():
     python.chmod(0o755)
 
 
+def compact_panel():
+    """No Mac o Qt conta 72 pontos por polegada e o Windows 96: as letras saíam 25% mais pequenas dentro das mesmas
+    caixas, e o painel era grande com tudo miúdo. Aqui as letras ficam do tamanho do Windows, e o painel perde o que o
+    Mac já mostra (a hora e a data, na barra de cima) e o botão de teste «Ficar offline»: fica mais baixo e lê-se logo."""
+    from team_widget.ui import window
+
+    original_font = window.font
+    window.font = lambda size, *a, **k: original_font(size * 96 / 72, *a, **k)
+    original_build = window.WidgetWindow._build
+
+    def build(self, col):
+        original_build(self, col)
+        self.hero.hide()
+        self.btn_away.hide()
+
+    window.WidgetWindow._build = build
+
+
+def claude_usage_from_keychain():
+    """A usage do Claude (Sessão 5 h, Semana) vem da sessão do Claude Code. No Windows está em ~/.claude/.credentials.json;
+    no Mac o Claude Code guarda-a no Porta-chaves, e o widget mostrava «sem dados». Só se lê, nunca se escreve."""
+    import subprocess
+    from team_widget import limits
+
+    class Keychain:
+        def read_text(self, encoding=None):
+            try:
+                return subprocess.run(["/usr/bin/security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
+                                      capture_output=True, text=True, timeout=10, check=True).stdout
+            except subprocess.SubprocessError as e:  # o limits.py só apanha OSError: sem sessão fica «sem dados», não rebenta
+                raise OSError(str(e)) from e
+
+    limits.CREDENTIALS = Keychain()
+
+
 def no_dock_icon():
     objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
     objc.objc_getClass.restype = ctypes.c_void_p
@@ -173,6 +208,8 @@ def menu_bar_star_toggles():
 
 
 own_hub()
+compact_panel()
+claude_usage_from_keychain()
 no_maximize_to_hub()
 no_wallpaper_look()
 menu_bar_star_toggles()

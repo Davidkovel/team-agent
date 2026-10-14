@@ -410,6 +410,12 @@ git pull
 
 `iniciar.ps1` creates `.venv` if missing, installs backend + widget requirements, closes an old widget and opens the new one with `pythonw` (no console; it survives closing the terminal).
 
+**On a Mac** (`mac/`): `mac/build.sh` builds `Agente AMG.app` (the star in the menu bar plus the Hub in its own window),
+installs it in `/Applications` and copies `mac/widget_mac.py` to `~/.team-agent/mac/`. That launcher runs the same
+`widget/` from its own clone in `~/.team-agent/mac/team-agent` (with a `venv` there) and patches only what differs on
+macOS: no Dock icon, no screen sampling, the star toggles the panel, and every widget window follows you to every
+desktop (Space) and over full-screen apps. Mac-only fixes go in `widget_mac.py`, not in `widget/`.
+
 ## How it fits together
 
 - `configurar_widget.ps1` writes `~/.team-agent/widget.json` (`key`, `user`, and `hub_url` when `-HostIp` is given). `TEAM_HUB_URL`, `TEAM_KEY`, `TEAM_WIDGET_USER` override it.

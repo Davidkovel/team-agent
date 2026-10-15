@@ -44,6 +44,7 @@ lazyView("empresa", "hub/crew.js", "hub/crew.css");
 lazyView("skills", "hub/skills.js", "hub/skills.css");   // the company's skills library: who masters each one
 lazyView("mercados", "hub/mercados.js", "hub/mercados.css"); // Mercados: TradingView, SEC, paper trading
 lazyView("trading", "hub/trading-room.js", "hub/trading-room.css"); // Sala de Trading: the room's two traders, SMC, the big alert
+lazyView("robos", "hub/robots.js", "hub/robots.css"); // Escritório de Robôs: the robots at their desks, the FundedNext accounts by API
 
 const HUB_ICONS = {
   folder: '<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',

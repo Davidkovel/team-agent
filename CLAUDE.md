@@ -387,6 +387,51 @@ Armadilhas que custaram tempo:
 - **Escrever código destes ficheiros pelo Bash** (heredoc): as barras invertidas chegam mal ao ficheiro (`\\p{L}` virou
   `\p{L}`). Para texto com `\`, usar a ferramenta de editar ou um script escrito com ela.
 
+### Escritório de Robôs e as contas FundedNext (15 out, pedido do Marco)
+
+`#/robos`, 2.º separador da Sala de Trading (`frontend/hub/robots.js` + `.css`; no telemóvel em «Mais»), `/api/robots`
+(`backend/app/routers/robots.py`) e o motor em `backend/app/tradingroom/robots.py`. Inspirado num reel (um escritório 3D de robôs
+de trading a operar contas de prop firm), **nas cores do Hub** (preto e cromado; verde/vermelho só no dinheiro, azul AI numa
+ordem à espera): o Marco disse que o amarelo do vídeo não é para copiar. A equipa faz **forex/CFD day trading** (XAUUSD,
+EURUSD, GBPUSD, GER40), **não futuros**: a Lucid Trading (futuros, Tradovate) ficou de fora a pedido dele.
+
+- **Robôs** (`robots.json` em `~/.team-agent/trading-room/`, por PC): cada um é um agente do livro (`book.py`) filtrado aos seus
+  instrumentos. Por omissão seis: o Modelo SMC num robô por instrumento (equipa «SMC») e o Pinguim e o Duas-Caras («Mesa
+  Claude»). Sem conta negoceiam em papel (o R do livro × o risco do robô numa conta de 100 000 $). Escritório isométrico em canvas
+  (~20 imagens/s, só com a página aberta): mesas em grupos de quatro (`PODS`), a etiqueta de cada equipa no chão com o dinheiro do
+  dia, o ecrã grande na parede com o saldo e os quatro instrumentos, a sala de descanso (snooker, sofá) para quem está fora de
+  horas ou desligado. Clicar num robô abre o painel: equity, resultado do dia, curva e drawdown, melhor/pior, operações, últimas
+  trades, «Mudar de lugar» (troca de mesa), «Personalizar» (nome, equipa, cor) e as definições (ligado, conta, risco %, máx.
+  trades/dia, horário, hora de fecho, estratégia, instrumentos). Peso medido: 7–9% de um núcleo com a página aberta.
+- **Contas por API, nunca à mão** (`LINKS`): a **API oficial do MetaTrader 5** (`tradingroom/mt5.py`, pacote `MetaTrader5`, que
+  fala com o `terminal64.exe` instalado neste PC: entra com login/password/servidor, ex. `FundedNext-Server`; a prop vê o IP do
+  PC, como se fosse a pessoa) ou a **MetaApi** (`tradingroom/metaapi.py`, REST na cloud: token + id da conta, a prop vê o IP
+  deles). O pacote MT5 não é thread-safe: tudo passa por uma thread só (`mt5.run`). O terminal tem de estar instalado (instalado
+  no PC do Marco a 15 out, `C:\Program Files\MetaTrader 5`) e abre-se sozinho quando a conta liga; o «Algo Trading» tem de
+  estar ligado nele. Os nomes dos símbolos da corretora (`XAUUSD.r`, `GER40.cash`...) acham-se sozinhos (`ALIASES`) ou
+  mapeiam-se à mão na conta. Os preços das ordens vêm do feed da sala (OANDA) e são deslocados pela diferença para a corretora
+  nesse momento (`gap`).
+- **Segredos**: password e token só em `contas.json` neste PC, cifrados com DPAPI para o utilizador do Windows (`_seal`); nunca
+  na base de dados, nunca no sync, nunca devolvidos à página. Guardar uma password, mudar o modo ou apagar uma conta só se faz
+  do próprio PC ou do telemóvel dele pelo Tailscale (`_here`), não de outro PC do Radmin.
+- **Modos**: «Observar» (por omissão: lê saldo, posições e deals, não envia nada) e «Automático» (pedido de confirmação na
+  página). Em automático, cada trade nova do robô (só as criadas depois de ligar, `armed_at`) vai para a conta: limite (ou mercado
+  se o livro entrou a mercado há < 2 min) com stop e o 1.º alvo, volume para perder `risco %` do saldo no stop (`size`), validade
+  até à hora de fecho do robô, `magic` próprio de cada robô (é por ele que se sabem as posições e o dinheiro de cada um) e
+  comentário `AMG <robô> <id>`. A ordem é cancelada quando a trade do livro acaba (expirou, invalidada) e a posição fecha quando o
+  agente a fecha. Máx. trades por dia por robô.
+- **Day trading**: fora do horário do robô (hora de Lisboa) nada abre; à hora de fecho (`flat`, 21:30 por omissão) e na
+  sexta a partir das 15:30 de Nova Iorque as ordens e posições dos robôs na conta são canceladas/fechadas.
+- **Guarda da prop** (`guard`, `PRESETS`: Stellar 2-Step 5%/10%, 1-Step 3%/6%, Lite 4%/8%; confirmar no painel da FundedNext): o
+  dia de trading começa às 17:00 de Nova Iorque (`day_start`), a perda diária conta do maior entre saldo e equity a essa hora, a
+  máxima do saldo inicial (`size`). Sem ordens novas a `stop_at` (70%) de qualquer limite; a `panic_at` (90%) fecha tudo dos
+  robôs. Também pára com o objetivo da fase atingido. Botão vermelho «Fechar tudo dos robôs» por conta (e volta a Observar).
+- **Afinação dos setups** (`tuning`): as trades fechadas da sala e do backtest por instrumento × sessão (Ásia, Londres, Pré-NY,
+  Nova Iorque, Tarde NY), por nota (A+, A, B) e por agente, com dicas (sessões que perdem/rendem, setups B a evitar).
+- **Calculadora de lote** nas Contas (pela especificação real do símbolo na conta).
+- **Testar sem dinheiro**: um adaptador falso em `LINKS` (snapshot/place/cancel/close) e `OFFICE.sync_account` com
+  `TRADING_ROOM_DIR` numa pasta de teste; nunca ligar uma conta real para testar.
+
 ### Testar uma mudança no Hub
 
 1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".

@@ -14,7 +14,7 @@ from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, office, ponto, tasks, team, trading, week, work, ws
-from .routers import skills, tradingroom
+from .routers import robots, skills, tradingroom
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -107,7 +107,10 @@ async def lifespan(app: FastAPI):
     measuring = asyncio.create_task(health.loop()) if settings.sync else None  # the real Hub of a PC: Saúde
     watching = asyncio.create_task(trading.loop()) if settings.sync else None  # Mercados: alerts and SEC filings
     trading_room = asyncio.create_task(tradingroom.loop()) if settings.sync or os.environ.get("TRADING_ROOM") == "1" else None  # Sala de Trading
+    robots_loop = asyncio.create_task(robots.loop()) if settings.sync or os.environ.get("TRADING_ROOM") == "1" else None  # Escritório de Robôs: the accounts
     yield
+    if robots_loop:
+        robots_loop.cancel()
     if trading_room:
         trading_room.cancel()
     if watching:
@@ -127,6 +130,7 @@ app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
 for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, trading, office, skills, selfupdate, ws, sync, push, webpush):
     app.include_router(module.router)
 app.include_router(tradingroom.router)  # Sala de Trading
+app.include_router(robots.router)  # Escritório de Robôs
 
 @app.middleware("http")
 async def always_fresh(request, call_next):

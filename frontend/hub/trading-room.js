@@ -55,6 +55,7 @@
       </header>
       <div class="tr-tape" id="tr-tape"><div></div></div>
       <section class="tr-radar" id="tr-radar"></section>
+      <section class="tr-react" id="tr-react" hidden></section>
       <section class="tr-score" id="tr-score"></section>
       <section class="tr-live" id="tr-live"></section>
       <div class="tr-main">
@@ -84,7 +85,6 @@
           <button type="button" class="btn" id="tr-bt-run">${esc(t("Correr o backtest"))}</button></div>
         <div id="tr-bt"></div>
       </section>
-      <section class="tr-react" id="tr-react" hidden></section>
       <div class="tr-lower">
         <section class="tr-cal"><h2>${icon("calendar")}${esc(t("Calendário económico"))}<small>${esc(t("alto e médio impacto · hora de Lisboa"))}</small></h2><div id="tr-cal"></div></section>
         <section class="tr-news"><h2>${icon("doc")}${esc(t("Manchetes"))}<small>Reuters · Dow Jones · FXStreet</small></h2><div id="tr-news"></div></section>
@@ -166,13 +166,16 @@
     const el = $("tr-react"); if (!el) return;
     el.hidden = !(RX && RX.key);
     if (el.hidden) return;
+    el.onclick = (e) => { const b = e.target.closest("[data-rx]"); if (b) pickReaction(b.dataset.rx === RX.key ? "" : b.dataset.rx); };
     const SP = { BELOW: "Abaixo da previsão", ABOVE: "Acima da previsão", INLINE: "Igual à previsão" };
-    const SYM = [["GOLD", "Ouro"], ["EURUSD", "EUR/USD"], ["GER40", "GER40"]];
+    // only the markets this event has history for (GBP/USD came later than the rest)
+    const SYM = [["GOLD", "Ouro"], ["EURUSD", "EUR/USD"], ["GER40", "GER40"], ["GBPUSD", "GBP/USD"]].filter(([k]) => Object.values(RX.table || {}).some((r) => r[k]));
     const pc = (v) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${nfx(v)}%`);
     const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
     const fig = (v) => (v == null ? "—" : `${nfx(v, Number.isInteger(v) ? 0 : 1)}${RX.unit || ""}`);
-    const out = new Date(RX.t) <= new Date();
-    const head = out && RX.surprise
+    const out = !!RX.t && new Date(RX.t) <= new Date();
+    const head = !RX.t ? esc(t("Sem data no calendário desta semana · o histórico de todas as saídas"))
+      : out && RX.surprise
       ? `${esc(t("Saiu"))} <b>${fig(RX.actual)}</b> ${esc(t("contra"))} ${fig(RX.forecast)} ${esc(t("de previsão"))} <span class="tr-rx-s ${RX.surprise}">${esc(t(SP[RX.surprise]))}</span>`
       : `${esc(t("Sai"))} <b>${dt(RX.t)}</b> · ${esc(t("previsão"))} <b>${fig(RX.forecast)}</b> · ${esc(t("anterior"))} ${fig(RX.previous)}`;
     const rows = Object.keys(SP).map((s) => {
@@ -188,8 +191,18 @@
         <h4>${esc(t("As saídas passadas mais parecidas"))}</h4>
         <table class="tr-rx-t"><thead><tr><th>${esc(t("Dia"))}</th><th>+60 min</th><th>+120 min</th><th>${esc(t("Voltou ao preço de antes?"))}</th></tr></thead><tbody>${
           lv.similar.map((x) => `<tr><td>${new Date(x.t).toLocaleDateString("pt-PT")} <small>${esc(t(SP[x.surprise]))}</small></td><td class="${cls(x.p60)}">${pc(x.p60)}</td><td class="${cls(x.p120)}">${pc(x.p120)}</td><td>${x.back ? esc(t("sim, em {m} min", { m: x.back })) : esc(t("não no próprio dia"))}</td></tr>`).join("")}</tbody></table></div>` : "";
+    const tabs = (RX.tabs || []).filter((x) => x.has).map((x) => `<button type="button" data-rx="${x.key}" class="${x.key === RX.key ? "on" : ""}">${esc(t(x.name))}${x.t ? `<small>${esc(rxWhen(x.t))}</small>` : ""}</button>`).join("");
+    // the three outcomes at a glance: which way each market went in the first 5 minutes, and how often
+    const cards = Object.keys(SP).map((s) => {
+      const r = RX.table[s] || { n: 0 };
+      return `<div class="tr-rx-c ${s} ${out && RX.surprise === s ? "now" : ""}"><b>${esc(t("Se sair"))} ${esc(t(SP[s]).toLowerCase())}</b><small>${esc(t("{n} vezes desde {y}", { n: r.n, y: RX.since }))}</small>
+        <ul>${SYM.map(([k, n]) => { const c = r[k]; if (!c) return ""; const up = c.avg > 0, often = Math.max(c.up, c.n - c.up);
+          return `<li><span>${esc(t(n))}</span><i class="${cls(c.avg)}">${up ? "▲" : "▼"}</i><b class="${cls(c.avg)}">${pc(c.avg)}</b><em>${esc(t(up ? "subiu {a} de {b}" : "desceu {a} de {b}", { a: up ? c.up : c.n - c.up, b: c.n }))}</em><u style="--w:${Math.round(often / Math.max(1, c.n) * 100)}%"></u></li>`; }).join("")}</ul></div>`;
+    }).join("");
     paint(el, `<h2>${icon("calendar")}${esc(t("Reação à notícia"))} · ${esc(t(RX.name))}<small>${esc(t("{n} saídas desde {y} · movimento nos primeiros 5 min, velas de 1 minuto", { n: RX.count, y: RX.since }))}</small></h2>
+      ${tabs ? `<nav class="tr-rx-tabs">${tabs}</nav>` : ""}
       <p class="tr-rx-h">${head}</p>
+      <div class="tr-rx-cards">${cards}</div>
       <div class="tr-rx-g">
         <div><table class="tr-rx-t"><thead><tr><th>${esc(t("O número saiu"))}</th>${SYM.map(([, n]) => `<th>${esc(t(n))}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
           <p class="tr-rx-n">${esc(t("Ouro com o número acima da previsão e a cair nos primeiros 5 min: 25 min depois estava mais alto em {a} de {b}. Quedas menores que 0,3% voltaram ao preço de antes em {c} de {d}{m}; de 0,3% ou mais, em {e} de {f}.", {
@@ -199,8 +212,17 @@
       <p class="tr-rx-f">${esc(t("Frequências do passado em amostras pequenas, não uma garantia. Histórico: Dukascopy (news-reaction, {d}); ouro ao vivo: Binance XAUUSDT.", { d: RX.built || "—" }))}</p>`);
   }
 
+  // the event chosen in the tabs (empty = the one in play); the click is wired once per paint
+  let rxKey = "";
+  const rxWhen = (iso) => { const d = new Date(iso), days = Math.round((d - Date.now()) / 864e5);
+    return days < -0.2 ? t("saiu") : `${days < 1 && d.getDate() === new Date().getDate() ? t("hoje") : d.toLocaleDateString("pt-PT", { weekday: "short", day: "numeric" })} ${d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}`; };
+  async function pickReaction(key) {
+    rxKey = key;
+    try { RX = await api(`/api/trading-room/reaction?key=${encodeURIComponent(key)}`); } catch (e) { return; }
+    paintReaction();
+  }
   async function load() {
-    const [st, bk, rx] = await Promise.all([api("/api/trading-room/state"), api("/api/trading-room/trades?limit=400").catch(() => null), api("/api/trading-room/reaction").catch(() => null)]);
+    const [st, bk, rx] = await Promise.all([api("/api/trading-room/state"), api("/api/trading-room/trades?limit=400").catch(() => null), api(`/api/trading-room/reaction${rxKey ? `?key=${rxKey}` : ""}`).catch(() => null)]);
     S = st;
     if (bk) bookRows = bk.trades;
     RX = rx;

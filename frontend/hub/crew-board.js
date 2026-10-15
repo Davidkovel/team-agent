@@ -69,7 +69,7 @@ window.CrewBoard = (function () {
     alfred: ["rever antes do push", "riscos e erros", "o que falta"],
     robin: ["correr os testes", "casos difíceis", "dizer o que falhou"],
     gordon: ["organizar e planear", "pontas soltas", "reuniões da equipa"],
-    penguin: ["notícias e macro", "calendário económico", "COT e juros"],
+    penguin: ["notícias e macro", "reação às notícias", "calendário económico", "COT e juros"],
     twoface: ["leitura SMC do gráfico", "setups e zonas", "diário de trades"],
   };
   const SECTOR_SKILLS = [
@@ -295,7 +295,22 @@ window.CrewBoard = (function () {
       + door('data-panel="memory"', "note", "Memória", s.memory ? t("{n} notas", { n: s.memory.length }) : t("O que os agentes sabem"))
       + door('data-href="#/skills"', "layers", "Skills", t("A biblioteca da empresa"))
       + door('data-panel="vault"', "bag", "Cofre", t("{n} missões feitas", { n: gold }))
-      + door("data-meet", "spark", "Reunião", t("O Gordon liga as ideias"));
+      + door("data-meet", "spark", "Reunião", t("O Gordon liga as ideias"))
+      + newsDoor(door);
+  }
+  // the next US release and how gold reacted to it, from the trading room (one request a minute, only while the office is open)
+  let news = null, newsAt = 0;
+  function newsDoor(plain) {
+    const door = (...a) => plain(...a).replace('class="cb-door"', 'class="cb-door cb-news"');
+    if (Date.now() - newsAt > 60000) {
+      newsAt = Date.now();
+      api("/api/trading-room/reaction").then((x) => { const had = JSON.stringify(news); news = x; if (JSON.stringify(x) !== had) { const el = $("cb-doors"); if (el) draw(); } }).catch(() => {});
+    }
+    if (!news || !news.key) return door('data-href="#/trading"', "calendar", "Notícias", t("Reação do ouro às notícias dos EUA"));
+    const g = (news.table || {}).BELOW && news.table.BELOW.GOLD, d = news.t && new Date(news.t);
+    const when = !d ? t("sem data esta semana") : d <= new Date() ? t("já saiu") : d.toLocaleDateString("pt-PT", { weekday: "short" }) + " " + d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+    const short = { cpi: "CPI", nfp: "NFP", ppi: "PPI", retail: "Vendas EUA", pce: "PCE", fomc: "Fed" }[news.key] || news.name;
+    return door('data-href="#/trading"', "calendar", short, `${when}${g ? " · " + t("abaixo: ouro {p}", { p: `${g.avg >= 0 ? "+" : ""}${String(g.avg.toFixed(2)).replace(".", ",")}%` }) : ""}`);
   }
 
   // ---------------------------------------------------------------- an agent's card, read at a glance (the pointer on a camera, here and in the cave)

@@ -92,9 +92,11 @@ async def backtest_start(user: User = Depends(viewer)):
 
 
 @router.get("/reaction")
-def reaction_view(user: User = Depends(viewer)):
-    """How gold, EUR/USD and GER40 reacted to past releases of the US number in play, and today's gold vs the closest ones."""
-    return reaction.refresh(ROOM.calendar, datetime.now(UTC))   # plain def: FastAPI runs it in its thread pool
+def reaction_view(key: str = "", user: User = Depends(viewer)):
+    """How gold, EUR/USD, GER40 and GBP/USD reacted to past releases of the US number in play, and today's gold vs the closest
+    ones. ?key=nfp shows that event's history instead (the tabs on the page)."""
+    now = datetime.now(UTC)
+    return (key and reaction.browse(ROOM.calendar, now, key)) or reaction.refresh(ROOM.calendar, now)   # plain def: FastAPI runs it in its thread pool
 
 
 @router.get("/pulse")

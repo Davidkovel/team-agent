@@ -21,7 +21,7 @@ DATA = Path(__file__).with_name("reaction_data")
 EVENTS = [(r"^Core Inflation Rate MoM$", "cpi", "Inflação core (CPI) m/m"), (r"^Non Farm Payrolls$", "nfp", "Payrolls (NFP)"),
           (r"^PPI MoM$", "ppi", "Preços no produtor (PPI) m/m"), (r"^Retail Sales MoM$", "retail", "Vendas a retalho m/m"),
           (r"^Core PCE Price Index MoM$", "pce", "PCE core m/m"), (r"^Fed Interest Rate Decision$", "fomc", "Decisão de juros da Fed")]
-SYMS = {"GOLD": "Ouro", "EURUSD": "EUR/USD", "GER40": "GER40"}
+SYMS = {"GOLD": "Ouro", "EURUSD": "EUR/USD", "GER40": "GER40", "GBPUSD": "GBP/USD"}
 SURPRISE = {"BELOW": "abaixo da previsão", "ABOVE": "acima da previsão", "INLINE": "igual à previsão"}
 BIG_DROP = 0.3   # % at the 5-minute close: below it gold usually came back fast, above it usually not
 LAST: dict = {}   # what the page and the briefing show, refreshed by the room
@@ -48,22 +48,39 @@ def surprise(actual, forecast) -> str | None:
     return "ABOVE" if actual > forecast else "BELOW" if actual < forecast else "INLINE"
 
 
-def pick(calendar: list[dict], now: datetime):
-    """The US release to talk about: the latest one out in the last 4 h, else the next one in the coming 36 h."""
+def _match(e: dict):
+    if e.get("country") != "US" or not e.get("t"):
+        return None
+    return next(((k, pt) for rx, k, pt in EVENTS if re.search(rx, e.get("title") or "")), None)
+
+
+def pick(calendar: list[dict], now: datetime, horizon: float = 36 * 3600):
+    """The US release to talk about: the latest one out in the last 4 h, else the next one in the coming `horizon` seconds."""
     found = []
     for e in calendar:
-        if e.get("country") != "US" or not e.get("t"):
-            continue
-        hit = next(((k, pt) for rx, k, pt in EVENTS if re.search(rx, e.get("title") or "")), None)
+        hit = _match(e)
         if not hit or not load(hit[0]):
             continue
         dt = (_parse(e["t"]) - now).total_seconds()
-        if -4 * 3600 <= dt <= 36 * 3600:
+        if -4 * 3600 <= dt <= horizon:
             found.append((dt > 0, abs(dt), e, hit))
     if not found:
         return None
     _, _, e, (key, name) = min(found, key=lambda f: (f[0], f[1]))
     return e, key, name
+
+
+def upcoming(calendar: list[dict], now: datetime) -> dict:
+    """key -> the next (or just out) release of each event in the calendar, for the tabs on the page."""
+    out: dict = {}
+    for e in calendar:
+        hit = _match(e)
+        if not hit:
+            continue
+        dt = (_parse(e["t"]) - now).total_seconds()
+        if dt >= -4 * 3600 and (hit[0] not in out or e["t"] < out[hit[0]]["t"]):
+            out[hit[0]] = e
+    return out
 
 
 def summary(data: dict) -> dict:
@@ -118,17 +135,41 @@ def live(e: dict, key: str, now: datetime) -> dict | None:
     return {"minutes": len(path), "now": path[-1], "low": round((low - ref) / ref * 100, 3), "price": float(k[-1][4]), "similar": similar[:4]}
 
 
+def _view(e: dict | None, key: str, name: str) -> dict:
+    data = load(key)
+    e = e or {}
+    return {"key": key, "name": name, "t": e.get("t"), "actual": e.get("actual"), "forecast": e.get("forecast"), "previous": e.get("previous"),
+            "unit": e.get("unit") or "", "surprise": surprise(e.get("actual"), e.get("forecast")), "built": data.get("built"), **summary(data)}
+
+
+def tabs(calendar: list[dict], now: datetime) -> list[dict]:
+    nxt = upcoming(calendar, now)
+    return [{"key": k, "name": n, "t": (nxt.get(k) or {}).get("t"), "has": bool(load(k))} for _, k, n in EVENTS]
+
+
+def browse(calendar: list[dict], now: datetime, key: str) -> dict | None:
+    """One event's history on demand (the tabs), with its next release if the calendar has it. No Binance."""
+    name = next((n for _, k, n in EVENTS if k == key), None)
+    if not name or not load(key):
+        return None
+    if LAST.get("key") == key:
+        return {**LAST, "tabs": tabs(calendar, now)}
+    return {**_view(upcoming(calendar, now).get(key), key, name), "tabs": tabs(calendar, now)}
+
+
 def refresh(calendar: list[dict], now: datetime) -> dict:
-    """Called by the room every cycle and by the page. Binance only after a release, at most once a minute."""
+    """Called by the room every cycle and by the page. Binance only after a release, at most once a minute.
+    The release in play (4 h after / 36 h before); with none, the next one of the week so the page always shows something."""
     global LAST
-    got = pick(calendar, now)
+    got, far = pick(calendar, now), False
     if not got:
-        LAST = {}
+        got, far = pick(calendar, now, 10 * 86400), True
+    if not got:
+        key = next((k for _, k, _n in EVENTS if load(k)), None)
+        LAST = {**_view(None, key, next(n for _, k, n in EVENTS if k == key)), "tabs": tabs(calendar, now), "idle": True} if key else {}
         return LAST
     e, key, name = got
-    data = load(key)
-    out = {"key": key, "name": name, "t": e["t"], "actual": e.get("actual"), "forecast": e.get("forecast"), "previous": e.get("previous"),
-           "unit": e.get("unit") or "", "surprise": surprise(e.get("actual"), e.get("forecast")), "built": data.get("built"), **summary(data)}
+    out = {**_view(e, key, name), "tabs": tabs(calendar, now), "far": far}
     same = LAST.get("t") == e["t"]
     if same and time.time() - LAST.get("live_at", 0) < 55:
         out["live"], out["live_at"] = LAST.get("live"), LAST["live_at"]
@@ -142,6 +183,19 @@ def refresh(calendar: list[dict], now: datetime) -> dict:
     return out
 
 
+SHORT = {"cpi": "CPI", "nfp": "NFP", "ppi": "PPI", "retail": "Vendas EUA", "pce": "PCE", "fomc": "Fed"}
+
+
+def pulse() -> dict | None:
+    """A few words for the cave and the office: the release in play and what gold usually did."""
+    x = LAST
+    if not x or not x.get("key"):
+        return None
+    gold = {s: (x["table"].get(s) or {}).get("GOLD") for s in ("BELOW", "ABOVE")}
+    return {"key": x["key"], "short": SHORT.get(x["key"], x["key"]), "t": x.get("t"), "surprise": x.get("surprise"),
+            "now": (x.get("live") or {}).get("now"), "gold": {s: g and {"avg": g["avg"], "up": g["up"], "n": g["n"]} for s, g in gold.items()}}
+
+
 def _p(v) -> str:
     return "—" if v is None else f"{v:+.2f}%".replace(".", ",")
 
@@ -153,7 +207,7 @@ def _n(v) -> str:
 def brief_text() -> str:
     """The same history in words, for the meeting's briefing."""
     x = LAST
-    if not x:
+    if not x or x.get("idle") or x.get("far"):   # the briefing only talks about a release in play (36 h)
         return ""
     L = [f"REAÇÃO HISTÓRICA À NOTÍCIA {x['name'].upper()} ({x['count']} saídas desde {x['since']}; movimento nos primeiros 5 min, "
          "a partir do último preço antes da notícia):"]

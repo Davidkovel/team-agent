@@ -284,6 +284,10 @@
 .cb.desk .cb-door .i { width: 16px; height: 16px; }
 .cb.desk .cb-door b { font-size: 12px; }
 .cb.desk .cb-door span { display: none; }
+/* the next US release: a strip across the doors, with what gold did written out */
+.cb.desk .cb-door.cb-news { grid-column: 1 / -1; min-width: 0; overflow: hidden; grid-template-columns: 16px auto minmax(0, 1fr); justify-items: start; gap: 8px; padding: 8px 12px; text-align: left; }
+.cb.desk .cb-door.cb-news > div { display: contents; }
+.cb.desk .cb-door.cb-news span { display: block; max-width: 100%; min-width: 0; margin: 0; color: #9aa3ad; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cb.desk:not(.wide) .cb-nums { grid-template-columns: repeat(4, 80px); }
 .cb.desk:not(.wide) .cx-acts .btn { padding: 0 12px; }
 /* a partner's column on a computer: who, their Claude left, then their jobs */

@@ -2162,9 +2162,18 @@
     d.c.slice(-cols).forEach(([o, h, l, c], j) => { for (let v = y(h); v <= y(l); v++) f.px(1 + j, v, c >= o ? NEON.green : NEON.red); });
   }
   // sharp, on the big canvas: the plate of the room under its front, and the names over the screens up close
+  // the US release in play, in a few words (reaction.pulse in the Hub): before it, what gold usually did; after it, gold now
+  function newsLine(n) {
+    if (!n || !n.t) return "";
+    const d = new Date(n.t), out = d <= new Date(), g = n.gold || {};
+    if (out && n.now != null) return t("{e} saiu · ouro {p} desde então", { e: n.short, p: tpct(n.now) });
+    if (out) return t("{e} saiu · a ver o ouro", { e: n.short });
+    const when = d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString("pt-PT", { weekday: "short" });
+    return t("{e} {w} · abaixo, ouro {p}", { e: n.short, w: when, p: g.BELOW ? tpct(g.BELOW.avg) : "—" });
+  }
   function tradingPlates(g, placed) {
     const k = dpr * LS, m = pulse && pulse.meeting, live = m && m.status === "running";
-    const line = live ? t("Em reunião agora") : pulse && pulse.alert ? t("Aviso: {t}", { t: pulse.alert.title }) : t("Pinguim · Duas-Caras");
+    const line = live ? t("Em reunião agora") : pulse && pulse.alert ? t("Aviso: {t}", { t: pulse.alert.title }) : newsLine(pulse && pulse.news) || t("Pinguim · Duas-Caras");
     const [px, py] = P(21.5, 17.1, -22);
     tradePlate = plateAt(g, SX(px), SY(py), t("AMG Capital"), t("Sala de Trading"), line.length > 44 ? line.slice(0, 43) + "…" : line, hoverTrade);
     if (tradePlate) placed.push(tradePlate);

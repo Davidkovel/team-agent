@@ -330,7 +330,7 @@ class Room:
                 "ticker": [{"id": a["id"], "price": a["price"], "chg": a["chg"], "dp": a["dp"]} for a in self.view.values()]
                 + [{"id": c["id"], "price": c["price"], "chg": c["chg"], "dp": c["dp"]} for c in self.context],
                 "score": {a: {k: v for k, v in self.book.stats(a).items() if k in ("wins", "losses", "total_r", "open", "winrate")} for a in ("penguin", "twoface")},
-                "updated": self.updated}
+                "news": reaction.pulse(), "updated": self.updated}
 
 
 ROOM = Room()

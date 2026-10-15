@@ -374,7 +374,16 @@ Armadilhas que custaram tempo:
   saída lê o ouro de minuto a minuto na Binance (XAUUSDT) e mostra as 4 saídas passadas com o caminho mais parecido e o que
   fizeram a seguir. O mesmo texto entra no briefing do Pinguim (`reaction.brief_text`). O histórico são JSON em
   `tradingroom/reaction_data/<evento>.json`, feitos no repositório news-reaction do Kovel (`python newsreact.py export cpi`,
-  velas de 1 min da Dukascopy); um evento sem ficheiro simplesmente não aparece. Por agora só há `cpi.json`.
+  velas de 1 min da Dukascopy); um evento sem ficheiro simplesmente não aparece.
+  **15 out (pedido do Marco: «quero ver»):** a secção está sempre à vista logo a seguir aos mercados (sem notícia em jogo, a
+  próxima da semana ou só o histórico), com abas por notícia (`?key=` no `/reaction`, `reaction.browse`) e três cartões «se sair
+  abaixo / acima / igual». GBP/USD entra (a coluna só aparece quando o JSON a tem). A placa AMG Capital na cave (`newsLine`, campo
+  `news` do `/pulse`) e uma faixa «Notícias» por baixo das portas do Escritório (`newsDoor`) dizem a próxima notícia e o ouro.
+  O briefing só fala da notícia a ≤ 36 h (`far`). **Os JSON das outras notícias** são feitos no PC do Marco por
+  `~/.team-agent/news-reaction/fetch_all.py` (clone do news-reaction com GBPUSD em `SYMS`): ouro primeiro, depois EUR/USD, GER40,
+  GBP/USD; a Dukascopy só dá um ficheiro de cada vez (25–50 s, em paralelo recusa), por isso demora muitas horas. Cada evento é
+  publicado sozinho (commit + push só desse ficheiro) quando tem ≥ 20 saídas com ouro e nunca menos do que o que já está no git.
+  Se o PC reiniciar, correr outra vez `python -u fetch_all.py` nessa pasta: retoma onde parou (log em `fetch.log`).
 - **Escrever código destes ficheiros pelo Bash** (heredoc): as barras invertidas chegam mal ao ficheiro (`\\p{L}` virou
   `\p{L}`). Para texto com `\`, usar a ferramenta de editar ou um script escrito com ela.
 

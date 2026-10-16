@@ -5,6 +5,9 @@ ficam lado a lado, as imagens saem do eixo, e entre blocos há ar a sério. O ol
 esquerda → direita → esquerda ao longo da página e nunca se habitua. Um site "bom mas plano"
 (tudo encostado a 4 %, blocos de 900 px colados) perde exactamente isto.
 
+As medidas abaixo mostram o ritmo; não são alvos. O cliente tem outros blocos, em outro número:
+adaptar livremente e guardar só o princípio (margens que alternam, assimetria, ar, ecrãs inteiros).
+
 ## Medidas reais (tomas476.github.io/deantonio, 1440 px; esquerda–direita em % do ecrã)
 
 | Bloco | Texto | Imagem / mídia |

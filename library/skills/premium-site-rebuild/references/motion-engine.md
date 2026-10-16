@@ -1,13 +1,13 @@
 # O motor de movimento
 
-Tudo o que mexe passa por um núcleo pequeno (`assets/starter/js/00-core.js`, tirado de
+Tudo o que mexe passa por um núcleo pequeno (`assets/starter/js/00-nucleo.js`, tirado de
 `assets/reference/deantonio/js/00-core.js`). As receitas das secções estão em
 `assets/starter/js/20-comuns.js`. Ler o original quando houver dúvida.
 
 ## 1. O núcleo
 
 ```js
-window.SITE = (() => {
+window.SITE = (() => {   // versão completa em assets/starter/js/00-nucleo.js
   const reduz = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
   const ecra = { y: scrollY, h: innerHeight, w: innerWidth, mexeu: true, t: 0 };

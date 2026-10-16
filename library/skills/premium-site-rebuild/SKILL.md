@@ -130,6 +130,7 @@ Todos os caminhos relativos (o site vive em `/<repo>/`). Confirmar o URL ao vivo
 | tokens, letra, cor, botões, cabeçalho, rodapé, telemóvel | `references/design-system.md` |
 | encontrar a ideia-assinatura para outro negócio | `references/signature-ideas.md` |
 | ver o código verdadeiro de uma técnica | `assets/reference/deantonio/js/*.js`, `estilo.css` |
+| um caso completo feito com este método (Ferreras, «Las 24 horas») e as armadilhas | `references/case-ferreras.md`, `assets/starter/` |
 
 ## Checklist de entrega
 

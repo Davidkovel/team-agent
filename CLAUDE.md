@@ -267,6 +267,15 @@ cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/ap
   fora da pasta da skill. `library/skills/origens.json` diz de onde veio cada uma. As skills dos plugins de terceiros (SEO,
   anúncios, Shopify, superpowers...) **não foram copiadas**: publicar 128 skills de outros num repositório público ficou para o
   Marco decidir (16 out).
+- **O mesmo Claude Code em todos os PCs** (16 out, `backend/app/claude_kit.py`; Marco: «automatiza tudo... para todos»):
+  cada Hub pergunta aos outros, pela VPN (`/api/sync/kit`, mesma regra do sync para quem pode perguntar), que plugins e
+  skills pessoais têm, e dá ao seu PC o que falta: os plugins com `claude plugin install <plugin>@<marketplace> --scope user`
+  (só marketplaces do GitHub, nunca com `-y`), as skills de `~/.claude/skills` num zip para `~/.claude/skills` (uma pasta
+  com um ficheiro `.privada` nunca sai). Nada vai para o git. De 30 em 30 min; o que aprendeu fica em
+  `~/.team-agent/claude-kit.json`; um plugin que a pessoa tirou não volta. `FORA` no módulo deixa um plugin de fora para
+  todos (o ActiveCampaign, que sem a conta dá erro em cada janela). **Desligado por omissão: cada um liga no seu PC**
+  (instala plugins e skills de outros no PC dele), com `CLAUDE_KIT=1` no `backend/.env` desse PC e reiniciar o Hub. O
+  PC que serve também tem de o ter ligado.
 - **Skills dos parceiros** (16 out): `site-empresa-local` (método dos sites Blue Magnitude e Detalhes Cautelosos do Tomás,
   tomas476) e `site-estudio-ia` (método do site NeoDaemon do Fábio, fabiocabaceira), ao lado das `premium-site-rebuild` e
   `realtor-landing` que o David trouxe do Tomás. O GitHub do Fábio não tem skills; o do Tomás só tinha o kit imobiliário.

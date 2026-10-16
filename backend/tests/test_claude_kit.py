@@ -82,3 +82,45 @@ def test_my_skills_leave_out_private_ones_the_library_and_copies_from_others(tmp
     monkeypatch.setattr(kit, "LIBRARY", tmp_path / "lib")
     monkeypatch.setattr(kit, "STATE", state)
     assert list(kit.my_skills()) == ["motion-reel-codigo"]
+
+
+def test_the_button_wins_over_the_env_and_only_the_pcs_person_can_press_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(kit, "SWITCH", tmp_path / "on.json")
+    monkeypatch.setattr(kit.settings, "claude_kit", False)
+    assert not kit.enabled()
+    (tmp_path / "on.json").write_text(json.dumps({"on": True, "by": "david"}), encoding="utf-8")
+    assert kit.enabled()
+    monkeypatch.setattr(kit.settings, "claude_kit", True)
+    (tmp_path / "on.json").write_text(json.dumps({"on": False}), encoding="utf-8")
+    assert not kit.enabled()   # turned off in the Hub stays off, CLAUDE_KIT=1 or not
+
+    class Req:
+        def __init__(self, host): self.client = type("C", (), {"host": host})()
+    person = lambda login: type("U", (), {"username": login})()
+    monkeypatch.setattr(kit.sync, "whoami", lambda: (2, "david"))
+    assert kit._owner(Req("26.68.80.191"), person("david")) and not kit._owner(Req("127.0.0.1"), person("mark"))
+    monkeypatch.setattr(kit.sync, "whoami", lambda: None)   # no VPN: only the widget on the PC itself
+    assert kit._owner(Req("127.0.0.1"), person("mark")) and not kit._owner(Req("100.64.0.2"), person("mark"))
+
+
+def test_another_pc_shows_as_on_off_or_down(monkeypatch):
+    import asyncio
+    import httpx
+    answers = {"26.0.0.1": (200, {"on": True, "plugins": {"seo@m": "o/r"}, "skills": {"reel": "h"}}),
+               "26.0.0.2": (200, {"on": False}), "26.0.0.3": (404, {}), "26.0.0.4": (200, {"plugins": {"a@m": "o/r"}})}
+
+    def handler(request):
+        host = request.url.host
+        if host not in answers:
+            raise httpx.ConnectError("off")
+        code, body = answers[host]
+        return httpx.Response(code, json=body)
+    monkeypatch.setattr(kit.sync, "team_ips", lambda: [("26.0.0.1", "owner"), ("26.0.0.2", "david")])
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return [await kit._peer(client, ip) for ip in ("26.0.0.1", "26.0.0.2", "26.0.0.3", "26.0.0.4", "26.0.0.9")]
+    on, off, old_off, old_on, down = asyncio.run(go())
+    assert on == {"who": "owner", "state": "on", "plugins": ["seo@m"], "skills": ["reel"]}
+    assert off == {"who": "david", "state": "off"} and old_off["state"] == "off"
+    assert old_on["state"] == "on" and down == {"who": "26.0.0.9", "state": "down"}

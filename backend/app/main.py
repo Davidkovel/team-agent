@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI):
     watching = asyncio.create_task(trading.loop()) if settings.sync else None  # Mercados: alerts and SEC filings
     trading_room = asyncio.create_task(tradingroom.loop()) if settings.sync or os.environ.get("TRADING_ROOM") == "1" else None  # Sala de Trading
     robots_loop = asyncio.create_task(robots.loop()) if settings.sync or os.environ.get("TRADING_ROOM") == "1" else None  # Escritório de Robôs: the accounts
-    kit = asyncio.create_task(claude_kit.loop()) if settings.sync and settings.claude_kit else None  # opt-in per PC
+    kit = asyncio.create_task(claude_kit.loop()) if settings.sync else None  # idle until the PC's person turns it on (Trabalho › Kit do Claude)
     yield
     if kit:
         kit.cancel()
@@ -135,6 +135,7 @@ for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week,
 app.include_router(tradingroom.router)  # Sala de Trading
 app.include_router(robots.router)  # Escritório de Robôs
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
+app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here
 
 @app.middleware("http")
 async def always_fresh(request, call_next):

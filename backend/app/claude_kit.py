@@ -15,9 +15,11 @@ the team's own PCs, like the database does (sync.py, same rule for who may ask).
 What this PC learned from the others is kept in ~/.team-agent/claude-kit.json, so it can install later even when the others
 are off. A plugin this Hub installed and the person removed stays removed here. `FORA` keeps a plugin out for everybody.
 
-**Off unless the person whose PC it is turns it on** (CLAUDE_KIT=1 in that PC's backend/.env, which is not in git): it
-installs other people's plugins and skills on the PC, so each partner decides for their own. Off, the Hub neither installs
-nor serves anything.
+**Off unless the person whose PC it is turns it on**: in the Hub, Trabalho › Kit do Claude (only the PC's own person can
+press it, by the VPN address of the PC; 16 Oct, Marco: «adicionar isso também lá no widget, na zona de trabalho»), or
+CLAUDE_KIT=1 in that PC's backend/.env. It installs other people's plugins and skills on the PC, so each partner decides
+for their own. Off, the Hub neither installs nor serves anything. The same page shows every PC: on or off, and which
+plugins and skills each one has.
 """
 import asyncio
 import hashlib
@@ -36,16 +38,20 @@ import zipfile
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from . import sync
 from .config import settings
+from .models import User
+from .routers.trading import viewer
 
 log = logging.getLogger("team.kit")
 
 CLAUDE = Path.home() / ".claude"
 STATE = Path.home() / ".team-agent" / "claude-kit.json"
+SWITCH = Path.home() / ".team-agent" / "claude-kit-on.json"   # {"on": bool, "by", "at"}: the button in the Hub
 LIBRARY = Path(__file__).resolve().parents[2] / "library" / "skills"
 EVERY = 1800            # seconds between rounds; the first one a minute after the Hub starts
 RETRY = 6 * 3600        # a plugin that failed to install is tried again after this
@@ -55,6 +61,29 @@ NAME = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 FORA = {  # plugins that never travel, and why
     "activecampaign@claude-plugins-official": "precisa do endereço da conta ActiveCampaign em cada PC; sem ele dá erro em cada janela",
 }
+SOBRE = {  # what each plugin is for, in a line the team reads (the page); one not here shows its own description
+    "superpowers": "Método de trabalho: planear, testar, encontrar erros e rever código",
+    "claude-seo": "SEO: auditar sites, palavras-chave, SEO local e técnico",
+    "claude-ads": "Anúncios: Google, Meta, TikTok, YouTube e outros, da auditoria ao plano",
+    "marketing": "Marketing: campanhas, conteúdos, voz da marca e resultados",
+    "shopify-ai-toolkit": "Shopify: lojas, temas e apps",
+    "adobe-for-creativity": "Adobe: imagens, vetores, design e vídeo",
+    "figma": "Figma: ler e fazer designs",
+    "document-skills": "Documentos: Word, Excel, PowerPoint e PDF",
+    "example-skills": "Skills da Anthropic: design, arte, criar skills e servidores MCP",
+    "customer-support": "Apoio ao cliente: triar pedidos, respostas e base de conhecimento",
+    "operations": "Operações: processos, fornecedores e relatórios",
+    "productivity": "Produtividade: tarefas, o plano do dia e a memória do trabalho",
+    "activecampaign": "ActiveCampaign: contactos, campanhas e e-mail marketing",
+}
+_wake: asyncio.Event | None = None   # set by the button: a round now instead of in 30 min
+_busy = False
+
+
+def enabled() -> bool:
+    """On when the PC's person pressed «Ligar» in the Hub; without a press, what CLAUDE_KIT says."""
+    switch = _json(SWITCH, {})
+    return bool(switch["on"]) if isinstance(switch, dict) and "on" in switch else settings.claude_kit
 
 
 # ------------------------------------------------------------------ what this PC has
@@ -214,6 +243,8 @@ def install_round(state: dict) -> list[str]:
         if not exe:
             log.info("Claude Code not found: %d plugins of the team wait", len(todo))
             break
+        if not enabled():
+            break   # turned off in the middle of the round
         known = key.split("@", 1)[1] in marketplaces()
         ok, said = run_install(exe, key, wanted[key], known)
         if ok and key in installed_plugins():
@@ -270,23 +301,41 @@ async def learn(client: httpx.AsyncClient, state: dict) -> None:
 
 
 async def round_once() -> None:
+    global _busy
     state = _json(STATE, {})
     if not isinstance(state, dict):
         state = {}
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=3)) as client:
-        await learn(client, state)
-    await asyncio.to_thread(install_round, state)
+    _busy = True
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=3)) as client:
+            await learn(client, state)
+        await asyncio.to_thread(install_round, state)
+    finally:
+        _busy = False
+    state["at"] = time.time()
     _save(state)
 
 
+async def _nap(seconds: float) -> None:
+    try:
+        await asyncio.wait_for(_wake.wait(), seconds)
+    except asyncio.TimeoutError:
+        pass
+
+
 async def loop():
-    await asyncio.sleep(60)   # the Hub first, then this
+    """Every Hub of a PC runs it; it does nothing while the kit is off there."""
+    global _wake
+    _wake = asyncio.Event()
+    await _nap(60)   # the Hub first, then this (at once if somebody presses «Ligar»)
     while True:
-        try:
-            await round_once()
-        except Exception:
-            log.exception("Claude kit round failed")
-        await asyncio.sleep(EVERY)
+        _wake.clear()
+        if enabled():
+            try:
+                await round_once()
+            except Exception:
+                log.exception("Claude kit round failed")
+        await _nap(EVERY)
 
 
 # ------------------------------------------------------------------ what this PC gives the others
@@ -306,16 +355,96 @@ def _team_only(request: Request) -> None:
 @router.get("")
 async def what_i_have(request: Request):
     _team_only(request)
-    if not settings.claude_kit:
-        raise HTTPException(404, "Off on this PC")
+    if not enabled():
+        return {"on": False}   # off here: nothing to give, and the others' page says so
     plugins, skills = await asyncio.to_thread(my_plugins), await asyncio.to_thread(my_skills)
-    return {"plugins": plugins, "skills": skills}
+    return {"on": True, "plugins": plugins, "skills": skills}
 
 
 @router.get("/skill/{name}")
 async def one_skill(name: str, request: Request):
     _team_only(request)
-    if not settings.claude_kit or not NAME.match(name) or name not in await asyncio.to_thread(my_skills):
+    if not enabled() or not NAME.match(name) or name not in await asyncio.to_thread(my_skills):
         raise HTTPException(404, "Not shared here")
     data = await asyncio.to_thread(pack, CLAUDE / "skills" / name)
     return Response(data, media_type="application/zip")
+
+
+# ------------------------------------------------------------------ the page: Trabalho › Kit do Claude
+
+panel = APIRouter(prefix="/api/kit")
+
+
+def about(key: str) -> str:
+    name = key.split("@", 1)[0]
+    if name in SOBRE:
+        return SOBRE[name]
+    found = _json(CLAUDE / "plugins" / "installed_plugins.json", {}).get("plugins", {}).get(key) or [{}]
+    path = Path(found[0].get("installPath", "") or ".") / ".claude-plugin" / "plugin.json"
+    return str(_json(path, {}).get("description", ""))[:160] if found[0].get("installPath") else ""
+
+
+def here_status() -> dict:
+    """This PC: on or off, the plugins it gives, the ones waiting to be installed here, what failed and why, the skills."""
+    state = _json(STATE, {})
+    state = state if isinstance(state, dict) else {}
+    have, on = installed_plugins(), enabled()
+    wanted = {**state.get("plugins", {}), **my_plugins()}
+    failed = state.get("failed", {})
+    return {"on": on, "busy": _busy, "at": state.get("at"), "claude": bool(claude_exe()),
+            "plugins": sorted(k for k in have if k in wanted or k in FORA),
+            "waiting": to_install(wanted, state, have, time.time()) if on else [],
+            "failed": {k: str(v.get("why", ""))[:200] for k, v in failed.items() if k not in have and isinstance(v, dict)},
+            "removed": [k for k in state.get("removed", []) if k not in have],
+            "skills": sorted(my_skills()),
+            "came": sorted(n for n in state.get("skills", {}) if (CLAUDE / "skills" / n / "SKILL.md").exists()),
+            "known": sorted(wanted)}
+
+
+async def _peer(client: httpx.AsyncClient, peer: str) -> dict:
+    who = dict(sync.team_ips()).get(peer.split(":")[0], peer)
+    try:
+        r = await client.get(_url(peer, ""), headers={"X-Team-Key": settings.team_key})
+        theirs = r.json() if r.status_code == 200 else {}
+    except (httpx.HTTPError, ValueError, OSError):
+        return {"who": who, "state": "down"}   # the PC or its Hub is off
+    if not isinstance(theirs, dict) or not theirs.get("on", "plugins" in theirs):
+        return {"who": who, "state": "off"}    # a Hub from before the button answers 404 when off
+    return {"who": who, "state": "on", "plugins": sorted(k for k in (theirs.get("plugins") or {}) if isinstance(k, str)),
+            "skills": sorted(k for k in (theirs.get("skills") or {}) if isinstance(k, str))}
+
+
+def _owner(request: Request, user: User) -> bool:
+    """Only the person whose PC it is: their login is the one of this PC's VPN address (sync.whoami). Without the VPN,
+    only the widget on the PC itself."""
+    me = sync.whoami()
+    if me:
+        return me[1] == user.username
+    return (request.client.host if request.client else "") in ("127.0.0.1", "::1")
+
+
+@panel.get("")
+async def status(request: Request, user: User = Depends(viewer)):
+    me = sync.whoami()
+    async with httpx.AsyncClient(timeout=httpx.Timeout(4, connect=2)) as client:
+        others = await asyncio.gather(*(_peer(client, p) for p in sync.peers()))
+    here = await asyncio.to_thread(here_status)
+    keys = set(here["plugins"]) | set(here["known"]) | set(FORA) | {k for p in others for k in p.get("plugins", [])}
+    return {"here": {**here, "who": me[1] if me else user.username, "can": _owner(request, user)}, "peers": others,
+            "about": {k: about(k) for k in sorted(keys)}, "fora": FORA}
+
+
+class Switch(BaseModel):
+    on: bool
+
+
+@panel.post("")
+async def switch(body: Switch, request: Request, user: User = Depends(viewer)):
+    if not _owner(request, user):
+        raise HTTPException(403, "Só a pessoa deste PC liga ou desliga o kit nele")
+    SWITCH.parent.mkdir(parents=True, exist_ok=True)
+    SWITCH.write_text(json.dumps({"on": body.on, "by": user.username, "at": time.time()}), encoding="utf-8")
+    log.info("Claude kit turned %s here by %s", "on" if body.on else "off", user.username)
+    if body.on and _wake:
+        _wake.set()
+    return await status(request, user)

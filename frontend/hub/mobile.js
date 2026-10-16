@@ -22,7 +22,7 @@
     ["tarefas", "Tarefas", "tasks", ["tarefas", "aprovacoes", "semana"]],
     ["escritorio", "Escritório", "bot", ["escritorio"]],   // the command centre, one touch away (Marco, 9 out); it has its own tabs (crew-board.js)
     ["avisos", "Avisos", "bell", ["avisos"]],
-    ["empresas", "Trabalho", "building", ["empresas", "projetos", "codigo", "entregas", "baredesk"]],
+    ["empresas", "Trabalho", "building", ["empresas", "projetos", "codigo", "entregas", "baredesk", "kit"]],
   ];
 
   // #/avisos only exists on the phone: on a computer the address falls back to Início, as any unknown one does
@@ -56,7 +56,7 @@
     if (r.tab === "baredesk") return r.company ? ["#/baredesk", "BareDesk"] : ["#/empresas", "Trabalho"];
     if (r.tab === "empresas" && r.company) return r.section ? [`#/empresas/${r.company}`, coName(r.company)] : ["#/empresas", "Trabalho"];
     if (r.tab === "projetos") return r.company ? ["#/projetos", "Projetos"] : ["#/empresas", "Trabalho"];
-    if (r.tab === "codigo" || r.tab === "entregas") return ["#/empresas", "Trabalho"];
+    if (r.tab === "codigo" || r.tab === "entregas" || r.tab === "kit") return ["#/empresas", "Trabalho"];
     if (r.tab === "aprovacoes" || r.tab === "semana") return ["#/tarefas", "Tarefas"];
     if (r.tab === "agentes" && r.company) return ["#/equipa", "Equipa"];
     if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
@@ -375,7 +375,8 @@
         <section class="m-sec"><header><b>${t("Geral")}</b></header><div class="m-list">
           ${row("#/projetos", "folder", "Projetos", projects.length ? esc(t(projects.length === 1 ? "1 projeto" : "{n} projetos", { n: projects.length })) : esc(t("Ainda sem projetos")), "blue")}
           ${row("#/codigo", "code", "Código", last ? `${esc(fmt.ago(last.date))} · ${esc(last.author)}` : esc(t("Sem commits")), "green")}
-          ${row("#/entregas", "layers", "Entregas", last ? esc(last.message) : esc(t("Ainda sem entregas")), "orange")}</div></section>`);
+          ${row("#/entregas", "layers", "Entregas", last ? esc(last.message) : esc(t("Ainda sem entregas")), "orange")}
+          ${row("#/kit", "bolt", "Kit do Claude", esc(t("Os mesmos plugins e skills em todos os PCs")), "blue")}</div></section>`);
     };
     reload = load;
     $("view").onclick = null;

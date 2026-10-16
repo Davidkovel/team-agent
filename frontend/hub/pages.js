@@ -1463,8 +1463,16 @@ async function workOverview() {
           projects.length ? projects.slice(0, 3).map((x) => `<div class="wg-row"><span class="wg-dot"></span><div><b>${esc(x.name)}</b></div></div>`).join("") : `<p class="wg-none">${t("Um projeto junta tarefas, agentes e custo num só sítio.")}</p>`)}
         ${general("#/codigo", "code", "Código", commits[0] ? `${t("último")} ${fmt.ago(commits[0].date)}` : t("Sem commits"), commits.slice(0, 3).map(cline).join("") || `<p class="wg-none">${t("Sem commits.")}</p>`)}
         ${general("#/entregas", "layers", "Entregas", t("o que mudou em cada push"), commits[0] ? `<div class="wg-row"><span class="wg-dot"></span><div><b>${esc(commits[0].message)}</b><span>${esc(commits[0].author)} · ${esc(fmt.ago(commits[0].date))}</span></div></div>` : `<p class="wg-none">${t("Ainda sem entregas.")}</p>`)}
+        ${general("#/kit", "bolt", "Kit do Claude", t("os mesmos plugins e skills em todos os PCs"), `<div id="wg-kit">${ui.skeleton(2)}</div>`)}
       </div>`;
   }, 6);
+  // the Kit do Claude card after the rest: it asks the other PCs, and a PC that is off makes it wait a couple of seconds
+  const kit = await api("/api/kit").catch(() => null);
+  if (!$("wg-kit")) return;
+  const ST = { on: ["ok", "Ligado"], off: ["warn", "Desligado"], down: ["off", "PC desligado"] };
+  const pcs = kit ? [{ who: kit.here.who, state: kit.here.on ? "on" : "off", here: true }, ...kit.peers] : [];
+  paint($("wg-kit"), pcs.length ? pcs.map((p) => `<div class="wg-row"><span class="wg-dot ${ST[p.state]?.[0] || ""}"></span><div><b>${esc(nameOf(p.who))}${p.here ? ` · ${t("este PC")}` : ""}</b><span>${t(ST[p.state]?.[1] || "PC desligado")}</span></div></div>`).join("")
+    : `<p class="wg-none">${t("Não consegui ver os PCs agora.")}</p>`);
 }
 
 HUB_VIEWS.empresas = async function (r) {

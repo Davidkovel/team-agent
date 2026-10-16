@@ -138,7 +138,7 @@ const NAV = [
   ["Novidades", "spark", [["novidades", "Novidades"]]],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]]],
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes", true], ["historico", "Histórico", true]]],
-  ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"]]],
+  ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]]],
   ["Mercados", "candles", [["mercados", "Mercados"]]],
   ["Sala de Trading", "trend", [["trading", "Sala de Trading"], ["robos", "Robôs"]]],
   ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA", true], ["despesas", "Despesas", true]]],

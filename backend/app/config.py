@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     sync: bool = False
     claude_office: bool = True  # put the Escritório's hooks into this PC's Claude Code settings (claude_hooks.py)
     claude_skills: bool = True  # and the skills library in front of every Claude window (scripts/claude_contexto.py)
-    claude_kit: bool = False  # CLAUDE_KIT=1: this PC gets the other PCs' plugins and personal skills (claude_kit.py); each person's choice
+    claude_kit: bool = False  # CLAUDE_KIT=1: the kit on from the start (claude_kit.py); otherwise the person turns it on in Trabalho › Kit do Claude
     sync_seconds: int = 5
     sync_port: int = 8000
     # For a test or an odd network: this computer's number (0 = the owner's) and the other Hubs as "host:port,host:port".

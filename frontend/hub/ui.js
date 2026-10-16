@@ -42,6 +42,7 @@ lazyView("escritorio", "hub/crew.js", "hub/crew.css");   // the command centre (
 lazyView("saude", "hub/health.js", "hub/office.css");
 lazyView("empresa", "hub/crew.js", "hub/crew.css");
 lazyView("skills", "hub/skills.js", "hub/skills.css");   // the company's skills library: who masters each one
+lazyView("kit", "hub/kit.js", "hub/kit.css");   // Trabalho › Kit do Claude: the same plugins and skills on every PC
 lazyView("mercados", "hub/mercados.js", "hub/mercados.css"); // Mercados: TradingView, SEC, paper trading
 lazyView("trading", "hub/trading-room.js", "hub/trading-room.css"); // Sala de Trading: the room's two traders, SMC, the big alert
 lazyView("robos", "hub/robots.js", "hub/robots.css"); // Escritório de Robôs: the robots at their desks, the FundedNext accounts by API

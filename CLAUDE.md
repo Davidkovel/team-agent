@@ -274,8 +274,12 @@ cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/ap
   com um ficheiro `.privada` nunca sai). Nada vai para o git. De 30 em 30 min; o que aprendeu fica em
   `~/.team-agent/claude-kit.json`; um plugin que a pessoa tirou não volta. `FORA` no módulo deixa um plugin de fora para
   todos (o ActiveCampaign, que sem a conta dá erro em cada janela). **Desligado por omissão: cada um liga no seu PC**
-  (instala plugins e skills de outros no PC dele), com `CLAUDE_KIT=1` no `backend/.env` desse PC e reiniciar o Hub. O
-  PC que serve também tem de o ter ligado.
+  (instala plugins e skills de outros no PC dele): no Hub, **Trabalho › Kit do Claude** (`#/kit`, `frontend/hub/kit.js`),
+  botão «Ligar o kit neste PC», que só a pessoa desse PC pode carregar (o login dela é o do endereço VPN do PC,
+  `sync.whoami`; sem VPN, só o widget do próprio PC). Fica em `~/.team-agent/claude-kit-on.json` e ganha ao
+  `CLAUDE_KIT=1` do `backend/.env`. A mesma página mostra cada PC (ligado, desligado, PC desligado) e quem tem cada plugin
+  e skill pessoal; o cartão «Kit do Claude» em Trabalho › Geral resume. O PC que serve também tem de o ter ligado. Nunca
+  ligar o kit no PC de outra pessoa por ela (Marco, 16 out: o Kovel e o David ligam no deles).
 - **Skills dos parceiros** (16 out): `site-empresa-local` (método dos sites Blue Magnitude e Detalhes Cautelosos do Tomás,
   tomas476) e `site-estudio-ia` (método do site NeoDaemon do Fábio, fabiocabaceira), ao lado das `premium-site-rebuild` e
   `realtor-landing` que o David trouxe do Tomás. O GitHub do Fábio não tem skills; o do Tomás só tinha o kit imobiliário.

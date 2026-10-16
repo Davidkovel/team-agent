@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="pt-PT"><head><meta charset="utf-8">
+<title>Pequeno Mundo · Proposta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,500&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--creme:#fbf6f0;--areia:#efe4d6;--palha:#c9a27a;--tinta:#3a3140;--suave:#7c7280;--rosa:#ef8aa7;--rosa-claro:#fbe3ea;--menta:#9fd8d0;--menta-claro:#e2f4f1;--linha:#e6dccf}
+@page{size:1920px 1080px;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Nunito,system-ui,sans-serif;color:var(--tinta);background:var(--creme)}
+.pag{width:1920px;height:1080px;position:relative;overflow:hidden;page-break-after:always;background:var(--creme);padding:96px 120px}
+.pag:last-child{page-break-after:auto}
+.topo{position:absolute;top:44px;left:120px;right:120px;display:flex;justify-content:space-between;font:700 15px Nunito;letter-spacing:.22em;text-transform:uppercase;color:var(--suave)}
+.base{position:absolute;bottom:40px;left:120px;right:120px;display:flex;justify-content:space-between;font:600 14px Nunito;letter-spacing:.16em;text-transform:uppercase;color:var(--suave);border-top:1px solid var(--linha);padding-top:16px}
+.selo{font:800 16px Nunito;letter-spacing:.24em;text-transform:uppercase;color:var(--rosa)}
+.serif{font-family:Fraunces,Georgia,serif}
+h1{font:300 128px/0.98 Fraunces,serif;letter-spacing:-.025em}
+h1 em,h2 em{font-style:italic;color:var(--rosa)}
+h2{font:300 76px/1.02 Fraunces,serif;letter-spacing:-.02em;margin-top:22px}
+.lead{font:400 26px/1.5 Nunito;color:#5a5060;margin-top:30px;max-width:640px}
+p.txt{font-size:21px;line-height:1.6;color:#5a5060}
+p.txt+p.txt{margin-top:14px}
+img{display:block}
+
+/* telemóvel */
+.tel{width:360px;height:740px;border-radius:58px;background:#1d1a1f;padding:13px;box-shadow:0 50px 90px -30px rgba(58,49,64,.45),0 0 0 2px #39343c inset;position:relative;flex:none}
+.tel .ecra{width:100%;height:100%;border-radius:46px;overflow:hidden;background:#fff;position:relative}
+.tel .ilha{position:absolute;top:24px;left:50%;transform:translateX(-50%);width:104px;height:30px;border-radius:20px;background:#1d1a1f;z-index:5}
+.barra{height:56px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 30px 6px;font:800 14px Nunito}
+/* site */
+.s-nav{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 10px;border-bottom:1px solid #f0e8de}
+.s-nav img{width:58px;height:58px;object-fit:cover;border-radius:50%}
+.ic{width:22px;height:22px;border:2px solid var(--tinta);border-radius:6px}
+.ic.r{border-radius:50%}
+.s-hero{position:relative;height:300px}
+.s-hero img{width:100%;height:100%;object-fit:cover}
+.s-hero .t{position:absolute;left:18px;right:18px;bottom:18px;background:rgba(251,246,240,.94);border-radius:18px;padding:14px 16px}
+.s-hero .t b{display:block;font:500 25px/1.1 Fraunces,serif}
+.s-hero .t span{font-size:12.5px;color:var(--suave)}
+.chips{display:flex;gap:6px;padding:12px 16px;overflow:hidden}
+.chip{font:700 12px Nunito;padding:7px 12px;border-radius:30px;background:var(--areia);white-space:nowrap}
+.chip.on{background:var(--tinta);color:#fff}
+.grelha{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+.prod img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:14px}
+.prod b{display:block;font:700 12.5px/1.25 Nunito;margin-top:6px}
+.prod span{font:800 13px Nunito;color:var(--rosa)}
+/* ficha */
+.f-foto{height:380px;position:relative}
+.f-foto img{width:100%;height:100%;object-fit:cover}
+.pontos{position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:6px}
+.pontos i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.6)}.pontos i:first-child{background:#fff;width:20px;border-radius:5px}
+.f-info{padding:16px 20px}
+.marca{font:800 11px Nunito;letter-spacing:.18em;text-transform:uppercase;color:var(--suave)}
+.f-info h4{font:500 23px/1.15 Fraunces,serif;margin:4px 0 6px}
+.preco{font:800 21px Nunito;color:var(--tinta)}
+.tam{display:flex;gap:6px;margin:12px 0}
+.tam span{flex:1;text-align:center;font:700 12px Nunito;padding:8px 0;border:1.5px solid #e2d8cc;border-radius:10px}
+.tam span.on{border-color:var(--tinta);background:var(--tinta);color:#fff}
+.tam span.x{color:#c9bfb3;text-decoration:line-through}
+.btn{display:block;text-align:center;font:800 14px Nunito;padding:14px;border-radius:14px;background:var(--rosa);color:#fff}
+.btn.sec{background:#fff;color:var(--tinta);border:1.5px solid var(--tinta);margin-top:8px}
+.nota-env{font-size:11.5px;color:var(--suave);text-align:center;margin-top:9px}
+/* instagram */
+.ig-top{padding:4px 18px 10px;display:flex;align-items:center;gap:16px}
+.ig-top img{width:76px;height:76px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2.5px var(--rosa)}
+.ig-n{display:flex;gap:16px;font:800 14px Nunito;text-align:center}
+.ig-n small{display:block;font:600 11px Nunito;color:var(--suave)}
+.ig-bio{padding:0 18px;font-size:12.5px;line-height:1.45}
+.ig-bio a{color:#2a5db0;font-weight:700}
+.ig-btns{display:flex;gap:6px;padding:10px 18px}
+.ig-btns span{flex:1;text-align:center;font:800 12px Nunito;padding:8px;border-radius:9px;background:#efefef}
+.ig-btns span.az{background:#0095f6;color:#fff}
+.ig-dest{display:flex;gap:12px;padding:6px 18px 12px}
+.ig-dest div{text-align:center;font:700 10.5px Nunito}
+.ig-dest i{display:block;width:54px;height:54px;border-radius:50%;border:2px solid #ddd;margin-bottom:4px;background-size:cover;background-position:center}
+.ig-grelha{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+.ig-grelha div{aspect-ratio:4/5;position:relative;background-size:cover;background-position:center}
+.etq{position:absolute;left:6px;bottom:6px;background:rgba(251,246,240,.95);border-radius:8px;padding:3px 7px;font:800 9.5px Nunito;color:var(--tinta)}
+.etq.n{background:var(--rosa);color:#fff}
+/* story */
+.story{width:300px;height:600px;border-radius:30px;overflow:hidden;position:relative;box-shadow:0 40px 70px -30px rgba(58,49,64,.45);flex:none}
+.story>img{width:100%;height:100%;object-fit:cover}
+.story .barras{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:4px}
+.story .barras i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.5)}
+.story .barras i.on{background:#fff}
+
+.mosaico{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:1fr 1fr;gap:16px;position:absolute;right:120px;top:96px;bottom:96px;width:900px}
+.mosaico div{border-radius:22px;background-size:cover;background-position:center}
+.mosaico .g{grid-row:span 2;grid-column:span 2}
+.num{font:300 92px/1 Fraunces,serif;color:var(--tinta)}
+.num.r{color:var(--rosa)}
+.leg{font:600 18px/1.4 Nunito;color:var(--suave);margin-top:10px}
+.cartao{background:#fff;border-radius:28px;padding:40px;box-shadow:0 20px 50px -30px rgba(58,49,64,.3)}
+</style></head><body>
+
+<!-- 1 · CAPA -->
+<section class="pag" style="background:linear-gradient(115deg,var(--creme) 0 52%,var(--rosa-claro) 52% 100%)">
+  <div class="topo"><span>Proposta para a Pequeno Mundo</span><span>Outubro 2026</span></div>
+  <div style="position:absolute;left:120px;top:250px;width:860px">
+    <div class="selo">Loja online · Instagram · Natal</div>
+    <h1 style="margin-top:30px">Pequeno Mundo,<br><em>aberto</em> mesmo<br>com a loja fechada.</h1>
+    <p class="lead">A vossa loja da Benedita no telemóvel de cada pai, mãe e avó: com as vossas fotos, os vossos preços e encomendas a qualquer hora.</p>
+  </div>
+  <div style="position:absolute;right:150px;top:150px;display:flex;gap:40px;align-items:flex-start">
+    <div class="tel" style="margin-top:110px;transform:rotate(-4deg)"><div class="ilha"></div><div class="ecra">
+      <div class="barra"><span>9:41</span><span>●●●</span></div>
+      <div class="s-nav"><div class="ic"></div><img src="logo.jpg"><div class="ic r"></div></div>
+      <div class="s-hero"><img src="ig/DePwqsZCLku.jpg" style="object-position:50% 40%"><div class="t"><b>Nova coleção Chicco</b><span>Outono-inverno, já na loja</span></div></div>
+      <div class="chips"><span class="chip on">Bebé</span><span class="chip">Menina</span><span class="chip">Menino</span><span class="chip">Presentes</span></div>
+      <div class="grelha"><div class="prod"><img src="ig/DePmZqwkdNz.jpg"></div><div class="prod"><img src="ig/DQz05PdjtS4.jpg"></div></div>
+    </div></div>
+    <div class="tel" style="transform:rotate(3deg)"><div class="ilha"></div><div class="ecra">
+      <div class="barra"><span>9:41</span><span>●●●</span></div>
+      <div class="f-foto"><img src="ig/DePmZqwkdNz.jpg" style="object-position:50% 45%"><div class="pontos"><i></i><i></i><i></i></div></div>
+      <div class="f-info"><div class="marca">Chicco</div><h4>Conjunto «Small But Loud»</h4><div class="preco">34,90 €</div>
+        <div class="tam"><span>6M</span><span class="on">9M</span><span>12M</span><span class="x">18M</span></div>
+        <span class="btn">Reservar e levantar na loja</span></div>
+    </div></div>
+  </div>
+  <div class="base"><span>Preparado por Empresa AMG</span><span>01 / 09</span></div>
+</section>
+
+<!-- 2 · O QUE JÁ FAZEM BEM -->
+<section class="pag">
+  <div class="topo"><span>01 · Ponto de partida</span><span>Pequeno Mundo</span></div>
+  <div style="position:absolute;left:120px;top:200px;width:700px">
+    <div class="selo">O que já fazem muito bem</div>
+    <h2>As fotos já parecem<br>de <em>uma marca</em>.</h2>
+    <p class="txt" style="margin-top:34px">O tapete de palha, a luz natural, a peça estendida com cuidado. É uma assinatura que se reconhece no meio do feed, e é isso que faz uma loja online parecer de confiança.</p>
+    <p class="txt">Em um ano juntaram marcas que os pais procuram, como a Chicco, a Lux Junior e a Babybol, mais de cem publicações e uma montra que muda com as estações.</p>
+    <div style="display:flex;gap:70px;margin-top:56px">
+      <div><div class="num">1</div><div class="leg">ano de loja,<br>festejado a 11 out</div></div>
+      <div><div class="num">102</div><div class="leg">publicações<br>no Instagram</div></div>
+      <div><div class="num">494</div><div class="leg">seguidores<br>no Instagram</div></div>
+    </div>
+  </div>
+  <div class="mosaico">
+    <div class="g" style="background-image:url(ig/DbqFvrHDzZj.jpg)"></div>
+    <div style="background-image:url(ig/DQun2vtjc0w.jpg)"></div>
+    <div style="background-image:url(ig/DQCqaenADjN.jpg)"></div>
+    <div style="background-image:url(ig/DQz05PdjtS4.jpg)"></div>
+    <div style="background-image:url(ig/DQxQI-5D8sg.jpg)"></div>
+  </div>
+  <div class="base"><span>Fotos: @pequeno_mundo_benedita</span><span>02 / 09</span></div>
+</section>
+
+<!-- 3 · ONDE SE PERDEM VENDAS -->
+<section class="pag">
+  <div class="topo"><span>02 · O que vimos</span><span>Pequeno Mundo</span></div>
+  <div style="position:absolute;left:120px;top:190px;width:760px">
+    <div class="selo">Onde as vendas se perdem</div>
+    <h2>Hoje, cada venda<br>começa com <em>uma pergunta</em>.</h2>
+    <p class="txt" style="margin-top:34px">«Encomendas e informações por mensagem», diz o perfil. Fora das promoções, as publicações não mostram o preço nem os tamanhos que há. Quem vê às 23h, ou ao domingo, tem de escrever e esperar. Muitos não escrevem.</p>
+    <p class="txt">E o Instagram está a mostrar as publicações a cada vez menos gente: as do outono passado tinham <b>13 a 25 gostos</b>, as deste verão e outono têm <b>4 ou 5</b>.</p>
+  </div>
+  <div class="cartao" style="position:absolute;right:120px;top:170px;width:820px;height:700px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font:800 20px Nunito">Gostos por publicação</b><span style="font:600 15px Nunito;color:var(--suave)">13 publicações de produto e de loja</span></div>
+    <div style="display:flex;align-items:flex-end;gap:16px;height:440px;margin-top:40px;border-bottom:2px solid var(--tinta);padding:0 10px">
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px">25</div><div style="height:400px;background:var(--menta);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px">25</div><div style="height:400px;background:var(--menta);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px">15</div><div style="height:240px;background:var(--menta);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px">14</div><div style="height:224px;background:var(--menta);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px">13</div><div style="height:208px;background:var(--menta);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px">20</div><div style="height:320px;background:var(--menta);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px">15</div><div style="height:240px;background:var(--menta);border-radius:8px 8px 0 0"></div></div>
+      <div style="width:2px;align-self:stretch;background:repeating-linear-gradient(var(--linha) 0 8px,transparent 8px 14px)"></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px;color:var(--rosa)">4</div><div style="height:64px;background:var(--rosa);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px;color:var(--rosa)">5</div><div style="height:80px;background:var(--rosa);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px;color:var(--rosa)">4</div><div style="height:64px;background:var(--rosa);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px;color:var(--rosa)">5</div><div style="height:80px;background:var(--rosa);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px;color:var(--rosa)">5</div><div style="height:80px;background:var(--rosa);border-radius:8px 8px 0 0"></div></div>
+      <div style="flex:1;text-align:center"><div style="font:800 15px Nunito;margin-bottom:6px">20</div><div style="height:320px;background:var(--areia);border-radius:8px 8px 0 0"></div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font:700 15px Nunito;color:var(--suave);margin-top:14px;padding:0 10px"><span>Out – nov 2025</span><span>Jul – out 2026</span></div>
+    <p style="font-size:15px;color:var(--suave);margin-top:26px;line-height:1.5">A última barra é a festa de 1 ano: quando há uma razão para vir, as pessoas reagem. Contagem feita no perfil público a 16 out 2026.</p>
+  </div>
+  <div class="base"><span>Dados do perfil público</span><span>03 / 09</span></div>
+</section>
+
+<!-- 4 · AMOSTRA LOJA ONLINE -->
+<section class="pag" style="background:var(--menta-claro)">
+  <div class="topo"><span>03 · Amostra</span><span>Loja online</span></div>
+  <div style="position:absolute;left:120px;top:190px;width:560px">
+    <div class="selo">Amostra 1 · A loja no telemóvel</div>
+    <h2>Ver, escolher<br>o tamanho e <em>reservar</em>.</h2>
+    <p class="txt" style="margin-top:34px">Uma loja online com as vossas fotos, separada por bebé, menina, menino e presentes. Cada peça mostra o preço e os tamanhos que há.</p>
+    <p class="txt">O cliente escolhe <b>levantar na loja da Benedita</b> ou receber em casa. Quem não quer pagar online, reserva, e a peça fica guardada com o nome dele.</p>
+  </div>
+  <div style="position:absolute;right:110px;top:150px;display:flex;gap:34px">
+    <div class="tel"><div class="ilha"></div><div class="ecra">
+      <div class="barra"><span>9:41</span><span>●●●</span></div>
+      <div class="s-nav"><div class="ic"></div><img src="logo.jpg"><div class="ic r"></div></div>
+      <div class="chips"><span class="chip">Bebé</span><span class="chip on">Menina</span><span class="chip">Menino</span><span class="chip">Presentes</span></div>
+      <div class="grelha">
+        <div class="prod"><img src="ig/DePwqsZCLku.jpg"><b>Conjunto floral Chicco</b><span>32,90 €</span></div>
+        <div class="prod"><img src="ig/DQz05PdjtS4.jpg"><b>Conjunto xadrez Lux Junior</b><span>39,90 €</span></div>
+        <div class="prod"><img src="ig/DQxQI-5D8sg.jpg"><b>Vestido Lux Junior</b><span>36,90 €</span></div>
+        <div class="prod"><img src="ig/DP4Vbxdjqia.jpg"><b>Babygrow, tons suaves</b><span>14,90 €</span></div>
+      </div>
+    </div></div>
+    <div class="tel" style="margin-top:-30px"><div class="ilha"></div><div class="ecra">
+      <div class="barra"><span>9:41</span><span>●●●</span></div>
+      <div class="f-foto"><img src="ig/DePwqsZCLku.jpg" style="object-position:50% 45%"><div class="pontos"><i></i><i></i><i></i><i></i></div></div>
+      <div class="f-info"><div class="marca">Chicco</div><h4>Conjunto floral, sweatshirt e calças rosa</h4><div class="preco">32,90 €</div>
+        <div class="tam"><span>6M</span><span>9M</span><span class="on">12M</span><span>18M</span><span class="x">24M</span></div>
+        <span class="btn">Reservar e levantar na loja</span><span class="btn sec">Enviar para casa</span>
+        <div class="nota-env">Levantamento grátis · Rua dos Bombeiros Voluntários</div></div>
+    </div></div>
+    <div class="tel"><div class="ilha"></div><div class="ecra" style="background:var(--creme)">
+      <div class="barra"><span>9:41</span><span>●●●</span></div>
+      <div style="padding:30px 24px;text-align:center">
+        <div style="width:74px;height:74px;border-radius:50%;background:var(--menta);margin:10px auto 18px;display:grid;place-items:center;font:800 34px Nunito;color:#fff">✓</div>
+        <div style="font:500 26px/1.15 Fraunces,serif">Está guardado<br>para si, Ana.</div>
+        <p style="font-size:13px;color:var(--suave);margin-top:10px;line-height:1.5">Pode levantar na loja a partir de amanhã. Enviámos-lhe a confirmação por SMS.</p>
+      </div>
+      <div style="margin:0 20px;background:#fff;border-radius:18px;padding:12px;display:flex;gap:12px;align-items:center">
+        <img src="ig/DePwqsZCLku.jpg" style="width:74px;height:92px;object-fit:cover;border-radius:10px">
+        <div><div class="marca">Chicco · 12M</div><div style="font:700 14px Nunito;margin:3px 0">Conjunto floral</div><div style="font:800 14px Nunito;color:var(--rosa)">32,90 €</div></div>
+      </div>
+      <div style="margin:14px 20px;background:#fff;border-radius:18px;padding:14px 16px;font-size:12.5px;line-height:1.6">
+        <b style="font-size:13px">Pequeno Mundo · Benedita</b><br>2ª a 6ª · 9h30–13h · 14h30–19h30<br>Sábado · 9h30–13h
+      </div>
+      <div style="margin:0 20px"><span class="btn" style="background:var(--tinta)">Como chegar</span></div>
+    </div></div>
+  </div>
+  <div class="base"><span>Amostra · preços ilustrativos</span><span>04 / 09</span></div>
+</section>
+
+<!-- 5 · AMOSTRA INSTAGRAM -->
+<section class="pag">
+  <div class="topo"><span>04 · Amostra</span><span>Instagram</span></div>
+  <div style="position:absolute;left:120px;top:190px;width:600px">
+    <div class="selo">Amostra 2 · Um Instagram que vende</div>
+    <h2>O mesmo feed,<br>agora com <em>preço</em>.</h2>
+    <p class="txt" style="margin-top:34px">Cada foto de produto leva uma etiqueta discreta com o preço. A ligação da bio leva direto à loja, e os destaques passam a ser as secções da loja: Bebé, Menina, Menino, Presentes.</p>
+    <p class="txt">As fotos continuam a ser as vossas. O que muda é que quem gosta de uma peça já sabe quanto custa e onde a pode comprar, sem ter de perguntar.</p>
+  </div>
+  <div style="position:absolute;right:540px;top:150px">
+    <div class="tel"><div class="ilha"></div><div class="ecra">
+      <div class="barra"><span>9:41</span><span>●●●</span></div>
+      <div style="text-align:center;font:800 15px Nunito;padding:2px 0 10px">pequeno_mundo_benedita</div>
+      <div class="ig-top"><img src="logo.jpg"><div class="ig-n"><div>102<small>publicações</small></div><div>494<small>seguidores</small></div><div>514<small>a seguir</small></div></div></div>
+      <div class="ig-bio"><b>Pequeno Mundo · Vestuário infantil</b><br>Chicco, Lux Junior, Babybol<br>Benedita · levantamento na loja ou envio<br><a>pequenomundo.pt/loja</a></div>
+      <div class="ig-btns"><span class="az">Ver loja</span><span>Mensagem</span></div>
+      <div class="ig-dest"><div><i style="background-image:url(ig/DP4Vbxdjqia.jpg)"></i>Bebé</div><div><i style="background-image:url(ig/DQxQI-5D8sg.jpg)"></i>Menina</div><div><i style="background-image:url(ig/Dctwu3BjYhJ.jpg)"></i>Menino</div><div><i style="background-image:url(ig/DQun2vtjc0w.jpg)"></i>Presentes</div></div>
+      <div class="ig-grelha">
+        <div style="background-image:url(ig/DePmZqwkdNz.jpg)"><span class="etq n">Novo</span></div>
+        <div style="background-image:url(ig/DePwqsZCLku.jpg)"><span class="etq">32,90 €</span></div>
+        <div style="background-image:url(ig/DQz05PdjtS4.jpg)"><span class="etq">39,90 €</span></div>
+        <div style="background-image:url(ig/DbqFvrHDzZj.jpg)"><span class="etq">29,90 €</span></div>
+        <div style="background-image:url(ig/DQun2vtjc0w.jpg)"><span class="etq">24,90 €</span></div>
+        <div style="background-image:url(ig/DP4Vbxdjqia.jpg)"><span class="etq">14,90 €</span></div>
+      </div>
+    </div></div>
+  </div>
+  <div style="position:absolute;right:120px;top:210px;width:380px">
+    <div style="font:800 14px Nunito;letter-spacing:.2em;text-transform:uppercase;color:var(--suave);margin-bottom:16px">Modelo de publicação</div>
+    <div style="background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(58,49,64,.4)">
+      <div style="position:relative"><img src="ig/DQz05PdjtS4.jpg" style="width:100%;aspect-ratio:1;object-fit:cover">
+        <div style="position:absolute;left:16px;right:16px;bottom:16px;background:rgba(251,246,240,.96);border-radius:16px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+          <div><div class="marca">Lux Junior · marca portuguesa</div><div style="font:500 20px Fraunces,serif;margin-top:2px">Conjunto xadrez</div></div>
+          <div style="font:800 20px Nunito;color:var(--rosa);white-space:nowrap">39,90 €</div></div></div>
+      <div style="padding:14px 18px;font-size:13.5px;line-height:1.5"><b>Tamanhos:</b> 2 · 3 · 4 · 6 anos<br><span style="color:var(--suave)">Toque na foto para ver na loja</span></div>
+    </div>
+  </div>
+  <div class="base"><span>Amostra · preços ilustrativos</span><span>05 / 09</span></div>
+</section>
+
+<!-- 6 · AMOSTRA NATAL -->
+<section class="pag" style="background:var(--rosa-claro)">
+  <div class="topo"><span>05 · Amostra</span><span>Natal 2026</span></div>
+  <div style="position:absolute;left:120px;top:190px;width:560px">
+    <div class="selo">Amostra 3 · O primeiro Natal online</div>
+    <h2>Quem dá presentes<br>quer <em>ideias prontas</em>.</h2>
+    <p class="txt" style="margin-top:34px">Um guia de presentes por preço, em stories e numa página da loja. Avós, padrinhos e amigos que vão a um batizado não sabem tamanhos nem marcas: escolhem por orçamento.</p>
+    <p class="txt">Com levantamento na loja até dia 24, o Pequeno Mundo passa a ser a resposta a «o que é que eu lhe ofereço?».</p>
+  </div>
+  <div style="position:absolute;right:120px;top:190px;display:flex;gap:30px">
+    <div class="story"><img src="ig/DP4Vbxdjqia.jpg"><div class="barras"><i class="on"></i><i></i><i></i></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(transparent 40%,rgba(58,49,64,.75))"></div>
+      <div style="position:absolute;left:24px;right:24px;bottom:30px;color:#fff"><div style="font:800 13px Nunito;letter-spacing:.2em;text-transform:uppercase;opacity:.85">Guia de presentes</div><div style="font:300 44px/1 Fraunces,serif;margin-top:8px">Até <i>20 €</i></div><div style="font:600 14px Nunito;margin-top:10px;opacity:.9">Babygrows, gorros e primeiras prendas</div></div></div>
+    <div class="story" style="margin-top:50px"><img src="ig/DQun2vtjc0w.jpg"><div class="barras"><i class="on"></i><i class="on"></i><i></i></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(transparent 40%,rgba(58,49,64,.75))"></div>
+      <div style="position:absolute;left:24px;right:24px;bottom:30px;color:#fff"><div style="font:800 13px Nunito;letter-spacing:.2em;text-transform:uppercase;opacity:.85">Guia de presentes</div><div style="font:300 44px/1 Fraunces,serif;margin-top:8px">Cabaz de<br><i>nascimento</i></div><div style="font:600 14px Nunito;margin-top:10px;opacity:.9">Primeiras prendas Chicco</div></div></div>
+    <div class="story"><img src="ig/DQz05PdjtS4.jpg"><div class="barras"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(transparent 40%,rgba(58,49,64,.75))"></div>
+      <div style="position:absolute;left:24px;right:24px;bottom:30px;color:#fff"><div style="font:800 13px Nunito;letter-spacing:.2em;text-transform:uppercase;opacity:.85">Guia de presentes</div><div style="font:300 44px/1 Fraunces,serif;margin-top:8px">Look de<br><i>Natal</i></div><div style="font:600 14px Nunito;margin-top:10px;opacity:.9">Lux Junior para a consoada</div>
+        <div style="margin-top:16px;background:#fff;color:var(--tinta);border-radius:30px;padding:10px;text-align:center;font:800 14px Nunito">Ver na loja ↗</div></div></div>
+  </div>
+  <div class="base"><span>Amostra</span><span>06 / 09</span></div>
+</section>
+
+<!-- 7 · PLANO -->
+<section class="pag">
+  <div class="topo"><span>06 · Plano</span><span>Pequeno Mundo</span></div>
+  <div class="selo" style="margin-top:96px">Do primeiro dia ao Natal</div>
+  <h2>Pronto antes de <em>dezembro</em>.</h2>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:28px;margin-top:50px">
+    <div class="cartao"><div class="num" style="font-size:64px;color:var(--menta)">01</div><div style="font:800 15px Nunito;letter-spacing:.18em;text-transform:uppercase;color:var(--suave);margin:18px 0 10px">Semana 1</div><div style="font:500 30px/1.15 Fraunces,serif">Fotos e catálogo</div><p class="txt" style="font-size:18px;margin-top:14px">Escolhemos as peças, juntamos preços e tamanhos e fotografamos o que falta, no vosso tapete, com a vossa luz.</p></div>
+    <div class="cartao"><div class="num" style="font-size:64px;color:var(--menta)">02</div><div style="font:800 15px Nunito;letter-spacing:.18em;text-transform:uppercase;color:var(--suave);margin:18px 0 10px">Semana 2</div><div style="font:500 30px/1.15 Fraunces,serif">A loja no ar</div><p class="txt" style="font-size:18px;margin-top:14px">Loja online com reserva, levantamento na Benedita e envio. Vocês revêem tudo antes de abrir.</p></div>
+    <div class="cartao"><div class="num" style="font-size:64px;color:var(--rosa)">03</div><div style="font:800 15px Nunito;letter-spacing:.18em;text-transform:uppercase;color:var(--suave);margin:18px 0 10px">Semana 3</div><div style="font:500 30px/1.15 Fraunces,serif">Instagram ligado</div><p class="txt" style="font-size:18px;margin-top:14px">Bio, destaques e etiquetas de preço. Modelos de publicação e de stories prontos a usar no telemóvel.</p></div>
+    <div class="cartao"><div class="num" style="font-size:64px;color:var(--rosa)">04</div><div style="font:800 15px Nunito;letter-spacing:.18em;text-transform:uppercase;color:var(--suave);margin:18px 0 10px">Semana 4</div><div style="font:500 30px/1.15 Fraunces,serif">Campanha de Natal</div><p class="txt" style="font-size:18px;margin-top:14px">Guia de presentes na loja e nos stories, e um anúncio pequeno só para quem vive à volta da Benedita.</p></div>
+  </div>
+  <div style="position:absolute;left:120px;right:120px;bottom:110px;height:250px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
+    <div style="border-radius:20px;background:url(ig/DbqFvrHDzZj.jpg) center/cover"></div>
+    <div style="border-radius:20px;background:url(ig/DePmZqwkdNz.jpg) center/cover"></div>
+    <div style="border-radius:20px;background:url(ig/DQun2vtjc0w.jpg) center/cover"></div>
+    <div style="border-radius:20px;background:url(ig/DQM9itlj4t4.jpg) center/cover"></div>
+    <div style="border-radius:20px;background:url(ig/DQz05PdjtS4.jpg) center/cover"></div>
+    <div style="border-radius:20px;background:url(ig/DP4Vbxdjqia.jpg) center/cover"></div>
+  </div>
+  <div class="base"><span>Plano de 4 semanas</span><span>07 / 09</span></div>
+</section>
+
+<!-- 8 · PROPOSTA -->
+<section class="pag">
+  <div class="topo"><span>07 · Proposta</span><span>Pequeno Mundo</span></div>
+  <div class="selo" style="margin-top:70px">Três formas de começar</div>
+  <h2 style="font-size:64px">Escolhem o <em>tamanho</em>, como na loja.</h2>
+  <div style="display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:28px;margin-top:44px;align-items:stretch">
+    <div class="cartao" style="display:flex;flex-direction:column;overflow:hidden"><div style="margin:-40px -40px 30px;height:190px;border-radius:28px 28px 0 0;background:url(ig/DQun2vtjc0w.jpg) center 40%/cover"></div><div class="selo" style="color:var(--suave)">Montra</div><div class="num" style="font-size:68px;margin-top:10px">190 €</div><div class="leg" style="margin-top:4px">pagamento único</div>
+      <ul style="margin:20px 0 0 22px;font-size:18px;line-height:1.75;color:#5a5060"><li>Instagram arrumado: bio, destaques, ligação</li><li>Catálogo no WhatsApp Business com preços</li><li>10 modelos de publicação e de stories</li></ul></div>
+    <div class="cartao" style="display:flex;flex-direction:column;background:var(--tinta);color:#fff;transform:translateY(-16px);overflow:hidden"><div style="margin:-40px -40px 30px;height:190px;border-radius:28px 28px 0 0;background:url(ig/DePwqsZCLku.jpg) center 40%/cover"></div><div class="selo">Loja online · recomendado</div><div class="num" style="font-size:68px;margin-top:10px;color:#fff">490 €</div><div class="leg" style="margin-top:4px;color:#cfc6d3">pagamento único</div>
+      <ul style="margin:20px 0 0 22px;font-size:18px;line-height:1.75;color:#e9e3ec"><li>Tudo da Montra</li><li>Loja online com as vossas fotos, preços e tamanhos</li><li>Reserva, levantamento na loja e envio para casa</li><li>Guia de presentes de Natal</li><li>Uma sessão para aprender a pôr peças novas</li></ul></div>
+    <div class="cartao" style="display:flex;flex-direction:column;overflow:hidden"><div style="margin:-40px -40px 30px;height:190px;border-radius:28px 28px 0 0;background:url(ig/DQz05PdjtS4.jpg) center 40%/cover"></div><div class="selo" style="color:var(--suave)">Acompanhamento</div><div class="num" style="font-size:68px;margin-top:10px">99 €</div><div class="leg" style="margin-top:4px">por mês, sem fidelização</div>
+      <ul style="margin:20px 0 0 22px;font-size:18px;line-height:1.75;color:#5a5060"><li>8 publicações e 8 stories por mês</li><li>Peças novas postas na loja por nós</li><li>Um resumo mensal do que se vendeu e porquê</li></ul></div>
+  </div>
+  <p style="font-size:15px;color:var(--suave);margin-top:26px">A mensalidade da plataforma da loja online é paga diretamente pelo Pequeno Mundo, sem margem nossa. Os preços das peças nas amostras são ilustrativos.</p>
+  <div class="base"><span>Proposta válida até 30 nov 2026</span><span>08 / 09</span></div>
+</section>
+
+<!-- 9 · FECHO -->
+<section class="pag" style="background:linear-gradient(115deg,var(--creme) 0 58%,var(--menta-claro) 58% 100%)">
+  <div class="topo"><span>Próximos passos</span><span>Pequeno Mundo</span></div>
+  <div style="position:absolute;left:120px;top:230px;width:900px">
+    <div class="selo">Vamos a isso?</div>
+    <h1 style="font-size:104px;margin-top:28px">Um café na loja,<br><em>quinze minutos</em>.</h1>
+    <ol style="list-style:none;margin-top:56px;font-size:24px;line-height:1.5;color:#5a5060">
+      <li style="display:flex;gap:22px;margin-bottom:22px"><b style="font:500 30px Fraunces,serif;color:var(--rosa)">1</b>Passamos pela Benedita e mostramos a amostra no telemóvel.</li>
+      <li style="display:flex;gap:22px;margin-bottom:22px"><b style="font:500 30px Fraunces,serif;color:var(--rosa)">2</b>Escolhem o pacote e as primeiras 30 peças.</li>
+      <li style="display:flex;gap:22px"><b style="font:500 30px Fraunces,serif;color:var(--rosa)">3</b>Em duas semanas, a loja está no ar a tempo do Natal.</li>
+    </ol>
+  </div>
+  <div style="position:absolute;right:160px;top:170px;width:520px;height:700px;border-radius:260px 260px 30px 30px;overflow:hidden;box-shadow:0 50px 90px -40px rgba(58,49,64,.5)"><img src="ig/DQCqaenADjN.jpg" style="width:100%;height:100%;object-fit:cover"></div>
+  <div class="base"><span>David · Empresa AMG</span><span>09 / 09</span></div>
+</section>
+</body></html>

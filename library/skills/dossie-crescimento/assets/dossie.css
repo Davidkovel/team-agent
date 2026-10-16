@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap');
+:root{--tinta:#1d1b18;--suave:#6b655c;--linha:#e4ded4;--fundo:#faf7f2;--acento:#a5532e;--acento-claro:#f3e4da;--bom:#3f6b4a;--mau:#a5532e}
+@page{size:A4;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font:10.5pt/1.55 Inter,system-ui,sans-serif;color:var(--tinta);background:#fff}
+.pag{width:210mm;height:297mm;padding:22mm 20mm 18mm;position:relative;page-break-after:always;overflow:hidden;background:#fff}
+.pag:last-child{page-break-after:auto}
+.rodape{position:absolute;left:20mm;right:20mm;bottom:10mm;display:flex;justify-content:space-between;font-size:8pt;color:var(--suave);border-top:1px solid var(--linha);padding-top:3mm}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;font-weight:600;letter-spacing:-.01em}
+h1{font-size:34pt;line-height:1.05}
+h2{font-size:19pt;margin-bottom:5mm}
+h3{font-size:12pt;margin-bottom:1.5mm}
+p+p{margin-top:2.5mm}
+.selo{font:600 8pt Inter;letter-spacing:.14em;text-transform:uppercase;color:var(--acento)}
+.capa{background:var(--fundo);display:flex;flex-direction:column}
+.capa .meio{margin-top:auto;margin-bottom:auto}
+.capa .sub{font:400 14pt/1.4 Fraunces,serif;color:var(--suave);margin-top:6mm;max-width:140mm}
+.capa .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm;border-top:1px solid var(--linha);padding-top:6mm;font-size:9pt}
+.capa .meta b{display:block;font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;color:var(--suave);font-weight:600;margin-bottom:1mm}
+.resumo{margin-top:12mm;background:#fff;border-left:3px solid var(--acento);padding:6mm 7mm;font-size:11pt;max-width:150mm}
+.numeros{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm;margin:5mm 0 8mm}
+.num{border:1px solid var(--linha);border-radius:3mm;padding:5mm}
+.num .v{font:600 24pt/1 Fraunces,serif}
+.num .l{font-size:8.5pt;color:var(--suave);margin-top:2mm}
+.num.alerta .v{color:var(--mau)}
+table{width:100%;border-collapse:collapse;font-size:9pt}
+th{text-align:left;font-weight:600;font-size:7.5pt;letter-spacing:.1em;text-transform:uppercase;color:var(--suave);border-bottom:1px solid var(--tinta);padding:2mm 2mm 2mm 0}
+td{border-bottom:1px solid var(--linha);padding:2.2mm 2mm 2.2mm 0;vertical-align:top}
+.esg{color:var(--mau);font-weight:600}.ok{color:var(--bom);font-weight:600}
+.lista{display:grid;gap:4mm;margin-top:4mm}
+.item{display:grid;grid-template-columns:9mm 1fr;gap:3mm}
+.item .n{font:600 15pt/1 Fraunces,serif;color:var(--acento)}
+.item p{color:#3a362f}
+.caixa{background:var(--fundo);border-radius:3mm;padding:5mm 6mm;margin-top:6mm;font-size:9.5pt}
+.pacotes{display:grid;grid-template-columns:1fr 1fr;gap:5mm;margin-top:4mm}
+.pacote{border:1px solid var(--linha);border-radius:3mm;padding:6mm;display:flex;flex-direction:column}
+.pacote.dest{border:1.5px solid var(--acento);background:var(--acento-claro)}
+.pacote .preco{font:600 22pt/1 Fraunces,serif;margin:3mm 0 1mm}
+.pacote .preco small{font:400 9pt Inter;color:var(--suave)}
+.pacote ul{margin:3mm 0 0 4mm;font-size:9pt}
+.pacote li+li{margin-top:1.2mm}
+.nota{font-size:8pt;color:var(--suave);margin-top:4mm}
+.passos{counter-reset:p;margin-top:4mm}
+.passos li{list-style:none;counter-increment:p;padding-left:10mm;position:relative;margin-bottom:3mm}
+.passos li:before{content:counter(p);position:absolute;left:0;top:-.5mm;width:6.5mm;height:6.5mm;border-radius:50%;background:var(--tinta);color:#fff;font:600 8.5pt/6.5mm Inter;text-align:center}
+.duas{display:grid;grid-template-columns:1fr 1fr;gap:8mm}
+a{color:inherit}

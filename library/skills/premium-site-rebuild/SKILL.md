@@ -128,6 +128,7 @@ Todos os caminhos relativos (o site vive em `/<repo>/`). Confirmar o URL ao vivo
 | perceber o que o site De Antonio faz, secção a secção | `references/anatomy-deantonio.md` |
 | o motor de scroll, entradas, hero, abertura, carrossel, 3D | `references/motion-engine.md` |
 | tokens, letra, cor, botões, cabeçalho, rodapé, telemóvel | `references/design-system.md` |
+| compor a página como o De Antonio: margens que rodam, assimetria, ar, ecrãs inteiros (medidas reais) | `references/composition-rhythm.md` |
 | encontrar a ideia-assinatura para outro negócio | `references/signature-ideas.md` |
 | ver o código verdadeiro de uma técnica | `assets/reference/deantonio/js/*.js`, `estilo.css` |
 | um caso completo feito com este método (Ferreras, «Las 24 horas») e as armadilhas | `references/case-ferreras.md`, `assets/starter/` |
@@ -136,6 +137,8 @@ Todos os caminhos relativos (o site vive em `/<repo>/`). Confirmar o URL ao vivo
 
 - [ ] Todo o conteúdo do site velho está no novo (ou cortado de propósito, com motivo).
 - [ ] Uma ideia-assinatura, própria deste negócio, visível do hero ao contacto.
+- [ ] Composição em ritmo, medida: nenhum par de blocos seguidos na mesma margem, título e texto
+      lado a lado, mídia fora do eixo, 300–400 px de ar, dois ecrãs inteiros (`references/composition-rhythm.md`).
 - [ ] Um token de curva e três de duração; nenhuma animação com outra curva.
 - [ ] 60 fps no scroll; nenhum `getBoundingClientRect` no laço; nada salta quando as imagens chegam.
 - [ ] Telemóvel com composição própria, testado a 390 px; nada passa da largura do ecrã.

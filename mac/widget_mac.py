@@ -105,45 +105,79 @@ def no_dock_icon():
     send_long(app, objc.sel_registerName(b"setActivationPolicy:"), 1)  # NSApplicationActivationPolicyAccessory
 
 
-def on_every_desktop(widget):
-    """No Mac uma janela fica na secretária (Space) onde abriu: ao trocar de secretária o widget ficava para trás.
-    Com «canJoinAllSpaces» aparece em todas, e com «fullScreenAuxiliary» também por cima das apps em ecrã inteiro."""
+def _objc():
     objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
     objc.sel_registerName.restype = ctypes.c_void_p
     msg = ctypes.cast(objc.objc_msgSend, ctypes.c_void_p).value
+    return objc, msg
+
+
+def ns_window_of(widget):
+    objc, msg = _objc()
     send = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(msg)
+    return send(int(widget.winId()), objc.sel_registerName(b"window"))
+
+
+def on_every_desktop(widget, everywhere=True):
+    """No Mac uma janela fica na secretária (Space) onde abriu. Com «canJoinAllSpaces» aparece em todas, e com
+    «fullScreenAuxiliary» também por cima das apps em ecrã inteiro. Sem ele, fica na secretária onde está agora."""
+    objc, msg = _objc()
     get_ulong = ctypes.CFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p, ctypes.c_void_p)(msg)
     set_ulong = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong)(msg)
-    ns_window = send(int(widget.winId()), objc.sel_registerName(b"window"))
+    ns_window = ns_window_of(widget)
     if not ns_window:
         return
     can_join_all_spaces, move_to_active_space, full_screen_auxiliary = 1 << 0, 1 << 1, 1 << 8
-    behavior = get_ulong(ns_window, objc.sel_registerName(b"collectionBehavior"))
-    behavior = (behavior & ~move_to_active_space) | can_join_all_spaces | full_screen_auxiliary
+    behavior = get_ulong(ns_window, objc.sel_registerName(b"collectionBehavior")) & ~move_to_active_space
+    if everywhere:
+        behavior |= can_join_all_spaces | full_screen_auxiliary
+    else:
+        behavior &= ~(can_join_all_spaces | full_screen_auxiliary)
     set_ulong(ns_window, objc.sel_registerName(b"setCollectionBehavior:"), behavior)
+
+
+def on_this_desktop(widget) -> bool:
+    objc, msg = _objc()
+    get_bool = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)(msg)
+    ns_window = ns_window_of(widget)
+    return bool(ns_window) and get_bool(ns_window, objc.sel_registerName(b"isOnActiveSpace"))
+
+
+def goes_everywhere(widget) -> bool:
+    """O David (16 out): só a estrela do canto (horas e Mercedes) vai para todas as secretárias. O painel e o Hub abrem
+    na secretária onde ele está e ficam lá; ir atrás dele de secretária em secretária ficava tudo encavalitado."""
+    from team_widget.ui.window import WidgetWindow
+
+    if isinstance(widget, WidgetWindow):
+        return widget.mode == "orb"
+    return type(widget).__name__ not in ("HubExpander", "MiniWindow", "Ghost")
 
 
 class MacApp(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
         QTimer.singleShot(0, no_dock_icon)
-        # Cada janela do widget (estrela, painel, avisos, Hub) passa a ir contigo para todas as secretárias.
-        # Revê-se de meio em meio segundo porque o Qt cria uma janela nova do macOS quando muda «sempre por cima».
-        self._done = set()
+        # Revê-se de meio em meio segundo porque o Qt cria uma janela nova do macOS quando muda «sempre por cima»,
+        # e porque a mesma janela é a estrela (todas as secretárias) e o painel (só uma).
+        self._set = {}
         self._spaces = QTimer(self)
         self._spaces.timeout.connect(self._follow_desktops)
         self._spaces.start(500)
 
     def _follow_desktops(self):
+        from team_widget.ui.window import WidgetWindow
+
         for w in self.topLevelWidgets():
             if not w.isVisible() or not w.testAttribute(Qt.WA_WState_Created):
                 continue
-            wid = int(w.winId())
-            if wid in self._done:
-                continue
             try:
-                on_every_desktop(w)
-                self._done.add(wid)
+                wid, everywhere = int(w.winId()), goes_everywhere(w)
+                if self._set.get(wid) != everywhere:
+                    on_every_desktop(w, everywhere)
+                    self._set[wid] = everywhere
+                # Painel aberto noutra secretária: volta a ser estrela, que aparece logo na secretária onde estás.
+                elif isinstance(w, WidgetWindow) and w.mode == "panel" and not on_this_desktop(w):
+                    w.collapse()
             except Exception:  # noqa: BLE001 — nunca deixar isto partir o widget
                 pass
 

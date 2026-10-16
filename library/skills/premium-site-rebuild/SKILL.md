@@ -47,6 +47,14 @@ O que faz a diferença não é ter "muitas animações". É:
    (fotografias próprias, números) fica numa lista para o cliente.
 9. **Sem build, sem framework, sem CDN em produção**: HTML + CSS + JS vanilla; bibliotecas
    pesadas (three.js) copiadas para `vendor/` e carregadas só quando o scroll pára perto delas.
+11. **Três segundos de atenção por ecrã.** Cada ecrã começa por algo para ver (vídeo, fotografia, o objecto da
+    assinatura), depois um título curto e, no máximo, uma linha. Hero = vídeo de margem a margem montado com cortes
+    de 1,5–2,5 s a partir das filmagens do próprio cliente. Nada de secções fixadas que obrigam a rolar ecrãs a fio;
+    o detalhe vai para blocos que se abrem ou para as páginas interiores. Medir a altura no telemóvel (≈ 10–12 ecrãs
+    para uma home). Pergunta de controlo: «um cliente rico pagaria 100 000 € por isto?».
+12. **Composição, não coluna**: âncoras alternadas (nunca dois blocos seguidos na mesma margem), título e frase lado
+    a lado, media fora do eixo ou a sair da margem, um ou dois momentos de ecrã inteiro a meio, números enormes em
+    contorno por trás das imagens, ar entre blocos.
 10. **Proposta, não impostura**: enquanto não for o site oficial, `<meta name="robots"
     content="noindex, nofollow">`, `robots.txt` com `Disallow: /` e os contactos a apontar para
     os contactos reais da empresa. Nunca recolher dados em nome de outra empresa.

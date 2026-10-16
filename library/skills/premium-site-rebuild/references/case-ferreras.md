@@ -57,3 +57,36 @@ final 07:30.
 
 `assets/starter/` tem o motor (00-nucleo.js), as receitas comuns (20-comuns.js), o relógio-assinatura
 (30-reloj.js) e as cenas (40-escenas.js: raio X, pista fixada, conversa por scroll) deste caso.
+
+## Segunda volta (o mesmo dia): «três segundos de atenção»
+
+O cliente (David) olhou para a primeira versão como o dono da Ferreras e recusou-a: demasiado texto, demasiado scroll
+no telemóvel (27 100 px), duas cenas fixadas de 3–4 ecrãs cada, e uma demo de chat com dados inventados (de outra
+sessão) que não estava no site antigo. O que mudou:
+
+- **Hero = showreel**: `_fonte/showreel.py` monta com ffmpeg (o do `imageio_ffmpeg`) cortes de 1,4–2,4 s dos vídeos
+  originais do Instagram (estilo de vida + relógio, TN Autosport GT3 RS, CarDress): versão 16:9 (faixa central dos
+  verticais, só de fontes 1080) e versão vertical para o telemóvel; cartaz `<picture>` por baixo, vídeo por cima.
+  Escolher os planos olhando para folhas de fotogramas com o tempo escrito (`fps=1/2.5,drawtext,tile`).
+- **Interlúdio de ecrã inteiro**: três clips verticais lado a lado num só ficheiro (`hstack`, 3×540×960), sem
+  reescalar; no telemóvel um só clip.
+- **O relógio passou para a cabeçalho** (sem voo); uma esfera grande e viva na secção da marca marca a mesma hora.
+  O céu do coração aberto é um `conic-gradient` com sol, lua e estrelas que roda com o dia.
+- **Raio X dia/noite do mesmo iate**: a versão de noite foi feita da fotografia de dia (luz linear, menos exposição,
+  azul, luzes quentes nas janelas). Mesmo enquadramento = a metáfora lê-se num segundo.
+- **24 h numa esfera** (SVG gerado em Python, pontos com semente fixa): as consultas de um dia, quadrados azuis com a
+  recepção fechada; a varredura desenha-se uma vez quando entra no ecrã. Substituiu a conversa por scroll.
+- **Composição à De Antonio** (medida noutra sessão e adaptada): título à esquerda e frase à direita mais abaixo,
+  carril a partir de 16 % a sair pela direita, raio X de margem a margem, painéis dos sectores em escada, «100» e
+  «BCN» em contorno por trás do vídeo e do relógio (factos confirmados nos vídeos e no site; «18 quilates» não se
+  confirmou e ficou de fora), cartão largo do director a sair pela direita, números 4 · 20+ · 24 h · 1 dia.
+- **Casos em `<details>`** com fotografia: o detalhe abre-se, não se rola.
+- Resultado: home 22 800 → 11 900 px no computador, 27 100 → 11 200 px no telemóvel; páginas interiores −40 a −50 %.
+
+Armadilhas desta volta:
+- Um quadrado rodado (o disco do céu) faz overflow horizontal no telemóvel: `.reloj{overflow:hidden;contain:paint}`
+  e a sombra (`drop-shadow`) passa para o contentor.
+- `font` em `.bloco span` apanhou os `span` dos contadores dentro do `<b>`: usar `>span`.
+- No script de screenshots, separar passos com `;;` (o JS tem vírgulas e `||`); porta aleatória e `taskkill /T` no fim,
+  senão ficam Chromes headless presos na porta.
+- «Pide su» mistura tú e usted: em «usted» é «Pida su diagnóstico».

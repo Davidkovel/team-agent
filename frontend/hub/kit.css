@@ -9,11 +9,11 @@
 .kt-pc::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; height: 1px; background: var(--chrome-line); opacity: .4; }
 .kt-pc.here { border-color: rgba(255, 255, 255, .16); }
 .kt-pc.down { opacity: .62; }
-.kt-pc > header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.kt-pc > header { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; }
 .kt-pc > header b { display: block; color: #f4f6f8; font: 500 22px/1.05 var(--serif); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .kt-pc > header div > span { display: block; margin-top: 3px; color: #7d8794; font: 600 10.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
 
-.kt-st { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .1);
+.kt-st { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .1);
   color: #9aa1aa; font: 700 10px var(--ui); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
 .kt-st i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .kt-st.ok { color: #7fe0a8; border-color: rgba(95, 207, 140, .35); background: rgba(95, 207, 140, .07); }
@@ -21,7 +21,7 @@
 .kt-st.warn { color: #e2b55c; border-color: rgba(226, 181, 92, .35); background: rgba(226, 181, 92, .06); }
 
 .kt-facts { display: flex; flex-wrap: wrap; gap: 6px; }
-.kt-facts span { padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .08); background: rgba(255, 255, 255, .04); color: #cfd5dc;
+.kt-facts span:not(.kt-st) { padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .08); background: rgba(255, 255, 255, .04); color: #cfd5dc;
   font: 600 9.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
 .kt-facts b { font-family: var(--mono); color: #fff; }
 .kt-why { margin: 0; color: #8b95a1; font: 500 13px/1.45 var(--ui); }

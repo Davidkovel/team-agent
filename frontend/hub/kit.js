@@ -14,11 +14,12 @@
     const h = K.here;
     return [{ who: h.who, state: h.on ? "on" : "off", plugins: h.plugins, skills: [...h.skills, ...h.came], here: true }, ...K.peers];
   }
+  const travels = (p) => (p.plugins || []).filter((k) => !K.fora[k]);   // the ones kept out are not counted
 
   function pcCard(p) {
     const [tone, label] = STATE[p.state] || STATE.down, h = K.here;
-    const n = (p.plugins || []).length, s = (p.skills || []).length;
-    const facts = p.state === "on" ? `<span><b>${n}</b> ${t(n === 1 ? "plugin" : "plugins")}</span><span><b>${s}</b> ${t(s === 1 ? "skill" : "skills")}</span>` : "";
+    const n = travels(p).length, s = (p.skills || []).length;
+    const facts = `<span class="kt-st ${tone}"><i></i>${esc(t(label))}</span>` + (p.state === "on" ? `<span><b>${n}</b> ${t(n === 1 ? "plugin" : "plugins")}</span><span><b>${s}</b> ${t(s === 1 ? "skill" : "skills")}</span>` : "");
     let foot = "";
     if (p.here) {
       const busy = h.busy ? `<span class="kt-busy"><i></i>${esc(t("A instalar o que falta…"))}</span>` : "";
@@ -35,9 +36,8 @@
       foot = `<p class="kt-why">${esc(t("Quando o PC ligar, aparece aqui o que tem."))}</p>`;
     }
     return `<article class="kt-pc ${p.state} ${p.here ? "here" : ""}">
-      <header>${ui.avatar(nameOf(p.who))}<div><b>${esc(nameOf(p.who))}</b><span>${esc(p.here ? t("Este PC") : t("PC do {n}", { n: first(p.who) }))}</span></div>
-        <span class="kt-st ${tone}"><i></i>${esc(t(label))}</span></header>
-      ${facts ? `<div class="kt-facts">${facts}</div>` : ""}${foot}</article>`;
+      <header>${ui.avatar(nameOf(p.who))}<div><b>${esc(nameOf(p.who))}</b><span>${esc(t(p.here ? "Este PC" : "Outro PC"))}</span></div></header>
+      <div class="kt-facts">${facts}</div>${foot}</article>`;
   }
 
   // one cell: what that PC has of this plugin or skill

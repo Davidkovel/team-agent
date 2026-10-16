@@ -1,0 +1,2229 @@
+@import "tailwindcss";
+
+/* ============================================================
+   TOKENS
+   Tailwind 4: um token declarado em @theme existe como
+   var(--color-x) e como utilitario (bg-shell, text-brand).
+   NAO existe como var(--x).
+   ============================================================ */
+
+@theme {
+  /* superficies */
+  --color-shell: #f2f5fc;
+  --color-plate: #ffffff;
+  --color-plate-2: #e8edf9;
+  --color-deep: #0b1437;
+
+  /* tinta */
+  --color-ink: #0b1437;
+  --color-ink-soft: #45527a;
+  --color-ink-faint: #586386;
+  --color-on-deep: #e8edf9;
+  --color-on-deep-soft: #a9b4d4;
+
+  /* linhas */
+  --color-line: #dce3f2;
+  --color-line-lit: #c2cce4;
+  --color-line-strong: #8b97b8;
+  --color-line-deep: #26325c;
+
+  /* marca */
+  --color-brand: #2a3fa7;
+  --color-brand-lit: #4c62d4;
+  --color-on-brand: #ffffff;
+  --color-accent: #84c885;
+  --color-accent-ink: #3e7a48;
+
+  /* raios */
+  --radius-plate: 12px;
+  --radius-field: 10px;
+  --radius-reel: 16px;
+
+  /* curvas: uma para o que entra, outra para o que desliza */
+  --ease-land: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-glide: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --font-sans: var(--font-manrope), "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-manrope), "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
+  /* ritmo espacial, multiplos de 4, fluido sem breakpoints */
+  --s-xs: clamp(0.5rem, 0.45rem + 0.25vw, 0.75rem);
+  --s-sm: clamp(0.75rem, 0.65rem + 0.5vw, 1rem);
+  --s-md: clamp(1.25rem, 1rem + 1.25vw, 2rem);
+  --s-lg: clamp(2rem, 1.5rem + 2.5vw, 4rem);
+  --s-xl: clamp(3.5rem, 2.5rem + 5vw, 7.5rem);
+
+  --gutter: clamp(1.25rem, 0.9rem + 1.8vw, 4.5rem);
+
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+
+  /* tipografia fluida */
+  --t-display: clamp(2.125rem, 1.5rem + 2.9vw, 4.25rem);
+  --t-title: clamp(1.625rem, 1.35rem + 1.1vw, 2.5rem);
+  --t-h3: clamp(1.125rem, 1.05rem + 0.3vw, 1.375rem);
+  --t-lede: clamp(1.0625rem, 1rem + 0.35vw, 1.3125rem);
+  --t-body: clamp(0.9375rem, 0.9rem + 0.15vw, 1.0625rem);
+  --t-label: clamp(0.8125rem, 0.8rem + 0.05vw, 0.875rem);
+  --t-num: clamp(2.125rem, 1.6rem + 2.2vw, 3.125rem);
+
+  /* tinta base do heroi por cima do video */
+  --scrim: 0.28;
+}
+
+/* telemovel deitado e ecras baixos: decide-se por ALTURA, porque a 844px de
+   largura um sm: dispara num ecra de 390px de altura */
+@media (max-height: 700px) {
+  :root {
+    --t-display: clamp(1.875rem, 1.2rem + 2.6vw, 2.75rem);
+    --t-lede: 0.9375rem;
+    --s-xl: 1.75rem;
+    --s-lg: 1.25rem;
+    --s-md: 0.875rem;
+    --s-sm: 0.625rem;
+  }
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+
+* {
+  text-transform: none;
+}
+
+/* ⚠️ O DOCUMENTO ACABA NO RODAPE. Em iOS o Safari deixava continuar a
+   arrastar para baixo do rodape e aparecia meio ecra de fundo vazio.
+   `overscroll-behavior-y: none` tira o elastico no fim, e o `overflow-x:
+   clip` impede que qualquer coisa larga demais crie barra e altura a mais.
+   Regra da casa: o rodape e o limite, nao ha nada depois dele. */
+html {
+  overflow-x: clip;
+  overscroll-behavior-y: none;
+}
+
+/* ⚠️ AQUI E `clip`, NUNCA `hidden`. Com `overflow-x: hidden` o corpo passa a
+   ter `overflow-y: auto` calculado (a regra do par: `visible` ao lado de
+   `hidden` vira `auto`) e torna-se um contentor de scroll que nao tem nada
+   para deslizar. Num Mac, o gesto de dois dedos engata nesse contentor para
+   todo o gesto, e como `overscroll-behavior-y: none` proibe a corrente, o
+   scroll morre ali: a roda do rato ainda ia, o trackpad nao ia de todo.
+   `clip` corta na mesma na horizontal e nao cria contentor nenhum. */
+body {
+  overflow-x: clip;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--color-shell);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-shell);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-brand) 22%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+img,
+video {
+  max-width: 100%;
+}
+
+/* ============================================================
+   CAMPOS
+   Cada seccao declara a superficie numa classe. Os componentes
+   la dentro nunca voltam a pensar em cor.
+   ATENCAO: .field-shell NAO pinta fundo. Se pintar, tapa a
+   lavagem do CampoLuz e a emenda do heroi volta a aparecer.
+   ============================================================ */
+
+.field-shell {
+  --field-ink: var(--color-ink);
+  --field-ink-soft: var(--color-ink-soft);
+  --field-ink-faint: var(--color-ink-faint);
+  --field-line: var(--color-line);
+  --field-line-lit: var(--color-line-lit);
+  --field-line-strong: var(--color-line-strong);
+  --field-brand: var(--color-brand);
+  --field-bg: var(--color-shell);
+  color: var(--field-ink);
+}
+
+.field-plate {
+  --field-ink: var(--color-ink);
+  --field-ink-soft: var(--color-ink-soft);
+  --field-ink-faint: var(--color-ink-faint);
+  --field-line: var(--color-line);
+  --field-line-lit: var(--color-line-lit);
+  --field-line-strong: var(--color-line-strong);
+  --field-brand: var(--color-brand);
+  --field-bg: var(--color-plate);
+  background-color: var(--field-bg);
+  color: var(--field-ink);
+}
+
+.field-plate-2 {
+  --field-ink: var(--color-ink);
+  --field-ink-soft: var(--color-ink-soft);
+  --field-ink-faint: #586386;
+  --field-line: var(--color-line-lit);
+  --field-line-lit: var(--color-line-lit);
+  --field-line-strong: var(--color-line-strong);
+  --field-brand: var(--color-brand);
+  --field-bg: var(--color-plate-2);
+  background-color: var(--field-bg);
+  color: var(--field-ink);
+}
+
+.field-deep {
+  --field-ink: var(--color-on-deep);
+  --field-ink-soft: var(--color-on-deep-soft);
+  --field-ink-faint: var(--color-on-deep-soft);
+  --field-line: var(--color-line-deep);
+  --field-line-lit: #38477a;
+  --field-line-strong: #6d7bad;
+  --field-brand: var(--color-accent);
+  --field-bg: var(--color-deep);
+  background-color: var(--field-bg);
+  color: var(--field-ink);
+}
+
+/* ============================================================
+   ESTRUTURA
+   ============================================================ */
+
+.shell {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+  padding-inline: max(var(--gutter), var(--safe-l), var(--safe-r));
+}
+
+.section {
+  padding-block: var(--s-xl);
+}
+
+.section--tight {
+  padding-block: var(--s-lg);
+}
+
+/* ============================================================
+   CAMPO DE LUZ
+   Uma unica camada de luz por baixo de todo o conteudo depois
+   do heroi. E ela que faz o fundo nao ser chapa morta.
+   ============================================================ */
+
+.campo-luz {
+  position: relative;
+  background-color: var(--color-shell);
+}
+
+.campo-luz__luz {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(
+      140% 120vh at 50% 0%,
+      rgba(132, 200, 133, 0.1),
+      rgba(132, 200, 133, 0) 82%
+    ),
+    radial-gradient(
+      140% 110vh at 50% 100%,
+      rgba(42, 63, 167, 0.06),
+      rgba(42, 63, 167, 0) 82%
+    );
+  -webkit-mask-image: linear-gradient(to bottom, #000 92%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 92%, transparent 100%);
+}
+
+.campo-luz__conteudo {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+   TIPOGRAFIA
+   ============================================================ */
+
+.display {
+  font-family: var(--font-display);
+  font-size: var(--t-display);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.h3 {
+  font-size: var(--t-h3);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.lede {
+  font-size: var(--t-lede);
+  line-height: 1.5;
+  color: var(--field-ink-soft, var(--color-ink-soft));
+  text-wrap: pretty;
+  max-width: 38ch;
+}
+
+.corpo {
+  font-size: var(--t-body);
+  line-height: 1.65;
+  color: var(--field-ink-soft, var(--color-ink-soft));
+  max-width: 68ch;
+}
+
+.label {
+  font-size: var(--t-label);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.meta {
+  font-size: var(--t-label);
+  color: var(--field-ink-faint, var(--color-ink-faint));
+  line-height: 1.4;
+}
+
+.figure {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* o unico kicker do site: uma linha de texto na cor da marca.
+   sem capsula, sem traco ao lado, sem maiusculas */
+.credito {
+  font-size: var(--t-label);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--field-brand, var(--color-brand));
+}
+
+/* ============================================================
+   CHAPAS
+   Profundidade por luz e nunca por sombra preta.
+   ============================================================ */
+
+.plate {
+  padding: var(--s-md);
+  border-radius: var(--radius-plate);
+  background-color: var(--color-plate);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px var(--color-line),
+    0 1px 2px rgba(11, 20, 55, 0.04);
+}
+
+.field-deep .plate {
+  background-color: #131f4a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px var(--color-line-deep);
+}
+
+.plate--fundo {
+  background-color: var(--color-plate-2);
+}
+
+/* a aresta acesa: um fio de acento no topo da peca que a seccao
+   quer que se leia primeiro. e luz, nao traco decorativo */
+.plate--lit {
+  position: relative;
+}
+
+.plate--lit::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  border-radius: var(--radius-plate) var(--radius-plate) 0 0;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-accent) 22%,
+    var(--color-accent) 78%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.card {
+  padding: var(--s-sm);
+  border-radius: var(--radius-plate);
+  background-color: var(--color-plate-2);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+
+/* a unica forma fechada permitida a volta de um dado */
+.capsula {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.75rem;
+  border-radius: 999px;
+  font-size: var(--t-label);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--field-line-lit, var(--color-line-lit));
+}
+
+/* ============================================================
+   BOTOES: duas intensidades e mais nada
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  padding-inline: 1.5rem;
+  border-radius: 999px;
+  font-size: var(--t-label);
+  font-weight: 600;
+  line-height: 1.2;
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+  transition:
+    transform 500ms var(--ease-glide),
+    filter 500ms var(--ease-glide);
+}
+
+.btn:hover {
+  filter: brightness(1.1);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn--contorno {
+  background-color: transparent;
+  color: var(--field-ink, var(--color-ink));
+  box-shadow: inset 0 0 0 1px var(--field-line-strong, var(--color-line-strong));
+}
+
+.field-deep .btn {
+  background-color: var(--color-accent);
+  color: var(--color-deep);
+}
+
+.field-deep .btn--contorno {
+  background-color: transparent;
+  color: var(--color-on-deep);
+}
+
+.btn-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  font-size: var(--t-label);
+  font-weight: 600;
+  color: var(--field-brand, var(--color-brand));
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+
+.btn-quiet:hover {
+  text-decoration-color: currentColor;
+}
+
+/* ============================================================
+   CAMPOS DE FORMULARIO
+   ============================================================ */
+
+.field {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--radius-field);
+  background-color: var(--color-plate);
+  color: var(--color-ink);
+  font-size: 1rem; /* 16px: abaixo disto o iOS faz zoom ao focar */
+  box-shadow: inset 0 0 0 1px var(--color-line-strong);
+}
+
+.field::placeholder {
+  color: var(--color-ink-faint);
+}
+
+.field-deep .field {
+  background-color: #131f4a;
+  color: var(--color-on-deep);
+  box-shadow: inset 0 0 0 1px #38477a;
+}
+
+.field-deep .field::placeholder {
+  color: var(--color-on-deep-soft);
+}
+
+/* ============================================================
+   ACORDEAO
+   A animacao esta no CONTEUDO e nunca na altura: a altura de um
+   <details> nao interpola.
+   ============================================================ */
+
+.acordeoes {
+  border-top: 1px solid var(--field-line-lit, var(--color-line-lit));
+}
+
+.acordeao {
+  border-bottom: 1px solid var(--field-line-lit, var(--color-line-lit));
+}
+
+.acordeao__b {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-sm);
+  width: 100%;
+  padding-block: var(--s-sm);
+  min-height: 3rem;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  text-align: left;
+}
+
+.acordeao__b::-webkit-details-marker {
+  display: none;
+}
+
+.acordeao__sinal {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.5rem;
+  border-right: 1.5px solid var(--field-ink-soft, var(--color-ink-soft));
+  border-bottom: 1.5px solid var(--field-ink-soft, var(--color-ink-soft));
+  transform: rotate(45deg);
+  transition: transform 300ms var(--ease-glide);
+}
+
+details[open] .acordeao__sinal {
+  transform: rotate(-135deg);
+  margin-top: 0.75rem;
+}
+
+.acordeao__r {
+  padding-bottom: var(--s-sm);
+  max-width: 62ch;
+  color: var(--field-ink-soft, var(--color-ink-soft));
+}
+
+details[open] .acordeao__r {
+  animation-name: acordeao-abre;
+  animation-duration: 300ms;
+  animation-timing-function: var(--ease-land);
+  animation-fill-mode: both;
+}
+
+@keyframes acordeao-abre {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* ============================================================
+   MOVIMENTO
+   ============================================================ */
+
+/* entrada acima da dobra, CSS puro. Propriedades em LONGHAND:
+   o shorthand animation repoe animation-delay: 0s e anula os
+   [animation-delay:...] do JSX, fazendo subir tudo ao mesmo tempo */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1.25rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.rise {
+  animation-name: rise;
+  animation-duration: 700ms;
+  animation-timing-function: var(--ease-land);
+  animation-fill-mode: both;
+}
+
+/* reveal ao scroll, para todo o resto.
+   ⚠️ NASCE, NAO SOBE DEVAGAR. Antes era 800ms de translacao vertical, e a
+   800ms uma pagina inteira a fazer isto le-se como site lento e nao como
+   entrada. Agora e 420ms, com um salto muito curto e uma escala a abrir do
+   centro para as pontas: a peca aparece, nao se arrasta. */
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 0.5rem, 0) scale(0.985);
+  transition:
+    opacity 420ms var(--ease-land),
+    transform 420ms var(--ease-land);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* poster que respira, so quando o autoplay e recusado */
+.hero-respira {
+  animation-name: hero-respira;
+  animation-duration: 14s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  transform-origin: 50% 45%;
+  will-change: transform;
+}
+
+@keyframes hero-respira {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+/* grao: vive DENTRO do heroi. tem razao fotografica em cima de
+   video e nenhuma em cima de um formulario */
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: var(--gutter);
+  top: var(--gutter);
+  padding: 0.75rem 1.25rem;
+  border-radius: 999px;
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+/* ============================================================
+   MOVIMENTO REDUZIDO
+   Fica no FIM de proposito, para as regras acima poderem repor
+   um estado visivel antes desta zerar as duracoes.
+   reduce tira o autoplay, nunca esconde o conteudo.
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   A MARCA A NASCER
+   Substitui o gesto antigo (o logotipo com os sublinhados e o
+   contorno a correr). Agora e so o icone deles: os paineis
+   ficam postos e o sol nasce atras, em WebP animado com alfa.
+   ============================================================ */
+
+.marca-nasce {
+  display: block;
+  width: 9rem;
+}
+
+.marca-nasce--media { width: 8rem; }
+.marca-nasce--pequena { width: 7rem; }
+
+.marca-nasce img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ============================================================
+   LISTA COM GOTA DE LUZ
+   Substitui os certos verdes. A luz acumula no ponto e cai para
+   o seguinte; a queda e mais rapida do que a acumulacao, e e
+   essa diferenca que a faz ler como gota.
+   ============================================================ */
+
+.lista-luz {
+  --passo: 3.5rem;
+  --centro: 5px;
+  position: relative;
+  display: grid;
+  padding-left: 1.75rem;
+}
+
+.lista-luz--icone {
+  --centro: 1.375rem;
+  padding-left: 4rem;
+}
+
+/* a linha que liga topico a topico, do centro do primeiro ao centro do ultimo */
+.lista-luz::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--centro) - 0.5px);
+  top: calc(var(--passo) / 2);
+  height: calc(100% - var(--passo));
+  width: 1px;
+  background-color: var(--field-line-lit, var(--color-line-lit));
+}
+
+/* ⚠️ altura FIXA por topico: e ela que faz a gota aterrar no centro do
+   proximo, com uma linha de texto ou com duas */
+.lista-luz__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: var(--passo);
+  height: var(--passo);
+}
+
+.lista-luz__marca {
+  position: absolute;
+  left: calc(var(--centro) * -1 - 1.75rem + var(--centro));
+  display: grid;
+  place-items: center;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: var(--field-line-strong, var(--color-line-strong));
+}
+
+.lista-luz--icone .lista-luz__marca {
+  left: -4rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--color-accent-ink);
+  background-color: var(--color-plate);
+  box-shadow: inset 0 0 0 1px var(--field-line-lit, var(--color-line-lit));
+}
+
+.field-deep .lista-luz--icone .lista-luz__marca {
+  color: var(--color-accent);
+  background-color: #131f4a;
+  box-shadow: inset 0 0 0 1px var(--color-line-deep);
+}
+
+.lista-luz__texto {
+  min-width: 0;
+}
+
+.lista-luz__titulo {
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--field-ink, var(--color-ink));
+}
+
+/* A GOTA. O keyframe e gerado no componente, porque as percentagens dependem
+   do numero de topicos e isso nao se calcula em CSS. Aqui fica so a aparencia.
+   Arranca no centro do primeiro topico. */
+.lista-luz__gota {
+  position: absolute;
+  left: calc(var(--centro) - 4.5px);
+  top: calc(var(--passo) / 2 - 4.5px);
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--color-accent) 0%,
+    color-mix(in srgb, var(--color-accent) 45%, transparent) 55%,
+    transparent 74%
+  );
+  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  transform-origin: 50% 20%;
+  opacity: 0;
+  animation-timing-function: cubic-bezier(0.55, 0, 0.35, 1);
+  animation-iteration-count: infinite;
+  pointer-events: none;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lista-luz__gota { display: none; }
+  .lista-luz__marca {
+    animation: none !important;
+    background-color: var(--color-accent-ink);
+  }
+  .lista-luz--icone .lista-luz__marca {
+    animation: none !important;
+    background-color: var(--color-plate);
+  }
+}
+
+/* ============================================================
+   FITA DE SERVICOS
+   Marquee sem JavaScript: a lista aparece duas vezes e o
+   conjunto anda -50%.
+   ============================================================ */
+
+/* o conjunto: a fita mais as duas setas por cima dela */
+.fita-conjunto {
+  position: relative;
+}
+
+/* ⚠️ AS SETAS FICAM FORA DA MASCARA. A .fita esbate as pontas com
+   mask-image; um botao la dentro esbatia junto. Por isso vivem no
+   .fita-conjunto, por cima. */
+.fita__seta {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line-strong);
+  background-color: var(--color-plate);
+  color: var(--color-ink);
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(11, 20, 55, 0.12);
+  transition: transform 200ms var(--ease-glide), background-color 200ms var(--ease-glide);
+}
+
+.fita__seta:hover {
+  background-color: var(--color-shell);
+  transform: translateY(-50%) scale(1.06);
+}
+
+.fita__seta--esq { left: 0.75rem; }
+.fita__seta--dir { right: 0.75rem; }
+
+.fita {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  /* as pontas esbatem-se, senao os cartoes parecem cortados a faca */
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 6%,
+    #000 94%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 6%,
+    #000 94%,
+    transparent
+  );
+}
+
+/* ⚠️ A CAIXA E UM SCROLL HORIZONTAL A SERIO. O dedo arrasta o scroll nativo,
+   com a inercia do sistema; o JS so soma ao scrollLeft para o andamento
+   automatico. Nada de `touch-action: pan-y` a disputar o gesto com o browser.
+   `overscroll-behavior-x: contain` impede que o fim da fita puxe a navegacao
+   por gesto do iOS. */
+.fita {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  cursor: grab;
+}
+
+.fita::-webkit-scrollbar {
+  display: none;
+}
+
+.fita:active {
+  cursor: grabbing;
+}
+
+.fita__pista {
+  display: flex;
+  width: max-content;
+  gap: var(--s-sm);
+  padding-inline: var(--s-sm);
+}
+
+.fita__item {
+  flex: none;
+  width: clamp(15rem, 62vw, 21rem);
+}
+
+.fita__cartao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+}
+
+.fita__moldura {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-plate);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+
+.fita__foto {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  transition: transform 700ms var(--ease-glide);
+}
+
+.fita__cartao:hover .fita__foto {
+  transform: scale(1.04);
+}
+
+/* o titulo assenta sobre a fotografia, com uma subida de tinta por baixo para
+   nao depender do que calhar estar na foto */
+.fita__titulo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: var(--s-md) var(--s-sm) var(--s-sm);
+  font-size: var(--t-h3);
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  background: linear-gradient(
+    to top,
+    rgba(11, 20, 55, 0.86),
+    rgba(11, 20, 55, 0.55) 55%,
+    transparent
+  );
+}
+
+.fita__accao {
+  min-height: 2rem;
+}
+
+/* Movimento reduzido: o rAF nao avanca sozinho (guardado no JS) e fica so o
+   arrasto manual, que e movimento pedido pelo proprio utilizador. */
+
+/* ============================================================
+   PAINEIS EXPANSIVEIS
+   A geometria do interactive-selector: o activo cresce para
+   flex 7 contra 1 dos outros. Em ecra pequeno o eixo vira,
+   porque uma fila de seis paineis a 390px nao e legivel.
+   ============================================================ */
+
+.paineis {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  /* em coluna a altura e menor: o painel activo nao precisa de meio ecra para
+     mostrar um titulo e duas linhas */
+  height: clamp(27rem, 66svh, 35rem);
+  overflow: hidden;
+  border-radius: var(--radius-plate);
+}
+
+@media (min-width: 48rem) {
+  .paineis {
+    flex-direction: row;
+    height: clamp(24rem, 62svh, 34rem);
+  }
+}
+
+/* sem fotografia nao ha nada para ver no espaco vazio: o painel encolhe e o
+   rotulo sobe para o meio */
+.paineis--icone {
+  height: clamp(17rem, 42svh, 23rem);
+}
+
+@media (min-width: 48rem) {
+  .paineis--icone {
+    height: clamp(19rem, 48svh, 26rem);
+  }
+}
+
+.paineis--icone .paineis__botao {
+  justify-content: center;
+}
+
+.paineis__celula {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  /* em coluna e este piso que da corpo aos paineis fechados: a 3.5rem eram
+     tiras onde o titulo nao respirava. O contentor subiu com ele. */
+  min-height: 4.75rem;
+  min-width: 0;
+  flex: 1 1 0%;
+  opacity: 0;
+  transform: translate3d(0, 24px, 0);
+  transition:
+    flex-grow 700ms var(--ease-glide),
+    opacity 460ms var(--ease-land),
+    transform 460ms var(--ease-land);
+  will-change: flex-grow;
+}
+
+@media (min-width: 48rem) {
+  .paineis__celula {
+    transform: translate3d(-40px, 0, 0);
+  }
+}
+
+.paineis__celula[data-entrou="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+.paineis__celula[data-activo="true"] {
+  flex-grow: 7;
+  z-index: 2;
+}
+
+.paineis__botao {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  height: 100%;
+  padding: var(--s-sm);
+  text-align: left;
+  cursor: pointer;
+  /* o degrade da marca e o que se ve nos paineis sem fotografia */
+  background-image: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--color-brand) 55%, var(--color-deep)),
+    var(--color-deep) 70%
+  );
+  background-color: var(--color-deep);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--color-line-deep);
+  transition: box-shadow 400ms var(--ease-glide);
+}
+
+/* ⚠️ A FOTOGRAFIA E UMA <img> COM object-fit: cover. Era um background-image
+   com `background-size: auto 120%`, e num painel fechado de telemovel, largo
+   e baixo, a largura calculada a partir da altura ficava menor do que o
+   painel: o browser repetia a fotografia de lado e cada projecto aparecia com
+   a mesma foto tres vezes. Com `cover` ela enche o espaco sem nunca esticar,
+   no maximo amplia e corta. */
+.paineis__foto {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* fechado mostra-a um pouco ampliada; ao abrir, assenta. E o gesto do
+     original, agora feito no transform e nao no tamanho do fundo */
+  transform: scale(1.12);
+  transition: transform 700ms var(--ease-glide);
+}
+
+.paineis__celula[data-activo="true"] .paineis__foto {
+  transform: scale(1);
+}
+
+.paineis__celula[data-activo="true"] .paineis__botao {
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-deep),
+    inset 0 2px 0 0 var(--color-accent);
+}
+
+/* subida de tinta, para o rotulo nao depender do que calhar na fotografia */
+.paineis__tinta {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(11, 20, 55, 0.9),
+    rgba(11, 20, 55, 0.45) 45%,
+    rgba(11, 20, 55, 0.15) 100%
+  );
+  transition: opacity 700ms var(--ease-glide);
+}
+
+.paineis__rotulo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-on-deep);
+}
+
+.paineis__icone {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  color: var(--color-accent);
+  background-color: rgba(11, 20, 55, 0.7);
+  box-shadow: inset 0 0 0 1px var(--color-line-deep);
+}
+
+.paineis__texto {
+  display: grid;
+  min-width: 0;
+}
+
+.paineis__titulo {
+  font-size: var(--t-h3);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* em coluna o titulo pode partir: ha largura de sobra e cortar com reticencias
+   era esconder informacao sem necessidade. Em fila e que nao cabe. */
+@media (min-width: 48rem) {
+  .paineis__titulo {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.paineis__sub {
+  font-size: var(--t-label);
+  color: var(--color-on-deep-soft);
+  line-height: 1.35;
+  opacity: 0;
+  transform: translate3d(18px, 0, 0);
+  transition:
+    opacity 700ms var(--ease-glide),
+    transform 700ms var(--ease-glide);
+}
+
+.paineis__celula[data-activo="true"] .paineis__sub {
+  opacity: 1;
+  transform: none;
+}
+
+/* nos paineis fechados o titulo em vertical, para nao ficar uma tira muda.
+   so em ecra largo: em coluna o titulo cabe sempre na horizontal */
+@media (min-width: 48rem) {
+  .paineis__celula[data-activo="false"] .paineis__titulo {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    max-height: 14rem;
+    font-size: var(--t-label);
+    letter-spacing: 0.02em;
+  }
+  .paineis__celula[data-activo="false"] .paineis__rotulo {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* quando ha botao, o rotulo abre espaco para ele. Sem isto o texto passa por
+   baixo do botao e fica ilegivel no telemovel. */
+.paineis__celula:has(.paineis__ligacao)[data-activo="true"] .paineis__rotulo {
+  padding-right: 10.5rem;
+}
+
+.paineis__ligacao {
+  position: absolute;
+  right: var(--s-sm);
+  bottom: var(--s-sm);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding-inline: 1.25rem;
+  border-radius: 999px;
+  font-size: var(--t-label);
+  font-weight: 600;
+  color: var(--color-deep);
+  background-color: var(--color-accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms var(--ease-glide);
+}
+
+.paineis__celula[data-activo="true"] .paineis__ligacao {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paineis__celula {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================
+   INDICE EDITORIAL
+   Folhas empilhadas, como na referencia: cada linha e uma folha
+   branca que se sobrepoe a anterior, com o nome em display, a
+   coluna curta de acento, a descricao e a fotografia encostada
+   ao bordo direito da folha.
+   ============================================================ */
+
+.editorial {
+  display: grid;
+  /* a margem lateral vive DENTRO da folha: a folha vai de ponta a ponta */
+  --ed-pad: max(var(--gutter), var(--safe-l), var(--safe-r));
+}
+
+.editorial__folha {
+  position: relative;
+  /* ponta a ponta: sem raio, a folha morre nos dois bordos do ecra */
+  border-radius: 0;
+  background-color: var(--color-plate);
+  /* a sombra atira para CIMA: e ela que desenha a folha a cobrir a anterior */
+  box-shadow:
+    0 -26px 44px -28px rgba(11, 20, 55, 0.35),
+    inset 0 0 0 1px var(--color-line),
+    0 2px 6px rgba(11, 20, 55, 0.05);
+}
+
+/* a sobreposicao: cada folha tapa MESMO o pe da anterior, como papel
+   empilhado. E a assinatura da referencia. */
+.editorial__folha + .editorial__folha {
+  margin-top: -3rem;
+}
+
+@media (min-width: 60rem) {
+  .editorial__folha + .editorial__folha {
+    margin-top: -5.5rem;
+  }
+}
+
+/* ⚠️ AS TRES TRANSICOES VIVEM NA MESMA DECLARACAO, e nao e arrumacao: esta
+   regra e mais tardia do que a .reveal, e um `transition` so com transform e
+   box-shadow substituia a da .reveal por inteiro. A opacidade ficava sem
+   transicao e a folha saltava de invisivel para visivel num frame, que era
+   exactamente a queixa de "nao aparece nada ao fazer scroll". */
+.editorial__folha {
+  transition:
+    transform 460ms var(--ease-land),
+    opacity 460ms var(--ease-land),
+    box-shadow 400ms var(--ease-glide);
+}
+
+/* o atraso do stagger conta no estado de CHEGADA: e de la que o browser le as
+   propriedades da transicao. */
+.editorial__folha[data-shown="true"] {
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+/* mas nao no rato: levantar a folha nao espera pela vez dela. */
+.editorial__folha:hover,
+.editorial__folha:focus-within {
+  transition-delay: 0ms;
+  transition-duration: 400ms;
+}
+
+/* ⚠️ A FOLHA NASCE DO CENTRO. Uma folha de ponta a ponta a subir 2.5rem
+   demorava a chegar e parecia a pagina a carregar; a abrir da escala, com o
+   ponto de origem no meio dela, le-se como a folha a assentar na pilha. */
+.reveal.editorial__folha:not([data-shown="true"]) {
+  transform: translate3d(0, 0.75rem, 0) scale(0.965);
+  transform-origin: 50% 50%;
+}
+
+/* a folha debaixo do rato destaca-se da pilha: sobe, cresce um nada e a
+   sombra afunda. scale pequeno de proposito, acima de 1.02 lia-se como zoom */
+.editorial__folha:hover,
+.editorial__folha:focus-within {
+  transform: translate3d(0, -10px, 0) scale(1.012);
+  z-index: 3;
+  box-shadow:
+    0 -34px 54px -26px rgba(11, 20, 55, 0.5),
+    inset 0 0 0 1px var(--color-line-lit),
+    0 24px 52px rgba(11, 20, 55, 0.18);
+}
+
+.editorial__link {
+  display: grid;
+  gap: var(--s-sm);
+  /* ⚠️ o conteudo vive na faixa de CIMA da folha: e a folha seguinte que tapa
+     o pe. O padding de baixo e maior do que a sobreposicao, para nada do que
+     interessa ficar escondido. */
+  padding: var(--s-md) 0 calc(3rem + var(--s-md)) var(--ed-pad);
+  overflow: hidden;
+  border-radius: inherit;
+  transition: background-color 400ms var(--ease-glide);
+}
+
+.editorial__link:hover {
+  background-color: color-mix(in srgb, var(--color-accent) 8%, var(--color-plate));
+}
+
+@media (min-width: 60rem) {
+  .editorial__link {
+    /* minmax(0, ...) em todas as colunas de texto: e o 0 que impede o nome de
+       invadir a coluna do lado quando a palavra e comprida */
+    /* sem coluna de descricao: indice, nome, topicos, fotografia */
+    grid-template-columns:
+      2.5rem
+      minmax(0, 1.4fr)
+      minmax(9rem, 11rem)
+      minmax(22rem, 34rem);
+    align-items: start;
+    gap: var(--s-md);
+    min-height: 19rem;
+    padding-block: var(--s-md) calc(5.5rem + var(--s-md));
+  }
+
+  /* o texto centra-se na faixa VISIVEL (a altura da folha menos a parte que a
+     seguinte tapa), nao na folha inteira */
+  .editorial__indice,
+  .editorial__nome,
+  .editorial__mini,
+  .editorial__texto {
+    align-self: center;
+    min-height: 0;
+  }
+
+  /* a fotografia ocupa a folha INTEIRA em altura, do topo ao pe, com o pe a
+     desaparecer por baixo da folha seguinte, como na referencia */
+  .editorial__foto {
+    align-self: stretch;
+    margin-block: calc(var(--s-md) * -1) calc((5.5rem + var(--s-md)) * -1);
+  }
+
+  .editorial__foto img {
+    height: 100%;
+    aspect-ratio: auto;
+    min-height: 19rem;
+  }
+}
+
+.editorial__indice {
+  font-size: var(--t-label);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-faint);
+}
+
+.editorial__nome {
+  font-family: var(--font-display);
+  /* o teto e o que cabe: "climatização" e uma palavra so, nao parte, e acima
+     disto invadia a coluna do lado */
+  font-size: clamp(1.75rem, 1.1rem + 1.9vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  overflow-wrap: normal;
+  min-width: 0;
+  color: var(--color-ink);
+}
+
+/* a coluna curta de acento, como as tres linhas vermelhas da referencia */
+.editorial__mini {
+  display: grid;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-accent-ink);
+}
+
+.editorial__foto {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+/* a subida de tinta que faz o titulo destacar quando assenta na fotografia */
+.editorial__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(11, 20, 55, 0.92),
+    rgba(11, 20, 55, 0.55) 34%,
+    rgba(11, 20, 55, 0.18) 60%,
+    transparent 78%
+  );
+  opacity: 0;
+}
+
+.editorial__foto img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  transition: transform 700ms var(--ease-glide);
+}
+
+.editorial__link:hover .editorial__foto img {
+  transform: scale(1.05);
+}
+
+/* ============================================================
+   EM TELEMOVEL O INDICE E OUTRA COISA: uma fotografia por item,
+   de ponta a ponta, com o titulo pousado sobre uma subida de
+   tinta. Sem indice, sem topicos, sem folhas empilhadas.
+   ============================================================ */
+@media (max-width: 59.99rem) {
+  .editorial__folha {
+    box-shadow: none;
+    background: none;
+    border-radius: 0;
+  }
+
+  .editorial__folha + .editorial__folha {
+    margin-top: var(--s-sm);
+  }
+
+  .editorial__folha:hover,
+  .editorial__folha:focus-within {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .editorial__link {
+    position: relative;
+    display: block;
+    padding: 0;
+  }
+
+  .editorial__indice,
+  .editorial__mini {
+    display: none;
+  }
+
+  .editorial__foto {
+    margin: 0;
+  }
+
+  .editorial__foto img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+
+  .editorial__scrim {
+    opacity: 1;
+  }
+
+  .editorial__nome {
+    position: absolute;
+    left: var(--ed-pad);
+    right: var(--ed-pad);
+    bottom: var(--s-sm);
+    z-index: 2;
+    color: #fff;
+    font-size: clamp(1.5rem, 6.4vw, 2rem);
+    text-shadow:
+      0 1px 3px rgba(11, 20, 55, 0.85),
+      0 4px 20px rgba(11, 20, 55, 0.7);
+  }
+}
+
+.display--gigante {
+  font-size: clamp(3rem, 1.6rem + 9vw, 7.5rem);
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+
+/* ============================================================
+   TITULO TECLADO
+   O texto completo esta no DOM; as letras so entram por opacity.
+   ============================================================ */
+
+.sr-so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.teclado__l {
+  opacity: 0;
+  animation-name: tecla;
+  animation-duration: 1ms;
+  animation-fill-mode: forwards;
+}
+
+@keyframes tecla {
+  to {
+    opacity: 1;
+  }
+}
+
+.teclado__cursor {
+  display: inline-block;
+  width: 0.08em;
+  height: 0.82em;
+  margin-left: 0.06em;
+  vertical-align: baseline;
+  background-color: var(--color-accent-ink);
+  animation-name: cursor-pisca, cursor-apaga;
+  animation-duration: 620ms, 1ms;
+  animation-timing-function: steps(1), linear;
+  animation-iteration-count: infinite, 1;
+  animation-fill-mode: none, forwards;
+}
+
+@keyframes cursor-pisca {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+@keyframes cursor-apaga {
+  to { opacity: 0; visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teclado__l {
+    opacity: 1;
+    animation: none;
+  }
+  .teclado__cursor {
+    display: none;
+  }
+}
+
+/* o que conta numa frase de resumo: peso e tinta cheia, mais um fio de
+   acento por baixo. Nada de cor diferente no texto corrido, que a esta
+   escala le-se como link partido */
+.realce {
+  font-weight: 700;
+  color: var(--field-ink, var(--color-ink));
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* ============================================================
+   RODAPE
+   Em telemovel e mais curto: sai a linha que repetia o botao, o
+   ar aperta, e cada contacto passa a ter alvo de toque a serio,
+   que e onde ele estava pior (linhas de 22px).
+   ============================================================ */
+
+/* a faixa do CTA, ja fora da chapa escura, com o ar contado */
+.rodape__cta {
+  padding-block: var(--s-lg);
+}
+
+/* ⚠️ O RODAPE E CURTO POR DECISAO: marca, redes, um botao de contactos e a
+   linha legal. A morada, o email, o telefone e o horario vivem na pagina de
+   contactos, com mapa e formulario, e nao precisam de ser repetidos aqui. */
+.rodape {
+  padding-block: var(--s-md);
+}
+
+/* ⚠️ 2.5rem e nao 2.75rem: o alvo de toque continua confortavel e o rodape
+   perde uma linha de altura por cada contacto, que era o que o Tomas via
+   como "footer enorme". */
+/* ⚠️ TUDO NUMA LINHA, TAMBEM NO TELEMOVEL: o logotipo e os dois discos a
+   esquerda, e o botao a ocupar o resto do espaco a direita. Estava por baixo
+   e gastava uma linha inteira do rodape so para isso. */
+.rodape__base {
+  display: flex;
+  align-items: center;
+  gap: var(--s-sm);
+}
+
+/* ⚠️ O BOTAO NAO CRESCE. Com `flex: 1 1 auto` ele comia todo o espaco que
+   sobrava e em ecra grande ficava uma pilula do tamanho de meio rodape. Aqui
+   e do tamanho do texto, encostado a direita pelo `margin-left: auto`, e o ar
+   entre ele e os discos das redes e o resto da linha. */
+.rodape__contactos {
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-height: 2.25rem;
+  padding-inline: 1.125rem;
+  font-size: var(--t-label);
+}
+
+/* o logotipo a esquerda, os dois discos encostados a direita da mesma linha */
+.rodape__marca {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-sm);
+}
+
+.rodape__legal {
+  margin-top: var(--s-sm);
+  padding-top: var(--s-sm);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-sm);
+}
+
+@media (min-width: 48rem) {
+  /* em ecra grande os discos nao se afastam do logotipo: ficam ao lado dele */
+  .rodape__marca {
+    justify-content: flex-start;
+    gap: var(--s-md);
+  }
+}
+
+@media (max-width: 39.99rem) {
+  .rodape,
+  .rodape__cta {
+    padding-block: var(--s-md);
+  }
+
+  .rodape__so-largo {
+    display: none;
+  }
+
+  /* em ecra estreito o logotipo encolhe para o botao ter espaco a serio */
+  .rodape__marca {
+    gap: var(--s-xs);
+  }
+
+  /* no telemovel o alvo de toque manda: volta a crescer e a ter altura */
+  .rodape__contactos {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 2.75rem;
+    padding-inline: 1.25rem;
+  }
+
+  .rodape__marca img,
+  .rodape__marca svg.marca {
+    height: 2rem;
+  }
+}
+
+/* ============================================================
+   A FOTOGRAFIA DO SOBRE
+   Em ecra grande e um retrato numa coluna que fica pousada.
+   Em telemovel cola-se a faixa azul dos numeros e vai de ponta
+   a ponta, que e onde uma fotografia de obra ganha.
+   ============================================================ */
+
+.sobre__foto img {
+  border-radius: var(--radius-plate);
+  aspect-ratio: 4 / 5;
+}
+
+@media (max-width: 63.99rem) {
+  /* a seccao perde o ar em cima para a foto encostar mesmo a faixa */
+  .sobre__historia {
+    padding-top: 0;
+  }
+
+  /* de ponta a ponta: a margem da .shell e desfeita pelos dois lados */
+  .sobre__foto {
+    margin-inline: calc(max(var(--gutter), var(--safe-l), var(--safe-r)) * -1);
+  }
+
+  .sobre__foto img {
+    border-radius: 0;
+    aspect-ratio: 16 / 9;
+    /* ⚠️ O FIM DA FOTOGRAFIA DISSOLVE-SE NO FUNDO. A seccao nao pinta fundo
+       (regra da casa), portanto o que aparece por baixo e a lavagem do
+       CampoLuz e a emenda nao se ve. E o mesmo gesto do heroi, feito com
+       mascara em vez de seis camadas, porque aqui nao ha texto por cima da
+       parte cheia da foto. */
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  }
+
+  /* e o titulo assenta nessa parte esbatida, como na landing */
+  .sobre__texto {
+    position: relative;
+    margin-top: calc(var(--s-lg) * -1);
+  }
+}
+
+/* a maquina em pausa ate o Reveal a volta dizer que a frase esta no ecra */
+.teclado--ao-entrar .teclado__l,
+.teclado--ao-entrar .teclado__cursor {
+  animation-play-state: paused;
+}
+
+[data-shown="true"] .teclado--ao-entrar .teclado__l,
+[data-shown="true"] .teclado--ao-entrar .teclado__cursor {
+  animation-play-state: running;
+}
+
+/* ============================================================
+   ARRANQUE DA PAGINA SOBRE
+   A ilustracao (gerada a partir da referencia do Tomas, com os
+   cartoes e a fita verde ja pintados) e o fundo; o titulo vive
+   no canto superior esquerdo, que a imagem deixa vazio.
+   ============================================================ */
+
+.arranque {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--color-shell);
+}
+
+/* ⚠️ AS REGRAS BASE DA ILUSTRACAO VEM ANTES DAS MEDIA QUERIES, e nao e
+   arrumacao: com a mesma especificidade ganha a ultima, e escritas depois
+   eram elas a repor `position: relative` por cima do `absolute` do desktop.
+   A ilustracao caia para dentro do fluxo e empurrava o titulo para o lado. */
+
+/* ⚠️⚠️ A CAIXA TEM ALTURA PROPRIA, E ISTO E O CERNE DA COISA.
+   Antes a altura da caixa vinha da <img>, e a <img> pedia `height: 100%` a
+   caixa: uma referencia circular. O Chrome resolvia-a como `auto` e ficava
+   bem; o Safari do iPhone resolvia-a de outra maneira, a caixa do SVG deixava
+   de ser a caixa da imagem, e o resultado eram as DUAS queixas de uma vez: a
+   fita noutro sitio E por cima dos cartoes, porque o recorte (`cover` na
+   imagem, `slice` no SVG) passava a ser calculado sobre caixas diferentes.
+   Com `aspect-ratio` a caixa e definida pela proporcao da ilustracao em
+   qualquer motor, e as duas camadas assentam uma na outra. */
+.arranque__ilustra {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2200 / 1227;
+}
+
+/* as duas camadas ocupam exactamente a mesma caixa: as duas absolutas, com o
+   mesmo recorte (`xMaxYMax slice` no SVG e o equivalente de `object-fit:
+   cover` com `object-position: right bottom` na imagem) */
+.arranque__cartoes,
+.arranque__fita {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ⚠️ A ORDEM E POR z-index E NAO PELA ORDEM DO DOM: os cartoes tapam a fita,
+   sempre, que e o que a ilustracao faz. */
+.arranque__cartoes {
+  z-index: 1;
+  object-fit: cover;
+  object-position: right bottom;
+}
+
+.arranque__fita {
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ⚠️ 64rem e nao 60rem: e o lg do Tailwind. Com dois numeros diferentes havia
+   uma janela de 64px em que a imagem ja era absoluta e o conteudo ainda era o
+   de telemovel, um por cima do outro. */
+@media (min-width: 64rem) {
+  .arranque {
+    /* a altura acompanha a proporcao da ilustracao (2200x1228): assim a imagem
+       entra inteira, sem corte, e os cartoes ficam onde foram desenhados,
+       abaixo da zona do titulo */
+    min-height: min(50rem, 56vw);
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .arranque__ilustra {
+    position: absolute;
+    inset: 0;
+    /* aqui a largura e a altura ja vem do `inset`; a proporcao sai do caminho */
+    aspect-ratio: auto;
+    z-index: -1;
+  }
+}
+
+/* em telemovel a ilustracao entra no fluxo, por baixo do texto: por cima
+   tapava os cartoes que sao a graca dela */
+@media (max-width: 63.99rem) {
+  /* primeiro o titulo, depois a ilustracao: no DOM a imagem vem antes (para o
+     absoluto de desktop), por isso em coluna troca-se a ordem */
+  .arranque {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .arranque__ilustra {
+    order: 2;
+    margin-top: var(--s-md);
+  }
+
+  /* ⚠️ CRESCE SO A CAMADA DOS CARTOES, e nao a caixa toda. Estreitar a caixa
+     ampliava os dois planos, mas com recorte ancorado a direita: o primeiro
+     cartao ficava cortado ao meio. Ampliar so os cartoes, a partir do centro,
+     da-lhes corpo sem tocar na fita, e como eles estao repartidos a volta do
+     centro continuam todos por cima dela. 1.12 e o limite: acima disso o
+     cartao da esquerda comeca a sair pelo bordo. */
+  .arranque__cartoes {
+    transform: scale(1.12);
+  }
+}
+
+/* ⚠️ A FITA DESENHA-SE E RECOLHE PELA MESMA PONTA. O dashoffset vai de 1 a 0
+   (nasce em baixo a esquerda e sobe ate ao fim), fica desenhada um momento, e
+   volta a 1, que e a recolha pela ponta. Longhand, porque o atalho `animation`
+   repunha o delay. */
+.arranque__traco {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation-name: fita-desenha;
+  animation-duration: 7600ms;
+  animation-timing-function: var(--ease-glide);
+  animation-iteration-count: infinite;
+  will-change: stroke-dashoffset;
+}
+
+@keyframes fita-desenha {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  40% {
+    stroke-dashoffset: 0;
+  }
+  58% {
+    stroke-dashoffset: 0;
+  }
+  98%,
+  100% {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* a regra global de movimento reduzido zera a duracao e a fita ficava no
+   estado base, que e invisivel. Aqui fica desenhada e quieta. */
+@media (prefers-reduced-motion: reduce) {
+  .arranque__traco {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ============================================================
+   O SOL A NASCER
+   O sol do logotipo, circulo completo, a nascer num WebP
+   animado com alfa feito no Higgsfield (scripts/sol-nasce.py).
+   Substitui a fita verde nos cabecalhos dos indices.
+   ============================================================ */
+
+.sol-nasce {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: clamp(1rem, 12vw, 12rem);
+  transform: translateY(-50%);
+  width: clamp(8rem, 20vw, 15rem);
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* ⚠️ EM TELEMOVEL O SOL ENCOSTA-SE A DIREITA. A 390px o titulo ocupa quase
+   toda a largura e o sol ficava colado as letras; empurrado para a margem,
+   respira. Encolhe um pouco para nao sair do ecra. */
+@media (max-width: 47.99rem) {
+  /* a meio caminho entre onde estava (2,9rem, colado as letras) e a margem
+     negativa que ficou demasiado encostada ao bordo */
+  .sol-nasce {
+    right: 0.75rem;
+    width: 7.75rem;
+  }
+}
+
+.sol-nasce img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ⚠️ TRES EM FILA, TAMBEM NO TELEMOVEL. Sao tres numeros, e tres cabem: em
+   duas colunas ficava um sozinho na segunda linha, encostado a esquerda, a
+   parecer que faltava alguma coisa. O corpo desce em ecra estreito para o
+   "12 100 W" nao partir a meio. */
+.numeros {
+  display: grid;
+  gap: var(--s-sm);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+@media (min-width: 60rem) {
+  .numeros {
+    gap: var(--s-md);
+  }
+}
+
+.numeros__valor {
+  font-family: var(--font-display);
+  font-size: var(--t-num);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  /* ⚠️ "12 100 W" nao parte. Partido, o "12" numa linha e o "100 W" noutra
+     desalinha a fila toda e le-se como dois numeros. */
+  white-space: nowrap;
+}
+
+/* ⚠️ ESTA REGRA VEM DEPOIS DA BASE DE PROPOSITO: escrita antes, era a base que
+   ganhava e o corpo continuava grande em ecra estreito. */
+@media (max-width: 30rem) {
+  .numeros__valor {
+    font-size: clamp(1.125rem, 0.4rem + 3.2vw, 1.75rem);
+  }
+}
+
+/* ============================================================
+   LINHAS DE CONTACTO
+   Cada linha e uma accao: escrever, WhatsApp, ligar, abrir mapa.
+   ============================================================ */
+
+/* linhas simples com icone, sem mini-cards: o icone num circulo e a
+   informacao a frente */
+.contacto__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--s-sm);
+  min-height: 3rem;
+}
+
+.contacto__icone {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  color: var(--color-brand);
+  background-color: var(--color-plate);
+  box-shadow: inset 0 0 0 1px var(--color-line-lit);
+  transition:
+    background-color 300ms var(--ease-glide),
+    color 300ms var(--ease-glide);
+}
+
+.contacto__linha:hover .contacto__icone {
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.contacto__valor {
+  display: block;
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* a palavra nao parte a meio; a linha parte no espaco entre palavras */
+.teclado__palavra {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   O PEDIDO EM TRES PASSOS
+   Os discos dizem onde se esta e o traco entre eles enche.
+   ============================================================ */
+
+.passos-form {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-xs);
+  margin-bottom: var(--s-md);
+}
+
+/* ⚠️ OS DOIS TRACOS COMECAM E ACABAM NO CENTRO DOS DISCOS DAS PONTAS, nao no
+   bordo da lista: `left`/`right` a 1/6 da largura e exactamente o centro do
+   primeiro e do ultimo de tres colunas iguais. */
+.passos-form::before,
+.passos-form::after {
+  content: "";
+  position: absolute;
+  top: 1.1rem;
+  left: 16.66%;
+  height: 2px;
+  background-color: var(--color-line-strong);
+}
+
+.passos-form::before {
+  right: 16.66%;
+}
+
+.passos-form::after {
+  width: calc((100% - 33.32%) * var(--progresso, 0));
+  background-color: var(--color-accent-ink);
+  transition: width 420ms var(--ease-land);
+}
+
+.passos-form__item {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.passos-form__disco {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  background-color: var(--color-plate);
+  box-shadow: inset 0 0 0 2px var(--color-line-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-faint);
+  transition:
+    background-color 300ms var(--ease-land),
+    box-shadow 300ms var(--ease-land),
+    color 300ms var(--ease-land);
+}
+
+.passos-form__item[data-estado="actual"] .passos-form__disco {
+  box-shadow: inset 0 0 0 2px var(--color-brand);
+  color: var(--color-brand);
+}
+
+.passos-form__item[data-estado="feito"] .passos-form__disco {
+  background-color: var(--color-accent-ink);
+  box-shadow: none;
+  color: #fff;
+}
+
+.passos-form__rotulo {
+  font-size: var(--t-label);
+  color: var(--color-ink-faint);
+}
+
+.passos-form__item[data-estado="actual"] .passos-form__rotulo {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/* o ecra de cada passo entra por opacidade, sem empurrar nada */
+.passos-form__ecra {
+  display: grid;
+  gap: var(--s-sm);
+  animation-name: passo-entra;
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-land);
+  animation-fill-mode: both;
+}
+
+@keyframes passo-entra {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.5rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* o que vai seguir para o WhatsApp, tal e qual */
+.pedido-resumo {
+  margin-top: var(--s-xs);
+  padding: var(--s-sm);
+  border-radius: var(--radius-field);
+  background-color: var(--color-plate-2);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-family: inherit;
+  font-size: var(--t-label);
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+/* ============================================================
+   A SETA DESENHADA A MAO
+   Vem do site da imogrow, com a mesma cadencia: desenha em
+   0,6s, fica cerca de dois segundos, apaga, rebobina escondida
+   e recomeca. A ponta arranca depois da curva.
+   ============================================================ */
+
+.seta-mao {
+  display: block;
+  width: 3.75rem;
+  color: var(--color-accent-ink);
+}
+
+.seta-mao svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.seta-mao path {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation-name: desenha-seta;
+  animation-duration: 3400ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* a ponta so arranca quando a curva ja chegou ao fim */
+.seta-mao path:nth-child(2) {
+  animation-delay: 620ms;
+}
+
+@keyframes desenha-seta {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+  }
+  18% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  78% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  90% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+  91% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+  100% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seta-mao path {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+/* ============================================================
+   OS PASSOS DO PROCESSO
+   Em ecra grande os quatro passos ficam lado a lado e as quatro
+   linhas leem-se como uma regua cortada em quatro: e o desenho,
+   e fica como esta. EM TELEMOVEL empilham, e ai uma linha a
+   abrir o passo 1 lia-se como o fim da seccao anterior. La ficam
+   tres, entre os passos, e desenham-se em ciclo.
+   ============================================================ */
+
+.passo__corpo {
+  padding-top: var(--s-sm);
+  border-top: 2px solid var(--color-line-strong);
+}
+
+/* fora do telemovel o <span> nao existe para o olho */
+.passo__linha {
+  display: none;
+}
+
+@media (max-width: 39.99rem) {
+  .passo {
+    position: relative;
+  }
+
+  /* a linha e do passo, nao do corpo: e ela que faz a ligacao ao anterior */
+  .passo__corpo {
+    border-top: 0;
+    padding-top: calc(var(--s-sm) + 2px);
+  }
+
+  /* o passo 1 nao liga a nada, logo nao tem linha nem o espaco dela */
+  .passo:first-child .passo__corpo {
+    padding-top: 0;
+  }
+
+  /* ⚠️ UM <span> ESTICADO POR scaleX, e nao um border a crescer: um border
+     animado repinta a caixa a cada frame, e este corre no compositor. E uma
+     barra de 2px esticada e uma linha RECTA por construcao. */
+  .passo__linha {
+    display: block;
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    width: 100%;
+    height: 2px;
+    background-color: var(--color-line-strong);
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    will-change: transform;
+  }
+}
+
+/* ⚠️ A REGRA GLOBAL DE MOVIMENTO REDUZIDO poe animation-duration a 0.01ms, e
+   sem fill-mode a linha voltava ao scaleX(0) do estado base: tres linhas
+   invisiveis. Aqui ficam desenhadas e quietas, que e o que elas sao. */
+@media (prefers-reduced-motion: reduce) {
+  .passo__linha {
+    transform: scaleX(1);
+  }
+}

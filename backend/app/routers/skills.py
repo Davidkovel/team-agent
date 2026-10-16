@@ -10,6 +10,11 @@ doing the work it covers.
 Skills come in three ways: from GitHub (a repository, a folder or a SKILL.md: every SKILL.md found is brought in), from
 this PC (the person's own ~/.claude/skills and the plugins' skills) and by hand in the repository. Each change is
 committed and pushed in the background (only library/skills), so the other PCs get it at their next pull.
+
+The repository is public, so a skill from this PC comes with its licence: one whose licence says it is closed
+(proprietary, all rights reserved: Anthropic's docx/pdf/pptx/xlsx) stays out, and the licence file of an open one (MIT,
+Apache) travels with it when it lives in the plugin's folder. `library/skills/origens.json` says where each came from.
+Every Claude window on every PC is shown the library by scripts/claude_contexto.py (hooks put in by claude_hooks.py).
 """
 from __future__ import annotations
 
@@ -35,6 +40,7 @@ router = APIRouter(prefix="/api/skills")
 REPO = Path(__file__).resolve().parents[3]
 LIB = REPO / "library" / "skills"
 OWNERS = LIB / "agentes.json"
+ORIGINS = LIB / "origens.json"
 PLUGINS = Path.home() / ".claude" / "plugins"
 CREW = ["batman", "lucius", "riddler", "catwoman", "joker", "alfred", "robin", "gordon", "penguin", "twoface"]
 MAX_FILES, MAX_BYTES, MAX_SKILLS = 60, 3_000_000, 80   # per skill and per import: never a whole repository of binaries
@@ -57,6 +63,44 @@ def _owners() -> dict[str, list[str]]:
 def _save_owners(data: dict) -> None:
     LIB.mkdir(parents=True, exist_ok=True)
     OWNERS.write_text(json.dumps(dict(sorted(data.items())), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+
+def _origins() -> dict[str, dict]:
+    try:
+        return json.loads(ORIGINS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_origins(data: dict) -> None:
+    LIB.mkdir(parents=True, exist_ok=True)
+    ORIGINS.write_text(json.dumps(dict(sorted(data.items())), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+
+LICENCE_FILES = ("LICENSE", "LICENSE.txt", "LICENSE.md", "LICENCE", "license.txt")
+OPEN = re.compile(r"MIT License|Permission is hereby granted|Apache License|\bApache-2\.0\b|\bMIT\b|BSD|ISC License|"
+                  r"Unlicense|CC0|Creative Commons Attribution", re.I)
+CLOSED = re.compile(r"proprietary|all rights reserved", re.I)
+
+
+def _licence(folder: Path) -> tuple[str, Path | None]:
+    """("open" | "closed" | "", the licence file) of a skill: its frontmatter `license:` or the first licence file in its
+    folder or up to four folders above (a plugin's, a marketplace's)."""
+    try:
+        head = (folder / "SKILL.md").read_text(encoding="utf-8", errors="replace")[:4000]
+    except OSError:
+        head = ""
+    said = re.search(r"^license:\s*(.+)$", head, re.M)
+    for place in [folder, *list(folder.parents)[:4]]:
+        for name in LICENCE_FILES:
+            f = place / name
+            if f.is_file():
+                text = f.read_text(encoding="utf-8", errors="replace")[:3000]
+                kind = "closed" if CLOSED.search(text) else "open" if OPEN.search(text) else ""
+                return (kind or ("closed" if said and CLOSED.search(said.group(1)) else "")), f
+    if said:
+        return ("closed" if CLOSED.search(said.group(1)) else "open" if OPEN.search(said.group(1)) else ""), None
+    return "", None
 
 
 def _guess_crew(name: str, about: str) -> list[str]:
@@ -227,16 +271,24 @@ def _copy(src: Path, dest: Path) -> None:
 
 
 def _adopt(names: list[str]) -> list[str]:
-    local, owners, done = _local_skills(), _owners(), []
+    local, owners, origins, done = _local_skills(), _owners(), _origins(), []
     for name in names:
         s = local.get(name)
         if not s or not GOOD.match(name) or (LIB / name).exists():
             continue
-        _copy(Path(s["path"]), LIB / name)
+        src = Path(s["path"])
+        kind, licence = _licence(src)
+        if kind == "closed":   # the repository is public: a closed skill stays installed where it is, never copied
+            continue
+        _copy(src, LIB / name)
         if (LIB / name / "SKILL.md").is_file():
+            if licence and licence.parent != src and not any((LIB / name / f).exists() for f in LICENCE_FILES):
+                shutil.copyfile(licence, LIB / name / "LICENSE.txt")   # MIT and Apache travel with their text
             owners.setdefault(name, _guess_crew(name, s["about"]))
+            origins.setdefault(name, {"de": s["where"], "licenca": {"open": "aberta", "": "não indicada"}[kind]})
             done.append(name)
     _save_owners(owners)
+    _save_origins(origins)
     return done
 
 
@@ -284,7 +336,7 @@ async def _import_github(url: str) -> list[str]:
                         if x["path"].rsplit("/", 1)[-1] == "SKILL.md" and (not path or x["path"] == f"{path}/SKILL.md" or x["path"].startswith(path + "/"))})
         if not roots:
             raise HTTPException(400, "Não há nenhum SKILL.md nesse endereço.")
-        owners, added, gate = _owners(), [], asyncio.Semaphore(8)
+        owners, origins, added, gate = _owners(), _origins(), [], asyncio.Semaphore(8)
 
         async def fetch(path: str) -> bytes | None:
             async with gate:
@@ -315,8 +367,10 @@ async def _import_github(url: str) -> list[str]:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_bytes(data)
             owners.setdefault(name, _guess_crew(name, _about(LIB / name / "SKILL.md")))
+            origins.setdefault(name, {"de": f"github.com/{owner}/{repo}" + (f"/{root}" if root else "")})
             added.append(name)
         _save_owners(owners)
+        _save_origins(origins)
         return added
 
 

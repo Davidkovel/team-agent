@@ -4,6 +4,10 @@ this PC, in any folder, reports its steps to this Hub (scripts/claude_hook.py ->
 Runs when the Hub starts, so a git pull that changes the hook reaches every PC by itself. It only touches its own hook
 entries: every other setting and every other hook stays as it was. A file that is not valid JSON is never written.
 The hooks are async (Claude never waits for them). CLAUDE_OFFICE=0 in backend/.env takes them out again.
+
+Next to them go the skills hooks (scripts/claude_contexto.py, 16 Oct, Marco: «não queremos relembrar sempre ao nosso
+Claude que tem de usar as skills»): at the start of a window and at each request Claude gets the company library's skills
+that fit. Those two are not async, because what they print is read by Claude. CLAUDE_SKILLS=0 takes them out.
 """
 import json
 import logging
@@ -14,7 +18,9 @@ from pathlib import Path
 log = logging.getLogger("claude_hooks")
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "claude_hook.py"
-MARK = "claude_hook.py"
+CONTEXT = ROOT / "scripts" / "claude_contexto.py"
+MARKS = ("claude_hook.py", "claude_contexto.py")
+CONTEXT_EVENTS = ("SessionStart", "UserPromptSubmit")
 # event -> matcher (None = every one). After a tool only the subagent tool matters, so other tools cost nothing there.
 EVENTS = {"SessionStart": None, "UserPromptSubmit": None, "PreToolUse": None, "PostToolUse": "Agent", "PostToolUseFailure": "Agent",
           "PermissionRequest": None, "Notification": None, "Stop": None, "SubagentStart": None, "SubagentStop": None,
@@ -22,17 +28,26 @@ EVENTS = {"SessionStart": None, "UserPromptSubmit": None, "PreToolUse": None, "P
 
 
 def _ours(hook: dict) -> bool:
-    return MARK in " ".join([str(hook.get("command", ""))] + [str(a) for a in hook.get("args", [])])
+    text = " ".join([str(hook.get("command", ""))] + [str(a) for a in hook.get("args", [])])
+    return any(mark in text for mark in MARKS)
 
 
-def wanted(python: str | None = None) -> dict:
-    """The hook groups this Hub wants in the settings, per event."""
-    hook = {"type": "command", "command": python or sys.executable, "args": [str(SCRIPT)], "timeout": 10, "async": True}
-    return {event: {**({"matcher": matcher} if matcher else {}), "hooks": [hook]} for event, matcher in EVENTS.items()}
+def wanted(python: str | None = None, office: bool = True, skills: bool = True) -> dict[str, list[dict]]:
+    """The hook groups this Hub wants in the settings, per event: the Escritório's and the skills'."""
+    out: dict[str, list[dict]] = {}
+    if office:
+        hook = {"type": "command", "command": python or sys.executable, "args": [str(SCRIPT)], "timeout": 10, "async": True}
+        for event, matcher in EVENTS.items():
+            out.setdefault(event, []).append({**({"matcher": matcher} if matcher else {}), "hooks": [hook]})
+    if skills:
+        hook = {"type": "command", "command": python or sys.executable, "args": [str(CONTEXT)], "timeout": 5}
+        for event in CONTEXT_EVENTS:
+            out.setdefault(event, []).append({"hooks": [hook]})
+    return out
 
 
-def merged(settings: dict, enabled: bool = True, python: str | None = None) -> dict:
-    """The settings with our hooks in (or out), everything else untouched."""
+def merged(settings: dict, enabled: bool = True, python: str | None = None, skills: bool | None = None) -> dict:
+    """The settings with our hooks in (or out), everything else untouched. `skills` follows `enabled` unless given."""
     out = json.loads(json.dumps(settings))
     hooks = out.get("hooks") if isinstance(out.get("hooks"), dict) else {}
     for event in list(hooks):
@@ -48,9 +63,8 @@ def merged(settings: dict, enabled: bool = True, python: str | None = None) -> d
             hooks[event] = groups
         else:
             del hooks[event]
-    if enabled:
-        for event, group in wanted(python).items():
-            hooks.setdefault(event, []).append(group)
+    for event, groups in wanted(python, enabled, enabled if skills is None else skills).items():
+        hooks.setdefault(event, []).extend(groups)
     if hooks:
         out["hooks"] = hooks
     else:
@@ -58,7 +72,7 @@ def merged(settings: dict, enabled: bool = True, python: str | None = None) -> d
     return out
 
 
-def install(path: Path | None = None, enabled: bool = True, python: str | None = None) -> bool:
+def install(path: Path | None = None, enabled: bool = True, python: str | None = None, skills: bool | None = None) -> bool:
     """True when the file was changed. Never raises: the Hub must start whatever happens here."""
     path = path or Path.home() / ".claude" / "settings.json"
     try:
@@ -68,7 +82,7 @@ def install(path: Path | None = None, enabled: bool = True, python: str | None =
     except (OSError, ValueError) as e:
         log.warning("Claude Code settings not touched (%s): %s", path, e)
         return False
-    new = merged(current, enabled, python)
+    new = merged(current, enabled, python, skills)
     if new == current:
         return False
     try:
@@ -82,5 +96,6 @@ def install(path: Path | None = None, enabled: bool = True, python: str | None =
     except OSError as e:
         log.warning("Claude Code settings not written (%s): %s", path, e)
         return False
-    log.info("Claude Code hooks for the Escritório %s in %s", "in place" if enabled else "taken out", path)
+    log.info("Claude Code hooks for the Escritório %s, for the skills %s, in %s", "in place" if enabled else "taken out",
+             "in place" if (enabled if skills is None else skills) else "taken out", path)
     return True

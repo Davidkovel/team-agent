@@ -1,0 +1,470 @@
+/* ⚠️ AS DURACOES SAO AS DA ESCALA DO SITE, escritas por extenso.
+   Esta folha e a da `privacidade.html`, servida a parte, e nao ve os tokens
+   `--duration-*` do `base.css`. Tinha .3s e .2s — dois valores que nao existem
+   em lado nenhum da escala (140/220/380/520/800 ms) e que o `quality-gate`
+   assinalava como movimento fora do sistema. Passaram a 380ms e 220ms, que sao
+   os degraus 3 e 2. Se a escala mudar, muda aqui tambem: sao numeros, nao
+   tokens, e nao ha ninguem a avisar. */
+/* ===========================================================================
+   Detalhes Cautelosos — o shell e as secções
+   ---------------------------------------------------------------------------
+   Carrega-se DEPOIS de `dc-cores.css` e `tipo.css`, e ANTES de `heroi.css`.
+
+   A regra que governa este ficheiro e o HTML que o usa:
+   **facto que o cliente não confirmou = campo nulo = secção que não existe.**
+   Não se enche com texto de encomenda nem com fotografia de banco de imagens.
+   O que está cortado está listado no fim do `index.html`, com a razão.
+   =========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--papel);
+  color: var(--dc-tinta);
+}
+
+:root {
+  /* O papel do site. O blend do herói tem de acabar EXACTAMENTE nesta cor,
+     senão a emenda entre o herói e a secção seguinte fica com um degrau. */
+  --papel:       #F3F5F0;
+  /* O verde do véu do herói NÃO é o verde da marca: é o verde da marca com o
+     valor a 38% (H = 140° intacto). O da marca (#205532) é claro de mais para
+     escurecer um plano ao sol. Vive aqui e não no `heroi.css` porque a barra
+     também o usa, e a barra existe em todas as páginas. */
+  --fundo-heroi: #0C2013;
+
+  --dc-tinta:    #232B26;   /* o texto corrido: verde-grafite, não preto */
+  --dc-tinta-2:  #5B6560;   /* secundário */
+  --dc-linha:    #D9DDD4;
+  --dc-ease:     cubic-bezier(.22, 1, .36, 1);
+  --dc-caixa:    min(72rem, 100% - 42px);
+}
+
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; }
+
+.caixa { width: var(--dc-caixa); margin-inline: auto; }
+
+/* --- foco visível, e em todo o lado -------------------------------------
+   Nunca se apaga o anel de foco. Quem navega a teclado precisa de saber onde
+   está, e um `outline: none` sem substituto é a forma mais rápida de tornar um
+   site inutilizável sem rato. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--dc-oliva);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ===========================================================================
+   A BARRA
+   ---------------------------------------------------------------------------
+   Pílula fixa. Nasce transparente sobre o herói e ganha fundo quando a página
+   rola — sem JavaScript, com `animation-timeline: scroll()` onde existe.
+   =========================================================================== */
+.barra {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: var(--dc-caixa);
+  margin: clamp(12px, 2vh, 20px) auto 0;
+  padding: .6rem .7rem .6rem 1.1rem;
+  border-radius: 999px;
+  color: #fff;
+  background: color-mix(in srgb, var(--fundo-heroi) 0%, transparent);
+  backdrop-filter: saturate(1.2) blur(0px);
+  transition: background 380ms var(--dc-ease), backdrop-filter 380ms var(--dc-ease);
+}
+
+/* Onde houver animações ligadas ao scroll, a barra ganha fundo sozinha.
+   Onde não houver, fica transparente — que é o estado com que nasce e continua
+   legível, porque o véu do herói é denso no topo justamente para isto. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .barra {
+      animation: barra-assenta linear both;
+      animation-timeline: scroll();
+      animation-range: 0 60vh;
+    }
+    @keyframes barra-assenta {
+      to {
+        background: color-mix(in srgb, var(--fundo-heroi) 92%, transparent);
+        backdrop-filter: saturate(1.4) blur(10px);
+      }
+    }
+  }
+}
+
+.barra__marca {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  /* ⚠️ Um <a> vem sublinhado por omissão, e a marca aparecia com um traço por
+     baixo do nome. Um logótipo sublinhado não é um logótipo, é um link. */
+  text-decoration: none;
+}
+/* ⚠️ Na barra vai o SÍMBOLO, não a assinatura inteira. A assinatura mede
+   844x520 e o `ENGENHARIA E CONCEPÇÃO` tem 2,4% da largura dela — a 40 px de
+   altura ficava com 1 px de corpo, ou seja uma mancha. O símbolo sozinho é
+   marca deles e lê-se sempre.
+   E NÃO se recompõe o wordmark em Archivo para caber: isso era inventar um
+   logótipo novo. Ver `marca/README.md`. */
+.barra__simbolo { width: 38px; height: auto; color: currentColor; }
+/* ⚠️ O NOME NA BARRA É O TRAÇADO DA MARCA, não texto composto.
+   Estava em Archivo, que é a voz do SITE e não a letra da marca — o wordmark é
+   traçado e não corresponde a fonte nenhuma. Escrever o nome da empresa noutra
+   letra, encostado ao símbolo dela, é inventar um segundo logótipo.
+   A assinatura inteira não cabe aqui (o `ENGENHARIA E CONCEPÇÃO` ficaria com
+   menos de 1 px de corpo), por isso a barra leva só as duas linhas que se leem.
+   Ver `marca_barra()` em `marca/emite_assinatura.py`. */
+.barra__nome {
+  /* 38 px de caixa: o viewBox tem 120 de altura e a tinta ocupa 108, portanto a
+     maiúscula do DETALHES fica com 62/120 x 38 = 19,6 px — que é o tamanho a
+     que uma marca de barra se lê sem gritar. A 26 px ficava com 13 px e
+     desaparecia ao lado do símbolo. */
+  height: 38px;
+  width: auto;
+  color: currentColor;
+}
+@media (max-width: 30rem) {
+  .barra__simbolo { width: 32px; }
+  .barra__nome { height: 32px; }
+}
+.barra__links { display: flex; align-items: center; gap: clamp(.8rem, 2.2vw, 1.8rem); }
+.barra__links a {
+  font-size: .84rem; text-decoration: none; opacity: .88;
+  transition: opacity 220ms var(--dc-ease);
+}
+.barra__links a:hover { opacity: 1; }
+.barra__cta {
+  padding: .6rem 1.1rem; border-radius: 999px;
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.28);
+  font-variation-settings: var(--dc-forte);
+  transition: background 220ms var(--dc-ease);
+}
+.barra__cta:hover { background: rgba(255,255,255,.24); }
+
+/* ⚠️ A BARRA NASCEU PARA UM HERÓI ESCURO, E A PRIVACIDADE NÃO TEM HERÓI.
+   O `.barra { color: #fff }` e o `.barra__cta` a branco translúcido foram
+   escritos para assentar sobre o vídeo da obra. A `privacidade.html` é uma
+   página de papel — fundo osso — e herdou as duas coisas: a marca e o único
+   caminho de volta ao site ficavam a **1,1:1**, ou seja, invisíveis. Não é
+   pouco contraste: é branco sobre branco.
+
+   Nunca ninguém tinha aberto esta página. Ela é linkada do rodapé da home e do
+   fim do orçamento, e esteve assim desde que existe.
+
+   Um modificador e não uma alteração ao `.barra`: quem vier a pôr esta barra
+   sobre uma fotografia continua a querer o branco. Quem a puser sobre papel
+   escreve `barra--clara` e diz o que está a fazer. */
+/* ⚠️ COM VALOR DE RESERVA, E A RAZÃO É FEIA: os tokens da marca NÃO CHEGAM a
+   esta página. O `<link href="../detalhes-cautelosos/marca/dc-cores.css">` do `privacidade.html`
+   resolve para `/detalhes-cautelosos/marca/dc-cores.css`, que responde 200 — mas o que vem é o
+   fallback do servidor, não o ficheiro: em `public/marca/` só há SVGs. Ou seja,
+   `--dc-verde` está por definir, e sem reserva esta regra caía para a tinta
+   herdada e passava por boa por acidente. Escrito assim, funciona hoje e
+   continua a funcionar no dia em que os tokens chegarem. O `<link>` partido é
+   um defeito à parte — está na fila como D9. */
+/* ⚠️ `.barra.barra--clara` e nao `.barra--clara`: as duas classes dao
+   especificidade 0,2,0 e ganham ao `.barra` (0,1,0) sem depender da ordem do
+   ficheiro nem de `!important`. Com uma classe so, a regra empatava com o
+   `.barra` de dentro do `@supports` e o resultado dependia de quem viesse
+   depois — e a animacao continuava a pintar o fundo. */
+.barra.barra--clara {
+  color: var(--dc-verde, #205532);
+  /* ⚠️ E A BARRA NÃO ESCURECE AQUI. Sem isto, a correcção só funcionava numa
+     largura — foi o erro do tick 15, que mediu a 375 e deu por encerrado.
+     A `.barra` ganha um fundo `#0C2013` sozinha, por `animation-timeline:
+     scroll()`, e a 1440 px, onde esta página mal chega a ter percurso de
+     scroll, esse fundo aparece logo. Tinta verde-escura sobre pastilha
+     verde-escura é o mesmo defeito de antes com as cores trocadas.
+     O próprio comentário dessa regra diz porque é que ela existe: «onde houver
+     animações ligadas ao scroll, a barra ganha fundo». Esta página não tem
+     herói nem animação nenhuma — o fundo não está a proteger leitura de coisa
+     alguma, está só a tapar a marca. */
+  animation-name: none;
+  /* ⚠️ FUNDO DE PAPEL, E NAO `transparent` — O TICK 19 ERROU AQUI.
+     Tirar o fundo resolvia o topo e partia o resto: a barra e `fixed`, e sem
+     nada por tras dela o texto passa-lhe por baixo. A 375 px, ja com scroll, o
+     titulo «Os seus direitos» ficava impresso por cima do proprio logotipo.
+     Trocar um defeito por outro nao e corrigir.
+     A barra desta pagina e uma pastilha de papel: fundo claro sempre, tinta
+     escura sempre, a qualquer altura de scroll e a qualquer largura. O
+     `animation-name: none` continua a fazer falta para o estado escuro do
+     `@supports` nunca chegar a aplicar-se. */
+  background: color-mix(in srgb, #F3F5EF 92%, transparent);
+  backdrop-filter: saturate(1.15) blur(10px);
+  border: 1px solid rgba(32, 85, 50, .10);
+}
+.barra.barra--clara .barra__cta {
+  background: rgba(32, 85, 50, .07);
+  border-color: rgba(32, 85, 50, .3);
+}
+.barra.barra--clara .barra__cta:hover { background: rgba(32, 85, 50, .13); }
+
+/* ⚠️ ALVOS DE TOQUE DA BARRA — 38 e 36 px medidos, e o minimo confortavel sao
+   44. Estende-se so a area clicavel, com um pseudo-elemento centrado que nao
+   pinta nada: engordar a pastilha com `padding` mudava o desenho da barra para
+   resolver um problema de dedo. Nao se aplica aos links dentro do texto da
+   pagina — esses estao isentos e alarga-los criava caixas invisiveis a
+   sobrepor-se as linhas vizinhas. */
+.barra__marca, .barra__cta { position: relative; }
+.barra__marca::after, .barra__cta::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
+@media (max-width: 46rem) {
+  /* Ao telemóvel a barra guarda o essencial: a marca e a acção. Os links da
+     página vivem no corpo, e a página é curta o suficiente para não precisar
+     de um menu que se abre. Um hambúrguer aqui era um botão a esconder três
+     links. */
+  .barra__links a:not(.barra__cta) { display: none; }
+}
+
+/* ===========================================================================
+   SECÇÕES
+   =========================================================================== */
+.seccao {
+  padding-block: clamp(4rem, 11vh, 7.5rem);
+  /* ⚠️ `clip` e não `hidden`, e existe por uma razão medida.
+     O bafo de luz da marca animada (`.dcma__luz`) sangra 12% para fora da caixa
+     dela. Havia uma protecção para isso, mas presa a um breakpoint de 768 px —
+     e o problema não é de breakpoint, é de quanto espaço sobra à direita, que
+     varia continuamente com a largura. A 1200 px a página rolava 31 px na
+     horizontal; a 390 e a 1440 não. Um defeito que só aparece no meio da escala
+     é um defeito que passa nos testes.
+     `clip` corta o excesso sem criar um contexto de scroll — ao contrário de
+     `hidden`, que criaria e partiria `position: sticky` e a âncora de scroll. */
+  overflow-x: clip;
+}
+.seccao--escura {
+  background: var(--dc-verde);
+  color: #fff;
+
+  /* ⚠️ AQUI REDEFINEM-SE OS TOKENS, não se pintam elementos um a um.
+     O oliva da marca (#50752A) sobre o verde da marca dá **1,63:1** — falha o
+     AA de texto (4,5) E o mínimo de 3,0 para componentes de interface. Está
+     medido em `marca/dc-cores.css`. No logótipo isso não faz mal, porque a
+     marca lê-se como um bloco; numa secção de página, o "CAUTELOSOS" e a régua
+     ficavam praticamente invisíveis — e foi o que aconteceu à primeira.
+
+     Redefinir `--dc-oliva` dentro da secção faz com que TUDO o que herda o
+     papel "oliva" — o símbolo animado, o wordmark, os rótulos — passe à
+     variante clara sem que nenhum deles precise de saber onde está.
+     É a diferença entre um sistema de cor e uma lista de excepções. */
+  --dc-oliva: var(--dc-oliva-claro);
+  --dc-cinza: rgba(255, 255, 255, .70);
+}
+
+.rotulo {
+  display: flex; align-items: center; gap: .8rem;
+  margin: 0 0 clamp(1.2rem, 3vh, 2rem);
+  font-size: .76rem; letter-spacing: .18em; text-transform: uppercase;
+  font-variation-settings: var(--dc-rotulo);
+  color: var(--dc-tinta-2);
+}
+.seccao--escura .rotulo { color: var(--dc-oliva-claro); }
+.rotulo::after {
+  content: ""; flex: 1; height: 1px; background: currentColor; opacity: .3;
+}
+
+.titulo {
+  margin: 0 0 clamp(1rem, 2.5vh, 1.6rem);
+  font-size: clamp(1.7rem, 4.4vw, 2.9rem);
+  font-variation-settings: var(--dc-display);
+  letter-spacing: -.018em;
+  line-height: 1.08;
+  max-width: 20ch;
+  text-wrap: balance;
+}
+.lede { margin: 0; max-width: 56ch; font-size: clamp(1rem, 1.6vw, 1.12rem);
+        color: var(--dc-tinta-2); }
+.seccao--escura .lede { color: rgba(255,255,255,.82); }
+
+/* ===========================================================================
+   O QUE FAZEMOS
+   =========================================================================== */
+.servicos {
+  margin-top: clamp(2rem, 5vh, 3.4rem);
+  display: grid;
+  gap: 1px;
+  background: var(--dc-linha);
+  border-block: 1px solid var(--dc-linha);
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+.servico { background: var(--papel); padding: clamp(1.4rem, 3vw, 2.2rem); }
+.servico h3 {
+  margin: 0 0 .5rem;
+  font-size: 1.06rem;
+  font-variation-settings: var(--dc-forte);
+  letter-spacing: -.005em;
+}
+.servico p { margin: 0; font-size: .94rem; color: var(--dc-tinta-2); line-height: 1.6; }
+.servico__n {
+  display: block; margin-bottom: 1.1rem;
+  font-size: .74rem; letter-spacing: .14em;
+  font-variation-settings: var(--dc-rotulo);
+  color: var(--dc-oliva);
+}
+
+/* ===========================================================================
+   NÚMEROS — a faixa de prova
+   =========================================================================== */
+.numeros {
+  margin: 0; padding: 0; list-style: none;
+  display: grid; gap: clamp(1.6rem, 4vw, 3rem);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+.numeros div { border-top: 1px solid rgba(255,255,255,.22); padding-top: 1rem; }
+.numeros dt {
+  font-size: .74rem; letter-spacing: .16em; text-transform: uppercase;
+  font-variation-settings: var(--dc-rotulo);
+  color: var(--dc-oliva-claro);
+  margin-bottom: .5rem;
+}
+.numeros dd {
+  margin: 0;
+  font-size: clamp(1.9rem, 4.6vw, 2.9rem);
+  font-variation-settings: var(--dc-display);
+  letter-spacing: -.02em;
+  line-height: 1;
+}
+.numeros dd small {
+  display: block; margin-top: .5rem;
+  font-size: .82rem; letter-spacing: 0; line-height: 1.45;
+  font-variation-settings: var(--dc-corpo);
+  color: rgba(255,255,255,.72);
+}
+
+/* ===========================================================================
+   OBRAS
+   =========================================================================== */
+.obras {
+  margin-top: clamp(2rem, 5vh, 3.4rem);
+  display: grid; gap: clamp(1.4rem, 3vw, 2.4rem);
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+}
+.obra { margin: 0; }
+.obra img {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  background: #E4E7E0;
+}
+.obra figcaption { padding-top: 1rem; }
+.obra h3 {
+  margin: 0 0 .35rem;
+  font-size: 1.04rem;
+  font-variation-settings: var(--dc-forte);
+}
+/* ⚠️ A localidade e o ano NÃO são decoração. Uma grelha de fotografias sem
+   legenda não prova nada — podia ser de qualquer construtor. É a legenda que
+   transforma uma fotografia bonita em obra feita por eles. Se uma obra chegar
+   sem localidade ou sem ano, não entra. */
+.obra__meta {
+  margin: 0; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase;
+  font-variation-settings: var(--dc-rotulo);
+  color: var(--dc-tinta-2);
+}
+
+/* ===========================================================================
+   CONTACTO
+   =========================================================================== */
+.contacto__grelha {
+  display: grid; gap: clamp(2.4rem, 6vw, 4.5rem);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+@media (min-width: 56rem) {
+  .contacto__grelha { grid-template-columns: 1.1fr .9fr; }
+}
+.contactos { margin: clamp(1.6rem,4vh,2.4rem) 0 0; padding: 0; list-style: none;
+             display: grid; gap: 1.4rem; }
+.contactos dt {
+  font-size: .74rem; letter-spacing: .16em; text-transform: uppercase;
+  font-variation-settings: var(--dc-rotulo);
+  color: var(--dc-oliva-claro); margin-bottom: .3rem;
+}
+.contactos dd { margin: 0; font-size: 1.06rem; }
+.contactos a { text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.35);
+               padding-bottom: 1px; transition: border-color 220ms var(--dc-ease); }
+.contactos a:hover { border-color: #fff; }
+
+/* ===========================================================================
+   RODAPÉ
+   =========================================================================== */
+.rodape {
+  background: var(--dc-verde); color: rgba(255,255,255,.72);
+  padding-block: clamp(2.4rem, 6vh, 3.6rem);
+  font-size: .84rem;
+  border-top: 1px solid rgba(255,255,255,.14);
+}
+.rodape__linhas { display: flex; flex-wrap: wrap; gap: .4rem 1.6rem; margin: 0 0 1rem; }
+.rodape__linhas a { text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.4);
+                    transition: text-decoration-color 220ms var(--dc-ease); }
+.rodape__linhas a:hover { text-decoration-color: #fff; }
+.rodape__legal { margin: 0; font-size: .78rem; color: rgba(255,255,255,.55); max-width: 62ch; }
+
+/* ===========================================================================
+   REVELAR AO ENTRAR NO ECRÃ
+   ---------------------------------------------------------------------------
+   Só `opacity` e `translateY` — as duas propriedades que o compositor resolve
+   sem repintar. Feito com `animation-timeline: view()`, ou seja **sem
+   JavaScript e sem IntersectionObserver**.
+
+   ⚠️ E o `@supports` não é opcional: onde `view()` não existe, a regra inteira
+   é ignorada e o conteúdo fica visível. Se isto fosse feito com uma classe
+   `.oculto` posta no HTML e retirada por JS, um browser sem JS ficava com a
+   página em branco — o defeito clássico do género.
+   =========================================================================== */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .revela {
+      animation: revela linear both;
+      animation-timeline: view();
+      animation-range: entry 5% cover 26%;
+    }
+    @keyframes revela {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  }
+}
+
+/* ===========================================================================
+   A MARCA ANIMADA SOBRE FUNDO ESCURO — repor a hierarquia
+   ---------------------------------------------------------------------------
+   Redefinir `--dc-oliva` para a variante clara resolveu a legibilidade e
+   estragou a ORDEM. Medido sobre o verde da marca:
+
+                       no logótipo original   com o token trocado
+     nome                    6,78:1                 6,78:1
+     apelido                 1,63:1                 4,59:1
+     régua                   1,63:1                 4,59:1
+     descritivo              3,03:1                 4,16:1
+
+   No original a régua é um sussurro — 1,63:1, quase invisível, um traço que
+   fecha a composição. Com 4,59 passou a ser a coisa mais visível da peça a
+   seguir ao nome: uma barra luminosa a atravessar o logótipo.
+
+   Não se volta ao 1,63 (aí não se lê nada). Repõe-se a ORDEM: o nome à frente,
+   o apelido e o descritivo atrás dele, e a régua a fechar em último. A conta é
+   a mesma que se fez para a barra — o que muda de tamanho ou de fundo tem de
+   manter as relações que a marca tem, não só os valores.
+   =========================================================================== */
+.seccao--escura .dcma .dc-apelido { opacity: .82; }
+.seccao--escura .dcma .dc-desc    { opacity: .74; }
+.seccao--escura .dcma .dc-regua   { opacity: .38; }
+
+/* O selo é composição nossa e não marca: fica atrás de tudo, como marca de
+   água. Estava com o mesmo peso do wordmark e disputava-lhe a atenção. */
+.seccao--escura .dcma__selo { opacity: .72; }

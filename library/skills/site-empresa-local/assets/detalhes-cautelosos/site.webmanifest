@@ -1,0 +1,10 @@
+{
+  "name": "Detalhes Cautelosos — Engenharia e Concepção",
+  "short_name": "Detalhes Cautelosos",
+  "icons": [
+    { "src": "/detalhes-cautelosos/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/detalhes-cautelosos/icone-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#16241B",
+  "background_color": "#16241B"
+}

@@ -1,0 +1,68 @@
+/* ===========================================================================
+   TIPOGRAFIA — Archivo, uma família só, duas vozes
+   ---------------------------------------------------------------------------
+   A escolha saiu de uma comparação com oito candidatas montadas no herói real
+   (`_tipos.html`), e não de gosto no vazio:
+
+     . Jost, Cormorant e Bodoni são delicadas de mais. Uma construtora com
+       alvará de Classe 6 não se apresenta com traço fino;
+     . Prata e Playfair dão gravidade, mas empurram a leitura para
+       "promotor imobiliário" em vez de "quem constrói". E a marca é uma sans;
+     . Montserrat é limpa e é a fonte que toda a gente usa. Não distingue nada;
+     . **Archivo** é uma grotesca desenhada para sinalética e tabelas. Tem o
+       registo certo — técnico, sem ser frio — e, ao contrário das outras, tem
+       **eixo de largura**.
+
+   É esse eixo que resolve o site inteiro com um ficheiro só: o display vai
+   comprimido (largura 82), o texto vai normal (largura 100). Duas vozes que
+   nunca desafinam, porque são a mesma letra.
+
+   ⚠️ NÃO SE MISTURA COM O LOGÓTIPO. O wordmark da marca não é Archivo — não é
+   fonte nenhuma que exista cá, é traçado (ver `marca/README.md`). A Archivo é a
+   voz do SITE; a marca continua a ser desenho. Não se recompõe o logótipo em
+   Archivo por parecer parecido.
+
+   O ficheiro: variável nos dois eixos, subsetado a latin + latin-ext,
+   **105 kB** em woff2. Cobre todos os pesos e todas as larguras que o site
+   usa — não há um segundo pedido para o negrito.
+   =========================================================================== */
+
+@font-face {
+  font-family: "Archivo";
+  src: url("tipo/archivo-var.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  /* `swap` e não `block`: o texto aparece já com a pilha de recurso e troca
+     quando a fonte chega. Num herói cujo LCP é o poster do vídeo, bloquear
+     texto por causa de 105 kB é trocar uma métrica boa por uma má. */
+  font-display: swap;
+}
+
+:root {
+  /* ⚠️ A pilha de recurso não é decorativa: é o que se lê durante o `swap`.
+     Escolhida por métrica, não por preferência — Segoe UI e Roboto têm altura-x
+     e largura próximas da Archivo, portanto o salto quando a fonte troca é
+     pequeno. Uma pilha com Georgia dava um solavanco. */
+  --dc-tipo: "Archivo", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* As duas vozes. Usam-se por `font-variation-settings`, e não por
+     `font-weight`/`font-stretch` soltos, para o valor ficar explícito no sítio
+     onde se lê. */
+  --dc-display: 'wght' 560, 'wdth' 82;
+  --dc-corpo:   'wght' 400, 'wdth' 100;
+  --dc-forte:   'wght' 600, 'wdth' 100;
+  --dc-rotulo:  'wght' 500, 'wdth' 92;
+}
+
+html { font-family: var(--dc-tipo); }
+
+body {
+  font-variation-settings: var(--dc-corpo);
+  /* Números tabulares em toda a parte: este site está cheio de medidas, anos e
+     valores em euros, e algarismos de larguras diferentes fazem uma coluna de
+     números tremer. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}

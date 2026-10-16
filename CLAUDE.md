@@ -253,8 +253,23 @@ cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/ap
 - **Os agentes usam-nas** (`agent/team_agent/tools/skills_tool.py`): a ferramenta `skills` lista (com `query` filtra), lê uma
   (`name`) e os ficheiros dela (`name` + `file`). O briefing de cada personagem diz quais domina (`skill_lines`) e manda ler a skill
   antes de fazer esse trabalho, e listar todas quando a tarefa fala das skills da equipa. Depois de mudar o agente, reiniciá-lo.
-- **Para um Claude Code aberto à mão** («vai ver as skills que temos»): estão em `library/skills/`, lê `library/skills/agentes.json`
-  e o `SKILL.md` da que servir. Não estão em `.claude/skills` de propósito: 100+ descrições em cada sessão gastavam contexto.
+- **Todos os Claudes de todos os PCs veem a biblioteca sozinhos** (16 out, pedido do Marco: «não queremos relembrar sempre ao
+  nosso Claude que tem de usar as skills... és uma máquina»). O Hub põe dois hooks no `~/.claude/settings.json` de cada PC
+  (`claude_hooks.py`, ao arrancar, ao lado dos do Escritório; `CLAUDE_SKILLS=0` no `backend/.env` tira-os), que correm
+  `scripts/claude_contexto.py`: ao abrir uma janela, um índice curto da biblioteca por área e a regra (ler o `SKILL.md` que
+  servir antes de trabalhar); em cada pedido, as até 6 skills da biblioteca que servem para ele, pelas palavras do pedido
+  (português, inglês ou russo; `AREAS` no script) e com o caminho do `SKILL.md`. Um «sim» ou um pedido sem área não recebe nada.
+  Só lê a pasta, sem rede; o índice fica em `~/.team-agent/skills-index.json`. Experimentar à mão:
+  `python scripts/claude_contexto.py "faz-me um site para uma escola de condução"`. Não estão em `.claude/skills` de
+  propósito: 100+ descrições em cada sessão gastavam contexto, e no PC do Marco a lista de skills já passa do limite.
+- **O repositório é público**: só entram skills nossas, dos parceiros (com autorização) ou com licença aberta. O «Trazer»
+  (`_adopt`) recusa as de licença fechada (os docx/pdf/pptx/xlsx da Anthropic) e leva o `LICENSE` do plugin quando ele está
+  fora da pasta da skill. `library/skills/origens.json` diz de onde veio cada uma. As skills dos plugins de terceiros (SEO,
+  anúncios, Shopify, superpowers...) **não foram copiadas**: publicar 128 skills de outros num repositório público ficou para o
+  Marco decidir (16 out).
+- **Skills dos parceiros** (16 out): `site-empresa-local` (método dos sites Blue Magnitude e Detalhes Cautelosos do Tomás,
+  tomas476) e `site-estudio-ia` (método do site NeoDaemon do Fábio, fabiocabaceira), ao lado das `premium-site-rebuild` e
+  `realtor-landing` que o David trouxe do Tomás. O GitHub do Fábio não tem skills; o do Tomás só tinha o kit imobiliário.
 - Armadilha: uma classe CSS chamada `.src` já existe no `design.css` (rebentou o layout); nas páginas novas, prefixar as classes.
 
 ### Mercados (TradingView, SEC, paper trading) — desde 9 out

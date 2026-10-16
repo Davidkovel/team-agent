@@ -1,0 +1,49 @@
+/* GERADO por `gera-marca.py` a partir de `marca/dc-cores.css`.
+   Nao editar a mao: edita-se a fonte e volta-se a correr o gerador. */
+/* ===========================================================================
+   Detalhes Cautelosos — cores da marca
+   ---------------------------------------------------------------------------
+   Amostradas do logótipo original (`logo-construtora-detalhes.jpg`, 1024 px).
+   Não são aproximações: cada uma é a cor sólida dominante da sua zona, contada
+   pixel a pixel (o verde ocupa 96,7% da imagem; o oliva 1,3%).
+   =========================================================================== */
+
+:root {
+  --dc-verde:  #205532;   /* fundo da marca — 1 014 441 px */
+  --dc-oliva:  #50752A;   /* símbolo, "CAUTELOSOS" e a régua — 13 972 px */
+  --dc-osso:   #E7E1E7;   /* "DETALHES" — 6 223 px. Não é branco puro */
+  --dc-cinza:  #969997;   /* "ENGENHARIA E CONCEPÇÃO" */
+
+  /* ⚠️ DERIVADO, não amostrado. Ver a nota abaixo. */
+  --dc-oliva-claro: #97CB63;
+}
+
+/* ===========================================================================
+   ⚠️ O OLIVA DA MARCA NÃO SERVE PARA TEXTO SOBRE O VERDE. A conta:
+   ---------------------------------------------------------------------------
+     oliva  sobre verde   1,63:1   falha AA de texto (4,5) E o mínimo de
+                                   componente de interface (3,0)
+     cinza  sobre verde   3,03:1   falha AA de texto; passa para texto grande
+     osso   sobre verde   6,78:1   passa
+     branco sobre verde   8,73:1   passa
+     oliva  sobre branco  5,36:1   passa
+
+   No logótipo isto não é problema: "CAUTELOSOS" e a régua são desenho, e a
+   marca lê-se como um bloco. Numa página é outra coisa — um traço oliva sobre
+   o verde fica praticamente invisível, e texto oliva sobre verde é ilegível.
+
+   Portanto, e sem tocar na marca:
+     . sobre VERDE  -> texto em `--dc-osso` ou branco; o oliva só em massas
+                       grandes de cor, nunca em texto nem em traços finos;
+     . sobre BRANCO -> o oliva da marca serve, e é aí que ele deve viver;
+     . quando fizer mesmo falta um acento oliva sobre o verde, usa-se
+       `--dc-oliva-claro`.
+
+   Como o `--dc-oliva-claro` foi obtido: o oliva da marca em HSV é h=90°,
+   s=0,64, v=0,46. Subiu-se o V até o contraste sobre o verde passar 4,5:1 e
+   baixou-se a saturação a 80% para não sair néon — h=90° fica intacto, ou seja
+   é o MESMO verde-oliva, mais claro. Dá #97CB63 a 4,59:1.
+   (Nota: #A9B75A, que andava nos apontamentos como sendo o oliva da marca,
+   não é a cor do logótipo — o logótipo é #50752A — e dá 3,99:1, que chega para
+   títulos mas não para texto corrido.)
+   =========================================================================== */

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # Hub-to-Hub sync (sync.py): every computer runs its own Hub and they trade changes; there is no host. The widget sets SYNC=1.
     sync: bool = False
     claude_office: bool = True  # put the Escritório's hooks into this PC's Claude Code settings (claude_hooks.py)
+    claude_skills: bool = True  # and the skills library in front of every Claude window (scripts/claude_contexto.py)
     sync_seconds: int = 5
     sync_port: int = 8000
     # For a test or an odd network: this computer's number (0 = the owner's) and the other Hubs as "host:port,host:port".

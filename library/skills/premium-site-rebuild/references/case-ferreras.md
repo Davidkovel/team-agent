@@ -90,3 +90,35 @@ Armadilhas desta volta:
 - No script de screenshots, separar passos com `;;` (o JS tem vírgulas e `||`); porta aleatória e `taskkill /T` no fim,
   senão ficam Chromes headless presos na porta.
 - «Pide su» mistura tú e usted: em «usted» é «Pida su diagnóstico».
+
+## Terceira volta (16 out 2026): «nítido como um relógio» e nada que se abra
+
+O cliente voltou a olhar como dono e pediu: vídeo do hero nítido (1080, «caro como o relógio»), uma abertura como a
+do De Antonio mas com um carro, tirar o bloco do director («não se percebe, parece barato»), menos texto nas páginas
+interiores, **nenhum acordeão com «+»**, **nenhum cartão numerado 01–04** (repetia-se em três páginas) e fotos menos
+«barradas». O que se fez:
+
+- **Hero em díptico nativo** (`_fonte/showreel2.py`): os reels são verticais 1080x1920; uma faixa 16:9 deles tem
+  1080x607 e teria de ser ampliada 1,8x. Dois painéis verticais de 960x1080 lado a lado enchem 1920x1080 sem ampliar
+  nada; cada coluna corta ao seu ritmo. Saídas `-1080/-720` (díptico) e `-v1080/-v720` (telemóvel); o JS escolhe por
+  `innerWidth*devicePixelRatio` (> 1440 no computador, > 800 no telemóvel) e respeita `saveData`. Três montagens
+  diferentes (home, marketing, automoção) para não repetir o mesmo filme. Fora os planos com legendas queimadas e
+  os cartões brancos de logótipo no fim dos reels (ver folhas de fotogramas antes).
+- **Abertura «estela de faros»**: sobre o vídeo, uma linha de luz cruza o ecrã com a curva de um carro a arrancar e a
+  travar; cada letra do logótipo nasce quando a cabeça passa por baixo (atraso = inversa da mesma cubic-bezier, em
+  JS); depois o FLIP para a cabeçalho. **Sem bloquear o scroll**: qualquer gesto (wheel/touch/tecla) termina-a; não
+  corre se a página abriu a meio (voltar atrás) ou com #âncora; nunca mexer em `history.scrollRestoration`.
+- **Componentes que substituem texto escondido**: problemas = linhas grandes **riscadas a ouro** quando entram;
+  «qué incluye» = **índice** de uma linha por serviço com a imagem/vídeo do activo numa janela sticky (só o vídeo
+  activo descarrega e toca; no telemóvel miniatura por linha); método = **uma linha de palavras** ligadas por um
+  traço que se desenha; casos = **cartões de fotografia** com sector, título e resultado numa linha (nada abre;
+  no telemóvel carrossel 80vw); capacidades = duas colunas de título + meia linha. Sem números de secção.
+- **Fotos nítidas** (`_fonte/imagens.py`): reexportar dos AVIF originais a q90 + máscara de nitidez leve (o segundo
+  passo a q80 somava artefactos). E o erro principal era o `sizes`: um painel alto que corta uma foto larga precisa
+  da largura *depois do cover* (altura × proporção), não da largura do painel — com `45vw` o browser escolhia a de
+  900 e ampliava. Para painéis cover: `sizes="(min-width: 900px) 1600px, 100vw"`. Tirar véus `saturate/brightness`.
+- **Carril de reels medido pela altura** (`height:min(66svh,640px);aspect-ratio:9/16;width:auto`): num portátil de
+  744 px de altura os 9:16 medidos pela largura passavam do ecrã e o vídeo via-se «a meio».
+- **Itálicas cortadas** pela máscara das linhas: dar padding lateral e inferior ao `.l` (com margem negativa igual).
+- Voltar atrás: `pageshow` com `persisted` volta a dar play aos vídeos.
+- Resultado: marketing 4 250 px (≈ 5,7 ecrãs), IA 4 850, sectores 2 350, home 8 800 no computador.

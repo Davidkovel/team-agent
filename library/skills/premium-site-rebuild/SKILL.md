@@ -55,6 +55,13 @@ O que faz a diferença não é ter "muitas animações". É:
 12. **Composição, não coluna**: âncoras alternadas (nunca dois blocos seguidos na mesma margem), título e frase lado
     a lado, media fora do eixo ou a sair da margem, um ou dois momentos de ecrã inteiro a meio, números enormes em
     contorno por trás das imagens, ar entre blocos.
+13. **Nada que se abra, nada numerado.** Sem acordeões com «+», sem `<details>`, sem separadores, sem cartões
+    01–04 (parecem baratos e repetem-se de página em página). O texto mostra-se em formas que se vêem: linhas
+    riscadas, índice com pré-visualização, uma linha de palavras para o método, cartões de fotografia para os casos
+    (ver `references/case-ferreras.md`, terceira volta). Cada facto aparece uma vez no site.
+14. **Nitidez de relógio.** Vídeo do hero a 1080 sem ampliar nada (dípticos de painéis verticais nativos,
+    `assets/starter/showreel2.py`), fotos reexportadas dos originais a q90 (`assets/starter/imagens.py`) e `sizes`
+    calculado depois do `object-fit:cover`. Media 9:16 mede-se pela altura do ecrã, nunca pela largura.
 10. **Proposta, não impostura**: enquanto não for o site oficial, `<meta name="robots"
     content="noindex, nofollow">`, `robots.txt` com `Disallow: /` e os contactos a apontar para
     os contactos reais da empresa. Nunca recolher dados em nome de outra empresa.

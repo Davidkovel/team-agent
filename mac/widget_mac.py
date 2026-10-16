@@ -44,7 +44,10 @@ def own_hub():
 
     config = hub._config()
     login = (config.get("user") or os.environ.get("USER", "david")).lower()
-    os.environ.setdefault("IP_USERS", f"127.0.0.1={login},::1={login}")
+    # O telemóvel entra pelo `tailscale serve` deste Mac e o Hub vê o endereço do telemóvel na tailnet (100.x e fd7a:…),
+    # não o 127.0.0.1: sem estar aqui, dava a página da palavra-passe. Vêm do «phone_ips» do widget.json.
+    phones = "".join(f",{ip}={login}" for ip in config.get("phone_ips", []))
+    os.environ.setdefault("IP_USERS", f"127.0.0.1={login},::1={login}{phones}")
     os.environ.setdefault("SYNC_NODE", "3")  # o número de um computador que não está no Radmin
     if config.get("sync_peers"):
         os.environ.setdefault("SYNC_PEERS", config["sync_peers"])

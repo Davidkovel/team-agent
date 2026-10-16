@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<!-- =========================================================
+     STARTER — SIMULADOR DE CRÉDITO HABITAÇÃO.
+     Página de ferramenta: cabeçalho curto + painéis numerados à esquerda +
+     painel de resultado pegajoso à direita, ligados por um fio com corrente.
+
+     A aritmética NÃO vive aqui: vive em assets/calculators.js (zero DOM,
+     testável a partir de Node). Esta página só lê inputs e escreve resultados.
+
+     VALOR DE VALIDAÇÃO OBRIGATÓRIO (references/calculators.md):
+       450 000 € / entrada 90 000 € / 30 anos / Euribor 2,31 + spread 1,2
+       -> prestação 1 618,57 €   MTIC 593 753,02 €
+     Qualquer mexida no cálculo tem de voltar a dar estes dois números.
+     ========================================================= -->
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>Simulador de Crédito Habitação · Nome do Consultor</title>
+<meta name="description" content="Calcule a prestação mensal, o Imposto do Selo e o custo total do crédito habitação. Simulação indicativa, em segundos, sem registo." />
+<link rel="canonical" href="https://exemplo.pt/credito.html" />
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='116' fill='%234D8DF6'/%3E%3Cpath fill='%23fff' d='M150 125 H265 A115 131 0 0 1 265 387 H150 Z'/%3E%3C/svg%3E" type="image/svg+xml" />
+<meta name="theme-color" content="#0A0A0A" />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://exemplo.pt/credito.html" />
+<meta property="og:site_name" content="Nome do Consultor · Consultor Imobiliário" />
+<meta property="og:title" content="Simulador de Crédito Habitação · Nome do Consultor" />
+<meta property="og:description" content="Prestação, selos e custo total do crédito. Simulação indicativa, sem registo." />
+<meta property="og:image" content="https://exemplo.pt/assets/og-image.jpg" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Simulador de crédito habitação · Nome do Consultor" />
+<meta property="og:locale" content="pt_PT" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://exemplo.pt/assets/og-image.jpg" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/shell.css" />
+<script defer src="assets/shell.js"></script>
+<script defer src="assets/content.js"></script>
+<!-- o núcleo de cálculo, partilhado pelos três simuladores do kit -->
+<script defer src="assets/calculators.js"></script>
+
+<style>
+/* =========================================================
+   FERRAMENTAS (prefixo tl-)
+   ========================================================= */
+.tl-hero{position:relative;
+  padding:calc(88px + clamp(46px,8vh,104px)) var(--pad) clamp(48px,8vh,96px)}
+
+/* O gradiente é o fundo da PÁGINA INTEIRA, não uma faixa do herói: preso ao
+   herói criava uma aresta horizontal onde a secção acabava. Fixo ao ecrã,
+   nunca há costura, por mais que se role. Substitui as barras nestas páginas. */
+#gbars,.gveil{display:none}
+.tl-bg{position:fixed;inset:0;z-index:-2;overflow:hidden;container-type:size;pointer-events:none}
+.tl-bg>i{
+  position:absolute;inset:-0.8cqmin;filter:blur(0.4cqmin);display:block;
+  background-color:#1E5FA8;
+  background-image:
+    radial-gradient(circle at 65.39% 44.9%,  rgba(6,13,28,1)     0%, rgba(6,13,28,0)     35.5%),
+    radial-gradient(circle at 28.14% 74.19%, rgba(18,64,126,1)   0%, rgba(18,64,126,0)   47.05%),
+    radial-gradient(circle at 52.46% 19.62%, rgba(40,104,190,1)  0%, rgba(40,104,190,0)  58.95%),
+    radial-gradient(circle at 80.09% 84.45%, rgba(125,170,240,1) 0%, rgba(125,170,240,0) 70.5%);
+}
+/* véu leve e também fixo: dá contraste ao texto sem apagar o azul, e como não
+   rola com a página não deixa nenhuma linha atrás de si */
+.tl-veil{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(6,9,16,.34) 0%,rgba(6,9,16,.16) 42%,rgba(6,9,16,.40) 100%)}
+.tl-hero__wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;align-items:center;text-align:center}
+.tl-hero .kicker{color:var(--accent-2);margin-right:3px}
+.tl-hero h1{font-size:clamp(30px,4.6vw,60px);font-weight:600;letter-spacing:-.032em;line-height:1.04;
+  margin:18px 0 0;max-width:17ch}
+.tl-hero__lead{color:#C9D6EA;font-size:clamp(14.5px,1.5vw,18px);line-height:1.65;max-width:54ch;margin:20px 0 0}
+/* só o conteúdo sobe: com um selector .tl-hero>* o fundo perdia o
+   position:absolute (mais especificidade) e colapsava para altura zero */
+.tl-hero__wrap{position:relative;z-index:1}
+
+/* ---------- a calculadora ---------- */
+.tl-calc{padding:clamp(34px,5vh,60px) var(--pad) clamp(56px,9vh,110px)}
+.tl-calc__wrap{max-width:1240px;margin:0 auto;
+  display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:clamp(20px,2.6vw,38px);align-items:start}
+.tl-cols{display:flex;flex-direction:column;gap:clamp(14px,1.8vw,22px);min-width:0}
+
+.tl-panel{
+  padding:clamp(22px,2.6vw,32px);border:1px solid var(--line);border-radius:24px;
+  /* mais frio e mais opaco do que no resto do site: aqui o painel assenta
+     sobre o gradiente azul, não sobre preto */
+  background:linear-gradient(140deg, rgba(10,16,30,.62) 0%, rgba(6,9,16,.80) 100%);
+  -webkit-backdrop-filter:blur(16px) saturate(115%);backdrop-filter:blur(16px) saturate(115%);
+}
+.tl-panel__t{font-family:var(--display);font-weight:600;letter-spacing:-.015em;
+  font-size:clamp(16px,1.6vw,20px);margin:0 0 clamp(16px,2vw,22px);display:flex;align-items:center;gap:10px}
+.tl-panel__n{
+  display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;flex:none;
+  border-radius:50%;font-size:12px;font-weight:600;color:var(--accent-2);
+  background:rgba(77,141,246,.16);border:1px solid rgba(157,194,255,.28);
+}
+
+.tl-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(11px,1.4vw,16px)}
+.tl-row + .tl-row{margin-top:clamp(11px,1.4vw,16px)}
+.tl-f{display:flex;flex-direction:column;gap:8px;min-width:0}
+.tl-f--wide{grid-column:1/-1}
+.tl-f label,.tl-lab{font-size:10px;font-weight:600;letter-spacing:1.9px;text-transform:uppercase;color:var(--faint);line-height:1.4}
+.tl-in{position:relative;display:flex;align-items:center}
+/* type="text" com inputmode="decimal": o type="number" recusa a vírgula em
+   teclados portugueses e ainda mostra setas inúteis */
+.tl-in input,.tl-in select{
+  font-family:var(--sans);font-size:15px;color:var(--ink);width:100%;
+  background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:14px;
+  padding:12px 14px;
+  transition:border-color .25s var(--ease),background .25s var(--ease),box-shadow .25s var(--ease);
+}
+.tl-in--pre input{padding-left:32px}
+.tl-in--suf input{padding-right:42px}
+.tl-in__pre,.tl-in__suf{position:absolute;font-size:13px;color:var(--faint);pointer-events:none}
+.tl-in__pre{left:14px}
+.tl-in__suf{right:14px}
+.tl-in input:focus,.tl-in select:focus{
+  outline:none;border-color:rgba(157,194,255,.58);background:rgba(255,255,255,.085);
+  box-shadow:0 0 0 4px rgba(77,141,246,.13);
+}
+/* campos derivados (montante a financiar, LTV, TAN) são readonly, escritos
+   pelo mesmo cálculo que enche o painel de resultado */
+.tl-in input[readonly]{background:rgba(255,255,255,.03);color:var(--accent-2);font-weight:600;cursor:default}
+.tl-in select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:38px;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238792A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center;background-size:15px}
+.tl-in select option{background:#0D1220;color:#F2F5FA}
+
+/* botões segmentados: a alternativa honesta ao radio button feio.
+   Estado em aria-pressed, agrupados por role="group" com aria-label. */
+.tl-seg{display:flex;gap:7px;flex-wrap:wrap}
+.tl-seg button{
+  flex:1 1 0;min-width:88px;cursor:pointer;font:inherit;
+  font-size:11px;font-weight:600;letter-spacing:1.3px;text-transform:uppercase;
+  padding:12px 12px;border-radius:13px;color:var(--muted);
+  background:rgba(255,255,255,.04);border:1px solid var(--line);
+  transition:color .25s var(--ease),background .25s var(--ease),border-color .25s var(--ease);
+}
+.tl-seg button:hover{color:var(--ink);background:rgba(255,255,255,.08)}
+.tl-seg button[aria-pressed="true"]{color:#0B1220;background:var(--ink);border-color:var(--ink)}
+.tl-hint{font-size:11.5px;line-height:1.55;color:var(--faint);margin:10px 0 0}
+[hidden]{display:none !important}
+
+/* ---------- painel de resultados ---------- */
+.tl-res{
+  position:sticky;top:96px;
+  padding:clamp(24px,2.8vw,34px);border:1px solid var(--line);border-radius:26px;
+  background:linear-gradient(140deg, rgba(12,20,38,.72) 0%, rgba(6,9,16,.88) 100%);
+  -webkit-backdrop-filter:blur(20px) saturate(118%);backdrop-filter:blur(20px) saturate(118%);
+  box-shadow:0 40px 96px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.10);
+}
+.tl-res__k{font-size:10.5px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;color:var(--accent-2);margin:0}
+.tl-res__lab{font-size:13.5px;color:var(--muted);margin:16px 0 4px}
+.tl-res__big{font-family:var(--display);font-weight:600;letter-spacing:-.03em;line-height:1;
+  font-size:clamp(32px,4.4vw,54px);margin:0}
+.tl-res__list{list-style:none;margin:clamp(20px,2.6vw,28px) 0 0;padding:0;display:flex;flex-direction:column;gap:14px}
+.tl-res__list li{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.tl-res__nm{font-size:14px;color:var(--ink);line-height:1.4}
+.tl-res__nm small{display:block;font-size:11.5px;color:var(--faint);margin-top:2px;line-height:1.45}
+.tl-res__v{font-family:var(--display);font-weight:600;font-size:15px;white-space:nowrap;text-align:right}
+.tl-res__v--hi{color:var(--accent-2)}
+.tl-res__tot{margin-top:clamp(20px,2.6vw,28px);padding-top:clamp(18px,2.2vw,24px);border-top:1px solid var(--line)}
+.tl-res .btn{width:100%;justify-content:center;margin-top:clamp(18px,2.2vw,24px)}
+
+/* aviso: o que o simulador NÃO faz tem de estar à vista, não escondido */
+.tl-warn{
+  display:flex;gap:11px;align-items:flex-start;margin-top:14px;
+  padding:13px 15px;border-radius:15px;
+  background:rgba(77,141,246,.10);border:1px solid rgba(157,194,255,.24);
+}
+.tl-warn svg{width:17px;height:17px;flex:none;margin-top:1px;color:var(--accent-2)}
+.tl-warn p{font-size:11.5px;line-height:1.55;color:var(--muted);margin:0}
+.tl-warn b{color:var(--ink);font-weight:600}
+
+/* ---------- entrada ---------- */
+.tl-js .tl-rev{opacity:0;transform:translateY(24px);
+  transition:opacity .8s var(--ease),transform .8s var(--ease);transition-delay:var(--tl-d,0s)}
+.tl-js .tl-rev.is-in{opacity:1;transform:none}
+
+/* =========================================================
+   O FIO — liga os passos numerados e leva-lhes uma corrente. Vive a
+   z-index 0, por trás dos painéis (z-index 1): vê-se nos intervalos e some
+   por trás de cada painel, senão lia-se como um risco a cortá-los ao meio.
+   A posição é escrita em JS a partir do centro real das bolas — em CSS não
+   acerta, porque a bola é inline-flex e assenta numa linha de texto.
+   ========================================================= */
+.tl-cols{position:relative}
+.tl-panel{position:relative;z-index:1;background-color:#070b12}
+
+.tl-wire{
+  position:absolute;z-index:0;pointer-events:none;
+  border-radius:2px;overflow:hidden;
+  background:linear-gradient(180deg, rgba(157,194,255,.07) 0%, rgba(157,194,255,.22) 50%, rgba(157,194,255,.07) 100%);
+}
+.tl-wire__trail{
+  position:absolute;inset:0;transform-origin:center top;transform:scaleY(0);
+  background:linear-gradient(180deg, rgba(77,141,246,.55) 0%, rgba(157,194,255,.75) 100%);
+  animation:tlTrail 3.4s linear infinite;
+}
+@keyframes tlTrail{
+  0%{transform:scaleY(0);opacity:1}
+  82%{transform:scaleY(1);opacity:1}
+  100%{transform:scaleY(1);opacity:0}
+}
+.tl-wire__spark{
+  position:absolute;left:0;right:0;height:86px;top:-86px;z-index:2;
+  background:linear-gradient(180deg, rgba(157,194,255,0) 0%, rgba(157,194,255,.85) 38%, #FFFFFF 52%, rgba(77,141,246,.8) 66%, rgba(157,194,255,0) 100%);
+  box-shadow:0 0 14px 2px rgba(122,170,255,.75);
+  animation:tlFlow 3.4s linear infinite;
+}
+@keyframes tlFlow{from{top:-86px}to{top:100%}}
+
+/* cada bola acende quando a corrente lhe chega; o atraso é escrito em JS */
+.tl-panel__n{animation:tlSpark 3.4s linear infinite}
+@keyframes tlSpark{
+  0%,100%{color:var(--accent-2);background:rgba(77,141,246,.16);
+          border-color:rgba(157,194,255,.28);box-shadow:0 0 0 0 rgba(122,170,255,0)}
+  5%     {color:#0B1220;background:#CFE0FF;
+          border-color:#FFFFFF;box-shadow:0 0 22px 5px rgba(122,170,255,.65)}
+  20%    {color:var(--accent-2);background:rgba(77,141,246,.16);
+          border-color:rgba(157,194,255,.28);box-shadow:0 0 0 0 rgba(122,170,255,0)}
+}
+/* o painel respira ao mesmo tempo que a sua bola */
+.tl-panel{animation:tlCard 3.4s linear infinite}
+@keyframes tlCard{
+  0%,100%{border-color:var(--line);box-shadow:0 0 0 0 rgba(122,170,255,0)}
+  5%     {border-color:rgba(157,194,255,.46);box-shadow:0 0 34px -6px rgba(122,170,255,.38)}
+  26%    {border-color:var(--line);box-shadow:0 0 0 0 rgba(122,170,255,0)}
+}
+
+@media(max-width:1000px){
+  .tl-calc__wrap{grid-template-columns:minmax(0,1fr)}
+  .tl-res{position:static}
+}
+@media(max-width:600px){
+  .tl-row{grid-template-columns:minmax(0,1fr)}
+  .tl-panel,.tl-res{-webkit-backdrop-filter:none;backdrop-filter:none;border-radius:20px}
+  .tl-panel{background:linear-gradient(140deg, rgba(10,16,30,.80) 0%, rgba(6,9,16,.92) 100%)}
+  .tl-res{background:linear-gradient(140deg, rgba(12,20,38,.84) 0%, rgba(6,9,16,.95) 100%)}
+  .tl-seg button{flex:1 1 100%}
+}
+@media(prefers-reduced-motion:reduce){
+  .tl-js .tl-rev,.tl-js .tl-rev.is-in{opacity:1;transform:none;transition:none}
+  .tl-wire__spark,.tl-wire__trail{display:none}
+  .tl-panel__n,.tl-panel{animation:none}
+}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#calc">Saltar para o simulador</a>
+
+<!-- o shell continua a gerar as barras; nesta página estão escondidas por CSS
+     e o fundo é o gradiente fixo aqui em baixo -->
+<div class="gbars" id="gbars" aria-hidden="true"></div>
+<div class="gveil" aria-hidden="true"></div>
+
+<!-- FUNDO — o gradiente por trás da página toda -->
+<div class="tl-bg" aria-hidden="true"><i></i></div>
+<div class="tl-veil" aria-hidden="true"></div>
+
+<!-- NAVBAR — igual à da home; muda o aria-current e os href passam a apontar
+     para index.html -->
+<div class="nv">
+  <div class="nv__bar">
+    <a class="nv__brand" href="index.html#top">
+      <span class="nv__mark">
+        <svg viewBox="0 0 512 512" aria-hidden="true">
+          <defs><linearGradient id="nvg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+            <stop stop-color="var(--accent-2)"/><stop offset="1" stop-color="var(--accent)"/>
+          </linearGradient></defs>
+          <rect width="512" height="512" rx="116" fill="url(#nvg)"/>
+          <path fill="#fff" d="M150 125 H265 A115 131 0 0 1 265 387 H150 Z"/>
+        </svg>
+      </span>
+      <span class="nv__name" data-c="consultor.nome">Nome do Consultor</span>
+    </a>
+
+    <nav class="nv__links" aria-label="Navegação principal">
+      <a href="index.html#top" data-i18n="nav.home">Início</a>
+
+      <div class="nv__item" id="nv-imoveis">
+        <button type="button" class="nv__top" aria-expanded="false" aria-controls="nv-imoveis-drop">
+          <span data-i18n="nav.imoveis">Imóveis</span>
+          <svg class="nv__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="nv__drop" id="nv-imoveis-drop">
+          <a href="index.html#imovel"><b data-i18n="nav.comprar">Comprar</b><span data-i18n="nav.comprarSub">Os imóveis disponíveis para venda</span></a>
+          <!-- STARTER: vender.html ainda não existe -->
+          <a href="index.html#imovel"><b data-i18n="nav.vender">Vender</b><span data-i18n="nav.venderSub">Avaliação gratuita do seu imóvel</span></a>
+        </div>
+      </div>
+
+      <div class="nv__item" id="nv-ferramentas">
+        <button type="button" class="nv__top" aria-expanded="false" aria-controls="nv-ferramentas-drop">
+          <span data-i18n="nav.tools">Ferramentas</span>
+          <svg class="nv__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="nv__drop" id="nv-ferramentas-drop">
+          <a href="credito.html" aria-current="page"><b data-i18n="nav.tCred">Simulador de Crédito</b><span data-i18n="nav.tCredSub">Prestação, selos e custo total</span></a>
+        </div>
+      </div>
+
+      <a href="index.html#prova" data-i18n="nav.sobre">Sobre mim</a>
+    </nav>
+
+    <div class="nv__right">
+      <div class="lang" data-lang-root>
+        <button type="button" class="lang__btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Idioma / Language">
+          <span class="lang__flag" aria-hidden="true">🇵🇹</span>
+          <span class="lang__code">PT</span>
+          <svg class="lang__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="lang__menu" role="listbox" aria-label="Idioma / Language">
+          <button type="button" class="lang__opt" role="option" aria-selected="true"  data-lang="pt"><span class="lang__flag" aria-hidden="true">🇵🇹</span><span class="lang__name">Português</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+          <button type="button" class="lang__opt" role="option" aria-selected="false" data-lang="en"><span class="lang__flag" aria-hidden="true">🇬🇧</span><span class="lang__name">English</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+          <button type="button" class="lang__opt" role="option" aria-selected="false" data-lang="fr"><span class="lang__flag" aria-hidden="true">🇫🇷</span><span class="lang__name">Français</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+        </div>
+      </div>
+      <a class="nv__cta" href="https://wa.me/351000000000" data-c-href="consultor.whatsapp" target="_blank" rel="noopener" data-i18n="nav.cta">Contactar</a>
+      <button class="nv__burger" id="nv-burger" aria-controls="nv-menu" aria-expanded="false" aria-label="Abrir menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="nv__menu" id="nv-menu">
+    <button class="nv__close" id="nv-close" aria-label="Fechar menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <a href="index.html#top" data-i18n="nav.home">Início</a>
+    <p class="nv__mgroup" data-i18n="nav.imoveis">Imóveis</p>
+    <a class="nv__msub" href="index.html#imovel"><b data-i18n="nav.comprar">Comprar</b><span data-i18n="nav.comprarSub">Os imóveis disponíveis para venda</span></a>
+    <a class="nv__msub" href="index.html#imovel"><b data-i18n="nav.vender">Vender</b><span data-i18n="nav.venderSub">Avaliação gratuita do seu imóvel</span></a>
+    <p class="nv__mgroup" data-i18n="nav.tools">Ferramentas</p>
+    <a class="nv__msub" href="credito.html" aria-current="page"><b data-i18n="nav.tCred">Simulador de Crédito</b><span data-i18n="nav.tCredSub">Prestação, selos e custo total</span></a>
+    <a class="nv__mtop" href="index.html#prova"><b data-i18n="nav.sobre">Sobre mim</b><span data-i18n="nav.sobreSub">Conhecer melhor o consultor</span></a>
+    <a class="nv__cta" href="https://wa.me/351000000000" data-c-href="consultor.whatsapp" target="_blank" rel="noopener" data-i18n="nav.cta">Contactar</a>
+    <div class="lang" data-lang-root>
+      <button type="button" class="lang__btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Idioma / Language">
+        <span class="lang__flag" aria-hidden="true">🇵🇹</span>
+        <span class="lang__code">PT</span>
+        <svg class="lang__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="lang__menu" role="listbox" aria-label="Idioma / Language">
+        <button type="button" class="lang__opt" role="option" aria-selected="true"  data-lang="pt"><span class="lang__flag" aria-hidden="true">🇵🇹</span><span class="lang__name">Português</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+        <button type="button" class="lang__opt" role="option" aria-selected="false" data-lang="en"><span class="lang__flag" aria-hidden="true">🇬🇧</span><span class="lang__name">English</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+        <button type="button" class="lang__opt" role="option" aria-selected="false" data-lang="fr"><span class="lang__flag" aria-hidden="true">🇫🇷</span><span class="lang__name">Français</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<header class="tl-hero" id="top">
+  <div class="tl-hero__wrap">
+    <p class="kicker" data-c="credito.kicker">Ferramentas</p>
+    <h1 data-c="credito.h1">Quanto lhe fica a casa, ao mês.</h1>
+    <p class="tl-hero__lead" data-c="credito.lead">Prestação, selos e o custo total do crédito ao fim de todos os anos. Mexa nos números e veja o que muda.</p>
+  </div>
+</header>
+
+<section class="tl-calc" id="calc">
+  <div class="tl-calc__wrap">
+
+    <div class="tl-cols">
+      <div class="tl-panel tl-rev">
+        <p class="tl-panel__t"><span class="tl-panel__n">1</span><span>Valores e prazos</span></p>
+        <div class="tl-row">
+          <div class="tl-f">
+            <label for="c-valor">Valor do imóvel</label>
+            <div class="tl-in tl-in--pre"><span class="tl-in__pre">€</span><input id="c-valor" type="text" inputmode="decimal" value="250000" /></div>
+          </div>
+          <div class="tl-f">
+            <label for="c-entrada">Entrada inicial</label>
+            <div class="tl-in tl-in--pre"><span class="tl-in__pre">€</span><input id="c-entrada" type="text" inputmode="decimal" value="50000" /></div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="tl-f">
+            <label for="c-fin">Montante a financiar</label>
+            <div class="tl-in"><input id="c-fin" type="text" readonly /></div>
+          </div>
+          <div class="tl-f">
+            <label for="c-ltv">LTV</label>
+            <div class="tl-in"><input id="c-ltv" type="text" readonly /></div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="tl-f">
+            <label for="c-prazo">Prazo</label>
+            <div class="tl-in"><select id="c-prazo"></select></div>
+          </div>
+          <div class="tl-f">
+            <label for="c-idade">Idade do comprador mais velho</label>
+            <div class="tl-in tl-in--suf"><input id="c-idade" type="text" inputmode="numeric" value="35" /><span class="tl-in__suf">anos</span></div>
+          </div>
+        </div>
+        <!-- aviso de idade: a maioria dos bancos exige que o crédito termine
+             até aos 75 anos. Não bloqueia nada, só avisa. -->
+        <p class="tl-hint" id="c-idadeaviso"></p>
+      </div>
+
+      <div class="tl-panel tl-rev" style="--tl-d:.08s">
+        <p class="tl-panel__t"><span class="tl-panel__n">2</span><span>Taxas de juro</span></p>
+        <div class="tl-seg" data-seg="tipo" role="group" aria-label="Tipo de taxa">
+          <button type="button" data-v="var" aria-pressed="true">Variável</button>
+          <button type="button" data-v="fixa" aria-pressed="false">Fixa</button>
+        </div>
+
+        <div id="c-var" style="margin-top:16px">
+          <div class="tl-row">
+            <div class="tl-f">
+              <label for="c-eurprazo">Euribor</label>
+              <!-- o prazo da Euribor NÃO entra na conta: é contexto para quem
+                   compara propostas. O utilizador escreve a cotação já
+                   correspondente ao prazo que escolheu. -->
+              <div class="tl-in"><select id="c-eurprazo">
+                <option value="3">3 meses</option><option value="6">6 meses</option><option value="12" selected>12 meses</option>
+              </select></div>
+            </div>
+            <div class="tl-f">
+              <label for="c-euribor">Cotação Euribor</label>
+              <div class="tl-in tl-in--suf"><input id="c-euribor" type="text" inputmode="decimal" value="2,31" /><span class="tl-in__suf">%</span></div>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-f tl-f--wide">
+              <label for="c-spread">Spread</label>
+              <div class="tl-in tl-in--suf"><input id="c-spread" type="text" inputmode="decimal" value="1,2" /><span class="tl-in__suf">%</span></div>
+            </div>
+          </div>
+          <p class="tl-hint">A Euribor muda todos os dias. O valor acima é um ponto de partida — substitua-o pela cotação do dia antes de tirar conclusões.</p>
+        </div>
+
+        <div id="c-fixa" hidden style="margin-top:16px">
+          <div class="tl-row">
+            <div class="tl-f tl-f--wide">
+              <label for="c-taxafixa">Taxa fixa proposta</label>
+              <div class="tl-in tl-in--suf"><input id="c-taxafixa" type="text" inputmode="decimal" value="3,3" /><span class="tl-in__suf">%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-row" style="margin-top:16px">
+          <div class="tl-f tl-f--wide">
+            <label for="c-tan">TAN resultante</label>
+            <div class="tl-in"><input id="c-tan" type="text" readonly /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- o painel não pode saltar: actualização por textContent — nunca se
+         reconstrói o HTML, nunca se esconde e mostra.
+         O aria-live NÃO fica no <aside> inteiro: com sete valores dentro,
+         escrever "450000" fazia o leitor de ecrã anunciar tudo a cada tecla.
+         Só o valor principal é região live, e o cálculo tem debounce. -->
+    <aside class="tl-res tl-rev" style="--tl-d:.14s">
+      <p class="tl-res__k">Resultados</p>
+      <p class="tl-res__lab">Prestação mensal estimada</p>
+      <p class="tl-res__big" id="c-prest" role="status" aria-live="polite">—</p>
+
+      <ul class="tl-res__list">
+        <li><span class="tl-res__nm"><span>Imposto do Selo sobre juros</span><small>4 % sobre os juros do 1.º mês</small></span><span class="tl-res__v" id="c-isjuros">—</span></li>
+        <li><span class="tl-res__nm"><span>Imposto do Selo na abertura</span><small id="c-selolab">0,6 % do montante financiado</small></span><span class="tl-res__v" id="c-selo">—</span></li>
+        <li><span class="tl-res__nm"><span>Dinheiro necessário no início</span><small>Entrada + selo de abertura</small></span><span class="tl-res__v" id="c-inicio">—</span></li>
+        <li><span class="tl-res__nm">Total de juros pagos</span><span class="tl-res__v" id="c-juros">—</span></li>
+      </ul>
+
+      <div class="tl-res__tot">
+        <ul class="tl-res__list" style="margin-top:0">
+          <li><span class="tl-res__nm"><span>MTIC, custo total aproximado</span><small>Prestações + impostos e selos</small></span><span class="tl-res__v tl-res__v--hi" id="c-mtic">—</span></li>
+        </ul>
+      </div>
+
+      <div class="tl-warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8.4v4.6"/><path d="M12 16.6h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        <p>Simulação indicativa, sem valor contratual. Não inclui comissões do banco, avaliação, seguros de vida e multirriscos, nem o IMT e o selo da compra — esses ficam no <b>simulador de IMT</b>.</p>
+      </div>
+
+      <a class="btn btn--solid" href="https://wa.me/351000000000" data-c-href="consultor.whatsapp" target="_blank" rel="noopener" data-c="credito.cta">Quero ajuda com o crédito</a>
+    </aside>
+
+  </div>
+</section>
+
+<!-- FOOTER — o mesmo da home; só mudam os href das âncoras -->
+<footer class="ft" id="ft">
+  <p class="ft__giant" aria-hidden="true" data-i18n="ft.brandBig">Nome do Consultor</p>
+  <div class="ft__fade" aria-hidden="true"></div>
+
+  <div class="ft__crest ft-rev">
+    <span class="ft__logo">
+      <span style="font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;text-align:center;line-height:1.5" data-c="consultor.agencia">Nome da Agência</span>
+    </span>
+  </div>
+
+  <div class="ft__inner">
+    <p class="kicker ft__eyebrow ft-rev" style="--ft-d:.05s" data-i18n="ft.role">Consultor Imobiliário</p>
+    <h2 class="ft__brand ft-rev" style="--ft-d:.12s" data-i18n="ft.brand">Nome do Consultor</h2>
+    <p class="ft__desc ft-rev" style="--ft-d:.18s" data-i18n="ft.desc">Consultoria imobiliária em Cidade e em todo o país, do primeiro contacto à escritura.</p>
+
+    <ul class="ft__social ft-rev" style="--ft-d:.24s">
+      <li>
+        <a href="https://instagram.com/exemplo" data-c-href="consultor.instagram" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5"/><circle cx="12" cy="12" r="3.9"/><circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none"/></svg>
+          <span class="ft__sr" data-i18n="ft.soc.ig">Instagram</span>
+        </a>
+      </li>
+      <li>
+        <a href="https://wa.me/351000000000" data-c-href="consultor.whatsapp" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.4 11.7a8.4 8.4 0 0 1-12.5 7.3l-4.3 1.5 1.5-4.2A8.4 8.4 0 1 1 20.4 11.7Z"/><path d="M9.1 8.7c.3 0 .5.2.6.4l.6 1.4c.1.2 0 .4-.1.5l-.6.7c.4.9 1.3 1.8 2.2 2.2l.7-.6c.1-.1.3-.2.5-.1l1.4.6c.2.1.4.3.4.6 0 .9-.7 1.6-1.6 1.6a6.8 6.8 0 0 1-6.1-6.1c0-.9.7-1.6 1.6-1.6Z"/></svg>
+          <span class="ft__sr" data-i18n="ft.soc.wa">WhatsApp</span>
+        </a>
+      </li>
+      <li>
+        <a href="tel:+351000000000" data-c-tel="consultor.telefone_e164">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1"/></svg>
+          <span class="ft__sr" data-i18n="ft.soc.tel">Telefone</span>
+        </a>
+      </li>
+    </ul>
+
+    <nav class="ft__nav ft-rev" style="--ft-d:.3s" aria-label="Navegação do rodapé">
+      <a href="index.html#top" data-i18n="ft.nav.home">Início</a>
+      <a href="index.html#imovel" data-i18n="ft.nav.buy">Comprar</a>
+      <a href="credito.html" aria-current="page">Crédito</a>
+      <a href="https://instagram.com/exemplo" data-c-href="consultor.instagram" target="_blank" rel="noopener" data-i18n="ft.nav.social">Instagram</a>
+      <a href="index.html#prova" data-i18n="ft.nav.about">Sobre mim</a>
+    </nav>
+  </div>
+
+  <div class="ft__base ft-rev" style="--ft-d:.36s">
+    <p class="ft__copy" data-i18n="ft.copy">© 2026 Nome do Consultor · Consultor Imobiliário Nome da Agência · Cidade, Portugal</p>
+    <p class="ft__legal" data-i18n="ft.privacy">Política de Privacidade</p>
+    <p class="ft__legal" data-i18n="ft.ami">Nome da Agência &middot; AMI 0000</p>
+    <p class="ft__net"><span class="ft__dot" aria-hidden="true"></span><span data-i18n="ft.net">Nome da Agência · Cidade</span></p>
+  </div>
+</footer>
+
+<script>
+/* =========================================================
+   TUDO dentro de DOMContentLoaded, e não à solta: um <script> inline no fim
+   do body corre DURANTE o parse, ou seja ANTES dos scripts com defer. Sem
+   esta espera, o CALC (assets/calculators.js, com defer) ainda não existia
+   aqui. Os defer correm sempre antes do DOMContentLoaded.
+   ========================================================= */
+document.addEventListener('DOMContentLoaded', function(){
+
+/* =========================================================
+   TL — utilitários partilhados pelas páginas de ferramenta.
+   A aritmética está toda em assets/calculators.js (window.CALC); aqui só
+   se lê o DOM e se escreve o resultado.
+   ========================================================= */
+var TL = {
+  money: CALC.money,
+  pc: CALC.pc,
+  rate: CALC.rate,
+  num: function(id){ var el = document.getElementById(id); return el ? CALC.parseNumPT(el.value) : 0; },
+  set: function(id, txt){ var el = document.getElementById(id); if(el) el.textContent = txt; },
+  val: function(id, txt){ var el = document.getElementById(id); if(el) el.value = txt; },
+
+  /* botões segmentados: devolve o valor escolhido e chama de volta ao mudar */
+  seg: function(name, onChange){
+    var btns = Array.prototype.slice.call(document.querySelectorAll('[data-seg="' + name + '"] button'));
+    btns.forEach(function(b){
+      b.addEventListener('click', function(){
+        btns.forEach(function(o){ o.setAttribute('aria-pressed', String(o === b)); });
+        onChange(b.dataset.v);
+      });
+    });
+    return function(){
+      var on = btns.filter(function(b){ return b.getAttribute('aria-pressed') === 'true'; })[0];
+      return on ? on.dataset.v : (btns[0] && btns[0].dataset.v);
+    };
+  },
+
+  /* recalcula a cada tecla: um botão "Calcular" só acrescenta um passo.
+     O change cobre os select e o autofill; a função corre uma vez ao carregar
+     para o painel nunca aparecer vazio.
+     O "input" leva ~500 ms de debounce: enquanto se escreve "450000" o valor
+     intermédio não interessa a ninguém, e sem isto o leitor de ecrã anunciava
+     a prestação seis vezes. O "change" (select, autofill, sair do campo) é
+     sempre imediato — aí o utilizador já acabou de decidir. */
+  live: function(fn){
+    var t;
+    var debounced = function(){ clearTimeout(t); t = setTimeout(fn, 500); };
+    var immediate = function(){ clearTimeout(t); fn(); };
+    document.querySelectorAll('.tl-panel input, .tl-panel select').forEach(function(el){
+      el.addEventListener('input', debounced);
+      el.addEventListener('change', immediate);
+    });
+    fn();
+  },
+
+  reveal: function(){
+    document.documentElement.classList.add('tl-js');
+    var items = Array.prototype.slice.call(document.querySelectorAll('.tl-rev'));
+    if(!items.length) return;
+    var show = function(){ items.forEach(function(el){ el.classList.add('is-in'); }); };
+    if(!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion:reduce)').matches){ show(); return; }
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('is-in'); io.unobserve(e.target); } });
+    }, {rootMargin:'0px 0px -10% 0px', threshold:.1});
+    items.forEach(function(el){ io.observe(el); });
+  }
+};
+
+/* =========================================================
+   CRÉDITO HABITAÇÃO. A guarda de arranque é o primeiro input: é assim que o
+   mesmo bloco pode viver em várias páginas sem rebentar.
+   ========================================================= */
+(function TL_credito(){
+  if(!document.getElementById('c-valor')) return;
+  TL.reveal();
+
+  var sel = document.getElementById('c-prazo');
+  for(var y = 10; y <= 40; y += 5){
+    var o = document.createElement('option');
+    o.value = String(y); o.textContent = y + ' anos';
+    if(y === 30) o.selected = true;
+    sel.appendChild(o);
+  }
+
+  /* campos que aparecem e desaparecem usam hidden e disparam recálculo na
+     mesma acção */
+  var tipo = TL.seg('tipo', function(v){
+    document.getElementById('c-var').hidden = (v !== 'var');
+    document.getElementById('c-fixa').hidden = (v === 'var');
+    calc();
+  });
+
+  function calc(){
+    var anos = parseInt(document.getElementById('c-prazo').value, 10) || 30;
+    var r = CALC.simularCredito({
+      valor:    TL.num('c-valor'),
+      entrada:  TL.num('c-entrada'),
+      anos:     anos,
+      tipo:     tipo(),
+      euribor:  TL.num('c-euribor'),
+      spread:   TL.num('c-spread'),
+      taxaFixa: TL.num('c-taxafixa'),
+      idade:    TL.num('c-idade')
+    });
+
+    /* campos derivados do formulário */
+    TL.val('c-fin', TL.money(r.financiado));
+    TL.val('c-ltv', isFinite(r.ltv) ? TL.pc(r.ltv) : '—');
+    TL.val('c-tan', TL.pc(r.tan));
+
+    TL.set('c-idadeaviso', r.avisoIdade
+      ? 'O crédito terminaria aos ' + r.idadeFim + ' anos. A maioria dos bancos exige que termine até aos 75, o que encurta o prazo possível.'
+      : '');
+
+    /* painel de resultado */
+    TL.set('c-prest',   TL.money(r.prestacao));
+    TL.set('c-isjuros', TL.money(r.isJuros1));
+    TL.set('c-selolab', TL.rate(r.taxaSelo) + ' do montante financiado');
+    TL.set('c-selo',    TL.money(r.selo));
+    TL.set('c-inicio',  TL.money(r.dinheiroInicio));
+    TL.set('c-juros',   TL.money(r.totalJuros));
+    TL.set('c-mtic',    TL.money(r.mtic));
+  }
+
+  TL.live(calc);
+})();
+
+/* =========================================================
+   O FIO — mede o centro real das bolas e cronometra cada clarão pelo
+   instante em que a faísca lá chega, não a compasso fixo.
+   ========================================================= */
+(function TL_wire(){
+  var cols = document.querySelector('.tl-cols');
+  if(!cols) return;
+  var bolas = Array.prototype.slice.call(cols.querySelectorAll('.tl-panel__n'));
+  if(bolas.length < 2) return;
+
+  var fio = document.createElement('span');
+  fio.className = 'tl-wire';
+  fio.setAttribute('aria-hidden', 'true');
+  fio.innerHTML = '<span class="tl-wire__trail"></span><span class="tl-wire__spark"></span>';
+  cols.insertBefore(fio, cols.firstChild);
+
+  var DUR = 3.4, LEN = 86;
+
+  function colocar(){
+    var c = cols.getBoundingClientRect();
+    var pts = bolas.map(function(b){
+      var r = b.getBoundingClientRect();
+      return {x:r.x + r.width / 2 - c.x, y:r.y + r.height / 2 - c.y};
+    });
+    var a = pts[0], z = pts[pts.length - 1];
+    fio.style.cssText = 'left:' + (a.x - 1) + 'px;top:' + a.y + 'px;width:2px;height:' + (z.y - a.y) + 'px';
+
+    /* conta-se pelo CENTRO da faísca e desconta-se o instante do clarão dentro
+       do keyframe (5% da volta), senão a última bola acendia antes da primeira */
+    var vao = z.y - a.y;
+    bolas.forEach(function(b, i){
+      var chega = (pts[i].y - a.y + LEN / 2) / (vao + LEN) * DUR;
+      /* atraso NEGATIVO quando a faísca chega antes do instante do clarão:
+         enrolar para o positivo fazia a primeira bola ficar apagada durante o
+         primeiro ciclo inteiro. Um delay negativo arranca a meio, que é o certo. */
+      var atraso = (chega - DUR * 0.05).toFixed(2) + 's';
+      b.style.animationDelay = atraso;
+      var painel = b.closest('.tl-panel');
+      if(painel) painel.style.animationDelay = atraso;
+    });
+  }
+
+  colocar();
+  window.addEventListener('load', colocar);
+  var t;
+  window.addEventListener('resize', function(){ clearTimeout(t); t = setTimeout(colocar, 140); });
+  /* os painéis mudam de altura quando se abrem e fecham campos (taxa fixa) */
+  if(window.ResizeObserver){
+    var ro = new ResizeObserver(function(){ colocar(); });
+    cols.querySelectorAll('.tl-panel').forEach(function(p){ ro.observe(p); });
+  }
+})();
+
+}); /* fim do DOMContentLoaded */
+</script>
+
+</body>
+</html>

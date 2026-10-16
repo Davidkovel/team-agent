@@ -1,0 +1,97 @@
+<!doctype html><html lang="pt"><head><meta charset="utf-8">
+<!-- Cartao de pre-visualizacao 1200x630. Renderizar com scripts/render-og.py.
+     A pagina E a imagem: tamanho fixo, sem scroll, sem responsivo. -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family={{FONTE_DISPLAY_URL}}&family={{FONTE_TEXTO_URL}}&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* --- trocar aqui as cores de marca, de uma vez --- */
+  --bg:{{COR_FUNDO}};          /* fundo do cartao; igual ao theme-color do site */
+  --bg-rgb:{{COR_FUNDO_RGB}};  /* o mesmo em "r,g,b" — o veu precisa de alfa */
+  --accent:{{COR_ACENTO}};     /* barras e regua */
+  --accent-soft:{{COR_ACENTO_CLARO}}; /* kicker */
+  --accent-rule:{{COR_ACENTO_REGUA}};
+  --ink:{{COR_TEXTO}};         /* nome */
+  --muted:{{COR_TEXTO_SEC}};   /* funcao */
+  --meta:{{COR_META}};
+  --faint:{{COR_META_FRACA}};
+  --font-display:"{{FONTE_DISPLAY}}",sans-serif;
+  --font-text:"{{FONTE_TEXTO}}",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1200px;height:630px;overflow:hidden}
+body{background:var(--bg);font-family:var(--font-text);position:relative;color:var(--ink)}
+
+/* barras do heroi: mesma cor de acento, a subir do fundo.
+   opacidade baixa — sao textura, nao assunto. */
+.bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:10px;opacity:.55}
+.bars i{flex:1;background:linear-gradient(180deg,rgba(var(--accent-rgb),0) 0%,var(--accent) 100%);border-radius:2px 2px 0 0}
+
+/* o veu assenta o texto a esquerda. TEM de chegar a zero no fim:
+   se parar numa opacidade residual ve-se um degrau vertical a meio,
+   e o JPEG transforma esse degrau em bandas. */
+.veil{position:absolute;inset:0;background:
+  radial-gradient(120% 90% at 8% 30%, rgba(var(--bg-rgb),.92) 40%, rgba(var(--bg-rgb),.55) 75%, rgba(var(--bg-rgb),.2) 100%),
+  linear-gradient(90deg, rgba(var(--bg-rgb),.96) 30%, rgba(var(--bg-rgb),.55) 52%, rgba(var(--bg-rgb),0) 70%)}
+
+/* recorte da pessoa: encostado ao canto, quase a altura toda, para assentar
+   na base em vez de flutuar. filtros acima de 1 porque um recorte sobre fundo
+   escuro le sempre mais apagado do que o original.
+   duas mascaras compostas: a horizontal dissolve o lado esquerdo para dentro
+   do fundo (em vez de o cortar a direito), a vertical apaga a linha do corte
+   em baixo. */
+.photo{position:absolute;right:-10px;bottom:0;height:598px;width:auto;object-fit:contain;
+  filter:brightness(1.13) contrast(1.04) saturate(1.03);
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 22%),linear-gradient(180deg,#000 82%,transparent 100%);
+  -webkit-mask-composite:source-in;mask-composite:intersect}
+
+.wrap{position:absolute;inset:0;padding:74px 72px;display:flex;flex-direction:column;justify-content:center;max-width:760px}
+.kick{font-size:20px;letter-spacing:5.5px;font-weight:600;color:var(--accent-soft);text-transform:uppercase}
+h1{font-family:var(--font-display);font-weight:700;font-size:96px;line-height:1.02;letter-spacing:-2.5px;margin:20px 0 10px}
+.sub{font-size:38px;color:var(--muted);font-weight:400;letter-spacing:-.4px}
+.rule{width:72px;height:3px;background:var(--accent-rule);border-radius:2px;margin:30px 0 26px}
+.meta{font-size:23px;color:var(--meta);font-weight:500}
+.meta2{font-size:21px;color:var(--faint);margin-top:9px}
+
+/* o halo escuro por baixo do logo: sem ele o logo cai em cima do recorte
+   da pessoa e fica ilegivel. */
+.logoglow{position:absolute;right:16px;bottom:8px;width:180px;height:180px;border-radius:50%;
+  background:radial-gradient(circle,rgba(var(--bg-rgb),.92) 30%,rgba(var(--bg-rgb),0) 70%)}
+.logo{position:absolute;right:56px;bottom:48px;width:96px;height:96px;border-radius:22px;
+  box-shadow:0 10px 40px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.10)}
+</style></head><body>
+
+<div class="bars" id="bars"></div>
+<img class="photo" src="{{FOTO}}" alt="">
+<div class="veil"></div>
+
+<div class="wrap">
+  <p class="kick">{{KICKER}}</p>
+  <h1>{{NOME}}</h1>
+  <p class="sub">{{FUNCAO}}</p>
+  <div class="rule"></div>
+  <p class="meta">{{META1}}</p>
+  <p class="meta2">{{META2}}</p>
+</div>
+
+<div class="logoglow"></div>
+<img class="logo" src="{{LOGO}}" alt="">
+
+<script>
+/* alturas FIXAS, nao aleatorias: o cartao tem de sair igual em cada render,
+   senao cada versao do ficheiro e visualmente diferente sem razao. */
+var h=[38,62,30,78,48,88,34,70,44,92,36,60,50,82,40,74,32,66,46,86,30,58,42,76,52,90,34,64,44,80];
+var bars=document.getElementById("bars");
+h.forEach(function(v){var i=document.createElement("i");i.style.height=v+"%";bars.appendChild(i)});
+
+/* --accent em "r,g,b" para o gradiente das barras, derivado de --accent
+   para nao haver duas fontes de verdade para a mesma cor. */
+(function(){
+  var c=getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  var p=document.createElement("span");p.style.color=c;document.body.appendChild(p);
+  var rgb=getComputedStyle(p).color.match(/\d+/g).slice(0,3).join(",");
+  p.remove();
+  document.documentElement.style.setProperty("--accent-rgb",rgb);
+})();
+</script>
+</body></html>

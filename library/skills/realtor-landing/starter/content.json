@@ -1,0 +1,101 @@
+{
+  "_leia_me": "CONTRATO DO SITE. Tudo o que é específico do cliente vive aqui e mais em lado nenhum. O assets/content.js lê este ficheiro e reescreve o HTML e o dicionário de i18n do shell. Os valores abaixo são NEUTROS, de exemplo: não são de ninguém. Trocar por dados reais antes de publicar.",
+
+  "consultor": {
+    "nome": "Nome do Consultor",
+    "funcao": "Consultor Imobiliário",
+    "cidade": "Cidade",
+    "zona": "Zona",
+    "telefone_display": "+351 000 000 000",
+    "telefone_e164": "+351000000000",
+    "whatsapp": "https://wa.me/351000000000",
+    "instagram": "https://instagram.com/exemplo",
+    "agencia": "Nome da Agência",
+    "ami": "0000",
+    "dominio": "https://exemplo.pt",
+    "ano": "2026"
+  },
+
+  "marca": {
+    "_nota": "As cores vivem em assets/shell.css (:root). Estão repetidas aqui porque fazem parte do contrato — quem troca uma troca as duas. As fontes carregam-se no <head> de cada página, pela Google Fonts.",
+    "cores": {
+      "ink": "#F2F5FA",
+      "muted": "#AEB9CC",
+      "faint": "#8792A6",
+      "accent": "#4D8DF6",
+      "accent_2": "#9DC2FF",
+      "line": "rgba(255,255,255,.12)",
+      "bg": "rgb(10,10,10)",
+      "gbars_de": "rgb(28, 100, 242)"
+    },
+    "fontes": {
+      "display": "Outfit",
+      "sans": "Inter",
+      "google_fonts": "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+    }
+  },
+
+  "seo": {
+    "index": {
+      "titulo": "Nome do Consultor · Consultor Imobiliário em Cidade",
+      "descricao": "Consultoria imobiliária em Cidade e em todo o país. Avaliação, venda e acompanhamento do primeiro contacto à escritura. Simuladores de crédito, IMT e mais-valias."
+    },
+    "credito": {
+      "titulo": "Simulador de Crédito Habitação · Nome do Consultor",
+      "descricao": "Calcule a prestação mensal, o Imposto do Selo e o custo total do crédito habitação. Simulação indicativa, em segundos, sem registo."
+    }
+  },
+
+  "hero": {
+    "kicker": "Comprar · Vender · Cidade",
+    "linha1": "Ajudo proprietários",
+    "linha2_antes": "a vender ",
+    "linha2_destaque": "melhor.",
+    "sub": "Do primeiro contacto à escritura. Em Cidade e em todo o país.",
+    "cta_primario": { "texto": "Vender o meu imóvel", "href": "#imovel" },
+    "cta_secundario": { "texto": "Quero comprar", "href": "#imovel" }
+  },
+
+  "ponte": {
+    "frase": "Cada imóvel tem uma história e um valor justo."
+  },
+
+  "imovel": {
+    "kicker": "Imóvel em carteira",
+    "titulo": "O apartamento que tenho para vender agora.",
+    "lead": "Abra a ficha para o ver por dentro, divisão a divisão.",
+    "zona": "Zona · Cidade",
+    "nome": "Apartamento T0 com terraço e garagem",
+    "preco": "000 000 €",
+    "fotos": "00 fotografias",
+    "area": "00 m²",
+    "quartos": "0",
+    "casas_de_banho": "0",
+    "certificado": "—",
+    "extras": "Garagem fechada · Terraço privativo · Prédio com elevador",
+    "ref": "0000",
+    "href": "#imovel",
+    "_nota_href": "Trocar por imovel.html quando a ficha de imóvel existir."
+  },
+
+  "prova": {
+    "titulo": "Três factos, e nenhum número inventado.",
+    "lead": "Os indicadores do site são verificáveis: a rede, a cobertura e o tempo de resposta. Nada de estatísticas de apresentação de vendas.",
+    "itens": [
+      { "valor": "Nome da Agência", "rotulo": "Rede & retaguarda" },
+      { "valor": "Cidade", "rotulo": "& todo o país" },
+      { "valor": "No próprio dia", "rotulo": "Resposta pessoal" }
+    ]
+  },
+
+  "credito": {
+    "kicker": "Ferramentas",
+    "h1": "Quanto lhe fica a casa, ao mês.",
+    "lead": "Prestação, selos e o custo total do crédito ao fim de todos os anos. Mexa nos números e veja o que muda.",
+    "cta": "Quero ajuda com o crédito"
+  },
+
+  "footer": {
+    "desc": "Consultoria imobiliária em Cidade e em todo o país, do primeiro contacto à escritura."
+  }
+}

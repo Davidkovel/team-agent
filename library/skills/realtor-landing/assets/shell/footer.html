@@ -1,0 +1,86 @@
+<!-- =========================================================
+     SHELL / FOOTER — fecho da página.
+     Origem: site de referência do género (BLOCO C do index). Nas páginas
+     vender e crédito o footer é EXATAMENTE o mesmo: só mudam os href das
+     âncoras da home (#top → index.html#top, #imovel → index.html#imovel).
+
+     SUBSTITUIR:
+       {{NOME}}            nome do consultor
+       {{AGENCIA}}         agência / rede
+       {{AMI}}             número(s) de licença AMI
+       {{CIDADE}}          cidade base
+       {{ANO}}             ano do copyright
+       {{WHATSAPP}}        URL wa.me completo
+       {{INSTAGRAM}}       URL do perfil
+       {{TELEFONE_E164}}   número em formato +351XXXXXXXXX
+       {{HOME}} {{COMPRAR}} {{REDES}}  âncoras (ver navbar.html)
+
+     Fundo TRANSPARENTE de propósito: as barras fixas do fundo continuam a
+     ver-se; o contraste vem de véus parciais e de painéis locais, nunca de
+     um fundo opaco.
+     ========================================================= -->
+
+<footer class="ft" id="ft">
+
+  <!-- assinatura gráfica 1: nome gigante, decorativo, atrás de tudo -->
+  <p class="ft__giant" aria-hidden="true" data-i18n="ft.brandBig">{{NOME}}</p>
+
+  <!-- assinatura gráfica 2: esbatimento sobre a parte de baixo -->
+  <div class="ft__fade" aria-hidden="true"></div>
+
+  <!-- assinatura gráfica 3: logótipo da rede em caixa de vidro -->
+  <div class="ft__crest ft-rev">
+    <span class="ft__logo">
+      <!-- width/height reais do ficheiro: forçar um quadrado deforma o lockup -->
+      <img class="ft__logoimg" src="assets/logo-white.png" width="727" height="385" loading="lazy" decoding="async" alt="{{AGENCIA}} — AMI {{AMI}}" />
+    </span>
+  </div>
+
+  <div class="ft__inner">
+    <p class="kicker ft__eyebrow ft-rev" style="--ft-d:.05s" data-i18n="ft.role">Consultor Imobiliário</p>
+    <h2 class="ft__brand ft-rev" style="--ft-d:.12s" data-i18n="ft.brand">{{NOME}}</h2>
+    <p class="ft__desc ft-rev" style="--ft-d:.18s" data-i18n="ft.desc">Consultoria imobiliária em {{CIDADE}} e em todo o país, do primeiro contacto à escritura.</p>
+
+    <ul class="ft__social ft-rev" style="--ft-d:.24s">
+      <li>
+        <a href="{{INSTAGRAM}}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5"/><circle cx="12" cy="12" r="3.9"/><circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none"/></svg>
+          <!-- o ícone é decorativo; o nome do destino só existe para leitor de ecrã -->
+          <span class="ft__sr" data-i18n="ft.soc.ig">Instagram</span>
+        </a>
+      </li>
+      <li>
+        <a href="{{WHATSAPP}}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.4 11.7a8.4 8.4 0 0 1-12.5 7.3l-4.3 1.5 1.5-4.2A8.4 8.4 0 1 1 20.4 11.7Z"/><path d="M9.1 8.7c.3 0 .5.2.6.4l.6 1.4c.1.2 0 .4-.1.5l-.6.7c.4.9 1.3 1.8 2.2 2.2l.7-.6c.1-.1.3-.2.5-.1l1.4.6c.2.1.4.3.4.6 0 .9-.7 1.6-1.6 1.6a6.8 6.8 0 0 1-6.1-6.1c0-.9.7-1.6 1.6-1.6Z"/></svg>
+          <span class="ft__sr" data-i18n="ft.soc.wa">WhatsApp</span>
+        </a>
+      </li>
+      <li>
+        <!-- ÚNICO tel: aceitável do shell: é um ícone de telefone com o rótulo
+             "Telefone" para leitor de ecrã, num sítio onde ligar é o que se
+             espera. Em navegação (CTA da navbar, botões de hero) NUNCA. -->
+        <a href="tel:{{TELEFONE_E164}}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1"/></svg>
+          <span class="ft__sr" data-i18n="ft.soc.tel">Telefone</span>
+        </a>
+      </li>
+    </ul>
+
+    <nav class="ft__nav ft-rev" style="--ft-d:.3s" aria-label="Navegação do rodapé">
+      <a href="{{HOME}}" data-i18n="ft.nav.home">Início</a>
+      <a href="{{COMPRAR}}" data-i18n="ft.nav.buy">Comprar</a>
+      <a href="vender.html" data-i18n="ft.nav.sell">Vender</a>
+      <a href="{{REDES}}" data-i18n="ft.nav.social">Instagram</a>
+      <a href="sobre.html" data-i18n="ft.nav.about">Sobre mim</a>
+    </nav>
+  </div>
+
+  <div class="ft__base ft-rev" style="--ft-d:.36s">
+    <p class="ft__copy" data-i18n="ft.copy">© {{ANO}} {{NOME}} · Consultor Imobiliário {{AGENCIA}} · {{CIDADE}}, Portugal</p>
+    <a class="ft__legal" href="privacidade.html" data-i18n="ft.privacy">Política de Privacidade</a>
+    <!-- o AMI é obrigatório por lei em comunicação de mediação imobiliária -->
+    <p class="ft__legal" data-i18n="ft.ami">{{AGENCIA}} &middot; AMI {{AMI}}</p>
+    <p class="ft__net"><span class="ft__dot" aria-hidden="true"></span><span data-i18n="ft.net">{{AGENCIA}} · {{CIDADE}}</span></p>
+  </div>
+
+</footer>

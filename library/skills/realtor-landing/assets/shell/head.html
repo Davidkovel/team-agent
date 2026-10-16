@@ -1,0 +1,81 @@
+<!-- =========================================================
+     SHELL / HEAD — esqueleto do <head> de TODAS as páginas.
+     Origem: site de referência do género (index/vender/crédito com heads
+     idênticos, só muda título/descrição/canonical/OG), cruzado com um segundo
+     site de referência do género (regras de OG absoluto).
+
+     SUBSTITUIR antes de publicar:
+       {{TITULO}}       título da página (≤ 60 caracteres, marca no fim)
+       {{DESCRICAO}}    meta description da página (140-160 caracteres)
+       {{DOMINIO}}      domínio final COM https, sem barra no fim (ex.: https://exemplo.pt)
+       {{PAGINA}}       caminho da página a partir da raiz ("" na home, "vender.html" nas outras)
+       {{SLUG}}         slug do cliente usado no nome do cartão OG (og-{{SLUG}}-v1.jpg)
+       {{NOME}}         nome do consultor
+       {{AGENCIA}}      agência / rede
+       {{CIDADE}}       cidade base
+       {{COR_TEMA}}     cor de fundo do site em hex (== --bg do shell.css)
+       {{FONTE_DISPLAY}} e {{FONTE_SANS}}  famílias Google Fonts
+     ========================================================= -->
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>{{TITULO}}</title>
+<meta name="description" content="{{DESCRICAO}}" />
+<!-- canonical em cada página, sempre absoluto: sem ele as versões com e sem
+     barra final, com utm_* e com #âncora contam como páginas diferentes -->
+<link rel="canonical" href="{{DOMINIO}}/{{PAGINA}}" />
+
+<!-- favicon — SVG primeiro (escala em qualquer densidade), PNGs para quem não o lê -->
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="icon" href="assets/favicon-48.png" sizes="48x48" type="image/png" />
+<link rel="icon" href="assets/favicon-192.png" sizes="192x192" type="image/png" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<!-- igual ao --bg: pinta a barra do browser em Android e o notch em iOS,
+     senão fica uma faixa branca por cima de um site escuro -->
+<meta name="theme-color" content="{{COR_TEMA}}" />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<!-- As URLs de OG têm de ser ABSOLUTAS e apontar para o domínio onde o site
+     vive mesmo. Num dos sites de referência a og:image apontava para um domínio
+     comprado mas nunca configurado: o scraper pedia a imagem lá, levava com um
+     erro de ligação e a partilha saía sem pré-visualização nenhuma. -->
+<meta property="og:url" content="{{DOMINIO}}/{{PAGINA}}" />
+<meta property="og:site_name" content="{{NOME}} · Consultor Imobiliário" />
+<meta property="og:title" content="{{TITULO}}" />
+<meta property="og:description" content="{{DESCRICAO}}" />
+<meta property="og:image" content="{{DOMINIO}}/assets/og-{{SLUG}}-v1.jpg" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="{{NOME}}, consultor imobiliário {{AGENCIA}}" />
+<meta property="og:locale" content="pt_PT" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:locale:alternate" content="fr_FR" />
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{{TITULO}}" />
+<meta name="twitter:description" content="{{DESCRICAO}}" />
+<meta name="twitter:image" content="{{DOMINIO}}/assets/og-{{SLUG}}-v1.jpg" />
+
+<!-- fontes: preconnect aos dois hosts (o gstatic leva crossorigin, é de lá que
+     vêm os ficheiros .woff2); display=swap para o texto aparecer já -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family={{FONTE_DISPLAY}}&family={{FONTE_SANS}}&display=swap" rel="stylesheet">
+
+<!-- ===== VIA A (recomendada, ver references/shell.md): ficheiros partilhados =====
+     O CSS entra aqui; o JS entra com defer para não bloquear o render e para
+     correr já com o DOM montado (o shell.js não usa DOMContentLoaded). -->
+<link rel="stylesheet" href="assets/shell.css" />
+<script defer src="assets/shell.js"></script>
+
+<!-- ===== VIA B: shell copiado para dentro da página =====
+     Apaga as duas linhas acima e cola o conteúdo de shell.css dentro de um
+     <style> aqui, e o de shell.js num <script> antes de </body>. -->
+
+<!-- CSS específico DESTA página (secções, não shell) vai a seguir, num <style>
+     ou noutro <link>. Nunca redefinir aqui tokens do shell: muda-se o token. -->

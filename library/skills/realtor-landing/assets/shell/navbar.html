@@ -1,0 +1,144 @@
+<!-- =========================================================
+     SHELL / NAVBAR — pílula fixa + submenus + seletor de idioma
+     + menu de ecrã inteiro em mobile.
+     Origem: site de referência do género (bloco NAVBAR do index), confirmado
+     igual nas páginas vender e crédito — só mudam os href relativos
+     e o aria-current="page".
+
+     SUBSTITUIR:
+       {{NOME}}       nome mostrado ao lado da marca
+       {{WHATSAPP}}   URL wa.me completo (ex.: https://wa.me/351900000000)
+       {{HOME}}       "#top" na home, "index.html#top" nas páginas interiores
+       {{COMPRAR}}    "#imovel" na home, "index.html#imovel" nas interiores
+       o <svg> da marca  pelo logótipo do cliente (ou um <img>)
+
+     REGRAS QUE NÃO SE MEXEM:
+     1. "Imóveis" NÃO navega. É um <button> que desce Comprar / Vender.
+        Um item de topo que já é destino e ainda abre submenu obriga a
+        adivinhar se o clique navega ou abre — e em touch nunca abre.
+     2. NUNCA href="tel:" num CTA de navegação. Em macOS o tel: abre o
+        FaceTime e o utilizador leva com um diálogo que não pediu. O tel:
+        só entra em botões que digam literalmente "Ligar" — nesses o
+        utilizador sabe o que vai acontecer.
+     3. Em cada página, marcar o destino atual com aria-current="page"
+        (no link do submenu e no equivalente do menu mobile).
+     ========================================================= -->
+
+<div class="nv">
+  <div class="nv__bar">
+    <a class="nv__brand" href="{{HOME}}">
+      <span class="nv__mark">
+        <!-- monograma do cliente; viewBox quadrado, 512x512 -->
+        <svg viewBox="0 0 512 512" aria-hidden="true">
+          <defs><linearGradient id="nvg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+            <stop stop-color="var(--accent-2)"/><stop offset="1" stop-color="var(--accent)"/>
+          </linearGradient></defs>
+          <rect width="512" height="512" rx="116" fill="url(#nvg)"/>
+          <!-- substituir este path pelo monograma real -->
+          <path fill="#fff" d="M150 125 H265 A115 131 0 0 1 265 387 H150 Z"/>
+        </svg>
+      </span>
+      <span class="nv__name">{{NOME}}</span>
+    </a>
+
+    <nav class="nv__links" aria-label="Navegação principal">
+      <a href="{{HOME}}" data-i18n="nav.home">Início</a>
+
+      <!-- "Imóveis" não reencaminha já: desce as duas opções primeiro -->
+      <div class="nv__item" id="nv-imoveis">
+        <button type="button" class="nv__top" aria-expanded="false" aria-controls="nv-imoveis-drop">
+          <span data-i18n="nav.imoveis">Imóveis</span>
+          <svg class="nv__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="nv__drop" id="nv-imoveis-drop">
+          <a href="{{COMPRAR}}">
+            <b data-i18n="nav.comprar">Comprar</b>
+            <span data-i18n="nav.comprarSub">Os imóveis disponíveis para venda</span>
+          </a>
+          <a href="vender.html">
+            <b data-i18n="nav.vender">Vender</b>
+            <span data-i18n="nav.venderSub">Avaliação gratuita do seu imóvel</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Ferramentas: os três simuladores do género -->
+      <div class="nv__item" id="nv-ferramentas">
+        <button type="button" class="nv__top" aria-expanded="false" aria-controls="nv-ferramentas-drop">
+          <span data-i18n="nav.tools">Ferramentas</span>
+          <svg class="nv__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="nv__drop" id="nv-ferramentas-drop">
+          <a href="credito.html"><b data-i18n="nav.tCred">Simulador de Crédito</b><span data-i18n="nav.tCredSub">Prestação, selos e custo total</span></a>
+          <a href="mais-valias.html"><b data-i18n="nav.tMv">Mais-Valias</b><span data-i18n="nav.tMvSub">IRS na venda de um imóvel</span></a>
+          <a href="imt.html"><b data-i18n="nav.tImt">Simulador de IMT</b><span data-i18n="nav.tImtSub">IMT e Imposto do Selo na compra</span></a>
+        </div>
+      </div>
+
+      <a href="sobre.html" data-i18n="nav.sobre">Sobre mim</a>
+    </nav>
+
+    <div class="nv__right">
+      <!-- SELETOR DE IDIOMA (barra). O mesmo bloco repete-se dentro do menu
+           mobile: os dois são [data-lang-root] e o shell.js sincroniza ambos. -->
+      <div class="lang" data-lang-root>
+        <button type="button" class="lang__btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Idioma / Language">
+          <span class="lang__flag" aria-hidden="true">🇵🇹</span>
+          <span class="lang__code">PT</span>
+          <svg class="lang__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="lang__menu" role="listbox" aria-label="Idioma / Language">
+          <button type="button" class="lang__opt" role="option" aria-selected="true"  data-lang="pt"><span class="lang__flag" aria-hidden="true">🇵🇹</span><span class="lang__name">Português</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+          <button type="button" class="lang__opt" role="option" aria-selected="false" data-lang="en"><span class="lang__flag" aria-hidden="true">🇬🇧</span><span class="lang__name">English</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+          <button type="button" class="lang__opt" role="option" aria-selected="false" data-lang="fr"><span class="lang__flag" aria-hidden="true">🇫🇷</span><span class="lang__name">Français</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+        </div>
+      </div>
+
+      <!-- CTA: WhatsApp, nunca tel: (ver regra 2 no topo) -->
+      <a class="nv__cta" href="{{WHATSAPP}}" target="_blank" rel="noopener" data-i18n="nav.cta">Contactar</a>
+
+      <button class="nv__burger" id="nv-burger" aria-controls="nv-menu" aria-expanded="false" aria-label="Abrir menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- MENU DE ECRÃ INTEIRO (mobile). Entra pela direita; o shell.js trata do
+       foco preso, do Esc e do bloqueio de scroll. -->
+  <div class="nv__menu" id="nv-menu">
+    <button class="nv__close" id="nv-close" aria-label="Fechar menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+
+    <a href="{{HOME}}" data-i18n="nav.home">Início</a>
+
+    <p class="nv__mgroup" data-i18n="nav.imoveis">Imóveis</p>
+    <a class="nv__msub" href="{{COMPRAR}}"><b data-i18n="nav.comprar">Comprar</b><span data-i18n="nav.comprarSub">Os imóveis disponíveis para venda</span></a>
+    <a class="nv__msub" href="vender.html"><b data-i18n="nav.vender">Vender</b><span data-i18n="nav.venderSub">Avaliação gratuita do seu imóvel</span></a>
+
+    <p class="nv__mgroup" data-i18n="nav.tools">Ferramentas</p>
+    <a class="nv__msub" href="credito.html"><b data-i18n="nav.tCred">Simulador de Crédito</b><span data-i18n="nav.tCredSub">Prestação, selos e custo total</span></a>
+    <a class="nv__msub" href="mais-valias.html"><b data-i18n="nav.tMv">Mais-Valias</b><span data-i18n="nav.tMvSub">IRS na venda de um imóvel</span></a>
+    <a class="nv__msub" href="imt.html"><b data-i18n="nav.tImt">Simulador de IMT</b><span data-i18n="nav.tImtSub">IMT e Imposto do Selo na compra</span></a>
+
+    <!-- "Sobre mim" leva legenda como os outros: sem ela era o único item da
+         gaveta sem uma linha por baixo e lia-se como um título de secção vazia
+         em vez de um destino. -->
+    <a class="nv__mtop" href="sobre.html"><b data-i18n="nav.sobre">Sobre mim</b><span data-i18n="nav.sobreSub">Conhecer melhor o consultor</span></a>
+
+    <a class="nv__cta" href="{{WHATSAPP}}" target="_blank" rel="noopener" data-i18n="nav.cta">Contactar</a>
+
+    <div class="lang" data-lang-root>
+      <button type="button" class="lang__btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Idioma / Language">
+        <span class="lang__flag" aria-hidden="true">🇵🇹</span>
+        <span class="lang__code">PT</span>
+        <svg class="lang__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="lang__menu" role="listbox" aria-label="Idioma / Language">
+        <button type="button" class="lang__opt" role="option" aria-selected="true"  data-lang="pt"><span class="lang__flag" aria-hidden="true">🇵🇹</span><span class="lang__name">Português</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+        <button type="button" class="lang__opt" role="option" aria-selected="false" data-lang="en"><span class="lang__flag" aria-hidden="true">🇬🇧</span><span class="lang__name">English</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+        <button type="button" class="lang__opt" role="option" aria-selected="false" data-lang="fr"><span class="lang__flag" aria-hidden="true">🇫🇷</span><span class="lang__name">Français</span><svg class="lang__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+      </div>
+    </div>
+  </div>
+</div>

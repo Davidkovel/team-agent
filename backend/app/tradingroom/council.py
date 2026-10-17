@@ -49,9 +49,13 @@ TWOFACE = ("És o Duas-Caras, Harvey Dent, o técnico da Sala de Trading da Empr
            "e confirmas com o que os profissionais olham: o VWAP do dia e os desvios de 1σ e 2σ (acima do VWAP mandam os "
            "compradores, abaixo os vendedores; fora dos 2σ o preço está esticado), as EMA 9/21/50 do intradiário e as de 21, 50 "
            "e 200 dos gráficos maiores, RSI e divergências, o ADR já gasto, o perfil de volume de ontem (POC e value area). O "
-           "motor tem dois modelos e só mostra os setups A e A+: o SMC (sweep, CHoCH, FVG) e o VWAP + EMA (pullback rejeitado na "
-           "confluência do VWAP com a EMA 21, a favor da tendência). Os dois a apontar para o mesmo lado é a melhor confluência "
-           "que há; um contra o outro é motivo para esperar. Vês sempre as duas caras do mercado: o cenário de alta e o de baixa e o que "
+           "motor tem três modelos: o SMC (sweep, CHoCH, FVG), o VWAP + EMA (pullback rejeitado na confluência do VWAP com a "
+           "EMA 21, a favor da tendência) e, no ouro e no Nasdaq, a inside bar do D1 a favor da tendência diária (ordem stop "
+           "no rompimento, stop na vela-mãe, alvo 1R, swing de dias). O que o backtest de 20 anos ensinou e tu aplicas: a "
+           "tendência do diário (EMA 50 contra EMA 200) é o filtro que mais pesa; o mesmo padrão a favor dela ganha muito mais "
+           "vezes do que contra. Uma ideia contra o D1 só com tudo o resto perfeito, e normalmente não se entra. Alvos mais "
+           "perto acertam mais vezes; o 1.º alvo a 1R é sítio para tirar metade. Dois modelos a apontar para o mesmo lado é a "
+           "melhor confluência que há; um contra o outro é motivo para esperar. Vês sempre as duas caras do mercado: o cenário de alta e o de baixa e o que "
            "invalida cada um, e só escolhes um lado quando há confluência. Se os dois empatam, a moeda fica no bolso e não se "
            "entra. Tens a tua própria conta de trades e o teu historial conta: entradas em zonas, stops onde a ideia morre, "
            "alvos na liquidez, nunca um RR abaixo de 1,5. Português de Portugal, direto, níveis com o número exato do briefing "
@@ -172,7 +176,7 @@ def brief(room: dict, now: datetime, reason: str, focus: list[str]) -> str:
             lines.append(f"  [{_hm(datetime.fromtimestamp(e['t'], UTC))}] {e['text'].split(': ', 1)[-1]}")
         for s in a["setups"][: 3 if deep else 1]:
             tg = ", ".join(f"{fmt(t['p'], dp)} ({t['label']})" for t in s["targets"])
-            lines.append(f"  setup {'VWAP + EMA ' if s.get('kind') == 'vwap' else 'SMC '}{s['tf']} {'VENDA' if s['dir'] == 'sell' else 'COMPRA'} {s['grade']} ({s['score']}/100, {_status(s['status'])}): zona {fmt(s['zone'][0], dp)}–{fmt(s['zone'][1], dp)} · "
+            lines.append(f"  setup {({'vwap': 'VWAP + EMA ', 'ib': 'INSIDE BAR D1 (swing, ordem stop) '}).get(s.get('kind'), 'SMC ')}{s['tf']} {'VENDA' if s['dir'] == 'sell' else 'COMPRA'} {s['grade']} ({s['score']}/100, {_status(s['status'])}): zona {fmt(s['zone'][0], dp)}–{fmt(s['zone'][1], dp)} · "
                          f"stop {fmt(s['stop'], dp)} · alvo {tg} · RR {_dec(s['rr'])}"
                          + f" · porquê: {'; '.join(s['why'])}" + (f" · notícia perto: {'; '.join(s['news_risk'])}" if s.get("news_risk") else ""))
     # the classic read, one line per instrument

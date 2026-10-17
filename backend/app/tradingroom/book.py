@@ -2,10 +2,12 @@
 every A/A+ setup of the SMC model), followed candle by candle until it ends, and the statistics of each one.
 
 Paper trading, with the rules a desk would use and no favours:
-- an order is a limit at `entry` (a buy limit above the price, or a sell limit below it, is filled at once, at the price);
-  it lives until `valid`; if the first target is reached before it fills, it missed;
+- an order is a limit at `entry` (a buy limit above the price, or a sell limit below it, is filled at once, at the price),
+  or, with `ordem: stop`, a stop order (a buy above the price fills when the price trades up to it, at the open when it
+  gaps past); it lives until `valid`; if the first target is reached before it fills, it missed;
 - once open: the stop is the stop. With two targets, half closes at the first and the stop of the rest goes to the entry;
-  with one, all of it closes there. Open for 72 hours: closed at the price of then;
+  with one, all of it closes there. Open for 72 hours (`max_h` for a swing trade): closed at the price of then;
+- `swing: true` (the inside bar of D1): entry and stop are checked against the daily ATR instead of the H1 one;
 - each candle is read in the worst order for the trade: a candle that touches the stop and the target counts as the stop,
   and on the candle that fills the order only the stop counts;
 - the result is in R (multiples of what was risked), less the typical spread of the instrument;
@@ -21,7 +23,7 @@ from .markets import BY_ID, INSTRUMENTS
 from .sessions import london_offset
 
 UTC = timezone.utc
-AGENTS = {"penguin": "Pinguim", "twoface": "Duas-Caras", "model": "Modelo SMC"}
+AGENTS = {"penguin": "Pinguim", "twoface": "Duas-Caras", "model": "Modelo"}
 ACTIVE = ("pending", "open")
 DONE = ("won", "lost", "be")
 MAX_NEW, MAX_ACTIVE, MAX_HOURS, TIME_STOP_H = 2, 4, 24, 72
@@ -136,8 +138,17 @@ class Book:
             return refuse("faltam direção, entrada, stop ou alvo")
         price, atr = a["price"], a["atr"] or 1
         sign = 1 if side == "buy" else -1
-        # a limit on the far side of the price fills at once, at the price
-        if (t["entry"] - price) * sign >= 0:
+        t["order"] = "stop" if str(it.get("ordem") or "").lower() == "stop" else "limit"
+        t["max_h"] = max(1.0, min(24 * 30, float(num(it.get("max_h")) or TIME_STOP_H)))
+        swing = bool(it.get("swing"))
+        if swing:   # judged on the daily candle: its ATR, not the H1 one
+            atr, unit = ((a.get("tf") or {}).get("D1") or {}).get("atr") or atr * 5, "ATR D1"
+        else:
+            unit = "ATR H1"
+        if t["order"] == "stop":
+            if (t["entry"] - price) * sign <= 0:
+                return refuse("o preço já passou a entrada da ordem stop")
+        elif (t["entry"] - price) * sign >= 0:   # a limit on the far side of the price fills at once, at the price
             t["entry"], t["market"] = price, True
         e, s, p1 = t["entry"], t["stop"], t["tp1"]
         if (e - s) * sign <= 0:
@@ -146,15 +157,16 @@ class Book:
             return refuse("alvo do lado errado da entrada")
         if t["tp2"] is not None and (t["tp2"] - p1) * sign <= 0:
             t["tp2"] = None
-        if abs(price - e) > 4 * atr:
-            return refuse("entrada a mais de 4 ATR (H1) do preço")
+        near, lo, hi = (1.5, .2, 3) if swing else (4, .15, 6)
+        if abs(price - e) > near * atr:
+            return refuse(f"entrada a mais de {near:g} {unit} do preço".replace(".", ","))
         risk = abs(e - s)
-        if risk < .15 * atr:
-            return refuse("stop demasiado apertado (menos de 0,15 ATR H1)")
-        if risk > 6 * atr:
-            return refuse("stop demasiado largo (mais de 6 ATR H1)")
+        if risk < lo * atr:
+            return refuse(f"stop demasiado apertado (menos de {lo:g} {unit})".replace(".", ","))
+        if risk > hi * atr:
+            return refuse(f"stop demasiado largo (mais de {hi:g} {unit})".replace(".", ","))
         t["risk"], t["rr"] = risk, abs(p1 - e) / risk
-        if t["rr"] < 1:
+        if t["rr"] < 1 - 1e-9:
             return refuse(f"RR {t['rr']:.1f} abaixo de 1")
         if any(x["symbol"] == sym and x["dir"] == side for x in self.active(t["agent"])):
             return refuse("já tem uma trade igual ativa")
@@ -182,8 +194,9 @@ class Book:
                 t["checked"] = c[0]
             if t["status"] == "pending" and now.timestamp() > _ts(t["valid"]):
                 t.update(status="expired", closed_at=t["valid"], note="expirou sem entrar")
-            if t["status"] == "open" and now.timestamp() - _ts(t["filled_at"]) > TIME_STOP_H * 3600 and rows:
-                self._close(t, rows[-1][4], rows[-1][0], f"fecho por tempo ({TIME_STOP_H} h)")
+            hold = t.get("max_h") or TIME_STOP_H
+            if t["status"] == "open" and now.timestamp() - _ts(t["filled_at"]) > hold * 3600 and rows:
+                self._close(t, rows[-1][4], rows[-1][0], f"fecho por tempo ({hold:g} h)")
             changed |= before != (t["status"], t["half"], round(t["mfe"], 3), round(t["mae"], 3))
         return changed
 
@@ -204,7 +217,12 @@ class Book:
         if t["status"] == "pending":
             if c[0] > _ts(t["valid"]):
                 return
-            if (low <= t["entry"]) if buy else (h >= t["entry"]):
+            stop_order = t.get("order") == "stop"
+            touched = ((h >= t["entry"]) if buy else (low <= t["entry"])) if stop_order else ((low <= t["entry"]) if buy else (h >= t["entry"]))
+            if touched:
+                if stop_order and ((o > t["entry"]) if buy else (o < t["entry"])):   # gapped past the stop order: filled at the open
+                    t["entry"], t["risk"] = o, abs(o - t["stop"])
+                    t["cost"] = (BY_ID.get(t["symbol"]) or {}).get("spread", 0) / (t["risk"] or 1)
                 t.update(status="open", filled_at=iso(datetime.fromtimestamp(c[0], UTC)), fill=t["entry"], fill_bar=c[0])
                 if (low <= t["stop"]) if buy else (h >= t["stop"]):   # on the fill candle, only the stop counts
                     self._close(t, t["stop"], c[0], "stop no candle da entrada")

@@ -12,6 +12,7 @@
   const PEOPLE = { penguin: { name: "Pinguim", what: "Macro e notícias" }, twoface: { name: "Duas-Caras", what: "Gráfico (SMC)" } };
   const STATE_PT = { intact: "intacto", swept: "varrido", taken: "rompido", testing: "a testar" };
   const STATUS_PT = { armed: "à espera do preço", active: "preço na zona", won: "alvo atingido" };
+  const KIND_LABEL = { smc: "SMC", vwap: "VWAP + EMA", ib: "Inside bar D1" };
   const DIR_PT = { buy: "Compra", sell: "Venda", compra: "Compra", venda: "Venda", esperar: "Esperar" };
 
   let S = null, chartData = null, view = { n: 120, off: 0 }, hover = null, drag = null, openMeeting = null, clockTimer = 0, chartAt = 0, openTrade = null;
@@ -307,7 +308,7 @@
     const a = S && S.instruments.find((x) => x.id === sel); if (!a) return;
     const keys = a.keys.slice().sort((p, q) => q.p - p.p).map((k) => `<li class="k-${k.state}"><b>${k.key}</b><span>${num(k.p, a.dp)}</span><em>${esc(t(STATE_PT[k.state] || k.state))}</em></li>`).join("");
     const pois = a.pois.slice(0, 5).map((p) => `<li class="${p.dir}"><b>${p.type} ${p.tf}</b><span>${num(p.bot, a.dp)} – ${num(p.top, a.dp)}</span><em>${esc(p.dir === "up" ? t("compra") : t("venda"))}${p.inside ? " · " + esc(t("preço dentro")) : ""}</em></li>`).join("");
-    const setups = a.setups.map((s) => setupCard(s, a)).join("") || `<p class="tr-none">${esc(t("Sem setup limpo agora. O SMC espera um sweep de liquidez, uma mudança de estrutura e uma zona para entrar; o VWAP + EMA espera um pullback rejeitado no VWAP a favor da tendência, e só aparece com nota A ou A+."))}</p>`;
+    const setups = a.setups.map((s) => setupCard(s, a)).join("") || `<p class="tr-none">${esc(t("Sem setup limpo agora. O SMC espera um sweep de liquidez, uma mudança de estrutura e uma zona para entrar; o VWAP + EMA espera um pullback rejeitado no VWAP a favor da tendência, e só aparece com nota A ou A+; no ouro e no Nasdaq, a inside bar do diário a favor da tendência."))}</p>`;
     const ev = a.events.slice(0, 6).map((e) => `<li><time>${hm(e.t * 1000)}</time>${esc(e.text.split(": ").slice(1).join(": "))}</li>`).join("");
     paint($("tr-read"), `<div class="tr-read-grid">
       <div><h3>${esc(t("Viés"))}</h3><p class="tr-biastext">${esc(a.bias.text)}</p>
@@ -320,18 +321,18 @@
   }
   function setupCard(s, a) {
     const sell = s.dir === "sell";
-    return `<article class="tr-setup ${sell ? "sell" : "buy"}${s.kind === "vwap" ? " vwap" : ""}">
-      <header><span class="tr-grade g-${s.grade.replace("+", "p")}">${s.grade}</span><b>${esc(t(sell ? "Venda" : "Compra"))} · ${s.tf}</b><span class="tr-kind">${s.kind === "vwap" ? "VWAP + EMA" : "SMC"}</span><em>${s.score}/100 · ${esc(t(STATUS_PT[s.status] || s.status))}</em></header>
+    return `<article class="tr-setup ${sell ? "sell" : "buy"}${s.kind && s.kind !== "smc" ? " " + s.kind : ""}">
+      <header><span class="tr-grade g-${s.grade.replace("+", "p")}">${s.grade}</span><b>${esc(t(sell ? "Venda" : "Compra"))} · ${s.tf}</b><span class="tr-kind">${KIND_LABEL[s.kind] || "SMC"}</span><em>${s.score}/100 · ${esc(t(STATUS_PT[s.status] || s.status))}</em></header>
       <dl><div><dt>${esc(t("Zona"))}</dt><dd>${num(s.zone[0], a.dp)} – ${num(s.zone[1], a.dp)}</dd></div><div><dt>${esc(t("Stop"))}</dt><dd class="down">${num(s.stop, a.dp)}</dd></div>
         <div><dt>${esc(t("Alvos"))}</dt><dd class="up">${s.targets.map((x) => num(x.p, a.dp)).join(" · ")}</dd></div><div><dt>RR</dt><dd>${num(s.rr, 1)}</dd></div></dl>
-      <ul>${s.why.map((w) => `<li class="${/\(contra\)|\(lado errado\)/.test(w) ? "bad" : ""}">${esc(w)}</li>`).join("")}</ul>
+      <ul>${s.why.map((w) => `<li class="${/\(contra\)|\(lado errado\)|\(gasta\)|^Fica em B/.test(w) ? "bad" : ""}">${esc(w)}</li>`).join("")}</ul>
       ${s.news_risk && s.news_risk.length ? `<p class="tr-risk">${icon("alert")}${esc(t("Notícia perto"))}: ${esc(s.news_risk.join("; "))}</p>` : ""}
     </article>`;
   }
 
   // ================================================================ the scoreboard: each one's own account
   let bookRows = [];
-  const NAMES = { penguin: "Pinguim", twoface: "Duas-Caras", model: "Modelo (SMC + VWAP)" };
+  const NAMES = { penguin: "Pinguim", twoface: "Duas-Caras", model: "Modelo" };
   const ROLES = { penguin: "Macro e notícias", twoface: "Gráfico (SMC)", model: "Referência: os setups A e A+ do motor" };
   const pctTxt = (v, d = 1) => (v == null ? "—" : `${v.toFixed(d).replace(".", ",")}%`);
   const nfx = (v, d = 2) => (v == null ? "—" : v.toFixed(d).replace(".", ","));

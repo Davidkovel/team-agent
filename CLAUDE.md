@@ -428,6 +428,22 @@ Armadilhas que custaram tempo:
   VWAP. O briefing traz o VWAP e as EMA em M15 na leitura clássica, e o Duas-Caras sabe dos dois modelos. Página:
   camadas «VWAP» (linha e bandas, ligada) e «EMA 9/21/50» (desligada) no gráfico, e o rótulo SMC / VWAP + EMA em cada
   cartão de setup. Testes em `tests/test_vwap.py`.
+- **Terceiro modelo: inside bar D1** (17 out, pedido do David: «encontra uma só strategy que resulte melhor e tenha mais
+  win rate»). Saiu de um estudo de 2676 combinações (10 padrões clássicos × parâmetros × XAUUSD, EURUSD, GBPUSD, GER40,
+  NAS100, US30; velas OANDA da TradingView: D1 desde 2006, H4 desde 2023, H1 desde 2025; spread pago; escolhido em
+  2006–2019 e confirmado em 2020–2026). No ouro: 289 trades em 20 anos, 67% ganhas, PF 1,96, 16 de 21 anos positivos; 70% e
+  PF 2,32 nos anos de confirmação. `tradingroom/insidebar.py`, só XAUUSD e NAS100 (no EURUSD, GER40 e US30 não aguentou):
+  inside bar ontem, EMA 50 vs 200 do D1 decide o lado, ordem stop no rompimento só hoje (dia que rompe os dois lados não
+  conta), stop no outro lado da vela-mãe, alvo 1R, até 20 dias. Para isto o `book.py` ganhou `ordem: stop` (entra quando o
+  preço sobe/desce até lá; num gap, à abertura), `swing` (entrada e stop medidos em ATR D1: entrada ≤ 1,5, stop 0,2–3) e
+  `max_h` por trade (o fecho por tempo de 72 h é só o normal). Intradiário H1 não deu nada robusto: a TradingView sem
+  login só dá ~10 000 velas H1, a Dukascopy aceita um ficheiro de cada vez (~27 s) e a HistData recusa downloads por script.
+- **Filtros medidos no SMC** (17 out): o backtest da sala com cada trade etiquetada mostrou o que separa as boas: vender
+  em premium e comprar em desconto (+36,8 R contra −17 R), dentro de killzone (+27 R contra −7 R) e RR ≥ 1,5 (abaixo, −9 R).
+  No `_score` um setup que falhe uma delas fica no máximo em B (sem trade nem aviso); a killzone não conta para cripto.
+  Backtest antes → depois: 201 trades, 26% ganhas, +19,8 R, PF 1,12, DD 27 R → 92 trades, 33%, +44,8 R, PF 1,61, DD 17 R.
+  Atenção: nessas 4 semanas as trades contra o H4/D1 renderam mais, ao contrário dos 20 anos; não se mudou nada por isso
+  (um mês em viragem não chega). Testes em `tests/test_insidebar.py`.
 
 ### Escritório de Robôs e as contas FundedNext (15 out, pedido do Marco)
 

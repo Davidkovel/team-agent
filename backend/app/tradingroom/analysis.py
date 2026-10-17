@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from . import sessions, smc, technicals, vwap
+from . import insidebar, sessions, smc, technicals, vwap
 from .markets import BY_ID, INSTRUMENTS, split_live
 
 UTC = timezone.utc
@@ -195,9 +195,11 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
         vw_ideas += vwap.setups(cs, f.atr, fr["H1"].trend, fr["H4"].trend if fr["H4"].ok else None, targets, now, tf,
                                 adr_used, soon, dp)
     for s in ideas:
-        _score(s, fr, pd, soon, dp)
+        _score(s, fr, pd, soon, dp, bool(inst.get("crypto")))
     ideas += vw_ideas
-    ideas = [s for s in ideas if s["status"] in ("armed", "active", "won") and s["age"] <= (32 if s["tf"] == "M15" else 36)]
+    if d1.ok:
+        ideas += insidebar.setups(inst["id"], d1.closed, d1.live, dp, now)
+    ideas = [s for s in ideas if s["status"] in ("armed", "active", "won") and s["age"] <= {"M15": 32, "M5": 36}.get(s["tf"], 0)]
     ideas.sort(key=lambda s: (-s["score"], s["age"]))
 
     # the events of now, for the alarms
@@ -224,7 +226,7 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
                            "text": f"{inst['id']}: preço dentro de um {p['type']} {p['tf']} de {'compra' if p['dir'] == 'up' else 'venda'} ({fmt(p['bot'], dp)}–{fmt(p['top'], dp)})"})
     for s in ideas:
         if s["status"] in ("armed", "active") and s["grade"] in ("A+", "A", "B"):
-            name = "setup VWAP + EMA" if s["kind"] == "vwap" else "setup"
+            name = {"vwap": "setup VWAP + EMA", "ib": "inside bar D1"}.get(s["kind"], "setup")
             events.append({"key": f"{inst['id']}:setup:{s['key']}", "w": {"A+": 5, "A": 4, "B": 2}[s["grade"]], "t": s["t"],
                            "kind": "setup", "text": f"{inst['id']}: {name} {s['grade']} de {'venda' if s['dir'] == 'sell' else 'compra'} em {s['tf']} — " + "; ".join(s["why"][:3])})
     events.sort(key=lambda e: -e["t"])
@@ -252,7 +254,7 @@ def _bias_text(fr: dict, bias: str) -> str:
     return f"{head} · " + " · ".join(parts)
 
 
-def _score(s: dict, fr: dict, pd: float | None, soon: list[dict], dp: int):
+def _score(s: dict, fr: dict, pd: float | None, soon: list[dict], dp: int, crypto: bool = False):
     sell = s["dir"] == "sell"
     pts, why = 20, [f"Sweep do {s['sweep']['label']} ({fmt(s['sweep']['p'], dp)})"]
     if s["sweep"]["key"]:
@@ -292,6 +294,20 @@ def _score(s: dict, fr: dict, pd: float | None, soon: list[dict], dp: int):
         pts -= 10
     s["score"] = max(0, min(100, pts))
     s["grade"] = "A+" if pts >= 85 else "A" if pts >= 70 else "B" if pts >= 55 else "C"
+    # what the room's own backtest showed separates the trades that pay (17 out, 198 SMC trades in 4 weeks): sells in
+    # premium and buys in discount (+36,8 R against −17 R), inside a killzone (+27 R against −7 R; not for crypto, which
+    # has no sessions), and RR of at least 1,5 (below it −9 R). Together: PF 1,04 → 1,68, better in both halves of the
+    # period and on 5 of 7 instruments. A setup missing any of them can be a B, never an A: no trade, no alert.
+    misses = []
+    if pd is not None and not (pd > .5 if sell else pd < .5):
+        misses.append("lado errado do range H4")
+    if not kz and not crypto:
+        misses.append("fora das killzones")
+    if rr < 1.5:
+        misses.append("RR abaixo de 1,5")
+    if misses and s["grade"] in ("A+", "A"):
+        s["grade"] = "B"
+        why.append("Fica em B: " + ", ".join(misses))
     s["why"] = why
 
 

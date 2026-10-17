@@ -373,13 +373,18 @@ async def loop():
         await asyncio.sleep(max(5.0, 20 - (time.time() - started)))
 
 
+KIND_NAME = {"vwap": "VWAP + EMA ", "ib": "inside bar D1 "}
+
+
 def model_trade(a: dict, st: dict, now: datetime) -> dict:
-    """The order the model places for one armed setup, SMC or VWAP + EMA (the live room and the backtest place the same one)."""
+    """The order the model places for one armed setup, SMC, VWAP + EMA or the D1 inside bar (the live room and the backtest
+    place the same one)."""
     dp = a["dp"]
     return {"simbolo": a["id"], "direcao": "compra" if st["dir"] == "buy" else "venda", "entrada": round(st["entry"], dp),
-            "stop": round(st["stop"], dp), "alvos": [round(x["p"], dp) for x in st["targets"]], "validade_h": 6, "grade": st["grade"],
-            "porque": f"Setup {'VWAP + EMA ' if st.get('kind') == 'vwap' else ''}{st['grade']} ({st['score']}/100) em {st['tf']}: " + "; ".join(st["why"]),
-            "zona": st["zone"], "invalida": round(st["stop"], dp), "janela": next_killzone(now),
+            "stop": round(st["stop"], dp), "alvos": [round(x["p"], dp) for x in st["targets"]], "validade_h": st.get("valid_h") or 6, "grade": st["grade"],
+            "porque": f"Setup {KIND_NAME.get(st.get('kind'), '')}{st['grade']} ({st['score']}/100) em {st['tf']}: " + "; ".join(st["why"]),
+            "zona": st["zone"], "invalida": round(st["stop"], dp), "janela": "" if st.get("swing") else next_killzone(now),
+            "ordem": st.get("order") or "limite", "swing": bool(st.get("swing")), "max_h": st.get("max_h"),
             "gatilho": st.get("trigger") or "o preço voltar à zona (ordem limite no meio dela)",
             "plano": st.get("plan") or f"Depois do sweep do {st['sweep']['label']} e do {st['brk']['kind']} de {'baixa' if st['dir'] == 'sell' else 'alta'} em {st['tf']}, "
             f"esperamos que o preço {'suba' if st['dir'] == 'sell' else 'desça'} de volta à zona {st['zone'][0]:.{dp}f}–{st['zone'][1]:.{dp}f} "

@@ -122,3 +122,12 @@ interiores, **nenhum acordeão com «+»**, **nenhum cartão numerado 01–04** 
 - **Itálicas cortadas** pela máscara das linhas: dar padding lateral e inferior ao `.l` (com margem negativa igual).
 - Voltar atrás: `pageshow` com `persisted` volta a dar play aos vídeos.
 - Resultado: marketing 4 250 px (≈ 5,7 ecrãs), IA 4 850, sectores 2 350, home 8 800 no computador.
+
+## Quarta volta (17 out 2026): recusado por «parecer o site antigo»
+
+A v4 foi recusada: mesma paleta (azul-noite + serifada + marfim), mesmo menu, mesmo título do hero, mesmas 19 páginas. **Redesenhar
+não é reestilizar**: a nova arquitectura tem de se ver diferente à primeira vista. Lista de controlo antes de desenhar:
+outra paleta (claro se o velho é escuro), outra família de letra, outro menu e outros nomes de secção, outro número de páginas
+(fundir: resultados+casos+sectores → «Trabajo»), outro título do hero, outra forma para o formulário (diagnóstico → conversa).
+Ler também a skill `frontend-design` (Anthropic): evita os tiques de página gerada (itálico numa palavra do título, rótulos em
+maiúsculas por cima de tudo, «A · B · C», «→» nos botões, creme + serifada). Feito em `_fonte/v5.py` («Hoja de contactos»).

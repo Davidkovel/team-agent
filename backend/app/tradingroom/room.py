@@ -279,7 +279,7 @@ class Room:
         changed = self.book.update(self.store, now)
         for a in self.view.values():
             for st in a["setups"]:
-                key = f"model:{a['id']}:{st['dir']}:{st['tf']}:{st['sweep']['x']:.6f}"
+                key = f"model:{a['id']}:{st['key']}"
                 if st["grade"] in ("A+", "A") and st["status"] == "armed" and st["age"] <= 3 and key not in self.state["seen"]:
                     self.state["seen"][key] = time.time()
                     self.book.propose("model", [model_trade(a, st, now)], None, self.view, now, key)
@@ -374,14 +374,14 @@ async def loop():
 
 
 def model_trade(a: dict, st: dict, now: datetime) -> dict:
-    """The order the SMC model places for one armed setup (the live room and the backtest place the same one)."""
+    """The order the model places for one armed setup, SMC or VWAP + EMA (the live room and the backtest place the same one)."""
     dp = a["dp"]
     return {"simbolo": a["id"], "direcao": "compra" if st["dir"] == "buy" else "venda", "entrada": round(st["entry"], dp),
             "stop": round(st["stop"], dp), "alvos": [round(x["p"], dp) for x in st["targets"]], "validade_h": 6, "grade": st["grade"],
-            "porque": f"Setup {st['grade']} ({st['score']}/100) em {st['tf']}: " + "; ".join(st["why"]),
+            "porque": f"Setup {'VWAP + EMA ' if st.get('kind') == 'vwap' else ''}{st['grade']} ({st['score']}/100) em {st['tf']}: " + "; ".join(st["why"]),
             "zona": st["zone"], "invalida": round(st["stop"], dp), "janela": next_killzone(now),
-            "gatilho": "o preço voltar à zona (ordem limite no meio dela)",
-            "plano": f"Depois do sweep do {st['sweep']['label']} e do {st['brk']['kind']} de {'baixa' if st['dir'] == 'sell' else 'alta'} em {st['tf']}, "
+            "gatilho": st.get("trigger") or "o preço voltar à zona (ordem limite no meio dela)",
+            "plano": st.get("plan") or f"Depois do sweep do {st['sweep']['label']} e do {st['brk']['kind']} de {'baixa' if st['dir'] == 'sell' else 'alta'} em {st['tf']}, "
             f"esperamos que o preço {'suba' if st['dir'] == 'sell' else 'desça'} de volta à zona {st['zone'][0]:.{dp}f}–{st['zone'][1]:.{dp}f} "
             f"e daí {'caia' if st['dir'] == 'sell' else 'suba'} até {st['targets'][0]['label'] if st['targets'] else 'o alvo'}."}
 

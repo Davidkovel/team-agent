@@ -1,12 +1,12 @@
 """The room's read of each instrument, from its candles on five timeframes: the trend on each, the bias they add up to,
 the key liquidity (previous day and week, the Asian and London ranges, equal highs and lows) and what became of it,
-the points of interest (gaps and blocks of H1 and H4 near the price), the setups of the model on M15 and M5 with a
-score, and the events worth telling someone about. Also what a chart needs to draw all of it."""
+the points of interest (gaps and blocks of H1 and H4 near the price), the setups of the two models (SMC, and the
+VWAP + EMA pullback in `vwap.py`) on M15 and M5 with a score, and the events worth telling someone about. Also what a chart needs to draw all of it."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from . import sessions, smc, technicals
+from . import sessions, smc, technicals, vwap
 from .markets import BY_ID, INSTRUMENTS, split_live
 
 UTC = timezone.utc
@@ -162,7 +162,14 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
 
     # the setups, on M15 and M5
     soon = _news_soon(cal, inst["ccy"], now, 60)
-    ideas = []
+    tech = technicals.read(fr, now)
+    for tf in ("M15", "M5"):
+        if fr[tf].ok:
+            r = vwap.read(fr[tf].closed, fr[tf].live, now)
+            if r:
+                tech.setdefault("vwap", {})[tf] = r
+    adr_used = (tech.get("adr") or {}).get("used")
+    ideas, vw_ideas = [], []
     for tf in ("M15", "M5"):
         f = fr[tf]
         if not f.ok:
@@ -179,11 +186,17 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
                                "label": p["label"].lower() + f" {tf}", "key": bool(p.get("eq")), "p": p["p"], "code": "EQ" if p.get("eq") else "SW"})
         targets = [{"p": x["p"], "label": x["label"], "kind": x["kind"]} for x in liq if x["state"] == "intact"]
         targets += [{"p": p["p"], "label": p["label"] + f" {tf}", "kind": p["kind"]} for p in f.pools if p["state"] == "intact"]
+        bands = vwap.series(cs, vwap.day_start(cs, now))
         for s in smc.setups(cs, f.atr, f.events, f.fvg, sweeps, targets, price, look=40 if tf == "M15" else 48):
-            s["tf"] = tf
+            s["tf"], s["kind"], s["key"] = tf, "smc", f"{s['dir']}:{tf}:{s['sweep']['x']:.6f}"
+            b = bands[s["sweep"]["i"]] if 0 <= s["sweep"]["i"] < len(bands) else None
+            s["vwap_out"] = bool(b and b["sd"] and (s["sweep"]["x"] - b["v"]) * (1 if s["dir"] == "sell" else -1) >= 2 * b["sd"])
             ideas.append(s)
+        vw_ideas += vwap.setups(cs, f.atr, fr["H1"].trend, fr["H4"].trend if fr["H4"].ok else None, targets, now, tf,
+                                adr_used, soon, dp)
     for s in ideas:
         _score(s, fr, pd, soon, dp)
+    ideas += vw_ideas
     ideas = [s for s in ideas if s["status"] in ("armed", "active", "won") and s["age"] <= (32 if s["tf"] == "M15" else 36)]
     ideas.sort(key=lambda s: (-s["score"], s["age"]))
 
@@ -211,8 +224,9 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
                            "text": f"{inst['id']}: preço dentro de um {p['type']} {p['tf']} de {'compra' if p['dir'] == 'up' else 'venda'} ({fmt(p['bot'], dp)}–{fmt(p['top'], dp)})"})
     for s in ideas:
         if s["status"] in ("armed", "active") and s["grade"] in ("A+", "A", "B"):
-            events.append({"key": f"{inst['id']}:setup:{s['dir']}:{s['tf']}:{s['sweep']['x']:.6f}", "w": {"A+": 5, "A": 4, "B": 2}[s["grade"]], "t": s["t"],
-                           "kind": "setup", "text": f"{inst['id']}: setup {s['grade']} de {'venda' if s['dir'] == 'sell' else 'compra'} em {s['tf']} — " + "; ".join(s["why"][:3])})
+            name = "setup VWAP + EMA" if s["kind"] == "vwap" else "setup"
+            events.append({"key": f"{inst['id']}:setup:{s['key']}", "w": {"A+": 5, "A": 4, "B": 2}[s["grade"]], "t": s["t"],
+                           "kind": "setup", "text": f"{inst['id']}: {name} {s['grade']} de {'venda' if s['dir'] == 'sell' else 'compra'} em {s['tf']} — " + "; ".join(s["why"][:3])})
     events.sort(key=lambda e: -e["t"])
 
     tf_out = {}
@@ -228,7 +242,7 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
         "pd": pd, "range": {"hi": h4.hi, "lo": h4.lo} if h4.ok else None, "atr": atr_h1,
         "keys": [{k2: k[k2] for k2 in ("key", "label", "p", "state", "above") if k2 in k} | ({"at": k["t"], "x": k["x"]} if "t" in k else {}) for k in keys],
         "above": above[:3], "below": below[:3], "pois": pois[:6], "setups": ideas[:4], "events": events[:12],
-        "news": soon, "ccy": inst["ccy"], "tech": technicals.read(fr, now),
+        "news": soon, "ccy": inst["ccy"], "tech": tech,
     }
 
 
@@ -267,6 +281,9 @@ def _score(s: dict, fr: dict, pd: float | None, soon: list[dict], dp: int):
         why.append(f"Killzone {kz['name']}" + (" · silver bullet" if kz["silver"] else ""))
     if s["tf"] == "M5":
         pts -= 8   # the lower timeframe: more noise, more of them
+    if s.get("vwap_out"):
+        pts += 5
+        why.append("Sweep fora do desvio 2σ do VWAP (esticado, volta à média)")
     rr = s["rr"]
     pts += 8 if rr >= 3 else 5 if rr >= 2 else -10 if rr < 1.5 else 0
     why.append(f"RR {rr:.1f}".replace(".", ","))
@@ -301,4 +318,11 @@ def chart(inst_id: str, tf: str, store, now: datetime, bars: int = 220) -> dict 
     out["pools"] = [{k: p.get(k) for k in ("kind", "label", "p", "t", "state", "x", "eq", "tt")} for p in f.pools
                     if p["t"] >= t0 and (p.get("eq") or (p["state"] == "intact" and p["t"] >= recent))][-16:]
     out["range"] = {"hi": f.hi, "lo": f.lo}
+    # VWAP of the day with its bands (intraday charts) and the 9/21/50 EMA, one value per candle drawn
+    dp, closes = inst["dp"], [x[C] for x in cs] + ([f.live[C]] if f.live else [])
+    out["ema"] = {str(k): [round(v, dp + 2) for v in technicals.ema(closes, k)[first:]] for k in (9, 21, 50)}
+    if tf in ("M5", "M15", "H1"):
+        full = cs + ([f.live] if f.live else [])
+        bands = vwap.series(full, vwap.day_start(full, now))[first:]
+        out["vwap"] = [[round(b["v"], dp + 2), round(b["sd"], dp + 2)] if b else None for b in bands]
     return out

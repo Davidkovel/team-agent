@@ -8,7 +8,7 @@
   const UP = "#16e08a", DOWN = "#ff3b5c", GOLD = "#f5c451", BLUE = "#5aa9ff", VIOLET = "#a77bff", INK = "#07080a";
   const TFS = ["M5", "M15", "H1", "H4", "D1"];
   const TF_SEC = { M5: 300, M15: 900, H1: 3600, H4: 14400, D1: 86400 };
-  const LAYERS = [["fvg", "FVG"], ["ob", "OB"], ["liq", "Liquidez"], ["bos", "BOS/CHoCH"], ["kz", "Killzones"], ["pd", "Premium/desconto"], ["setup", "Setup"]];
+  const LAYERS = [["fvg", "FVG"], ["ob", "OB"], ["liq", "Liquidez"], ["bos", "BOS/CHoCH"], ["kz", "Killzones"], ["pd", "Premium/desconto"], ["vwap", "VWAP"], ["ema", "EMA 9/21/50"], ["setup", "Setup"]];
   const PEOPLE = { penguin: { name: "Pinguim", what: "Macro e notícias" }, twoface: { name: "Duas-Caras", what: "Gráfico (SMC)" } };
   const STATE_PT = { intact: "intacto", swept: "varrido", taken: "rompido", testing: "a testar" };
   const STATUS_PT = { armed: "à espera do preço", active: "preço na zona", won: "alvo atingido" };
@@ -17,7 +17,7 @@
   let S = null, chartData = null, view = { n: 120, off: 0 }, hover = null, drag = null, openMeeting = null, clockTimer = 0, chartAt = 0, openTrade = null;
   const bookFilter = { agent: "", status: "", symbol: "" };
   let sel = localStorage.getItem("trading.sel") || "XAUUSD", tf = localStorage.getItem("trading.tf") || "M15";
-  let layers = Object.assign({ fvg: 1, ob: 1, liq: 1, bos: 1, kz: 1, pd: 0, setup: 1 }, JSON.parse(localStorage.getItem("trading.layers") || "{}"));
+  let layers = Object.assign({ fvg: 1, ob: 1, liq: 1, bos: 1, kz: 1, pd: 0, vwap: 1, ema: 0, setup: 1 }, JSON.parse(localStorage.getItem("trading.layers") || "{}"));
 
   const num = (v, dp) => (v == null || Number.isNaN(v) ? "—" : Number(v).toLocaleString("pt-PT", { minimumFractionDigits: dp, maximumFractionDigits: dp }));
   const pct = (v) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2).replace(".", ",")}%`);
@@ -307,7 +307,7 @@
     const a = S && S.instruments.find((x) => x.id === sel); if (!a) return;
     const keys = a.keys.slice().sort((p, q) => q.p - p.p).map((k) => `<li class="k-${k.state}"><b>${k.key}</b><span>${num(k.p, a.dp)}</span><em>${esc(t(STATE_PT[k.state] || k.state))}</em></li>`).join("");
     const pois = a.pois.slice(0, 5).map((p) => `<li class="${p.dir}"><b>${p.type} ${p.tf}</b><span>${num(p.bot, a.dp)} – ${num(p.top, a.dp)}</span><em>${esc(p.dir === "up" ? t("compra") : t("venda"))}${p.inside ? " · " + esc(t("preço dentro")) : ""}</em></li>`).join("");
-    const setups = a.setups.map((s) => setupCard(s, a)).join("") || `<p class="tr-none">${esc(t("Sem setup limpo agora. O modelo espera um sweep de liquidez, uma mudança de estrutura e uma zona para entrar."))}</p>`;
+    const setups = a.setups.map((s) => setupCard(s, a)).join("") || `<p class="tr-none">${esc(t("Sem setup limpo agora. O SMC espera um sweep de liquidez, uma mudança de estrutura e uma zona para entrar; o VWAP + EMA espera um pullback rejeitado no VWAP a favor da tendência, e só aparece com nota A ou A+."))}</p>`;
     const ev = a.events.slice(0, 6).map((e) => `<li><time>${hm(e.t * 1000)}</time>${esc(e.text.split(": ").slice(1).join(": "))}</li>`).join("");
     paint($("tr-read"), `<div class="tr-read-grid">
       <div><h3>${esc(t("Viés"))}</h3><p class="tr-biastext">${esc(a.bias.text)}</p>
@@ -320,8 +320,8 @@
   }
   function setupCard(s, a) {
     const sell = s.dir === "sell";
-    return `<article class="tr-setup ${sell ? "sell" : "buy"}">
-      <header><span class="tr-grade g-${s.grade.replace("+", "p")}">${s.grade}</span><b>${esc(t(sell ? "Venda" : "Compra"))} · ${s.tf}</b><em>${s.score}/100 · ${esc(t(STATUS_PT[s.status] || s.status))}</em></header>
+    return `<article class="tr-setup ${sell ? "sell" : "buy"}${s.kind === "vwap" ? " vwap" : ""}">
+      <header><span class="tr-grade g-${s.grade.replace("+", "p")}">${s.grade}</span><b>${esc(t(sell ? "Venda" : "Compra"))} · ${s.tf}</b><span class="tr-kind">${s.kind === "vwap" ? "VWAP + EMA" : "SMC"}</span><em>${s.score}/100 · ${esc(t(STATUS_PT[s.status] || s.status))}</em></header>
       <dl><div><dt>${esc(t("Zona"))}</dt><dd>${num(s.zone[0], a.dp)} – ${num(s.zone[1], a.dp)}</dd></div><div><dt>${esc(t("Stop"))}</dt><dd class="down">${num(s.stop, a.dp)}</dd></div>
         <div><dt>${esc(t("Alvos"))}</dt><dd class="up">${s.targets.map((x) => num(x.p, a.dp)).join(" · ")}</dd></div><div><dt>RR</dt><dd>${num(s.rr, 1)}</dd></div></dl>
       <ul>${s.why.map((w) => `<li class="${/\(contra\)|\(lado errado\)/.test(w) ? "bad" : ""}">${esc(w)}</li>`).join("")}</ul>
@@ -331,7 +331,7 @@
 
   // ================================================================ the scoreboard: each one's own account
   let bookRows = [];
-  const NAMES = { penguin: "Pinguim", twoface: "Duas-Caras", model: "Modelo SMC" };
+  const NAMES = { penguin: "Pinguim", twoface: "Duas-Caras", model: "Modelo (SMC + VWAP)" };
   const ROLES = { penguin: "Macro e notícias", twoface: "Gráfico (SMC)", model: "Referência: os setups A e A+ do motor" };
   const pctTxt = (v, d = 1) => (v == null ? "—" : `${v.toFixed(d).replace(".", ",")}%`);
   const nfx = (v, d = 2) => (v == null ? "—" : v.toFixed(d).replace(".", ","));
@@ -683,6 +683,26 @@
       g.beginPath(); g.moveTo(Math.max(0, x0), y + .5); g.lineTo(x1, y + .5); g.stroke(); g.setLineDash([]);
       g.font = "700 9.5px Inter, system-ui"; g.fillStyle = col; g.textAlign = "center"; g.textBaseline = s.dir === "up" ? "bottom" : "top";
       g.fillText(s.kind, (Math.max(0, x0) + x1) / 2, y + (s.dir === "up" ? -2 : 3)); g.textAlign = "left";
+    }
+    // the day's VWAP with its 1σ and 2σ bands, and the 9/21/50 EMA: one value per candle, null before the VWAP's anchor
+    const curve = (val, col, w, dash) => {
+      g.strokeStyle = col; g.lineWidth = w; g.setLineDash(dash || []); g.beginPath();
+      let pen = false;
+      vis.forEach((_, k) => { const p = val(start + k); if (p == null) { pen = false; return; } const y = Y(p); if (pen) g.lineTo(X(start + k), y); else g.moveTo(X(start + k), y); pen = true; });
+      g.stroke(); g.setLineDash([]);
+    };
+    const edge = (p, text, col) => { if (p != null && Y(p) > 0 && Y(p) < PH) tag(g, right - 6, Y(p) - 7, text, col, "rgba(7,9,12,.85)", true); };
+    if (L.ema && !mini && d.ema) {
+      const EC = { 9: "rgba(90,169,255,.75)", 21: "rgba(245,196,81,.8)", 50: "rgba(167,123,255,.75)" };
+      for (const k of [50, 21, 9]) { const arr = d.ema[k]; if (arr) { curve((i) => arr[i], EC[k], k === 21 ? 1.4 : 1); edge(arr[arr.length - 1], `EMA ${k}`, EC[k]); } }
+    }
+    if (L.vwap && !mini && d.vwap) {
+      const vw = d.vwap, band = (m) => (i) => (vw[i] ? vw[i][0] + m * vw[i][1] : null);
+      curve(band(2), "rgba(233,233,236,.22)", 1, [2, 3]); curve(band(-2), "rgba(233,233,236,.22)", 1, [2, 3]);
+      curve(band(1), "rgba(233,233,236,.32)", 1, [5, 4]); curve(band(-1), "rgba(233,233,236,.32)", 1, [5, 4]);
+      curve(band(0), "rgba(240,242,246,.9)", 1.6);
+      const lastV = vw[vw.length - 1];
+      if (lastV) { edge(lastV[0], "VWAP", "#f0f2f6"); edge(lastV[0] + 2 * lastV[1], "+2σ", "rgba(233,233,236,.55)"); edge(lastV[0] - 2 * lastV[1], "−2σ", "rgba(233,233,236,.55)"); }
     }
     // the candles
     vis.forEach((x, k) => {

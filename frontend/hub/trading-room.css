@@ -125,6 +125,8 @@
 .tr-setup header { display: flex; align-items: center; gap: 8px; }
 .tr-setup header .tr-grade { margin: 0; }
 .tr-setup header b { font: 700 13px var(--display); }
+.tr-setup .tr-kind { font: 700 9.5px var(--ui); letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 5px; color: var(--muted); border: 1px solid rgba(255, 255, 255, .14); }
+.tr-setup.vwap .tr-kind { color: #f0f2f6; border-color: rgba(240, 242, 246, .45); }
 .tr-setup header em { margin-left: auto; font: 500 11px var(--ui); color: var(--muted); font-style: normal; }
 .tr-setup dl { display: grid; grid-template-columns: repeat(4, auto); gap: 6px 14px; margin: 9px 0 8px; }
 .tr-setup dt { font: 600 9.5px var(--ui); color: var(--faint); text-transform: uppercase; letter-spacing: .1em; }

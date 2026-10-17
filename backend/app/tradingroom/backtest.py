@@ -75,7 +75,7 @@ def replay(data: dict, progress=None) -> dict:
         book.update(store, now)
         for a in fresh:
             for st in a["setups"]:
-                key = f"model:{a['id']}:{st['dir']}:{st['tf']}:{st['sweep']['x']:.6f}"
+                key = f"model:{a['id']}:{st['key']}"
                 if st["grade"] in ("A+", "A") and st["status"] == "armed" and st["age"] <= 3 and key not in seen:
                     seen.add(key)
                     for t in book.propose("model", [model_trade(a, st, now)], None, view, now, key):

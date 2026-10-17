@@ -414,6 +414,20 @@ Armadilhas que custaram tempo:
   Se o PC reiniciar, correr outra vez `python -u fetch_all.py` nessa pasta: retoma onde parou (log em `fetch.log`).
 - **Escrever código destes ficheiros pelo Bash** (heredoc): as barras invertidas chegam mal ao ficheiro (`\\p{L}` virou
   `\p{L}`). Para texto com `\`, usar a ferramenta de editar ou um script escrito com ela.
+- **Segundo modelo: VWAP + EMA** (17 out, pedido do David: «só os melhores setups, profissionalismo máximo»):
+  `tradingroom/vwap.py`. VWAP do dia ancorado às 17:00 de Nova Iorque (o dia do forex e da vela D1 da OANDA; ao fim de
+  semana, o dia da última vela, senão vinha vazio) com desvios de 1σ e 2σ ponderados pelo volume, e as EMA 9/21/50 do
+  M5/M15. O setup é um pullback a favor da tendência: H1 com tendência, EMA 9 > 21 > 50 (ou o contrário), ≥ 7 das últimas
+  10 velas do lado certo do VWAP e o VWAP a inclinar com elas, VWAP e EMA 21 a ≤ 0,6 ATR uma da outra, e uma vela que
+  entra na zona e fecha fora dela a favor. Entrada no reteste da borda da zona, stop além do extremo do pullback, alvo na
+  liquidez intacta do lado da tendência (senão a banda de 2σ), RR ≥ 1,5. **Só sai do módulo com A ou A+** (≥ 70): H4 a
+  favor, confluência apertada, pavio de rejeição, 1.º reteste desde que cruzou o VWAP e killzone de Londres/NY somam;
+  contra o H4, fora das killzones, ≥ 80% do ADR gasto, M5 e notícia a ≤ 60 min tiram (a notícia tira 15, o que basta para
+  o deitar fora). Os setups levam `kind` (`smc`/`vwap`) e `key`: o `seen`, o Modelo e o backtest usam
+  `model:<id>:<key>`, que para o SMC é igual ao formato antigo. O SMC ganha +5 quando o sweep acontece fora dos 2σ do
+  VWAP. O briefing traz o VWAP e as EMA em M15 na leitura clássica, e o Duas-Caras sabe dos dois modelos. Página:
+  camadas «VWAP» (linha e bandas, ligada) e «EMA 9/21/50» (desligada) no gráfico, e o rótulo SMC / VWAP + EMA em cada
+  cartão de setup. Testes em `tests/test_vwap.py`.
 
 ### Escritório de Robôs e as contas FundedNext (15 out, pedido do Marco)
 

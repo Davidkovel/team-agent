@@ -504,6 +504,20 @@ EURUSD, GBPUSD, GER40), **não futuros**: a Lucid Trading (futuros, Tradovate) f
 - **Testar sem dinheiro**: um adaptador falso em `LINKS` (snapshot/place/cancel/close) e `OFFICE.sync_account` com
   `TRADING_ROOM_DIR` numa pasta de teste; nunca ligar uma conta real para testar.
 
+### Reforço na notícia (18 out, pedido do Kovel)
+
+`#/reforco`, 3.º separador da Sala de Trading (`frontend/hub/reforco.js` + `.css`), `/api/reforco` (`backend/app/routers/newsadd.py`),
+motor `backend/app/tradingroom/newsadd.py`, testes `tests/test_newsadd.py` (conta MT5 falsa). Numa notícia dos EUA o trader abre a
+posição principal à mão no MT5 (1,5% da alocação de 50 000 $; a página mostra o lote até ao stop na banda). Antes carrega em
+**Start**: o Hub espera pela posição manual (magic 0) no instrumento e põe uma **escada de ordens limite** no mesmo sentido entre o
+preço e a banda da VWAP do outro lado (venda: acima da banda de cima; compra: abaixo da de baixo), o mesmo risco em cada ordem, por
+isso o lote cresce perto do stop; 0,5% no total. Stop além da banda 1σ (verde) + folga; se o preço já a passou, a 2σ, depois a 3σ.
+TP: a mediana do movimento a favor na 1.ª hora nas notícias passadas desse tipo (`reaction_data/`), senão 0,5% da entrada dele.
+A posição dele nunca é tocada; o que não encheu é cancelado quando ela fecha, no Stop ou ao fim de `window` min; os reforços cheios
+ficam com o seu stop/TP («Stop e fechar reforços» fecha-os). VWAP de sessão (17:00 NY) das velas M1 da própria corretora. Magic 7700.
+Respeita a guarda da prop do Escritório. Corre só no PC com a conta MT5 (o do Marco): noutro PC a página manda abrir o Hub dele.
+Estado em `~/.team-agent/trading-room/reforco.json`. Pesquisa por trás: memória «news-reaction» (VWAP após notícias).
+
 ### Testar uma mudança no Hub
 
 1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".

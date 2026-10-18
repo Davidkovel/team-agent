@@ -14,7 +14,7 @@ from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, office, ponto, tasks, team, trading, week, work, ws
-from .routers import robots, skills, tradingroom
+from .routers import newsadd, robots, skills, tradingroom
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -108,10 +108,13 @@ async def lifespan(app: FastAPI):
     watching = asyncio.create_task(trading.loop()) if settings.sync else None  # Mercados: alerts and SEC filings
     trading_room = asyncio.create_task(tradingroom.loop()) if settings.sync or os.environ.get("TRADING_ROOM") == "1" else None  # Sala de Trading
     robots_loop = asyncio.create_task(robots.loop()) if settings.sync or os.environ.get("TRADING_ROOM") == "1" else None  # Escritório de Robôs: the accounts
+    reforco = asyncio.create_task(newsadd.loop()) if robots_loop else None  # Reforço na notícia: the ladder on the MT5 account
     kit = asyncio.create_task(claude_kit.loop()) if settings.sync else None  # idle until the PC's person turns it on (Trabalho › Kit do Claude)
     yield
     if kit:
         kit.cancel()
+    if reforco:
+        reforco.cancel()
     if robots_loop:
         robots_loop.cancel()
     if trading_room:
@@ -134,6 +137,7 @@ for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week,
     app.include_router(module.router)
 app.include_router(tradingroom.router)  # Sala de Trading
 app.include_router(robots.router)  # Escritório de Robôs
+app.include_router(newsadd.router)  # Reforço na notícia
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
 app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here
 

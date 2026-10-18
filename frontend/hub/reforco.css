@@ -1,0 +1,58 @@
+/* Reforço na notícia (reforco.js): the Hub's black-and-chrome finish, colour only where it means something
+   (green up, red down, the AI blue while it waits). Classes prefixed rf-. */
+.rf { --up: #16e08a; --down: #ff3b5c; --ai: #8fb4ff; display: grid; gap: 12px; font-variant-numeric: tabular-nums; }
+.rf .up { color: var(--up); } .rf .down { color: var(--down); }
+.rf h1 { font: 600 24px/1.1 var(--display); margin: 2px 0 6px; }
+.rf h2 { display: flex; align-items: baseline; gap: 8px; font: 600 15px/1.2 var(--display); margin: 0 0 12px; }
+.rf h2 small { margin-left: auto; font: 500 11.5px var(--ui); color: var(--faint); text-align: right; }
+.rf h4 { font: 600 10.5px/1 var(--ui); text-transform: uppercase; letter-spacing: .14em; color: var(--muted); margin: 16px 0 8px; }
+.rf-none { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 4px 0 10px; }
+.rf-sub { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; max-width: 60ch; }
+.rf-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; padding: 16px 18px; border-radius: 16px;
+  background: radial-gradient(110% 160% at 0% 0%, rgba(255, 255, 255, .07), transparent 50%), linear-gradient(180deg, #121519, #0a0c0f);
+  border: 1px solid rgba(255, 255, 255, .08); }
+.rf-head small { font: 500 11px var(--ui); color: var(--faint); letter-spacing: .04em; }
+.rf-ctl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rf-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.rf-start { min-width: 120px; font-size: 15px; }
+.rf .btn.danger { border-color: rgba(255, 59, 92, .5); color: var(--down); }
+.rf-pill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 999px; font-size: 12.5px; color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .03); }
+.rf-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.rf-pill.ai { color: var(--ai); } .rf-pill.ai i { background: var(--ai); animation: rf-blink 1.2s infinite; }
+.rf-pill.up { color: var(--up); } .rf-pill.up i { background: var(--up); }
+@keyframes rf-blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .rf-pill.ai i { animation: none; } }
+.rf-msg { padding: 10px 14px; border-radius: 12px; font-size: 13px; border: 1px solid rgba(143, 180, 255, .3); color: var(--ai); background: rgba(143, 180, 255, .06); }
+.rf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 12px; }
+.rf-card { padding: 16px 18px; border-radius: 16px; background: linear-gradient(180deg, #101317, #0b0d10); border: 1px solid rgba(255, 255, 255, .07); min-width: 0; }
+.rf-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.rf-figs > div, .rf-main > div { display: grid; gap: 3px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .06); }
+.rf-figs small, .rf-main small { font-size: 11px; color: var(--faint); }
+.rf-figs b, .rf-main b { font: 600 17px/1.2 var(--display); }
+.rf-figs span, .rf-main span { font-size: 11.5px; color: var(--muted); }
+.rf-main { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rf-bands { display: flex; flex-wrap: wrap; gap: 6px; }
+.rf-bands span { flex: 1 1 80px; display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; font-size: 11px; color: var(--faint); background: rgba(255, 255, 255, .03); }
+.rf-bands b { font: 600 13.5px var(--ui); color: var(--text, #e8ebef); }
+.rf-bands .g { box-shadow: inset 0 -2px 0 rgba(22, 224, 138, .6); }
+.rf-bands .v { box-shadow: inset 0 -2px 0 rgba(255, 255, 255, .5); }
+.rf-scroll { overflow-x: auto; margin-top: 12px; }
+.rf-t { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rf-t td, .rf-t th { padding: 7px 8px; border-bottom: 1px solid rgba(255, 255, 255, .06); text-align: left; white-space: nowrap; }
+.rf-t th { font: 600 10.5px var(--ui); text-transform: uppercase; letter-spacing: .1em; color: var(--faint); }
+.rf-lad tr.pending td:nth-child(5) { color: var(--ai); }
+.rf-lad tr.filled td:nth-child(5) { color: var(--up); }
+.rf-lad tr.cancelled td, .rf-lad tr.closed td { color: var(--faint); }
+.rf-lad tr.error td:nth-child(5) { color: var(--down); white-space: normal; }
+.rf-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; align-items: start; }
+.rf-form label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.rf-form em { font-style: normal; font-size: 11px; color: var(--faint); }
+.rf-form input, .rf-form select { width: 100%; box-sizing: border-box; }
+.rf-form .rf-check { display: flex; align-items: center; gap: 8px; align-self: end; padding-bottom: 8px; }
+.rf-form .rf-check input { width: auto; }
+.rf-logl { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 320px; overflow-y: auto; font-size: 12.5px; line-height: 1.45; }
+.rf-logl li { display: flex; gap: 10px; color: var(--muted); }
+.rf-logl time { color: var(--faint); flex: none; }
+.rf-logl .good { color: var(--up); } .rf-logl .bad { color: var(--down); } .rf-logl .warn { color: #e2b55c; }
+@media (max-width: 560px) { .rf-main { grid-template-columns: 1fr; } .rf-head { padding: 14px; } .rf-card { padding: 14px; } }

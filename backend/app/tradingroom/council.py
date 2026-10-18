@@ -76,8 +76,8 @@ em "revisoes" uma nota para cada trade tua marcada "por rever" no diário."""
 
 VERDICT = """{
   "fala": "a tua última fala na reunião, 2 a 4 frases: se concordas com o Duas-Caras e qual é o plano",
-  "titulo": "a mensagem para os sócios, até 70 caracteres, concreta (instrumento, nível, hora)",
-  "resumo": "2 a 3 frases: o que interessa agora e porquê",
+  "titulo": "a mensagem para os sócios, até 70 caracteres, concreta (mercado, nível, hora), em português simples",
+  "resumo": "2 a 3 frases em português simples: o que interessa agora, porquê e o que fazer",
   "importancia": 3,
   "alerta": false,
   "foco": [{"simbolo": "XAUUSD", "direcao": "compra | venda | esperar", "plano": "o cenário numa frase: o que esperamos que o preço
@@ -88,7 +88,11 @@ VERDICT = """{
 }
 Regras: importancia de 1 (nada a fazer) a 5 (exige atenção já: sweep de um nível-chave com setup A ou A+, ou notícia de alto
 impacto daqui a menos de 30 minutos, ou acabada de sair com surpresa). alerta só é true com importancia 4 ou 5 e uma ação
-concreta para os sócios. foco: no máximo 3, só com níveis que estão no briefing. atencao: no máximo 4."""
+concreta para os sócios. foco: no máximo 3, só com níveis que estão no briefing. atencao: no máximo 4.
+O titulo, o resumo e cada plano são lidos por sócios que não percebem de trading: nada de siglas nem jargão (CHoCH, BOS, FVG, OB,
+sweep, RR, H1, H4, premium...). Diz o mercado pelo nome (ouro, euro/dólar, DAX, libra/dólar) e o que o preço fez e vai fazer em
+palavras de todos os dias, por exemplo «o ouro foi buscar os stops acima do máximo de ontem e virou para baixo: vender se voltar
+a 4 160, sair se passar 4 165». As falas podem continuar técnicas."""
 
 
 # ------------------------------------------------------------------ the briefing both of them read

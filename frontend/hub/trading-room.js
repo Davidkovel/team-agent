@@ -8,7 +8,28 @@
   const UP = "#16e08a", DOWN = "#ff3b5c", GOLD = "#f5c451", BLUE = "#5aa9ff", VIOLET = "#a77bff", INK = "#07080a";
   const TFS = ["M5", "M15", "H1", "H4", "D1"];
   const TF_SEC = { M5: 300, M15: 900, H1: 3600, H4: 14400, D1: 86400 };
-  const LAYERS = [["fvg", "FVG"], ["ob", "OB"], ["liq", "Liquidez"], ["bos", "BOS/CHoCH"], ["kz", "Killzones"], ["pd", "Premium/desconto"], ["setup", "Setup"]];
+  const LAYERS = [["fvg", "Buracos (FVG)", "Fair value gap: o preço andou tão depressa que deixou um buraco. Costuma voltar lá para o tapar."],
+    ["ob", "Zonas dos bancos (OB)", "Order block: a última vela antes de um empurrão forte. Os grandes costumam defender essa zona."],
+    ["liq", "Stops dos outros", "Liquidez: topos e fundos onde muita gente tem stops. O preço gosta de ir lá buscá-los antes de virar."],
+    ["bos", "Viragens (BOS/CHoCH)", "BOS: a tendência continua. CHoCH: a tendência virou."],
+    ["kz", "Horas fortes", "Killzones: as horas de Londres e de Nova Iorque em que o preço mexe mais."],
+    ["pd", "Caro / barato", "Premium / desconto: acima do meio do intervalo está caro (melhor vender), abaixo está barato (melhor comprar)."],
+    ["setup", "Oportunidade", "O setup do modelo: onde entrar, onde sair se correr mal (stop) e onde sair se correr bem (alvos)."]];
+  const TF_PT = { M5: "cada vela = 5 minutos", M15: "cada vela = 15 minutos", H1: "cada vela = 1 hora", H4: "cada vela = 4 horas", D1: "cada vela = 1 dia" };
+  // the tabs: the first one is for anyone, the others for whoever wants more
+  const TR_TABS = [["now", "Agora", "spark", "o que se passa e o que fazer"], ["chart", "Gráfico", "trend", "a leitura técnica"],
+    ["meet", "Reuniões", "users", "o que os agentes disseram"], ["results", "Resultados", "target", "quem está a ganhar"], ["news", "Notícias", "calendar", "calendário e manchetes"]];
+  const FOCUS = ["XAUUSD", "EURUSD", "GER40", "GBPUSD"];   // what the team trades (FOCUS in routers/trading.py)
+  const PLAIN = { XAUUSD: "Ouro", EURUSD: "Euro / Dólar", GER40: "DAX (Alemanha)", GBPUSD: "Libra / Dólar", NAS100: "Nasdaq", US30: "Dow Jones", BTCUSD: "Bitcoin" };
+  const WORDS = [["Comprar / vender", "Comprar = ganhas se o preço subir. Vender = ganhas se o preço descer."],
+    ["Entrada", "O preço a que se entra na trade."], ["Stop", "O preço a que se sai se correr mal, para perder pouco. Está sempre definido antes de entrar."],
+    ["Alvo", "O preço a que se sai se correr bem, com o lucro."], ["R", "O que se arrisca numa trade. +2R = ganhou o dobro do que arriscou; −1R = perdeu o que arriscou."],
+    ["Ganho / risco", "Quantas vezes o lucro possível é maior do que a perda possível. 2 quer dizer: arriscas 1 para ganhar 2."],
+    ["Acerto", "Em cada 100 trades, quantas ganharam."], ["Nota A / A+", "A qualidade da oportunidade segundo o modelo. A+ é a melhor; B não chega para entrar."],
+    ["Sessões", "Ásia, Londres e Nova Iorque: as horas em que cada praça está aberta. Londres e Nova Iorque mexem mais."],
+    ["Hora forte (killzone)", "As horas em que os bancos mexem mais no preço. É quando costumam aparecer as oportunidades."],
+    ["Sweep", "O preço vai buscar os stops de outros acima de um topo (ou abaixo de um fundo) e depois vira."],
+    ["Previsão", "O número que os analistas esperam antes de uma notícia sair. O mercado mexe quando sai diferente."]];
   const PEOPLE = { penguin: { name: "Pinguim", what: "Macro e notícias" }, twoface: { name: "Duas-Caras", what: "Gráfico (SMC)" } };
   const STATE_PT = { intact: "intacto", swept: "varrido", taken: "rompido", testing: "a testar" };
   const STATUS_PT = { armed: "à espera do preço", active: "preço na zona", won: "alvo atingido" };
@@ -45,55 +66,82 @@
       <header class="tr-head">
         <div class="tr-brand"><span class="tr-logo">${bars()}</span><div><small>${esc(t("AMG Capital · a mesa de trading da Empresa AMG"))}</small><h1>${esc(t("Sala de Trading"))}</h1></div></div>
         <div class="tr-clocks" id="tr-clocks"></div>
-        <div class="tr-acts">
-          <label class="tr-switch" title="${esc(t("Ligado: as reuniões são dois Claudes a sério, neste PC (gasta do plano deste computador). Desligado: a reunião é escrita a partir dos números."))}">
-            <input type="checkbox" id="tr-claude"><i></i><span id="tr-claude-l">${esc(t("Claude neste PC"))}</span></label>
-          <select id="tr-model" class="tr-model" title="${esc(t("Modelo do Claude nas reuniões"))}"></select>
-          <button type="button" class="btn" id="tr-test" title="${esc(t("Mostra o aviso grande com o que a sala vê agora (só neste ecrã)"))}">${icon("bell")}${esc(t("Ver o aviso"))}</button>
-          <button type="button" class="btn primary" id="tr-meet">${icon("users")}${esc(t("Convocar reunião"))}</button>
-        </div>
+        <div class="tr-acts"><button type="button" class="btn primary" id="tr-meet" title="${esc(t("O Pinguim e o Duas-Caras sentam-se agora e dizem o que veem e o que fazer"))}">${icon("users")}${esc(t("Chamar os agentes"))}</button></div>
       </header>
       <div class="tr-tape" id="tr-tape"><div></div></div>
-      <section class="tr-radar" id="tr-radar"></section>
-      <section class="tr-react" id="tr-react" hidden></section>
-      <section class="tr-score" id="tr-score"></section>
-      <section class="tr-live" id="tr-live"></section>
-      <div class="tr-main">
+      <nav class="tr-tabs" id="tr-tabs">${TR_TABS.map(([id, label, ic, sub]) => `<button type="button" data-tab="${id}" title="${esc(t(sub))}">${icon(ic)}<span><b>${esc(t(label))}</b><small>${esc(t(sub))}</small></span></button>`).join("")}</nav>
+
+      <div class="tr-pane" data-pane="now">
+        <section class="tr-today" id="tr-today"></section>
+        <section class="tr-mk" id="tr-mk"></section>
+        <section class="tr-do" id="tr-do"></section>
+        <section class="tr-react" id="tr-react" hidden></section>
+        <details class="tr-words"><summary>${icon("note")}${esc(t("Não percebes uma palavra? Clica aqui"))}</summary><dl>${WORDS.map(([w, d]) => `<div><dt>${esc(t(w))}</dt><dd>${esc(t(d))}</dd></div>`).join("")}</dl></details>
+      </div>
+
+      <div class="tr-pane" data-pane="chart">
+        <p class="tr-intro">${esc(t("Para quem já percebe: escolhe o mercado, o tempo de cada vela e o que queres ver desenhado. Verde sobe, vermelho desce, dourado é onde há stops de outros traders."))}</p>
+        <section class="tr-radar" id="tr-radar"></section>
         <section class="tr-chartbox">
           <div class="tr-chartbar">
             <div class="tr-sym" id="tr-sym"></div>
-            <div class="tr-tfs" id="tr-tfs">${TFS.map((x) => `<button type="button" data-tf="${x}">${x}</button>`).join("")}</div>
-            <div class="tr-layers" id="tr-layers">${LAYERS.map(([k, l]) => `<button type="button" data-layer="${k}">${esc(t(l))}</button>`).join("")}</div>
+            <div class="tr-tfs" id="tr-tfs">${TFS.map((x) => `<button type="button" data-tf="${x}" title="${esc(t(TF_PT[x]))}">${x}</button>`).join("")}</div>
+            <div class="tr-layers" id="tr-layers">${LAYERS.map(([k, l, tip]) => `<button type="button" data-layer="${k}" title="${esc(t(tip))}">${esc(t(l))}</button>`).join("")}</div>
           </div>
           <div class="tr-canvas"><canvas id="tr-chart"></canvas><div class="tr-tip" id="tr-tip" hidden></div><p class="tr-wait" id="tr-wait">${esc(t("A ler o mercado…"))}</p></div>
           <div class="tr-read" id="tr-read"></div>
           <div class="tr-inst" id="tr-inst"></div>
         </section>
-        <aside class="tr-table" id="tr-table"></aside>
       </div>
-      <section class="tr-book">
-        <div class="tr-book-h"><h2>${icon("doc")}${esc(t("Diário de trades"))}<small>${esc(t("cada trade decidida numa reunião, seguida vela a vela · R = múltiplos do risco, spread descontado"))}</small></h2>
-          <div class="tr-book-f" id="tr-book-f">
-            <select data-f="agent"><option value="">${esc(t("Todos"))}</option><option value="penguin">Pinguim</option><option value="twoface">Duas-Caras</option><option value="model">${esc(t("Modelo SMC"))}</option></select>
-            <select data-f="status"><option value="">${esc(t("Todos os estados"))}</option><option value="pending,open">${esc(t("Ativas"))}</option><option value="won,lost,be">${esc(t("Fechadas"))}</option><option value="won">${esc(t("Boas"))}</option><option value="lost">${esc(t("Más"))}</option><option value="expired,missed,cancelled,refused">${esc(t("Não entraram"))}</option></select>
-            <select data-f="symbol"><option value="">${esc(t("Todos os instrumentos"))}</option></select>
-          </div></div>
-        <div class="tr-book-t" id="tr-book"></div>
-      </section>
-      <section class="tr-book tr-bt">
-        <div class="tr-book-h"><h2>${icon("doc")}${esc(t("Backtest do Modelo SMC"))}<small>${esc(t("as mesmas regras da sala, vela a vela sobre as últimas semanas · sem olhar para o futuro, spread descontado"))}</small></h2>
-          <button type="button" class="btn" id="tr-bt-run">${esc(t("Correr o backtest"))}</button></div>
-        <div id="tr-bt"></div>
-      </section>
-      <div class="tr-lower">
-        <section class="tr-cal"><h2>${icon("calendar")}${esc(t("Calendário económico"))}<small>${esc(t("alto e médio impacto · hora de Lisboa"))}</small></h2><div id="tr-cal"></div></section>
-        <section class="tr-news"><h2>${icon("doc")}${esc(t("Manchetes"))}<small>Reuters · Dow Jones · FXStreet</small></h2><div id="tr-news"></div></section>
+
+      <div class="tr-pane" data-pane="meet">
+        <div class="tr-meetbar">
+          <p>${esc(t("O Pinguim lê as notícias, o Duas-Caras lê o gráfico. Reúnem-se sozinhos antes de Londres e de Nova Iorque e à volta das notícias fortes; a ata diz o que fazer."))}</p>
+          <label class="tr-switch" title="${esc(t("Ligado: as reuniões são dois Claudes a sério, neste PC (gasta do plano deste computador). Desligado: a reunião é escrita a partir dos números."))}">
+            <input type="checkbox" id="tr-claude"><i></i><span id="tr-claude-l">${esc(t("Claude neste PC"))}</span></label>
+          <select id="tr-model" class="tr-model" title="${esc(t("Modelo do Claude nas reuniões"))}"></select>
+          <button type="button" class="btn" id="tr-test" title="${esc(t("Mostra o aviso grande com o que a sala vê agora (só neste ecrã)"))}">${icon("bell")}${esc(t("Ver o aviso"))}</button>
+        </div>
+        <section class="tr-table" id="tr-table"></section>
+      </div>
+
+      <div class="tr-pane" data-pane="results">
+        <p class="tr-intro">${esc(t("Cada agente tem a sua conta a fingir. Aqui vês quem está a ganhar, cada trade que fizeram e como o modelo se teria saído no passado. R = o que se arriscou numa trade: +2R é ganhar o dobro do que se arriscou, −1R é perder o que se arriscou."))}</p>
+        <section class="tr-score" id="tr-score"></section>
+        <section class="tr-live" id="tr-live" hidden></section>
+        <section class="tr-book">
+          <div class="tr-book-h"><h2>${icon("doc")}${esc(t("Todas as trades"))}<small>${esc(t("clica numa linha para ver o porquê"))}</small></h2>
+            <div class="tr-book-f" id="tr-book-f">
+              <select data-f="agent"><option value="">${esc(t("Todos"))}</option><option value="penguin">Pinguim</option><option value="twoface">Duas-Caras</option><option value="model">${esc(t("Modelo SMC"))}</option></select>
+              <select data-f="status"><option value="">${esc(t("Todos os estados"))}</option><option value="pending,open">${esc(t("Ativas"))}</option><option value="won,lost,be">${esc(t("Fechadas"))}</option><option value="won">${esc(t("Boas"))}</option><option value="lost">${esc(t("Más"))}</option><option value="expired,missed,cancelled,refused">${esc(t("Não entraram"))}</option></select>
+              <select data-f="symbol"><option value="">${esc(t("Todos os mercados"))}</option></select>
+            </div></div>
+          <div class="tr-book-t" id="tr-book"></div>
+        </section>
+        <section class="tr-book tr-bt">
+          <div class="tr-book-h"><h2>${icon("doc")}${esc(t("E se o modelo tivesse jogado nas últimas semanas?"))}<small>${esc(t("backtest: as mesmas regras, vela a vela, sem ver o futuro"))}</small></h2>
+            <button type="button" class="btn" id="tr-bt-run">${esc(t("Correr o backtest"))}</button></div>
+          <div id="tr-bt"></div>
+        </section>
+      </div>
+
+      <div class="tr-pane" data-pane="news">
+        <div class="tr-lower">
+          <section class="tr-cal"><h2>${icon("calendar")}${esc(t("Calendário económico"))}<small>${esc(t("as notícias que mexem no mercado · hora de Lisboa · 3 riscos = forte"))}</small></h2><div id="tr-cal"></div></section>
+          <section class="tr-news"><h2>${icon("doc")}${esc(t("Manchetes"))}<small>Reuters · Dow Jones · FXStreet</small></h2><div id="tr-news"></div></section>
+        </div>
       </div>
     </div>`);
     const root = $("tr");
     root.querySelector("#tr-tfs").onclick = (e) => { const b = e.target.closest("[data-tf]"); if (b) { tf = b.dataset.tf; localStorage.setItem("trading.tf", tf); view = { n: 120, off: 0 }; loadChart(true); paintBar(); } };
     root.querySelector("#tr-layers").onclick = (e) => { const b = e.target.closest("[data-layer]"); if (b) { layers[b.dataset.layer] = layers[b.dataset.layer] ? 0 : 1; localStorage.setItem("trading.layers", JSON.stringify(layers)); paintBar(); drawMain(); } };
     root.querySelector("#tr-radar").onclick = (e) => { const b = e.target.closest("[data-sym]"); if (b) pick(b.dataset.sym); };
+    root.querySelector("#tr-tabs").onclick = (e) => { const b = e.target.closest("[data-tab]"); if (b) trShow(b.dataset.tab); };
+    // the «Agora» tab: a market opens its chart, a trade opens the results, the summary opens the meeting
+    root.querySelector('[data-pane="now"]').onclick = (e) => {
+      const m = e.target.closest("[data-sym]"); if (m) { pick(m.dataset.sym); return; }
+      const g = e.target.closest("[data-go]"); if (g) trShow(g.dataset.go);
+    };
     root.querySelector("#tr-meet").onclick = () => meet();
     root.querySelector("#tr-test").onclick = async (e) => { e.currentTarget.disabled = true; try { showAlert(await api("/api/trading-room/alerts/test", { method: "POST" })); } finally { e.currentTarget.disabled = false; } };
     root.querySelector("#tr-claude").onchange = (e) => setting({ claude: e.target.checked });
@@ -111,6 +159,7 @@
     root.querySelector("#tr-score").onclick = (e) => { const c = e.target.closest("[data-agent]"); if (c) { bookFilter.agent = bookFilter.agent === c.dataset.agent ? "" : c.dataset.agent; $("tr-book-f").querySelector('[data-f="agent"]').value = bookFilter.agent; paintBook(); $("tr-book").scrollIntoView({ behavior: "smooth", block: "start" }); } };
     root.querySelector("#tr-bt-run").onclick = async () => { BT = { ...(BT || {}), ...(await api("/api/trading-room/backtest", { method: "POST" })) }; paintBacktest(); };
     bindChart($("tr-chart"));
+    trShow(trTab);
     paintBar();
     clearInterval(clockTimer);
     clockTimer = setInterval(() => { if (!$("tr")) { clearInterval(clockTimer); return; } paintClocks(); paintCal(); }, 1000);
@@ -118,6 +167,142 @@
     loadChart(true);
     loadBacktest();
   };
+
+  // ================================================================ the tabs
+  // «Agora» is for anyone (Marco, 15 Oct: "não dá para perceber um caralho... está tudo acumulado"): what the room thinks in
+  // one sentence, our four markets in words, what to do now step by step and the next big number. The rest, with its
+  // jargon, is one tab away: Gráfico, Reuniões, Resultados, Notícias.
+  let trTab = (() => { try { return localStorage.getItem("trading.tab") || "now"; } catch (e) { return "now"; } })();
+  function trShow(id) {
+    if (!TR_TABS.some(([k]) => k === id)) id = "now";
+    trTab = id;
+    try { localStorage.setItem("trading.tab", id); } catch (e) { /* private window */ }
+    const root = $("tr"); if (!root) return;
+    root.dataset.view = id;
+    root.querySelectorAll("#tr-tabs [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === id));
+    root.querySelectorAll(".tr-pane").forEach((p) => { p.hidden = p.dataset.pane !== id; });
+    if (id === "chart") requestAnimationFrame(drawMain);
+    else window.scrollTo({ top: 0 });
+  }
+  const cap = (x) => (x ? x[0].toUpperCase() + x.slice(1) : x);
+  const BY = { penguin: "Ideia do Pinguim", twoface: "Ideia do Duas-Caras", model: "Ideia do modelo automático" };
+  // the agents write like traders; on «Agora» their words are said plainly (the original stays in Reuniões)
+  const TFN = { M5: "5 minutos", M15: "15 minutos", H1: "1 hora", H4: "4 horas", D1: "diário" };
+  const PLAIN_WORDS = [
+    [/CHoCH de alta/gi, "virou para cima"], [/CHoCH de baixa/gi, "virou para baixo"], [/BOS de alta/gi, "continua a subir"], [/BOS de baixa/gi, "continua a descer"],
+    [/\bCHoCH\b/g, "viragem"], [/\bBOS\b/g, "quebra"], [/\bsetup (A\+?|B) de (compra|venda)/gi, "oportunidade de $2 (nota $1)"], [/\bsetups?\b/gi, "oportunidade"],
+    [/\bsweep (do|da|dos|das)\b/gi, "foi buscar os stops $1"], [/\bsweeps?\b/gi, "caça aos stops"], [/\bvarr(eu|ido|idos|ida|idas|am|er)\b/gi, "apanhado"],
+    [/order blocks?|\bOBs?\b/gi, "zona dos bancos"], [/\bFVGs?\b/g, "buraco no preço"], [/\bRR\b/g, "ganho/risco"],
+    [/m[áa]ximo de ontem \(PDH\)|\bPDH\b/g, "máximo de ontem"], [/m[íi]nimo de ontem \(PDL\)|\bPDL\b/g, "mínimo de ontem"],
+    [/\bPWH\b/g, "máximo da semana passada"], [/\bPWL\b/g, "mínimo da semana passada"], [/\bEQH\b/g, "topos iguais"], [/\bEQL\b/g, "fundos iguais"],
+    [/sem vi[ée]s claro/gi, "sem direção clara"], [/\bvi[ée]s\b/gi, "tendência"], [/\bpremium\b/gi, "zona cara"],
+    [/\bem (M5|M15|H1|H4|D1)\b/g, (m, x) => `no gráfico de ${TFN[x]}`], [/\b(M5|M15|H1|H4|D1)\b/g, (m, x) => `(${TFN[x]})`],
+    [/\bXAUUSD\b/g, "Ouro"], [/\bEURUSD\b/g, "Euro/Dólar"], [/\bGBPUSD\b/g, "Libra/Dólar"], [/\bGER40\b/g, "DAX"], [/\bNAS100\b/g, "Nasdaq"], [/\bUS30\b/g, "Dow Jones"], [/\bBTCUSD\b/g, "Bitcoin"]];
+  const plain = (text) => PLAIN_WORDS.reduce((x, [re, to]) => x.replace(re, to), String(text || ""));
+  const andList = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} ${t("e")} ${xs[xs.length - 1]}`);
+  // "hoje às 13:30 · daqui a 1h20", "amanhã às 13:30", "qui 13:30"
+  function whenTxt(iso) {
+    const d = new Date(iso), now = new Date(), mins = Math.round((d - now) / 60000);
+    const day = d.toDateString() === now.toDateString() ? t("hoje às") : d.toDateString() === new Date(now.getTime() + 864e5).toDateString() ? t("amanhã às")
+      : d.toLocaleDateString("pt-PT", { weekday: "short" });
+    const soon = mins > 0 && mins < 180 ? ` · ${t("daqui a {t}", { t: mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}` })}` : "";
+    return `${day} ${hm(iso)}${soon}`;
+  }
+  const atTxt = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? hm(iso) : `${new Date(iso).toLocaleDateString("pt-PT", { weekday: "short" })} ${hm(iso)}`);
+
+  // what the room thinks now: the last meeting's minutes in one sentence, the open markets, the next strong number
+  function paintToday() {
+    const el = $("tr-today"); if (!el || !S) return;
+    const ms = S.meetings || [], running = ms[0] && ms[0].status === "running", m = ms.find((x) => x.verdict);
+    const v = m && m.verdict, lvl = v ? Math.max(1, Math.min(5, v.importancia || 1)) : 0;
+    const LV = ["", "Calmo", "Calmo", "Atenção", "Importante", "Muito importante"];
+    const open = (S.sessions || []).filter((x) => x.open).map((x) => t(x.name));
+    const nxt = (S.calendar || []).find((e) => e.imp >= 3 && Date.parse(e.t) > Date.now());
+    const kicker = running ? t("Os agentes estão reunidos agora…") : v ? t("O que a sala acha · {a}", { a: ago(Date.parse(m.at) / 1000) }) : t("Ainda sem reunião");
+    paint(el, `<div class="tr-today-faces"><img src="${portrait("penguin")}" alt=""><img src="${portrait("twoface")}" alt=""></div>
+      <div class="tr-today-t"><small class="${running ? "live" : ""}">${running ? "<i></i>" : ""}${esc(kicker)}</small>
+        <h2>${esc(v ? plain(v.titulo) : t("Ainda não houve reunião. Carrega em «Chamar os agentes» e eles dizem-te o que veem agora."))}</h2>
+        ${v && v.resumo ? `<p>${esc(plain(v.resumo))}</p>` : ""}
+        <div class="tr-today-f">${v ? `<span class="tr-lvl l${lvl}">${esc(t(LV[lvl]))}</span>` : ""}
+          <span>${icon("clock")}${esc(open.length ? t("Abertos agora: {m}", { m: andList(open) }) : t("Londres e Nova Iorque fechadas: o preço mexe pouco"))}</span>
+          ${nxt ? `<span>${icon("calendar")}${esc(t("Próxima notícia forte"))}: <b>${esc(t(nxt.pt || nxt.title))}</b> ${esc(whenTxt(nxt.t))}</span>` : ""}
+          ${m ? `<button type="button" class="tr-linkbtn" data-go="meet">${esc(t("Ver a reunião"))} ›</button>` : ""}</div></div>`);
+  }
+
+  // our four markets in words: which way, why, cheap or dear, and whether there is anything to do
+  function paintMarkets() {
+    const el = $("tr-mk"); if (!el || !S) return;
+    const list = FOCUS.map((id) => S.instruments.find((a) => a.id === id)).filter(Boolean);
+    const others = S.instruments.filter((a) => !FOCUS.includes(a.id));
+    const TFW = { D1: t("o gráfico diário"), H4: t("o de 4 horas"), H1: t("o de 1 hora") };
+    paint(el, `<h2>${icon("trend")}${esc(t("Os nossos mercados"))}<small>${esc(t("clica num para ver o gráfico"))}</small></h2>
+      <div class="tr-mk-g">${list.map((a) => {
+        const dir = a.bias.dir, s0 = a.setups[0], dp = a.dp;
+        const agree = ["D1", "H4", "H1"].filter((x) => a.tf[x] && a.tf[x].trend === dir).map((x) => TFW[x]);
+        const why = dir === "mixed" ? t("Os gráficos não estão de acordo. Melhor esperar.")
+          : agree.length ? t(agree.length > 1 ? "{g} apontam para {d}." : "{g} aponta para {d}.", { g: cap(andList(agree)), d: t(dir === "bull" ? "cima" : "baixo") })
+          : t(dir === "bull" ? "A tendência é de subida." : "A tendência é de descida.");
+        const pd = a.pd == null ? null : a.pd;
+        const where = pd == null ? "" : pd > .65 ? t("Está caro: perto do topo dos últimos dias.") : pd < .35 ? t("Está barato: perto do fundo dos últimos dias.") : t("Está a meio do caminho dos últimos dias.");
+        const good = s0 && /^A/.test(s0.grade);
+        const op = good ? `<div class="tr-mk-op ${s0.dir}"><b>${esc(t(s0.dir === "buy" ? "Oportunidade de compra" : "Oportunidade de venda"))}</b><span>${esc(t("entrar entre {a} e {b} · stop {c} · nota {g}", { a: num(s0.zone[0], dp), b: num(s0.zone[1], dp), c: num(s0.stop, dp), g: s0.grade }))}</span></div>`
+          : `<div class="tr-mk-op none"><b>${esc(t(s0 ? "Há uma ideia, mas fraca" : "Nada para fazer agora"))}</b><span>${esc(t(s0 ? "nota {g}: não chega para entrar" : "o modelo espera um sinal limpo", { g: s0 && s0.grade }))}</span></div>`;
+        const up = a.above[0], dn = a.below[0];
+        return `<button type="button" class="tr-mk-c b-${dir}" data-sym="${a.id}">
+          <div class="tr-mk-h"><b>${esc(t(PLAIN[a.id] || a.name))}</b><small>${a.id}</small>${a.open ? "" : `<em>${esc(t("fechado"))}</em>`}</div>
+          <div class="tr-mk-p"><strong>${num(a.price, dp)}</strong><span class="${sign(a.chg)}">${pct(a.chg)} ${esc(t("hoje"))}</span></div>
+          <div class="tr-mk-dir ${dir}"><i>${dir === "bull" ? "↗" : dir === "bear" ? "↘" : "→"}</i><b>${esc(t(dir === "bull" ? "A subir" : dir === "bear" ? "A descer" : "Sem direção"))}</b></div>
+          <p>${esc(why)} ${esc(where)}</p>
+          ${op}
+          <div class="tr-mk-l">${up ? `<span>${esc(t("teto"))} <b>${num(up.p, dp)}</b></span>` : ""}${dn ? `<span>${esc(t("chão"))} <b>${num(dn.p, dp)}</b></span>` : ""}</div>
+        </button>`;
+      }).join("")}</div>
+      ${others.length ? `<div class="tr-mk-o"><small>${esc(t("Outros"))}</small>${others.map((a) => `<button type="button" data-sym="${a.id}"><b>${esc(t(PLAIN[a.id] || a.id))}</b><span class="${sign(a.chg)}">${pct(a.chg)}</span></button>`).join("")}</div>` : ""}`);
+  }
+
+  // what to do now: each trade in play as plain steps (wait for the price, buy or sell there, where to get out either way)
+  function paintDo() {
+    const el = $("tr-do"); if (!el) return;
+    const ORDER = { yes: 0, late: 1, in: 2, no: 3 };
+    const live = bookRows.filter((tr) => tr.status === "pending" || tr.status === "open")
+      .sort((a, b) => (ORDER[(a.now && a.now.can) || "yes"] - ORDER[(b.now && b.now.can) || "yes"]) || String(b.at).localeCompare(String(a.at)));
+    if (!live.length) {
+      paint(el, `<h2>${icon("target")}${esc(t("O que fazer agora"))}</h2>
+        <div class="tr-do-none"><b>${esc(t("Nada. Não há nenhuma trade em jogo."))}</b><span>${esc(t("Quando um agente vir uma oportunidade, aparece aqui passo a passo, e chega um aviso grande ao ecrã e ao telemóvel."))}</span></div>`);
+      return;
+    }
+    paint(el, `<h2>${icon("target")}${esc(t("O que fazer agora"))}<small>${esc(t(live.length === 1 ? "1 trade em jogo · passo a passo" : "{n} trades em jogo · passo a passo", { n: live.length }))}</small></h2>
+      <div class="tr-do-g">${live.map(doCard).join("")}</div>`);
+  }
+  function doCard(tr) {
+    const dp = tr.dp != null ? tr.dp : 2, buy = tr.dir === "buy", name = t(PLAIN[tr.symbol] || tr.symbol);
+    const a = S && S.instruments.find((x) => x.id === tr.symbol), price = a ? a.price : null;
+    const can = (tr.now && tr.now.can) || "yes", pending = tr.status === "pending";
+    const inWin = tr.win_from && Date.now() >= Date.parse(tr.win_from) && Date.now() <= Date.parse(tr.win_to);
+    const [pill, tone] = pending ? (inWin ? ["Hora certa: dá para entrar", "hot"] : ["À espera do preço", "amber"])
+      : can === "late" ? ["Já entrou · ainda dá", "blue"] : can === "in" ? ["Já entrou · já andou", "up"] : ["Acabou", "dim"];
+    const b = (v) => `<b>${num(v, dp)}</b>`;
+    const steps = [];
+    if (pending) {
+      const there = price != null && (buy ? price <= tr.entry : price >= tr.entry);
+      steps.push(there ? t("O preço já está na entrada, {e}.", { e: b(tr.entry) })
+        : t(buy ? "Espera que o preço desça até {e}" : "Espera que o preço suba até {e}", { e: b(tr.entry) }) + (price != null ? ` <small>(${esc(t("agora está a {p}", { p: num(price, dp) }))})</small>` : ""));
+      steps.push(esc(t(buy ? "Compra aí" : "Vende aí")) + (tr.win_from ? `, ${esc(t("de preferência entre"))} <b>${hm(tr.win_from)}–${hm(tr.win_to)}</b>` : "") + ".");
+    } else {
+      steps.push(t("Entrou a {e} às {h}.", { e: b(tr.entry), h: hm(tr.filled_at || tr.at) }) + (tr.live_r != null ? ` ${esc(t("Agora vai em"))} <b class="${tr.live_r >= 0 ? "up" : "down"}">${rfmt(tr.live_r)}</b>.` : ""));
+    }
+    steps.push(tr.half && !pending ? esc(t("Já fechou metade com lucro: o stop está na entrada, já não perdes nada."))
+      : `${esc(t("Se correr mal, sai em"))} <b class="down">${num(tr.stop, dp)}</b> <small>(${esc(t("stop"))})</small>.`);
+    steps.push(`${esc(t("Se correr bem, sai em"))} <b class="up">${num(tr.tp1, dp)}</b>${tr.tp2 ? ` ${esc(t("e o resto em"))} <b class="up">${num(tr.tp2, dp)}</b>` : ""} <small>(${esc(t("alvo"))})</small>${tr.rr ? `: ${esc(t("ganhas {x}× o que arriscaste", { x: nfx(tr.rr, 1) }))}` : ""}.`);
+    if (pending && tr.valid) steps.push(esc(t("Se não entrar até {h}, esquece.", { h: atTxt(tr.valid) })));
+    const who = tr.agent === "model" ? `<span class="tr-who-s">${bars()}</span>` : `<img src="${portrait(tr.agent)}" alt="">`;
+    return `<article class="tr-do-c ${buy ? "buy" : "sell"} ${tone}" data-go="results">
+      <header><span class="tr-do-side">${esc(t(buy ? "Comprar" : "Vender"))}</span><b>${esc(name)}</b><span class="tr-pill ${tone}">${esc(t(pill))}</span></header>
+      <ol>${steps.map((x) => `<li><span>${x}</span></li>`).join("")}</ol>
+      ${tr.plan || tr.why ? `<p class="tr-do-why"><b>${esc(t("Porquê"))}:</b> ${esc(plain(tr.plan || tr.why))}</p>` : ""}
+      <footer>${who}<span>${esc(t(BY[tr.agent] || "Ideia de {w}", { w: t(NAMES[tr.agent] || tr.agent) }))} · ${dt(tr.at)}</span></footer>
+    </article>`;
+  }
 
   // ================================================================ the backtest of the model
   let BT = null, btTimer = 0;
@@ -149,10 +334,10 @@
         <dl class="tr-sc-k">
           <div><dt>${esc(t("Trades"))}</dt><dd>${s.n}</dd></div>
           <div><dt>${esc(t("Acerto"))}</dt><dd>${s.winrate == null ? "—" : pctTxt(s.winrate)}</dd></div>
-          <div><dt>${esc(t("Profit factor"))}</dt><dd>${s.pf == null ? "—" : nfx(s.pf)}</dd></div>
-          <div><dt>${esc(t("Expectativa"))}</dt><dd class="${(s.avg_r || 0) >= 0 ? "up" : "down"}">${s.avg_r == null ? "—" : rfmt(s.avg_r)}</dd></div>
+          <div title="${esc(t("Profit factor: tudo o que ganhou a dividir por tudo o que perdeu. Acima de 1 está a ganhar."))}"><dt>${esc(t("Lucro ÷ perda"))}</dt><dd>${s.pf == null ? "—" : nfx(s.pf)}</dd></div>
+          <div title="${esc(t("Expectativa: quanto ganha ou perde, em média, cada trade."))}"><dt>${esc(t("Média por trade"))}</dt><dd class="${(s.avg_r || 0) >= 0 ? "up" : "down"}">${s.avg_r == null ? "—" : rfmt(s.avg_r)}</dd></div>
           <div><dt>${esc(t("Ganho / perda média"))}</dt><dd>${s.avg_win == null ? "—" : rfmt(s.avg_win)} / ${s.avg_loss == null ? "—" : rfmt(s.avg_loss)}</dd></div>
-          <div><dt>${esc(t("Drawdown máx."))}</dt><dd>${s.max_dd ? "−" + nfx(s.max_dd) + "R" : "0R"}</dd></div>
+          <div title="${esc(t("Drawdown: a maior descida da conta desde um máximo."))}"><dt>${esc(t("Pior queda"))}</dt><dd>${s.max_dd ? "−" + nfx(s.max_dd) + "R" : "0R"}</dd></div>
         </dl>
       </div>
       <div class="tr-bt-g">${table("Instrumento", s.by_symbol)}${table("Nota", r.by_grade)}${table("Gráfico", r.by_tf)}${table("Lado", r.by_dir, { buy: "Compra", sell: "Venda" })}</div>
@@ -199,16 +384,17 @@
         <ul>${SYM.map(([k, n]) => { const c = r[k]; if (!c) return ""; const up = c.avg > 0, often = Math.max(c.up, c.n - c.up);
           return `<li><span>${esc(t(n))}</span><i class="${cls(c.avg)}">${up ? "▲" : "▼"}</i><b class="${cls(c.avg)}">${pc(c.avg)}</b><em>${esc(t(up ? "subiu {a} de {b}" : "desceu {a} de {b}", { a: up ? c.up : c.n - c.up, b: c.n }))}</em><u style="--w:${Math.round(often / Math.max(1, c.n) * 100)}%"></u></li>`; }).join("")}</ul></div>`;
     }).join("");
-    paint(el, `<h2>${icon("calendar")}${esc(t("Reação à notícia"))} · ${esc(t(RX.name))}<small>${esc(t("{n} saídas desde {y} · movimento nos primeiros 5 min, velas de 1 minuto", { n: RX.count, y: RX.since }))}</small></h2>
+    paint(el, `<h2>${icon("calendar")}${esc(t(out ? "A notícia que saiu" : "A próxima notícia"))} · ${esc(t(RX.name))}<small>${esc(t("{n} vezes desde {y}", { n: RX.count, y: RX.since }))}</small></h2>
+      <p class="tr-intro">${esc(t("Quando sai um número importante dos EUA, o mercado mexe muito em poucos minutos. Isto é o que aconteceu nos primeiros 5 minutos de todas as outras vezes, conforme o número saiu acima, abaixo ou igual ao que se esperava."))}</p>
       ${tabs ? `<nav class="tr-rx-tabs">${tabs}</nav>` : ""}
       <p class="tr-rx-h">${head}</p>
       <div class="tr-rx-cards">${cards}</div>
-      <div class="tr-rx-g">
+      ${live}
+      <details class="tr-more"><summary>${esc(t("Ver a tabela completa"))}</summary>
         <div><table class="tr-rx-t"><thead><tr><th>${esc(t("O número saiu"))}</th>${SYM.map(([, n]) => `<th>${esc(t(n))}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
           <p class="tr-rx-n">${esc(t("Ouro com o número acima da previsão e a cair nos primeiros 5 min: 25 min depois estava mais alto em {a} de {b}. Quedas menores que 0,3% voltaram ao preço de antes em {c} de {d}{m}; de 0,3% ou mais, em {e} de {f}.", {
             a: g.bounce.back, b: g.bounce.n, c: g.small.back, d: g.small.n, m: g.small.minutes ? ` (${t("mediana {x} min", { x: g.small.minutes })})` : "", e: g.big.back, f: g.big.n }))}</p></div>
-        ${live}
-      </div>
+      </details>
       <p class="tr-rx-f">${esc(t("Frequências do passado em amostras pequenas, não uma garantia. Histórico: Dukascopy (news-reaction, {d}); ouro ao vivo: Binance XAUUSDT.", { d: RX.built || "—" }))}</p>`);
   }
 
@@ -235,16 +421,16 @@
     await load().catch(() => {});
     if (Date.now() - chartAt > 15000) loadChart(false);
   });
-  function pick(id) { sel = id; localStorage.setItem("trading.sel", id); view = { n: 120, off: 0 }; paintRadar(); paintBar(); paintRead(); paintInst(); loadChart(true); $("tr-chart").scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+  function pick(id) { sel = id; localStorage.setItem("trading.sel", id); view = { n: 120, off: 0 }; trShow("chart"); paintRadar(); paintBar(); paintRead(); paintInst(); loadChart(true); }
   async function setting(body) { try { S.settings = await api("/api/trading-room/settings", { method: "POST", body }); } catch (e) { /* shown by the next load */ } paintHead(); }
   async function meet() {
     const b = $("tr-meet"); if (b) b.disabled = true;
-    try { await api("/api/trading-room/meet", { method: "POST", body: { focus: [sel] } }); openMeeting = null; await load(); }
+    try { await api("/api/trading-room/meet", { method: "POST", body: { focus: [sel] } }); openMeeting = null; trShow("meet"); await load(); }
     catch (e) { alert(String(e.message || e)); }
     finally { if (b) b.disabled = false; }
   }
 
-  function paintAll() { paintHead(); paintClocks(); paintTape(); paintRadar(); paintScore(); paintLive(); paintBar(); paintRead(); paintInst(); paintTable(); paintBook(); paintReaction(); paintCal(); paintNews(); }
+  function paintAll() { paintHead(); paintClocks(); paintTape(); paintToday(); paintMarkets(); paintDo(); paintRadar(); paintScore(); paintBar(); paintRead(); paintInst(); paintTable(); paintBook(); paintReaction(); paintCal(); paintNews(); }
 
   function paintHead() {
     const st = S && S.settings; if (!st) return;
@@ -255,7 +441,7 @@
     m.value = st.model; m.hidden = !st.claude;
     const running = S.meetings[0] && S.meetings[0].status === "running";
     $("tr-meet").disabled = running;
-    $("tr-meet").innerHTML = `${icon("users")}${esc(running ? t("Em reunião…") : t("Convocar reunião"))}`;
+    $("tr-meet").innerHTML = `${icon("users")}${esc(running ? t("Em reunião…") : t("Chamar os agentes"))}`;
   }
 
   function paintClocks() {
@@ -265,7 +451,7 @@
       const left = Math.max(0, Math.round(((new Date(s.open ? s.closes : s.opens)) - now) / 60000));
       return `<span class="tr-ses ${s.open ? "on" : ""}" title="${esc(s.open ? t("Aberta: fecha em {h}h{m}", { h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") }) : t("Fechada: abre em {h}h{m}", { h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") }))}"><i></i>${esc(t(s.name))}<small>${s.open ? t("fecha {h}h{m}", { h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") }) : t("abre {h}h{m}", { h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") })}</small></span>`;
     }).join("");
-    const kz = S.killzone ? `<span class="tr-kz">${icon("target")}${esc(t("Killzone"))} · ${esc(t(S.killzone.name))}${S.killzone.silver ? ` · <b>${esc(t("silver bullet"))}</b>` : ""}</span>` : "";
+    const kz = S.killzone ? `<span class="tr-kz" title="${esc(t("Killzone: a hora do dia em que os bancos mexem mais no preço. É quando as oportunidades costumam aparecer."))}">${icon("target")}${esc(t("Hora forte"))} · ${esc(t(S.killzone.name))}${S.killzone.silver ? ` · <b>${esc(t("silver bullet"))}</b>` : ""}</span>` : "";
     paint($("tr-clocks"), `<b class="tr-now">${now.toLocaleTimeString("pt-PT")}</b>${ses}${kz}`);
   }
 
@@ -359,12 +545,12 @@
         </div>
         ${spark(s.curve)}
         <dl class="tr-sc-k">
-          <div><dt>${esc(t("Profit factor"))}</dt><dd>${s.pf == null ? "—" : s.pf >= 99 ? "∞" : nfx(s.pf)}</dd></div>
-          <div><dt>${esc(t("Expectativa"))}</dt><dd class="${(s.avg_r || 0) >= 0 ? "up" : "down"}">${s.avg_r == null ? "—" : rfmt(s.avg_r)}</dd></div>
+          <div title="${esc(t("Profit factor: tudo o que ganhou a dividir por tudo o que perdeu. Acima de 1 está a ganhar."))}"><dt>${esc(t("Lucro ÷ perda"))}</dt><dd>${s.pf == null ? "—" : s.pf >= 99 ? "∞" : nfx(s.pf)}</dd></div>
+          <div title="${esc(t("Expectativa: quanto ganha ou perde, em média, cada trade."))}"><dt>${esc(t("Média por trade"))}</dt><dd class="${(s.avg_r || 0) >= 0 ? "up" : "down"}">${s.avg_r == null ? "—" : rfmt(s.avg_r)}</dd></div>
           <div><dt>${esc(t("Ganho médio"))}</dt><dd class="up">${s.avg_win == null ? "—" : rfmt(s.avg_win)}</dd></div>
           <div><dt>${esc(t("Perda média"))}</dt><dd class="down">${s.avg_loss == null ? "—" : rfmt(s.avg_loss)}</dd></div>
-          <div><dt>${esc(t("Drawdown máx."))}</dt><dd>${s.max_dd ? "−" + nfx(s.max_dd) + "R" : "0R"}</dd></div>
-          <div><dt>${esc(t("Série"))}</dt><dd>${esc(streak)}</dd></div>
+          <div title="${esc(t("Drawdown: a maior descida da conta desde um máximo."))}"><dt>${esc(t("Pior queda"))}</dt><dd>${s.max_dd ? "−" + nfx(s.max_dd) + "R" : "0R"}</dd></div>
+          <div title="${esc(t("As últimas trades seguidas com o mesmo resultado."))}"><dt>${esc(t("Seguidas"))}</dt><dd>${esc(streak)}</dd></div>
         </dl>
         <div class="tr-sc-f"><span class="tr-last">${(s.last || []).map((r) => `<i class="${r > .05 ? "w" : r < -.05 ? "l" : "b"}" title="${rfmt(r)}"></i>`).join("")}</span>
           <span>${s.open} ${esc(t("abertas"))} · ${s.pending} ${esc(t("pendentes"))} · ${s.n} ${esc(t("fechadas"))}</span></div>
@@ -379,45 +565,14 @@
   const CAN = { yes: "ainda dá para entrar", late: "entrou · ainda dá, junto à entrada", in: "já entrou · perdeste a entrada", no: "acabou" };
   const dt = (iso) => (iso ? new Date(iso).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
   const dur = (a, b) => { if (!a) return "—"; const m = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 60000); return m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`; };
-  // the trades in play now, one card each, in plain words: what we wait for, at what time, and whether it is still on
-  function paintLive() {
-    const live = bookRows.filter((tr) => tr.status === "pending" || tr.status === "open");
-    const el = $("tr-live");
-    if (!live.length) { paint(el, ""); el.hidden = true; return; }
-    el.hidden = false;
-    const PILL = { yes: ["À ESPERA DA ENTRADA", "amber"], late: ["ENTROU · AINDA DÁ", "blue"], in: ["ENTROU · JÁ ANDOU", "up"], no: ["ACABOU", "dim"] };
-    paint(el, `<h2>${icon("target")}${esc(t("Trades em jogo agora"))}<small>${esc(t("o plano de cada uma, a hora ideal e se ainda dá para entrar"))}</small></h2>
-      <div class="tr-live-g">${live.map((tr) => {
-        const dp = tr.dp != null ? tr.dp : 2, can = (tr.now && tr.now.can) || "yes", [pill, tone] = PILL[can];
-        const inWin = tr.win_from && Date.now() >= Date.parse(tr.win_from) && Date.now() <= Date.parse(tr.win_to);
-        const who = tr.agent === "model" ? `<span class="tr-who-s">${bars()}</span>` : `<img src="${portrait(tr.agent)}" alt="">`;
-        return `<article class="tr-lc ${tr.dir} ${can}" data-trade="${tr.id}">
-          <header>${who}<div><b>${esc(tr.symbol)} <span class="tr-side ${tr.dir}">${esc(t(tr.dir === "buy" ? "Compra" : "Venda"))}</span></b><small>${esc(t(NAMES[tr.agent] || tr.agent))} · ${dt(tr.at)}</small></div>
-            <span class="tr-pill ${inWin && can === "yes" ? "hot" : tone}">${esc(t(inWin && can === "yes" ? "HORA IDEAL AGORA" : pill))}</span></header>
-          ${tr.plan ? `<p class="tr-lc-plan">${esc(tr.plan)}</p>` : `<p class="tr-lc-plan">${esc(tr.why)}</p>`}
-          <dl class="tr-lc-k">
-            ${tr.zone ? `<div><dt>${esc(t("Zona"))}</dt><dd>${num(tr.zone[0], dp)} – ${num(tr.zone[1], dp)}</dd></div>` : ""}
-            <div><dt>${esc(t("Entrada"))}</dt><dd>${num(tr.entry, dp)}</dd></div>
-            <div><dt>${esc(t("Stop"))}</dt><dd class="down">${num(tr.stop, dp)}</dd></div>
-            <div><dt>${esc(t("Alvos"))}</dt><dd class="up">${num(tr.tp1, dp)}${tr.tp2 ? " · " + num(tr.tp2, dp) : ""}</dd></div>
-            <div><dt>${esc(t("Hora ideal"))}</dt><dd>${tr.win_from ? `${hm(tr.win_from)}–${hm(tr.win_to)}` : "—"}</dd></div>
-            <div><dt>${esc(t("Vale até"))}</dt><dd>${hm(tr.valid)}</dd></div>
-          </dl>
-          ${tr.trigger ? `<p class="tr-lc-trig"><b>${esc(t("Gatilho"))}:</b> ${esc(tr.trigger)}</p>` : ""}
-          ${tr.now ? `<p class="tr-nowl ${can}">${esc(tr.now.line)}</p>` : ""}
-        </article>`;
-      }).join("")}</div>`);
-    el.onclick = (e) => { const c = e.target.closest("[data-trade]"); if (c) { openTrade = c.dataset.trade; bookFilter.agent = ""; paintBook(); $("tr-book").scrollIntoView({ behavior: "smooth", block: "start" }); } };
-  }
-
   function paintBook() {
     const sf = $("tr-book-f").querySelector('[data-f="symbol"]');
     if (sf.options.length < 2 && S) sf.innerHTML += S.instruments.map((a) => `<option value="${a.id}">${a.id}</option>`).join("");
     const rows = bookRows.filter((tr) => (!bookFilter.agent || tr.agent === bookFilter.agent) && (!bookFilter.symbol || tr.symbol === bookFilter.symbol)
       && (!bookFilter.status || bookFilter.status.split(",").includes(tr.status)));
     if (!rows.length) { paint($("tr-book"), `<p class="tr-none">${esc(t("Ainda não há trades aqui. Cada reunião com o Claude pode abrir até duas por agente; o Modelo SMC abre uma por cada setup A ou A+."))}</p>`); return; }
-    paint($("tr-book"), `<table class="tr-tbl"><thead><tr><th>${esc(t("Quando"))}</th><th>${esc(t("Quem"))}</th><th>${esc(t("Instrumento"))}</th><th>${esc(t("Direção"))}</th>
-      <th class="n">${esc(t("Entrada"))}</th><th class="n">${esc(t("Stop"))}</th><th class="n">${esc(t("Alvos"))}</th><th class="n">RR</th><th>${esc(t("Estado"))}</th><th class="n">${esc(t("Resultado"))}</th><th>${esc(t("Avaliação"))}</th></tr></thead>
+    paint($("tr-book"), `<table class="tr-tbl"><thead><tr><th>${esc(t("Quando"))}</th><th>${esc(t("Quem"))}</th><th>${esc(t("Mercado"))}</th><th>${esc(t("Compra / venda"))}</th>
+      <th class="n">${esc(t("Entrada"))}</th><th class="n">${esc(t("Stop"))}</th><th class="n">${esc(t("Alvos"))}</th><th class="n" title="${esc(t("Quantas vezes o lucro possível é maior do que a perda possível"))}">${esc(t("Ganho / risco"))}</th><th>${esc(t("Estado"))}</th><th class="n">${esc(t("Resultado"))}</th><th>${esc(t("Avaliação"))}</th></tr></thead>
       <tbody>${rows.map((tr) => bookRow(tr)).join("")}</tbody></table>`);
   }
   function bookRow(tr) {

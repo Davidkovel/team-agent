@@ -514,7 +514,7 @@ preço e a banda da VWAP do outro lado (venda: acima da banda de cima; compra: a
 isso o lote cresce perto do stop; 0,5% no total. Stop além da banda 1σ (verde) + folga; se o preço já a passou, a 2σ, depois a 3σ.
 TP: a mediana do movimento a favor na 1.ª hora nas notícias passadas desse tipo (`reaction_data/`), senão 0,5% da entrada dele.
 A posição dele nunca é tocada; o que não encheu é cancelado quando ela fecha, no Stop ou ao fim de `window` min; os reforços cheios
-ficam com o seu stop/TP («Stop e fechar reforços» fecha-os). VWAP de sessão (17:00 NY) das velas M1 da própria corretora. Magic 7700.
+ficam com o seu stop/TP («Stop e fechar reforços» fecha-os). VWAP de sessão (17:00 NY) das velas M1 da própria corretora, agrupadas no tempo gráfico do TradingView dele (15m por omissão, `tf`): os valores batem com o OANDA:XAUUSD do TradingView a 0,5–3 $ (até 7 $). Backtest em news-reaction `research/reforco_2026-10-18` (18 out): a ideia perde desde 2018 (−83 000 $ em 50k com reforço). Magic 7700.
 Respeita a guarda da prop do Escritório. Corre só no PC com a conta MT5 (o do Marco): noutro PC a página manda abrir o Hub dele.
 Estado em `~/.team-agent/trading-room/reforco.json`. Pesquisa por trás: memória «news-reaction» (VWAP após notícias).
 

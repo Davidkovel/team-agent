@@ -119,6 +119,7 @@
       ${field("levels", "Ordens no reforço", "1")}
       <label><span>${esc(t("Stop na banda"))}</span><select name="band">${opt(1, t("1σ (verde)"), c.band)}${opt(2, "2σ", c.band)}</select><em>${esc(t("Se o preço já passou a banda, usa a seguinte"))}</em></label>
       ${field("buffer_pct", "Folga além da banda (%)", "0.01")}
+      <label><span>${esc(t("Bandas como no TradingView"))}</span><select name="tf">${opt(15, "15m", c.tf)}${opt(5, "5m", c.tf)}${opt(1, "1m", c.tf)}</select><em>${esc(t("O tempo gráfico onde vês a VWAP"))}</em></label>
       <label class="rf-check"><input type="checkbox" name="tp_auto" ${c.tp_auto ? "checked" : ""}><span>${esc(t("TP pela estatística da notícia"))}</span></label>
       ${field("tp_pct", "TP fixo (%)", "0.05", "Quando não há estatística")}
       ${field("window", "Ordens válidas (min)", "5")}

@@ -33,27 +33,28 @@ MAGIC = 7700   # the ladder's orders and positions (the robots use their own)
 SYMS = ["XAUUSD", "EURUSD", "GBPUSD", "GER40"]
 STAT_SYM = {"XAUUSD": "GOLD", "EURUSD": "EURUSD", "GBPUSD": "GBPUSD", "GER40": "GER40"}
 DEFAULTS = {"account": "", "symbol": "XAUUSD", "alloc": 50_000.0, "main_pct": 1.5, "add_pct": 0.5, "levels": 5,
-            "band": 1, "buffer_pct": 0.03, "tp_auto": True, "tp_pct": 0.5, "window": 60}
+            "band": 1, "buffer_pct": 0.03, "tp_auto": True, "tp_pct": 0.5, "window": 60, "tf": 15}
 
 
 # ---------------------------------------------------------------- pure parts
-def bands(bars: list, since: float) -> dict | None:
-    """Session VWAP and its σ (volume-weighted standard deviation) from (t, o, h, l, c, v) bars at or after `since`."""
-    sv = spv = sp2v = 0.0
-    n = 0
+def bands(bars: list, since: float, tf: int = 15) -> dict | None:
+    """Session VWAP and its σ as TradingView draws them on a `tf`-minute chart (his gold chart is 15m): the hlc3 of each
+    tf bar weighted by its volume, from (t, o, h, l, c, v) 1-minute bars at or after `since`; the last bar as it stands."""
+    groups: dict = {}
     for t, _o, h, l, c, v in bars:
-        if t < since:
-            continue
-        v = v or 1.0
-        p = (h + l + c) / 3
+        if t >= since:
+            groups.setdefault(int(t // (tf * 60)) if tf else t, []).append((h, l, c, v or 1.0))
+    if len(groups) < 2:
+        return None
+    sv = spv = sp2v = 0.0
+    for g in groups.values():
+        p = (max(x[0] for x in g) + min(x[1] for x in g) + g[-1][2]) / 3
+        v = sum(x[3] for x in g)
         sv += v
         spv += p * v
         sp2v += p * p * v
-        n += 1
-    if n < 3 or not sv:
-        return None
     vw = spv / sv
-    return {"vwap": vw, "sd": math.sqrt(max(sp2v / sv - vw * vw, 0.0)), "bars": n}
+    return {"vwap": vw, "sd": math.sqrt(max(sp2v / sv - vw * vw, 0.0)), "bars": len(groups)}
 
 
 def stop_at(direction: str, price: float, b: dict, band: int, buffer_pct: float) -> tuple[float, int] | None:
@@ -209,13 +210,13 @@ class Desk:
     def set_cfg(self, body: dict) -> dict:
         c = self.state["cfg"]
         num = {"alloc": (1000, 10_000_000), "main_pct": (0.1, 5), "add_pct": (0.05, 3), "levels": (1, 12), "band": (1, 3),
-               "buffer_pct": (0, 0.5), "tp_pct": (0.05, 5), "window": (5, 240)}
+               "buffer_pct": (0, 0.5), "tp_pct": (0.05, 5), "window": (5, 240), "tf": (1, 60)}
         for k, (lo, hi) in num.items():
             if k in body and body[k] not in (None, ""):
                 v = float(body[k])
                 if not lo <= v <= hi:
                     raise ValueError(f"{k} fora de {lo}–{hi}.")
-                c[k] = int(v) if k in ("levels", "band", "window") else v
+                c[k] = int(v) if k in ("levels", "band", "window", "tf") else v
         if "symbol" in body:
             if body["symbol"] not in SYMS:
                 raise ValueError("Instrumento desconhecido.")
@@ -284,7 +285,7 @@ class Desk:
             self.market = {"ok": False, "error": f"Sem {cfg['symbol']} ou sem preço na conta (mercado fechado?)."}
             return
         offset = round((tick["time"] - time.time()) / 1800) * 1800   # the broker's clock (server time) vs UTC
-        bd = bands(b.bars(name), anchor(datetime.now(UTC)) + offset)
+        bd = bands(b.bars(name), anchor(datetime.now(UTC)) + offset, cfg.get("tf", 15))
         mid = (tick["bid"] + tick["ask"]) / 2
         self.market = {"ok": True, "at": time.time(), "symbol": name, "bid": tick["bid"], "ask": tick["ask"], "digits": spec["digits"],
                        "vwap": bd and round(bd["vwap"], spec["digits"]), "sd": bd and round(bd["sd"], spec["digits"] + 1), "main": {}}

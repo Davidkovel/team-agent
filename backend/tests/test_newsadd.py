@@ -8,9 +8,9 @@ SPEC = {"tick_size": 0.01, "tick_value": 1.0, "step": 0.01, "min": 0.01, "max": 
 
 def test_bands_and_stop_beyond_the_far_band():
     bars = [(i, 0, 101, 99, 100, 1) for i in range(10)] + [(i, 0, 111, 109, 110, 1) for i in range(10, 20)]
-    b = newsadd.bands(bars, 0)
+    b = newsadd.bands(bars, 0, 0)
     assert round(b["vwap"], 6) == 105 and round(b["sd"], 6) == 5
-    assert newsadd.bands(bars, 15)["vwap"] == 110   # only the bars after the anchor
+    assert newsadd.bands(bars, 15, 0)["vwap"] == 110   # only the bars after the anchor
     stop, k = newsadd.stop_at("sell", 106, b, 1, 0)
     assert (round(stop, 6), k) == (110, 1)   # vwap + 1σ
     stop, k = newsadd.stop_at("sell", 111, b, 1, 0)
@@ -28,6 +28,12 @@ def test_ladder_same_risk_lots_grow_towards_the_stop():
     assert sum(s["risk"] for s in steps) <= 250 and all(abs(s["risk"] - 50) < 4 for s in steps) and sum(s["risk"] for s in steps) > 245
     buy = newsadd.ladder("buy", 4000, 3990, 250, 4, SPEC)
     assert [s["price"] for s in buy] == [3998, 3996, 3994, 3992]
+
+
+def test_bands_on_15m_bars_like_tradingview():
+    bars = [(m * 60, 0, 100 + m % 15, 100 + m % 15, 100 + m % 15, 1) for m in range(30)]   # two 15m bars: hlc3 = (114+100+114)/3
+    b = newsadd.bands(bars, 0, 15)
+    assert b["bars"] == 2 and round(b["vwap"], 6) == round((114 + 100 + 114) / 3, 6) and b["sd"] < 1e-6
 
 
 def test_stat_tp(monkeypatch):
@@ -103,7 +109,7 @@ def _desk(tmp_path, monkeypatch):
     monkeypatch.setattr(newsadd, "anchor", lambda now: 0)
     FakeMT5.pos, FakeMT5.pend, FakeMT5.sent, FakeMT5.closed, FakeMT5.price = [], [], [], [], 4000.0
     d = newsadd.Desk(office=FakeOffice(), broker=FakeMT5)
-    d.set_cfg({"account": "a1", "symbol": "XAUUSD", "tp_auto": False, "tp_pct": 0.5, "levels": 5, "band": 1, "buffer_pct": 0})
+    d.set_cfg({"account": "a1", "symbol": "XAUUSD", "tp_auto": False, "tp_pct": 0.5, "levels": 5, "band": 1, "buffer_pct": 0, "tf": 1})
     return d
 
 

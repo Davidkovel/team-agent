@@ -283,6 +283,12 @@ cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/ap
 - **Skills dos parceiros** (16 out): `site-empresa-local` (método dos sites Blue Magnitude e Detalhes Cautelosos do Tomás,
   tomas476) e `site-estudio-ia` (método do site NeoDaemon do Fábio, fabiocabaceira), ao lado das `premium-site-rebuild` e
   `realtor-landing` que o David trouxe do Tomás. O GitHub do Fábio não tem skills; o do Tomás só tinha o kit imobiliário.
+- **`site-scroll-infinito` é o padrão para qualquer site profissional** (18 out, pedido do Marco: «quando pedirem ao
+  Claude para fazer um site profissional e bom, que seja assim»). Tirada de três TikToks (Levora, Mr. Day, DRIP): o scroll
+  é uma viagem sem cortes (fotogramas num canvas ou mundo de camadas), faixas infinitas, produto que se desmonta, números,
+  peças que caem, a cor que muda e a volta ao início. Motor `starter/js/scroll.js`, demo NORTE, `scripts/fotogramas.py`
+  (vídeo → fotogramas) e `scripts/fotos.py` (screenshots no PC e no telemóvel). É a primeira da área Sites no
+  `claude_contexto.py`; a skill do ramo (imobiliário, negócio local...) junta-se a ela para o conteúdo.
 - Armadilha: uma classe CSS chamada `.src` já existe no `design.css` (rebentou o layout); nas páginas novas, prefixar as classes.
 
 ### Mercados (TradingView, SEC, paper trading) — desde 9 out

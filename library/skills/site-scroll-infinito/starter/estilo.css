@@ -1,0 +1,220 @@
+/* NORTE — estilo da demonstração do site-scroll-infinito.
+   00 tokens · 10 base · 20 topo e scroll · 30 cena e palco · 40 mundo de camadas · 50 beats · 60 faixas
+   70 números · 80 produto · 90 mochila · 95 reservar e rodapé · 99 movimento reduzido */
+
+/* ---------- 00 tokens ---------- */
+:root {
+  --fundo: #0b0d1a;
+  --tinta: #f3efe6;
+  --acento: #ff6a3d;
+  --letra-titulo: "Fraunces", Georgia, "Times New Roman", serif;
+  --letra: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --curva: cubic-bezier(.16, 1, .3, 1);
+  --salta: cubic-bezier(.34, 1.56, .64, 1);
+  --t-toque: 200ms;
+  --t-entra: 700ms;
+  --t-cena: 1200ms;
+  --g: clamp(16px, 4vw, 56px);
+  --t-1: clamp(.8rem, .76rem + .2vw, .9rem);
+  --t-2: clamp(1rem, .95rem + .25vw, 1.15rem);
+  --t-4: clamp(1.9rem, 1.3rem + 2.6vw, 3.6rem);
+  --t-6: clamp(3rem, 1.6rem + 7vw, 8.5rem);
+}
+
+/* ---------- 10 base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--tinta);
+  font: 400 var(--t-2)/1.5 var(--letra);
+  transition: background-color var(--t-cena) var(--curva), color var(--t-cena) var(--curva);
+  overflow-x: clip;
+}
+h1, h2 { font-family: var(--letra-titulo); font-weight: 400; letter-spacing: -.02em; line-height: .98; margin: 0; }
+p { margin: 0; }
+a { color: inherit; }
+img, svg, canvas { display: block; }
+.saltar { position: fixed; left: var(--g); top: -60px; z-index: 50; background: var(--tinta); color: var(--fundo); padding: .6em 1em; border-radius: 99px; }
+.saltar:focus { top: 12px; }
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 3px; }
+.chapeu { font-size: var(--t-1); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .78; margin-bottom: 1rem; }
+.linha { max-width: 34ch; opacity: .82; margin-top: 1.1rem; }
+.acoes { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 2rem; }
+.botao {
+  display: inline-flex; align-items: center; min-height: 48px; padding: 0 1.5rem; border-radius: 99px;
+  background: var(--acento); color: #160b06; font-weight: 600; text-decoration: none;
+  transition: transform var(--t-toque) var(--curva), background-color var(--t-toque) var(--curva);
+}
+.botao--vazio { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px currentColor; }
+@media (hover: hover) and (pointer: fine) { .botao:hover { transform: translateY(-2px); } }
+.titulo-secao { font-size: var(--t-4); max-width: 16ch; }
+
+/* ---------- 20 topo e indicador de scroll ---------- */
+.topo {
+  position: fixed; inset: 0 0 auto; z-index: 20; display: flex; align-items: center; justify-content: space-between;
+  padding: 18px var(--g); color: #fff; mix-blend-mode: difference; pointer-events: none;
+}
+.topo a { pointer-events: auto; text-decoration: none; }
+.marca { display: flex; align-items: center; gap: .55rem; font-weight: 800; letter-spacing: .2em; }
+.marca svg { width: 26px; height: 26px; fill: currentColor; }
+.topo nav { display: flex; align-items: center; gap: clamp(.8rem, 2vw, 2rem); font-size: var(--t-1); font-weight: 500; }
+.pilula { padding: .55em 1.1em; border-radius: 99px; box-shadow: inset 0 0 0 1.5px currentColor; }
+.rolar {
+  position: fixed; inset: auto var(--g) 18px; z-index: 20; display: flex; align-items: center; gap: 1rem;
+  font-size: var(--t-1); color: #fff; mix-blend-mode: difference; pointer-events: none; font-variant-numeric: tabular-nums;
+}
+.rolar__txt { margin-left: auto; }
+.rolar__linha { position: relative; width: 72px; height: 1.5px; background: rgb(255 255 255 / .3); overflow: hidden; }
+.rolar__linha b { position: absolute; inset: 0; background: #fff; transform-origin: 0 50%; transform: scaleX(0); }
+@media (max-width: 640px) { .topo nav a:not(.pilula) { display: none; } }
+
+/* ---------- 30 cena e palco ---------- */
+.cena { position: relative; height: calc((var(--ecras, 4) + 1) * 100svh); }
+.palco { position: sticky; top: 0; height: 100svh; overflow: hidden; }
+.palco > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ceu { position: absolute; inset: 0; }
+.ceu--a { background: radial-gradient(120% 80% at 50% 95%, #ff8a7a 0%, #c04d8a 28%, #4b2a7d 58%, #160f33 100%); }
+.ceu--b { background: radial-gradient(110% 90% at 30% 100%, #23366e 0%, #121b44 40%, #070a1c 100%); }
+.ceu--c { background: radial-gradient(120% 85% at 50% 72%, #fff2c9 0%, #ffbf8a 18%, #f08a7c 40%, #a05487 68%, #3a2453 100%); }
+.estrelas {
+  position: absolute; inset: 0; opacity: .9;
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 33% 42%, #fff 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 58% 12%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 77% 33%, #dfe8ff 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 88% 9%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 46% 27%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 22% 55%, #cfe0ff 50%, transparent 51%), radial-gradient(1.3px 1.3px at 67% 50%, #fff 50%, transparent 51%);
+  background-size: 340px 300px, 410px 360px, 290px 330px, 380px 270px, 460px 400px, 250px 230px, 520px 440px, 300px 380px;
+}
+.veu { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(to bottom, rgb(0 0 0 / .28), transparent 30%, transparent 62%, rgb(0 0 0 / .42)); }
+
+/* ---------- 40 mundo de camadas ---------- */
+.mundo { position: absolute; inset: 0; overflow: hidden; contain: strict; }
+.camada {
+  position: absolute; left: 50%; top: 50%; width: var(--w, 100%); height: var(--h, 100%);
+  translate: -50% -50%; visibility: hidden; opacity: 0; pointer-events: none;
+}
+.camada.viva { visibility: visible; will-change: transform, opacity; }
+.camada svg { width: 100%; height: 100%; }
+.portal { --w: 100%; --h: 100%; }
+/* serras largas e com chão por baixo: a qualquer escala nunca se vê a ponta nem o fundo da camada */
+.montes { --w: 300vmax; --h: 30vmax; }
+.montes--perto { --w: 360vmax; --h: 38vmax; }
+.montes::after { content: ""; position: absolute; left: 0; right: 0; top: calc(100% - 1px); height: 300%; background: var(--c2); }
+.nuvem {
+  --w: 150%; --h: 120%;
+  background:
+    radial-gradient(38% 30% at 30% 55%, rgb(255 226 240 / .95), transparent 70%),
+    radial-gradient(34% 28% at 62% 45%, rgb(255 205 228 / .9), transparent 70%),
+    radial-gradient(45% 34% at 50% 62%, rgb(246 186 220 / .85), transparent 72%),
+    radial-gradient(30% 24% at 78% 60%, rgb(255 236 246 / .8), transparent 70%);
+}
+.nuvem--b { --w: 170%; --h: 110%; }
+.nuvem--noite {
+  background:
+    radial-gradient(38% 30% at 30% 55%, rgb(186 205 255 / .9), transparent 70%),
+    radial-gradient(34% 28% at 62% 45%, rgb(150 175 240 / .85), transparent 70%),
+    radial-gradient(45% 34% at 50% 62%, rgb(255 210 190 / .7), transparent 72%),
+    radial-gradient(30% 24% at 78% 60%, rgb(210 222 255 / .8), transparent 70%);
+}
+/* a lua e o sol pertencem ao céu (não se aproximam): ficam no .ceu e desaparecem com ele */
+.astro { position: absolute; border-radius: 50%; }
+.astro--lua { width: 11vmin; height: 11vmin; right: 18%; top: 14%; background: radial-gradient(circle at 38% 38%, #fff7ef, #ffd9e6 60%, #f3b3d0); box-shadow: 0 0 60px 18px rgb(255 190 220 / .45); }
+.astro--sol { width: 22vmin; height: 22vmin; left: 50%; top: 52%; translate: -50% -50%; background: radial-gradient(circle, #fffbe8 0%, #ffe6a8 55%, #ffc27a 100%); box-shadow: 0 0 120px 60px rgb(255 214 150 / .6), 0 0 300px 140px rgb(255 160 120 / .35); }
+.refugio { --w: 2.2vmin; --h: 1.6vmin; border-radius: 2px; background: #ffd27a; box-shadow: 0 0 22px 10px rgb(255 190 90 / .55); }
+
+/* ---------- 50 beats (o texto da viagem) ---------- */
+.beat { position: absolute; z-index: 3; max-width: min(36rem, calc(100% - 2 * var(--g))); text-shadow: 0 2px 30px rgb(0 0 0 / .25); }
+.js .beat { opacity: 0; }
+.beat.off { visibility: hidden; }
+.beat h1 { font-size: var(--t-6); }
+.beat h2 { font-size: var(--t-4); }
+.beat--hero { inset: 0; max-width: none; display: grid; place-content: center; justify-items: center; text-align: center; padding: 0 var(--g); }
+.beat--hero .linha { margin-inline: auto; }
+.beat--hero .acoes { justify-content: center; }
+.beat--esq { left: var(--g); bottom: 14svh; }
+.beat--dir { right: var(--g); top: 22svh; text-align: right; }
+.beat--dir .linha { margin-left: auto; }
+.beat--fim { left: 50%; top: 14svh; translate: -50% 0; text-align: center; }
+.beat--fim .acoes { justify-content: center; }
+@media (max-width: 640px) {
+  .beat--esq, .beat--dir { left: var(--g); right: var(--g); bottom: 12svh; top: auto; text-align: left; }
+  .beat--dir .linha { margin-left: 0; }
+  .beat--fim { width: calc(100% - 2 * var(--g)); }
+}
+
+/* ---------- 60 faixas infinitas ---------- */
+.faixas { position: relative; padding: 14svh 0; overflow: hidden; }
+.faixa { overflow: hidden; white-space: nowrap; padding: .5em 0; font: 800 clamp(2rem, 1rem + 4.5vw, 5.5rem)/1 var(--letra); text-transform: uppercase; letter-spacing: -.02em; }
+.faixa__trilho { display: flex; width: max-content; align-items: center; gap: .5em; padding-right: .5em; animation: faixa var(--vel, 30s) linear infinite; }
+.faixa__trilho i { font-style: normal; font-size: .55em; color: var(--acento); }
+.faixa--a { background: var(--acento); color: #160b06; rotate: -3deg; margin: 0 -2vw; }
+.faixa--a .faixa__trilho i { color: #160b06; }
+.faixa--b { background: var(--tinta); color: var(--fundo); rotate: 2.5deg; margin: -1.2em -2vw 0; --vel: 38s; }
+.faixa--b .faixa__trilho { animation-direction: reverse; }
+@keyframes faixa { to { transform: translateX(-50%); } }
+
+/* ---------- 70 números ---------- */
+.numeros { padding: 18svh var(--g); }
+.numeros ul { list-style: none; margin: 8svh 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 3rem var(--g); }
+.numeros b { display: block; font: 400 clamp(3rem, 2rem + 4vw, 6rem)/1 var(--letra-titulo); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.numeros li > span { display: block; margin-top: .6rem; opacity: .7; max-width: 20ch; }
+
+/* ---------- 80 produto que se desmonta ---------- */
+.garrafa { position: absolute; left: 50%; top: 50%; width: min(24vmin, 190px); height: min(64vmin, 500px); translate: -50% -50%; }
+.garrafa > div { position: absolute; left: 0; right: 0; will-change: transform; }
+.garrafa__tampa {
+  top: 0; height: 22%; border-radius: 18% 18% 6% 6% / 30% 30% 6% 6%;
+  background: linear-gradient(90deg, #0d0d10, #3a3a42 22%, #17171b 48%, #0b0b0e 80%, #2a2a31);
+  box-shadow: inset 0 -6px 0 #000, 0 10px 30px rgb(0 0 0 / .25);
+}
+.garrafa__corpo {
+  top: 21%; bottom: 0; border-radius: 10% 10% 14% 14% / 5% 5% 6% 6%;
+  background: linear-gradient(90deg, #121216, #4a4a54 18%, #1d1d22 42%, #0d0d10 76%, #34343c);
+  box-shadow: 0 40px 60px -20px rgb(0 0 0 / .45);
+}
+.garrafa__corpo::after { content: "NORTE"; position: absolute; left: 50%; top: 38%; translate: -50% 0; rotate: -90deg; color: rgb(255 255 255 / .75); font: 800 clamp(.9rem, .6rem + 1vmin, 1.4rem)/1 var(--letra); letter-spacing: .3em; }
+.garrafa__luz { top: 15%; height: 14%; border-radius: 50%; background: radial-gradient(closest-side, #f2d4ff, #b46bff 45%, rgb(150 70 255 / 0)); filter: blur(2px); opacity: 0; }
+.produto .palco { background: #efe8dc; }
+.produto .beat { text-shadow: none; }
+.beat--produto.beat--esq { bottom: auto; top: 50%; translate: 0 -50%; max-width: min(24rem, 32vw); }
+.beat--produto.beat--dir { top: 50%; translate: 0 -50%; max-width: min(24rem, 32vw); }
+@media (max-width: 640px) {
+  .beat--produto.beat--esq, .beat--produto.beat--dir { top: auto; bottom: 7svh; translate: none; max-width: none; }
+  .garrafa { top: 40%; height: 50vmax; width: 18vmax; }
+}
+
+/* ---------- 90 peças que caem ---------- */
+.mochila { padding: 18svh var(--g) 10svh; overflow: hidden; }
+.cartas { list-style: none; padding: 0; margin: 8svh 0 12svh; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(11rem, 40vw), 1fr)); gap: 1.2rem; }
+.cartas li {
+  aspect-ratio: 3 / 4; display: grid; place-items: end start; padding: 1.2rem; border-radius: 22px;
+  background: var(--c); color: #16141f; font: 800 clamp(1.2rem, 1rem + 1vw, 1.8rem)/1 var(--letra); text-transform: uppercase;
+  box-shadow: 0 18px 40px -18px rgb(0 0 0 / .45);
+  transform: translateY(-110vh) rotate(calc(var(--r) * -3)); opacity: 0;
+  transition: transform 900ms var(--salta), opacity 300ms linear;
+}
+.cartas li.caiu { transform: rotate(var(--r)); opacity: 1; }
+.faixa--c { background: #16141f; color: #ff5a1f; rotate: -2deg; margin: 0 calc(-1 * var(--g) - 2vw); --vel: 24s; }
+
+/* ---------- 95 reservar e rodapé ---------- */
+.reservar { min-height: 100svh; padding: 20svh var(--g) 12svh; display: grid; align-content: center; }
+.reservar h2 { font-size: var(--t-6); max-width: 10ch; }
+.datas { list-style: none; padding: 0; margin: 3rem 0 0; max-width: 40rem; }
+.datas li { display: flex; justify-content: space-between; padding: 1.1rem 0; border-bottom: 1px solid color-mix(in srgb, currentColor 22%, transparent); font-size: clamp(1.1rem, 1rem + .6vw, 1.5rem); }
+.datas span { opacity: .7; }
+.rodape { padding: 3rem var(--g) 4.5rem; font-size: var(--t-1); opacity: .6; }
+.copia { pointer-events: none; }
+
+/* ---------- 99 movimento reduzido: tudo no estado final, a viagem vira páginas paradas ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .faixa__trilho { animation: none; }
+}
+.quieto .cena { height: auto; }
+.quieto .palco { position: relative; height: auto; min-height: 100svh; display: grid; gap: 30svh; padding: 22svh 0; }
+.quieto .mundo, .quieto .palco > canvas { position: absolute; top: 0; height: 100svh; }
+.quieto .beat { position: relative; inset: auto; translate: none; opacity: 1 !important; transform: none !important; visibility: visible; margin: 0 var(--g); }
+.quieto .ceu { opacity: 0 !important; }
+.quieto .ceu--a { opacity: 1 !important; }

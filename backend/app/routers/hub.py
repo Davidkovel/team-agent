@@ -3,7 +3,7 @@ import mimetypes
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
 
 from .. import limits
 from pydantic import BaseModel, Field
@@ -141,6 +141,29 @@ async def video_poster(company_id: str, section_id: str, id: str, token: str = Q
     if not jpg:
         raise HTTPException(404, "No poster")
     return FileResponse(jpg, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+# A site of the library (kind "sites") opens inside the Hub. Its own pages ask for their css, scripts and pictures by
+# relative paths, so the sign-in token travels in the path, not in a query the page would drop. The HTML goes out
+# sandboxed (its own origin): a site's scripts never see the Hub's sign-in, even when the site comes from another repo.
+@router.get("/hub/{company_id}/{section_id}/site/{token}/{sid}")
+async def site_root(company_id: str, section_id: str, token: str, sid: str):
+    return RedirectResponse(f"{sid}/", status_code=307)
+
+
+@router.get("/hub/{company_id}/{section_id}/site/{token}/{sid}/{path:path}")
+async def site_file(company_id: str, section_id: str, token: str, sid: str, path: str, db: AsyncSession = Depends(get_db)):
+    if not await user_from_jwt(token, db):
+        raise HTTPException(401, "Invalid token")
+    _, section = _section_or_404(company_id, section_id)
+    target = hub.resolve_site_file(section, sid, path) if section["kind"] == "sites" else None
+    if not target:
+        raise HTTPException(404, "File not found")
+    kind = hub.SITE_TYPES.get(target.suffix.lower()) or mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+    headers = {"Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff"}
+    if kind == "text/html":
+        headers["Content-Security-Policy"] = "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+    return FileResponse(target, media_type=kind, headers=headers)
 
 
 class ItemOp(BaseModel):

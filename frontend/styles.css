@@ -830,3 +830,38 @@ body { background: #08080a; }
 .mac > main { background: transparent; }
 .sidebar .wordmark { width: 140px; }
 .lock-mark { width: 200px; margin-bottom: 18px; }
+
+/* Sites (kind "sites", renderSites/openSite in app.js): a card per site and the viewer, as on a computer or a phone */
+.sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 16px; }
+.sv-card { display: grid; grid-template-rows: auto 1fr; background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.sv-shot { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; border: 0; border-radius: 0; background: #111; cursor: pointer; overflow: hidden; }
+.sv-shot img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s cubic-bezier(.16, 1, .3, 1); }
+.sv-shot > .i { width: 54px; height: 54px; opacity: .3; }
+.sv-play { position: absolute; left: 14px; bottom: 14px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 99px;
+  background: rgba(0, 0, 0, .62); backdrop-filter: blur(8px); color: #fff; font-size: 13px; font-weight: 600; }
+.sv-play .i { width: 15px; height: 15px; }
+.sv-shot:hover img { transform: scale(1.03); }
+.sv-info { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px 18px; }
+.sv-tag { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.sv-info h3 { font-size: 20px; line-height: 1.2; }
+.sv-info p { margin: 0; color: var(--silver); font-size: 14px; line-height: 1.55; }
+.sv-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 12.5px; }
+.sv-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.sv-acts .ghost, .sv-bar .ghost { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 3px; border: 1px solid var(--line);
+  background: transparent; color: var(--text); font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.sv-acts .ghost:hover, .sv-bar .ghost:hover { border-color: rgba(255, 255, 255, .35); }
+.sv-view { position: fixed; inset: 0; z-index: 60; display: grid; grid-template-rows: auto 1fr; background: rgba(4, 4, 6, .96); backdrop-filter: blur(10px); }
+.sv-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.sv-bar b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--display); font-size: 15px; }
+.sv-seg { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 99px; }
+.sv-seg button { min-height: 30px; padding: 0 14px; border: 0; border-radius: 99px; background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; cursor: pointer; }
+.sv-seg button.on { background: var(--text); color: #000; }
+.sv-stage { display: grid; place-items: center; min-height: 0; padding: 0; overflow: auto; }
+.sv-stage iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.sv-view.phone .sv-stage { padding: 18px; }
+.sv-view.phone .sv-stage iframe { width: 390px; height: min(844px, 100%); border-radius: 34px; box-shadow: 0 0 0 10px #111, 0 0 0 11px rgba(255, 255, 255, .14), 0 30px 80px rgba(0, 0, 0, .6); }
+@media (max-width: 640px) {
+  .sv-bar .ghost[href], .sv-seg { display: none; }
+  .sv-view.phone .sv-stage { padding: 0; }
+  .sv-view.phone .sv-stage iframe { width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
+}

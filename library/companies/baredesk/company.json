@@ -4,6 +4,13 @@
   "tagline": "Loja Shopify · tema, anúncios e marca",
   "sections": [
     {
+      "id": "sites", "label": "Sites", "icon": "🌐", "kind": "sites",
+      "description": "Os sites e os testes de site da loja. Abrem aqui dentro, como no PC ou como no telemóvel. Se um não aparecer neste PC, faz git pull no repositório do tema.",
+      "sources": [
+        {"source": "theme", "path": "teste-scroll", "label": "Teste · scroll infinito"}
+      ]
+    },
+    {
       "id": "tema", "label": "Tema", "icon": "🎨", "kind": "files",
       "description": "O tema Shopify da loja (só leitura).",
       "sources": [

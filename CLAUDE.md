@@ -289,6 +289,14 @@ cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/ap
   peças que caem, a cor que muda e a volta ao início. Motor `starter/js/scroll.js`, demo NORTE, `scripts/fotogramas.py`
   (vídeo → fotogramas) e `scripts/fotos.py` (screenshots no PC e no telemóvel). É a primeira da área Sites no
   `claude_contexto.py`; a skill do ramo (imobiliário, negócio local...) junta-se a ela para o conteúdo.
+- **Sites no Hub** (18 out, Marco: «manda isso para o widget... como trabalho, para que todos consigam ver»): uma secção
+  com `"kind": "sites"` no `company.json` lista as pastas com `index.html` (a da entrada, ou cada subpasta) e mostra-as
+  num cartão com a imagem e o README; o visor abre o site dentro do Hub, como no PC ou como no telemóvel (`renderSites`
+  / `openSite` no `app.js`, estilos `.sv-*` no `styles.css`). O Hub serve os ficheiros em
+  `/api/hub/<empresa>/<secção>/site/<token>/<sid>/<caminho>` (o token vai no caminho porque as páginas pedem o css e as
+  imagens por caminhos relativos) e manda o HTML com `Content-Security-Policy: sandbox`: o site corre noutra origem e
+  nunca vê o login do Hub. A BareDesk tem `Sites` com o teste `teste-scroll` do repositório do tema: num PC sem ele,
+  `git pull` no baredesk-theme.
 - Armadilha: uma classe CSS chamada `.src` já existe no `design.css` (rebentou o layout); nas páginas novas, prefixar as classes.
 
 ### Mercados (TradingView, SEC, paper trading) — desde 9 out

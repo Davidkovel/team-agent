@@ -30,6 +30,7 @@ const ICONS = {
   check: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
   wallet: '<rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2"/>',
   code: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7M18 11.5c0 4-6 3-11.2 5"/>',
+  sites: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/>',
 };
 const icon = (name) => `<svg class="i" viewBox="0 0 24 24">${ICONS[name] || ICONS.building}</svg>`;
 const meterClass = (pct) => (pct >= 85 ? "bad" : pct >= 60 ? "warn" : "");
@@ -736,9 +737,62 @@ async function viewCompanies(r) {
   if (!body) return;
   const note = data.missing?.length ? `<p class="muted">Pasta não encontrada neste servidor: ${data.missing.map(esc).join(", ")}</p>` : "";
   const ctx = { company, section, data };
-  const render = { cards: renderCards, static: renderCards, files: renderFiles, videos: renderMedia, photos: renderMedia }[data.kind];
+  const render = { cards: renderCards, static: renderCards, files: renderFiles, videos: renderMedia, photos: renderMedia, sites: renderSites }[data.kind];
   body.innerHTML = note + (data.items.length ? "" : '<div class="empty">Ainda não há nada aqui.</div>');
   if (data.items.length) render(body, ctx);
+}
+
+/* Sites (kind "sites"): a test of the shop or a proposal for a client, a folder with an index.html in a repo of the
+   company. A card with its picture, and a viewer inside the Hub, as on a computer or as on a phone. The page comes
+   sandboxed from the Hub (routers/hub.py, site_file), so it runs like the real site but never sees the sign-in. */
+function siteUrl({ company, section }, it) {
+  return `/api/hub/${company.id}/${section.id}/site/${encodeURIComponent(token)}/${encodeURIComponent(it.sid)}/`;
+}
+
+function renderSites(body, ctx) {
+  const mb = (n) => (n / 1e6).toFixed(n < 1e7 ? 1 : 0).replace(".", ",") + " MB";
+  const when = (s) => new Date(s * 1000).toLocaleString("pt-PT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  body.insertAdjacentHTML("beforeend", `<div class="sv-grid">${ctx.data.items.map((it, i) => `
+    <article class="sv-card">
+      <button class="sv-shot" data-site="${i}" aria-label="Ver ${esc(it.name)}">${it.poster ? `<img src="${siteUrl(ctx, it)}${esc(it.poster)}" alt="" loading="lazy" decoding="async">` : icon("sites")}
+        <span class="sv-play">${icon("expand")}Ver o site</span></button>
+      <div class="sv-info">
+        <span class="sv-tag">${esc(it.group || "Site")}</span>
+        <h3>${esc(it.title || it.name)}</h3>
+        ${it.about ? `<p>${esc(it.about)}</p>` : ""}
+        <div class="sv-facts"><span>${it.files} ficheiros · ${mb(it.size)}</span><span>Atualizado a ${esc(when(it.mtime))}</span></div>
+        <div class="sv-acts"><button class="primary" data-site="${i}">Ver aqui</button>
+          <button class="ghost" data-site="${i}" data-as="phone">Como no telemóvel</button>
+          <a class="ghost sv-tab" href="${siteUrl(ctx, it)}" target="_blank" rel="noopener">Abrir num separador</a></div>
+      </div>
+    </article>`).join("")}</div>`);
+  body.querySelectorAll("[data-site]").forEach((b) => {
+    b.onclick = () => openSite(ctx, ctx.data.items[+b.dataset.site], b.dataset.as === "phone");
+  });
+}
+
+function openSite(ctx, it, phone) {
+  document.querySelector(".sv-view")?.remove();
+  const view = document.createElement("div");
+  view.className = "sv-view" + (phone ? " phone" : "");
+  view.innerHTML = `<header class="sv-bar"><b>${esc(it.title || it.name)}</b>
+      <div class="sv-seg"><button data-mode="pc" class="${phone ? "" : "on"}">PC</button><button data-mode="phone" class="${phone ? "on" : ""}">Telemóvel</button></div>
+      <a class="ghost" href="${siteUrl(ctx, it)}" target="_blank" rel="noopener">Abrir num separador</a><button class="ghost" data-close-site>Fechar</button></header>
+    <div class="sv-stage"><iframe src="${siteUrl(ctx, it)}" title="${esc(it.title || it.name)}" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"></iframe></div>`;
+  document.body.append(view);
+  const close = () => { view.remove(); removeEventListener("keydown", esc_); };
+  const esc_ = (e) => { if (e.key === "Escape") close(); };
+  addEventListener("keydown", esc_);
+  view.querySelector("[data-close-site]").onclick = close;
+  view.querySelector(".sv-seg").onclick = (e) => {
+    const b = e.target.closest("[data-mode]");
+    if (!b) return;
+    if (b.classList.contains("on")) return;
+    view.classList.toggle("phone", b.dataset.mode === "phone");
+    view.querySelectorAll(".sv-seg button").forEach((x) => x.classList.toggle("on", x === b));
+    const frame = view.querySelector("iframe");
+    frame.src = frame.src;   // a site picks its phone or computer version when it loads (the phone film is vertical)
+  };
 }
 
 function mediaUrl({ company, section }, id) {

@@ -114,6 +114,9 @@ def list_section(company_id: str, section: dict) -> dict:
         if base is None:
             missing.append(entry.get("label") or entry.get("path") or entry.get("source"))
             continue
+        if kind == "sites":
+            items += site_items(index, entry, base)
+            continue
         if entry.get("cards") == "skills":
             for sub in sorted(p for p in base.iterdir() if p.is_dir()):
                 if entry.get("only") and sub.name not in entry["only"]:
@@ -141,6 +144,76 @@ def list_section(company_id: str, section: dict) -> dict:
             if not entry.get("recursive", True):
                 break
     return {"items": items, "missing": missing}
+
+
+# ---- sites: a folder with an index.html (a test of the shop, a proposal for a client) that opens inside the Hub ----
+SITE_POSTERS = ("img/poster.webp", "img/poster.jpg", "poster.webp", "poster.jpg", "img/og.jpg", "og.jpg", "frames/desk/0001.webp")
+SITE_TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json",
+              ".webp": "image/webp", ".avif": "image/avif", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+              ".svg": "image/svg+xml", ".gif": "image/gif", ".woff2": "font/woff2", ".woff": "font/woff", ".mp4": "video/mp4",
+              ".webm": "video/webm", ".glb": "model/gltf-binary", ".txt": "text/plain", ".md": "text/plain"}
+
+
+def _site_about(folder: Path) -> tuple[str, str]:
+    """The site's title and what it is: the first heading and paragraph of its README.md, else the page's own."""
+    readme = folder / "README.md"
+    if readme.is_file():
+        text = readme.read_text(encoding="utf-8", errors="replace")
+        title = next((line.lstrip("# ").strip() for line in text.splitlines() if line.startswith("# ")), "")
+        for block in text.split("\n\n"):
+            para = " ".join(line.strip() for line in block.splitlines() if not line.lstrip().startswith(("#", "|", "-", "`")))
+            if para.strip():
+                return title, re.sub(r"[*`]", "", para).strip()[:420]
+        return title, ""
+    page = (folder / "index.html").read_text(encoding="utf-8", errors="replace")[:8000]
+    title = re.search(r"<title>([^<]*)</title>", page, re.I)
+    about = re.search(r'<meta\s+name="description"\s+content="([^"]*)"', page, re.I)
+    return (title.group(1).strip() if title else ""), (about.group(1) if about else "")
+
+
+def site_items(index: int, entry: dict, base: Path) -> list[dict]:
+    """The entry's folder when it has an index.html, else each folder right under it that has one."""
+    if not base.is_dir():
+        return []
+    folders = [base] if (base / "index.html").is_file() else sorted(
+        p for p in base.iterdir() if p.is_dir() and p.name not in SKIP_DIRS and (p / "index.html").is_file())
+    out = []
+    for folder in folders:
+        size = files = 0
+        newest = 0.0
+        for dirpath, dirnames, filenames in os.walk(folder):
+            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            for name in filenames:
+                stat = (Path(dirpath) / name).stat()
+                size, files, newest = size + stat.st_size, files + 1, max(newest, stat.st_mtime)
+        title, about = _site_about(folder)
+        rel = "" if folder == base else folder.name
+        out.append({"id": f"{index}:{rel}", "sid": f"{index}~{rel}" if rel else str(index),
+                    "name": (entry.get("label") if folder == base else "") or title or folder.name, "title": title,
+                    "about": about, "poster": next((p for p in SITE_POSTERS if (folder / p).is_file()), ""),
+                    "size": size, "files": files, "mtime": int(newest), "group": entry.get("label", "")})
+    return out
+
+
+def resolve_site_file(section: dict, sid: str, path: str) -> Path | None:
+    """A file of one site (`sid` = "<entry>" or "<entry>~<folder>"), never outside that site's folder."""
+    index_text, _, rel = sid.partition("~")
+    try:
+        entry = section["sources"][int(index_text)]
+    except (ValueError, IndexError, KeyError):
+        return None
+    base = entry_base(entry)
+    if base is None or not base.is_dir() or "/" in rel or "\\" in rel or rel in (".", ".."):
+        return None
+    folder = (base / rel).resolve() if rel else base
+    if not folder.is_relative_to(base) or not (folder / "index.html").is_file():
+        return None
+    target = (folder / (path or "index.html")).resolve()
+    if target.is_dir():
+        target = target / "index.html"
+    if not target.is_file() or not target.is_relative_to(folder) or any(part in SKIP_DIRS for part in target.relative_to(folder).parts):
+        return None
+    return target
 
 
 def resolve_item(section: dict, item_id: str) -> Path | None:

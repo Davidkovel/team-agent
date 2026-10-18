@@ -113,7 +113,7 @@ async function bdSection(company, section) {
   const data = await api(`/api/hub/${company.id}/${section.id}`);
   if ($("bd-body") !== body) return; // the person went elsewhere meanwhile
   const note = data.missing?.length ? `<p class="muted">${t("Pasta não encontrada neste PC:")} ${data.missing.map(esc).join(", ")}</p>` : "";
-  const render = { cards: renderCards, static: renderCards, files: renderFiles, videos: renderMedia, photos: renderMedia }[data.kind];
+  const render = { cards: renderCards, static: renderCards, files: renderFiles, videos: renderMedia, photos: renderMedia, sites: renderSites }[data.kind];
   body.innerHTML = note + (data.items.length ? "" : ui.empty(section.id, "Ainda não há nada aqui", ""));
   if (data.items.length) render(body, { company, section, data });
 }

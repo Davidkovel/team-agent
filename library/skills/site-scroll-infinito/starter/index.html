@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NORTE — expedições acima das nuvens</title>
+<meta name="description" content="Demonstração do método site-scroll-infinito: o scroll é uma viagem contínua, sem cortes.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0d1a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 26 14 8l5 9 3-5 6 14Z' fill='%23ff6a3d'/%3E%3C/svg%3E">
+<!-- Em produção: alojar as letras no próprio site (woff2 + preload). O Google Fonts aqui é só para a demo abrir já. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter+Tight:wght@400;500;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+<script defer src="js/demo.js"></script>
+<script defer src="js/scroll.js"></script>
+</head>
+<body>
+<a class="saltar" href="#conteudo">Saltar para o conteúdo</a>
+
+<header class="topo">
+  <a class="marca" href="#viagem" aria-label="NORTE, início">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 26 14 8l5 9 3-5 6 14Z"/></svg><span>NORTE</span>
+  </a>
+  <nav aria-label="Principal">
+    <a href="#numeros">A expedição</a>
+    <a href="#garrafa">Equipamento</a>
+    <a class="pilula" href="#reservar">Reservar</a>
+  </nav>
+</header>
+
+<div class="rolar" aria-hidden="true">
+  <span data-pct-pagina>0%</span>
+  <span class="rolar__txt">Scroll</span>
+  <i class="rolar__linha"><b data-progresso-pagina></b></i>
+</div>
+
+<main id="conteudo">
+
+  <!-- 1. A VIAGEM: um mundo de camadas que a câmara atravessa. data-volta: depois do rodapé, recomeça sem corte.
+       Com um filme a sério, trocar a .mundo por: <canvas data-fotogramas data-dir="frames/desk/" data-n="120"
+       data-dir-tel="frames/tel/" data-n-tel="90"></canvas> (scripts/fotogramas.py faz as pastas). -->
+  <section class="cena" id="viagem" data-cena data-volta data-cor="#0b0d1a" data-tinta="#f3efe6" style="--ecras:8" aria-label="A viagem">
+    <div class="palco">
+      <div class="ceu ceu--a" data-beat="fade" data-de="0" data-ate=".42"><i class="astro astro--lua"></i></div>
+      <div class="ceu ceu--b" data-beat="fade" data-de=".36" data-ate=".78"><i class="estrelas"></i></div>
+      <div class="ceu ceu--c" data-beat="fade" data-de=".72" data-ate="1"><i class="astro astro--sol"></i></div>
+
+      <div class="mundo" data-viagem="7.4">
+        <!-- cena A: crepúsculo, vista pelo portal -->
+        <div class="camada portal" data-portal="11" data-z="1" style="--c1:#1a0f2e;--c2:#05040c;--luz:#ff7ab6"></div>
+        <div class="camada montes" data-montes="3" data-picos="18" data-alto=".5" data-z="2.8" data-y=".2" data-longe="3.6" style="--c1:#8d4a8f;--c2:#5a2f6f;--luz:#ffb3c7"></div>
+        <div class="camada montes" data-montes="5" data-picos="12" data-alto=".65" data-z="2.2" data-y=".25" style="--c1:#6a2f78;--c2:#3e1b52;--luz:#ff9ab0"></div>
+        <div class="camada montes" data-montes="8" data-picos="9" data-alto=".8" data-z="1.7" data-y=".3" style="--c1:#4a1f5e;--c2:#24102f;--luz:#ff7a9a"></div>
+        <div class="camada montes montes--perto" data-montes="13" data-picos="6" data-alto=".9" data-z="1.3" data-y=".36" style="--c1:#2a1036;--c2:#12071a;--luz:#ff6a8a"></div>
+        <!-- nuvens: escondem a troca de cena -->
+        <div class="camada nuvem" data-z="3.0" data-x="-.25" data-y=".05"></div>
+        <div class="camada nuvem nuvem--b" data-z="3.25" data-x=".3" data-y="-.08"></div>
+        <div class="camada nuvem" data-z="3.5" data-x="0" data-y=".12"></div>
+        <!-- cena B: a noite no refúgio -->
+        <div class="camada montes" data-montes="21" data-picos="15" data-alto=".55" data-z="5.6" data-y=".18" data-longe="3.6" style="--c1:#283a6e;--c2:#141f45;--luz:#8fb4ff"></div>
+        <div class="camada montes" data-montes="34" data-picos="9" data-alto=".75" data-z="5.0" data-y=".24" style="--c1:#1b2752;--c2:#0d1430;--luz:#7aa2ff"></div>
+        <div class="camada refugio" data-z="5.0" data-x="-.12" data-y=".06"></div>
+        <div class="camada montes montes--perto" data-montes="55" data-picos="6" data-alto=".85" data-z="4.6" data-y=".32" style="--c1:#101838;--c2:#060a1c;--luz:#5f88ff"></div>
+        <div class="camada nuvem nuvem--noite" data-z="5.4" data-x=".2" data-y=".02"></div>
+        <div class="camada nuvem nuvem--b nuvem--noite" data-z="5.65" data-x="-.3" data-y="-.06"></div>
+        <div class="camada nuvem nuvem--noite" data-z="5.9" data-x="0" data-y=".1"></div>
+        <!-- cena C: o cume ao nascer do sol (a câmara pára em 7.4: o que está a z = 8.4 fica em tamanho real) -->
+        <div class="camada montes" data-montes="89" data-picos="18" data-alto=".45" data-z="9.8" data-y=".22" data-longe="4" style="--c1:#e79a7c;--c2:#c46f6a;--luz:#ffe0b8"></div>
+        <div class="camada montes" data-montes="144" data-picos="12" data-alto=".6" data-z="9.0" data-y=".26" data-longe="3.8" style="--c1:#b55a6a;--c2:#7c3456;--luz:#ffc89a"></div>
+        <div class="camada montes montes--perto" data-montes="233" data-picos="6" data-alto=".72" data-z="8.5" data-y=".33" data-longe="3.6" style="--c1:#5b2445;--c2:#2a0f25;--luz:#ffb08a"></div>
+      </div>
+      <div class="veu" aria-hidden="true"></div>
+
+      <div class="beat beat--hero" data-beat data-de="0" data-ate=".1">
+        <p class="chapeu">Serra da Estrela · 3 dias</p>
+        <h1>Acima<br>das nuvens</h1>
+        <p class="linha">Subimos contigo até onde o céu começa. Grupos de doze, guias de montanha, refúgio incluído.</p>
+        <p class="acoes"><a class="botao" href="#dia1">Começar a viagem</a><a class="botao botao--vazio" href="#reservar">Reservar</a></p>
+      </div>
+      <div class="beat beat--esq" id="dia1" data-beat data-de=".13" data-ate=".3">
+        <p class="chapeu">Dia 1 · 1 800 m</p>
+        <h2>O caminho começa no vale</h2>
+        <p class="linha">Seis horas a subir ao ritmo do grupo, com paragens onde a vista pede.</p>
+      </div>
+      <div class="beat beat--dir" data-beat data-de=".46" data-ate=".64">
+        <p class="chapeu">Dia 2 · Refúgio a 2 600 m</p>
+        <h2>Uma noite debaixo de todas as estrelas</h2>
+        <p class="linha">Jantar quente, mantas de lã e um céu sem luz nenhuma da cidade.</p>
+      </div>
+      <div class="beat beat--fim" data-beat data-de=".84" data-ate="1">
+        <p class="chapeu">Dia 3 · O cume</p>
+        <h2>O sol nasce por baixo de ti</h2>
+        <p class="acoes"><a class="botao" href="#reservar">Ver as datas</a></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. FAIXAS que se cruzam (Mr. Day): CSS faz a volta, o scroll acelera-as e inverte-as -->
+  <section class="faixas" data-cor="#0b0d1a" data-tinta="#f3efe6" aria-label="NORTE em palavras">
+    <div class="faixa faixa--a" data-faixa><div class="faixa__trilho">
+      <span>Acima das nuvens</span><i>✦</i><span>3 dias</span><i>✦</i><span>12 pessoas</span><i>✦</i><span>Guias certificados</span><i>✦</i>
+    </div></div>
+    <div class="faixa faixa--b" data-faixa><div class="faixa__trilho">
+      <span>Refúgio incluído</span><i>✦</i><span>Nascer do sol no cume</span><i>✦</i><span>Desde 1998</span><i>✦</i>
+    </div></div>
+  </section>
+
+  <!-- 3. NÚMEROS que contam -->
+  <section class="numeros" id="numeros" data-cor="#efe8dc" data-tinta="#16141f" aria-label="A expedição em números">
+    <h2 class="titulo-secao">A expedição, em números</h2>
+    <ul>
+      <li><b><span data-conta="2210">2210</span> m</b><span>de desnível a subir</span></li>
+      <li><b><span data-conta="3">3</span> dias</b><span>e duas noites no refúgio</span></li>
+      <li><b><span data-conta="12">12</span></b><span>pessoas por grupo, no máximo</span></li>
+      <li><b><span data-conta="98.6" data-casas="1">98,6</span> %</b><span>chegam ao cume</span></li>
+    </ul>
+  </section>
+
+  <!-- 4. PRODUTO que se desmonta com o scroll (DRIP) -->
+  <section class="cena produto" id="garrafa" data-cena data-cor="#efe8dc" data-tinta="#16141f" style="--ecras:3" aria-label="A garrafa NORTE">
+    <div class="palco">
+      <div class="garrafa" aria-hidden="true">
+        <div class="garrafa__luz" data-peca data-de=".62" data-ate=".86" data-op0="0" data-op="1" data-escala="1.25"></div>
+        <div class="garrafa__tampa" data-peca data-de=".3" data-ate=".6" data-dy="-17" data-rot="-10"></div>
+        <div class="garrafa__corpo" data-peca data-de=".3" data-ate=".6" data-dy="7"></div>
+      </div>
+      <div class="beat beat--esq beat--produto" data-beat data-de="0" data-ate=".32">
+        <p class="chapeu">Equipamento incluído</p>
+        <h2>A garrafa NORTE</h2>
+        <p class="linha">Aço inox, 600 ml, quente durante doze horas a 2 600 m.</p>
+      </div>
+      <div class="beat beat--dir beat--produto" data-beat data-de=".33" data-ate=".64">
+        <p class="chapeu">Tampa que se separa</p>
+        <h2>Bebe sem tirar as luvas</h2>
+      </div>
+      <div class="beat beat--esq beat--produto" data-beat data-de=".66" data-ate="1">
+        <p class="chapeu">Luz UV-C · <span data-pct>0%</span></p>
+        <h2>Água limpa em 60 segundos</h2>
+        <p class="linha">Enche no ribeiro, carrega no botão, bebe.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. PEÇAS QUE CAEM (Mr. Day) -->
+  <section class="mochila" data-cor="#ff5a1f" data-tinta="#1a0d07" aria-label="O que vai na mochila">
+    <h2 class="titulo-secao">O que vai na mochila</h2>
+    <ul class="cartas" data-cai>
+      <li style="--r:-6deg;--c:#fff1d6">Frontal</li>
+      <li style="--r:4deg;--c:#9fe3ff">Bastões</li>
+      <li style="--r:-3deg;--c:#ffd84d">Corta-vento</li>
+      <li style="--r:7deg;--c:#f3efe6">Garrafa NORTE</li>
+      <li style="--r:-8deg;--c:#c8f59a">Mapa da Serra</li>
+      <li style="--r:3deg;--c:#ffb3c7">Mantas de lã</li>
+    </ul>
+    <div class="faixa faixa--c" data-faixa><div class="faixa__trilho">
+      <span>Tudo incluído</span><i>✦</i><span>Só trazes as botas</span><i>✦</i>
+    </div></div>
+  </section>
+
+  <!-- 6. RESERVAR (o fim do caminho) -->
+  <section class="reservar" id="reservar" data-cor="#0b0d1a" data-tinta="#f3efe6" aria-label="Reservar">
+    <p class="chapeu">Próximas saídas</p>
+    <h2>Reserva o teu lugar</h2>
+    <ul class="datas">
+      <li><b>7–9 nov</b><span>4 lugares</span></li>
+      <li><b>21–23 nov</b><span>9 lugares</span></li>
+      <li><b>5–7 dez</b><span>Esgotado</span></li>
+    </ul>
+    <p class="acoes"><a class="botao" href="mailto:ola@norte.example?subject=Reserva%20NORTE">Escrever-nos</a><a class="botao botao--vazio" href="https://wa.me/351900000000">WhatsApp</a></p>
+  </section>
+</main>
+
+<footer class="rodape">
+  <p>NORTE — demonstração da skill <code>site-scroll-infinito</code>. Continua a descer: a viagem recomeça.</p>
+</footer>
+</body>
+</html>

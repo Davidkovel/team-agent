@@ -24,8 +24,9 @@ MAX_OFFER = 6
 # (area, the words of a request or of a skill's description that belong to it, the library skills to offer first)
 AREAS = [
     ("Sites", r"\bsites?\b|website|webpage|p[aá]ginas? (web|de entrada|inicial)|landing|homepage|portef[oó]lio|portfolio|"
-              r"front-?end|\bhtml\b|\bcss\b|next\.?js|react|tailwind|web ?app|сайт|лендинг",
-     ["premium-site-rebuild", "site-empresa-local", "site-estudio-ia", "realtor-landing", "frontend-design",
+              r"front-?end|\bhtml\b|\bcss\b|next\.?js|react|tailwind|web ?app|infinite ?scroll|scroll infinito|"
+              r"parallax|scrollytelling|awwwards|сайт|лендинг|скролл",
+     ["site-scroll-infinito", "premium-site-rebuild", "site-empresa-local", "site-estudio-ia", "realtor-landing", "frontend-design",
       "senior-frontend", "web-artifacts-builder", "webapp-testing"]),
     ("SEO", r"\bseo\b|google (maps|search|business)|aparecer no google|posicionamento|ranking|sitemap|\bschema\b|"
             r"keywords?|palavras?-chave|backlinks?",

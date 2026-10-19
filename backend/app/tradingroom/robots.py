@@ -59,7 +59,31 @@ DEFAULT_ROBOTS = [
     _robot("smc-xau", "Ouro", "model", ["XAUUSD"], "SMC", 0), _robot("smc-eur", "EUR/USD", "model", ["EURUSD"], "SMC", 1),
     _robot("smc-gbp", "GBP/USD", "model", ["GBPUSD"], "SMC", 2), _robot("smc-ger", "GER40", "model", ["GER40"], "SMC", 3),
     _robot("pinguim", "Pinguim", "penguin", list(FOCUS), "Mesa Claude", 4), _robot("duascaras", "Duas-Caras", "twoface", list(FOCUS), "Mesa Claude", 5),
+    _robot("ema", "EMA 125/200", "ema", list(FOCUS), "Estratégias", 6), _robot("vwap", "VWAP", "vwap", list(FOCUS), "Estratégias", 7),
+    _robot("combo", "Combinado", "combo", list(FOCUS), "Estratégias", 8),
 ]
+_BT: dict = {}
+
+
+def backtested(agent: str, symbols: list[str]) -> dict | None:
+    """What the last backtest (backtest.json, ~4 weeks of M5) says about this strategy on these instruments: the history a
+    robot has before its first live trade. None for the two agents of the meetings (they cannot be replayed)."""
+    f = DIR / "backtest.json"
+    try:
+        mt = f.stat().st_mtime
+        if _BT.get("mt") != mt:
+            d = json.loads(f.read_text("utf-8"))
+            _BT.update(mt=mt, rows=[dict(t, agent=t.get("agent") or "model") for t in d.get("trades", []) + d.get("more", [])],
+                       days=d.get("days"), at=d.get("to"), agents=set(d.get("agents") or {"model": 1}))
+    except (OSError, ValueError):
+        return None
+    if agent not in _BT["agents"]:
+        return None
+    rows = [t for t in _BT["rows"] if t["agent"] == agent and t["symbol"] in symbols and t.get("status") in DONE and t.get("r") is not None]
+    n = len(rows)
+    gains, loss = sum(t["r"] for t in rows if t["r"] > 0), -sum(t["r"] for t in rows if t["r"] < 0)
+    return {"n": n, "days": _BT["days"], "winrate": round(sum(t["r"] > .05 for t in rows) / n * 100) if n else None,
+            "r": round(sum(t["r"] for t in rows), 2), "pf": round(gains / loss, 2) if loss else None}
 
 
 # ---------------------------------------------------------------- secrets (DPAPI on Windows)
@@ -404,6 +428,8 @@ class Office:
                 "last": [{"id": t["id"], "symbol": t["symbol"], "dir": t["dir"], "status": t["status"], "r": t.get("r"), "at": t["at"],
                           "entry": t["entry"], "stop": t["stop"], "tp1": t["tp1"], "grade": t.get("grade"), "note": t.get("note", ""),
                           "sent": self.state["sent"].get(f"{r.get('account')}:{t['id']}")} for t in mine[:6]],
+                "bt": backtested(r["agent"], r["symbols"]),
+                "needs_claude": r["agent"] in ("penguin", "twoface") and not ROOM.state.get("claude"),
                 "note": r.get("note", "")}
 
     # ---------------------------------------------------------------- tuning the setups

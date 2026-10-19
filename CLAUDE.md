@@ -459,6 +459,20 @@ Armadilhas que custaram tempo:
   Atenção: nessas 4 semanas as trades contra o H4/D1 renderam mais, ao contrário dos 20 anos; não se mudou nada por isso
   (um mês em viragem não chega). Testes em `tests/test_insidebar.py`.
 
+- **Quarto modelo: EMA 125/200 e uma conta por estratégia** (19 out, pedido do David: o Pinguim e o Duas-Caras não tinham
+  histórico nenhum; «mais duas análises e verificação: EMA 125 + 200 em vários tempos gráficos, VWAP, ou combinar»). Os dois
+  só fazem trades nas reuniões com o Claude ligado; neste PC está desligado, por isso nunca tiveram nenhuma (o painel do robô
+  diz isso agora). `tradingroom/ema.py`: tendência = preço > EMA 125 > EMA 200 e a 200 a subir (ao contrário na venda); entra em
+  M15 (com o H1 na mesma tendência, o H4 soma) ou em H1 (com o H4); pullback à faixa entre as duas EMA rejeitado, entrada no
+  reteste da 125, stop além do extremo e da 200, alvo na liquidez ou 2R; só A/A+. A EMA 200 precisa de história: a loja pede
+  800 velas de M15/H1/H4 (`markets.LONG`) e o `Frame` guarda-as em `.long`, mas as leituras SMC continuam nas 300 de sempre.
+  Cada setup leva `agree` (EMA 125/200 do H1, VWAP do M15, estrutura H4 a favor). `room.takers` diz que contas o tomam: o
+  Modelo (SMC, VWAP, inside bar, como antes), `ema`, `vwap` e `combo` (só quando as três leituras concordam). Três robôs novos
+  na equipa «Estratégias» (lugares 6–8). O backtest corre todas as contas (`agents` e `more` no `backtest.json`; `trades`
+  continua só o Modelo) e o painel do robô mostra o backtest da estratégia nos instrumentos dele. 1.º backtest (28 dias, 19 out):
+  Modelo 90 trades 32% +45 R; VWAP 7 trades +9 R; Combinado 3 trades +10 R; EMA 125/200 5 trades, 0 ganhas, −5,5 R. Amostras
+  pequenas demais para concluir: 4 semanas de M5 dão poucos setups de H1. Testes em `tests/test_ema.py`.
+
 ### Escritório de Robôs e as contas FundedNext (15 out, pedido do Marco)
 
 `#/robos`, 2.º separador da Sala de Trading (`frontend/hub/robots.js` + `.css`; no telemóvel em «Mais»), `/api/robots`

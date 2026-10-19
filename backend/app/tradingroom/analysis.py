@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from . import insidebar, sessions, smc, technicals, vwap
-from .markets import BY_ID, INSTRUMENTS, split_live
+from . import ema, insidebar, sessions, smc, technicals, vwap
+from .markets import BY_ID, INSTRUMENTS, TF, split_live
 
 UTC = timezone.utc
 T, O, H, L, C = range(5)
@@ -80,8 +80,8 @@ class Frame:
 
     def __init__(self, tf: str, rows: list, now_ts: float):
         self.tf = tf
-        self.closed, self.live = split_live(rows, tf, now_ts)
-        cs = self.closed
+        self.long, self.live = split_live(rows, tf, now_ts)
+        self.closed = cs = self.long[-TF[tf][1]:]   # the reads keep their window; the long history is for the EMA 200
         self.ok = len(cs) >= 30
         if not self.ok:
             return
@@ -169,7 +169,7 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
             if r:
                 tech.setdefault("vwap", {})[tf] = r
     adr_used = (tech.get("adr") or {}).get("used")
-    ideas, vw_ideas = [], []
+    ideas, vw_ideas, tgts = [], [], {}
     for tf in ("M15", "M5"):
         f = fr[tf]
         if not f.ok:
@@ -186,6 +186,7 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
                                "label": p["label"].lower() + f" {tf}", "key": bool(p.get("eq")), "p": p["p"], "code": "EQ" if p.get("eq") else "SW"})
         targets = [{"p": x["p"], "label": x["label"], "kind": x["kind"]} for x in liq if x["state"] == "intact"]
         targets += [{"p": p["p"], "label": p["label"] + f" {tf}", "kind": p["kind"]} for p in f.pools if p["state"] == "intact"]
+        tgts[tf] = targets
         bands = vwap.series(cs, vwap.day_start(cs, now))
         for s in smc.setups(cs, f.atr, f.events, f.fvg, sweeps, targets, price, look=40 if tf == "M15" else 48):
             s["tf"], s["kind"], s["key"] = tf, "smc", f"{s['dir']}:{tf}:{s['sweep']['x']:.6f}"
@@ -197,9 +198,21 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
     for s in ideas:
         _score(s, fr, pd, soon, dp, bool(inst.get("crypto")))
     ideas += vw_ideas
+    # the third model, EMA 125/200 (M15 and H1 entries, the timeframe above agreeing)
+    longs = {tf: fr[tf].long for tf in ("M15", "H1", "H4") if fr[tf].ok}
+    tgts["H1"] = [{"p": x["p"], "label": x["label"], "kind": x["kind"]} for x in liq if x["state"] == "intact"]
+    ideas += ema.setups(longs, {tf: fr[tf].atr for tf in longs}, tgts, now, adr_used, soon, dp, bool(inst.get("crypto")))
+    tech["ema200"] = ema.read(longs)
+    # what the three reads say about each idea's side, for the combined robot: EMA 125/200 on H1, the VWAP of M15, the H4 structure
+    vw15 = (tech.get("vwap") or {}).get("M15")
+    for s in ideas:
+        want = "bull" if s["dir"] == "buy" else "bear"
+        s["agree"] = [k for k, ok in (("ema", ema.trend(longs.get("H1") or []) == want),
+                                      ("vwap", bool(vw15) and (vw15["z"] > 0) == (want == "bull") and vw15["stack"] == ("up" if want == "bull" else "down")),
+                                      ("smc", fr["H4"].ok and fr["H4"].trend == want)) if ok]
     if d1.ok:
         ideas += insidebar.setups(inst["id"], d1.closed, d1.live, dp, now)
-    ideas = [s for s in ideas if s["status"] in ("armed", "active", "won") and s["age"] <= {"M15": 32, "M5": 36}.get(s["tf"], 0)]
+    ideas = [s for s in ideas if s["status"] in ("armed", "active", "won") and s["age"] <= {"M15": 32, "M5": 36, "H1": 8}.get(s["tf"], 0)]
     ideas.sort(key=lambda s: (-s["score"], s["age"]))
 
     # the events of now, for the alarms
@@ -243,7 +256,7 @@ def analyse(inst: dict, store, cal: list[dict], now: datetime) -> dict | None:
         "tf": tf_out, "bias": {"dir": bias, "score": score, "text": _bias_text(fr, bias)},
         "pd": pd, "range": {"hi": h4.hi, "lo": h4.lo} if h4.ok else None, "atr": atr_h1,
         "keys": [{k2: k[k2] for k2 in ("key", "label", "p", "state", "above") if k2 in k} | ({"at": k["t"], "x": k["x"]} if "t" in k else {}) for k in keys],
-        "above": above[:3], "below": below[:3], "pois": pois[:6], "setups": ideas[:4], "events": events[:12],
+        "above": above[:3], "below": below[:3], "pois": pois[:6], "setups": ideas[:4], "ideas": [x for x in ideas if x["grade"] in ("A+", "A")], "events": events[:12],
         "news": soon, "ccy": inst["ccy"], "tech": tech,
     }
 

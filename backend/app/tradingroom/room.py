@@ -278,12 +278,13 @@ class Room:
         now = datetime.now(UTC)
         changed = self.book.update(self.store, now)
         for a in self.view.values():
-            for st in a["setups"]:
-                key = f"model:{a['id']}:{st['key']}"
-                if st["grade"] in ("A+", "A") and st["status"] == "armed" and st["age"] <= 3 and key not in self.state["seen"]:
-                    self.state["seen"][key] = time.time()
-                    self.book.propose("model", [model_trade(a, st, now)], None, self.view, now, key)
-                    changed = True
+            for st in a.get("ideas", a["setups"]):
+                for agent in takers(st):
+                    key = f"{agent}:{a['id']}:{st['key']}"
+                    if st["grade"] in ("A+", "A") and st["status"] == "armed" and st["age"] <= 3 and key not in self.state["seen"]:
+                        self.state["seen"][key] = time.time()
+                        self.book.propose(agent, [model_trade(a, st, now)], None, self.view, now, key)
+                        changed = True
         if changed:
             self.save()
             await publish()
@@ -373,7 +374,20 @@ async def loop():
         await asyncio.sleep(max(5.0, 20 - (time.time() - started)))
 
 
-KIND_NAME = {"vwap": "VWAP + EMA ", "ib": "inside bar D1 "}
+KIND_NAME = {"vwap": "VWAP + EMA ", "ib": "inside bar D1 ", "ema": "EMA 125/200 "}
+
+
+def takers(st: dict) -> list[str]:
+    """The accounts of the book that take this setup: the Modelo (SMC, VWAP + EMA and the D1 inside bar, as always), one
+    account per strategy (EMA 125/200, VWAP + EMA), and the Combinado, only when the EMA 125/200 of H1, the VWAP of M15
+    and the H4 structure all point the setup's way."""
+    kind = st.get("kind")
+    out = ["model"] if kind in ("smc", "vwap", "ib") else []
+    if kind in ("ema", "vwap"):
+        out.append(kind)
+    if kind in ("smc", "vwap", "ema") and len(st.get("agree") or []) == 3:
+        out.append("combo")
+    return out
 
 
 def model_trade(a: dict, st: dict, now: datetime) -> dict:

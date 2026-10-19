@@ -50,6 +50,8 @@ CONTEXT = [
 ]
 BY_ID = {i["id"]: i for i in INSTRUMENTS + CONTEXT}
 TF = {"M5": ("5", 300), "M15": ("15", 300), "H1": ("60", 300), "H4": ("240", 300), "D1": ("1D", 260)}
+# what the store asks for on top of the window above: the EMA 200 of the third model needs the history to settle (ema.py)
+LONG = {"M15": 800, "H1": 800, "H4": 800}
 TF_SECONDS = {"M5": 300, "M15": 900, "H1": 3600, "H4": 14400, "D1": 86400}
 
 
@@ -154,7 +156,7 @@ class CandleStore:
         need = self.due(ids, force)
         if not need:
             return 0
-        got = await tv_candles([(BY_ID[i]["tv"], tf) for i, tf in need])
+        got = await tv_candles([(BY_ID[i]["tv"], tf) for i, tf in need], bars=LONG)
         missing = []
         for i, tf in need:
             rows = got.get((BY_ID[i]["tv"], tf))

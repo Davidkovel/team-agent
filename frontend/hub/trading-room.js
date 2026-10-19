@@ -12,7 +12,7 @@
   const PEOPLE = { penguin: { name: "Pinguim", what: "Macro e notícias" }, twoface: { name: "Duas-Caras", what: "Gráfico (SMC)" } };
   const STATE_PT = { intact: "intacto", swept: "varrido", taken: "rompido", testing: "a testar" };
   const STATUS_PT = { armed: "à espera do preço", active: "preço na zona", won: "alvo atingido" };
-  const KIND_LABEL = { smc: "SMC", vwap: "VWAP + EMA", ib: "Inside bar D1" };
+  const KIND_LABEL = { smc: "SMC", vwap: "VWAP + EMA", ib: "Inside bar D1", ema: "EMA 125/200" };
   const DIR_PT = { buy: "Compra", sell: "Venda", compra: "Compra", venda: "Venda", esperar: "Esperar" };
 
   let S = null, chartData = null, view = { n: 120, off: 0 }, hover = null, drag = null, openMeeting = null, clockTimer = 0, chartAt = 0, openTrade = null;

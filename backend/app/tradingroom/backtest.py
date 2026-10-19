@@ -22,11 +22,11 @@ from pathlib import Path
 
 from . import analysis
 from .book import ACTIVE, DONE, Book
-from .markets import INSTRUMENTS, TF, TF_SECONDS, tv_candles
+from .markets import INSTRUMENTS, LONG, TF, TF_SECONDS, tv_candles
 
 UTC = timezone.utc
 # how much past to ask for: M5 sets the length of the test, the others need their 300 candles before its first day
-BARS = {"M5": 5000, "M15": 2600, "H1": 1100, "H4": 700, "D1": 400}
+BARS = {"M5": 5000, "M15": 2600, "H1": 1300, "H4": 1000, "D1": 400}
 WARM = 300   # M5 candles read before the first order
 
 
@@ -46,7 +46,7 @@ class Replay:
             return hit[1]
         rows, ts, sec = self.data.get(key, []), self.times.get(key, []), TF_SECONDS[tf]
         n = bisect_right(ts, self.now - sec)   # closed: opened a whole candle ago
-        out = rows[max(0, n - TF[tf][1]):n]
+        out = rows[max(0, n - LONG.get(tf, TF[tf][1])):n]
         if tf != "M5" and n < len(rows) and ts[n] < self.now:   # the one forming, from the M5 candles closed so far
             m5, m5t = self.data.get((i, "M5"), []), self.times.get((i, "M5"), [])
             seg = m5[bisect_left(m5t, ts[n]):bisect_right(m5t, self.now - 300)]
@@ -58,7 +58,7 @@ class Replay:
 
 def replay(data: dict, progress=None) -> dict:
     """Runs the model over `data` ({(instrument, timeframe): candles}) and returns the scoreboard and every trade."""
-    from .room import model_trade
+    from .room import model_trade, takers
     store, book, old, seen, view = Replay(data), Book({"trades": []}), [], set(), {}
     closes: dict[float, list[dict]] = {}
     for inst in INSTRUMENTS:
@@ -74,23 +74,27 @@ def replay(data: dict, progress=None) -> dict:
                 fresh.append(a)
         book.update(store, now)
         for a in fresh:
-            for st in a["setups"]:
-                key = f"model:{a['id']}:{st['key']}"
-                if st["grade"] in ("A+", "A") and st["status"] == "armed" and st["age"] <= 3 and key not in seen:
-                    seen.add(key)
-                    for t in book.propose("model", [model_trade(a, st, now)], None, view, now, key):
-                        t["id"], t["tf"] = len(seen), st["tf"]
+            for st in a.get("ideas", a["setups"]):
+                for agent in takers(st):
+                    key = f"{agent}:{a['id']}:{st['key']}"
+                    if st["grade"] in ("A+", "A") and st["status"] == "armed" and st["age"] <= 3 and key not in seen:
+                        seen.add(key)
+                        for t in book.propose(agent, [model_trade(a, st, now)], None, view, now, key):
+                            t["id"], t["tf"], t["kind"] = len(seen), st["tf"], st.get("kind")
         if len(book.trades) > 200:   # the book keeps 600: the finished ones wait outside
             old += [t for t in book.trades if t["status"] not in ACTIVE]
             book.state["trades"] = [t for t in book.trades if t["status"] in ACTIVE]
         if progress and n % 200 == 0:
             progress(n / len(steps))
     trades = sorted(old + book.trades, key=lambda t: t["at"])
-    stats = Book({"trades": list(trades)}).stats("model")
+    every = Book({"trades": list(trades)})
+    stats = every.stats("model")
+    agents = {ag: every.stats(ag) for ag in dict.fromkeys(t["agent"] for t in trades)}
+    model = [t for t in trades if t["agent"] == "model"]
 
     def group(field):
         out = {}
-        for t in trades:
+        for t in model:
             if t["status"] in DONE:
                 g = out.setdefault(str(t.get(field)), {"n": 0, "w": 0, "l": 0, "r": 0.0})
                 g["n"] += 1
@@ -99,13 +103,14 @@ def replay(data: dict, progress=None) -> dict:
                 g["r"] = round(g["r"] + t["r"], 2)
         return out
     counts: dict[str, int] = {}
-    for t in trades:
+    for t in model:
         counts[t["status"]] = counts.get(t["status"], 0) + 1
-    keep = ("id", "at", "symbol", "dir", "tf", "grade", "entry", "stop", "tp1", "tp2", "status", "r", "note", "filled_at", "closed_at", "mfe", "mae", "rr", "dp")
+    keep = ("id", "agent", "kind", "at", "symbol", "dir", "tf", "grade", "entry", "stop", "tp1", "tp2", "status", "r", "note", "filled_at", "closed_at", "mfe", "mae", "rr", "dp")
     return {"from": steps[0] if steps else None, "to": steps[-1] if steps else None, "days": round((steps[-1] - steps[0]) / 86400, 1) if steps else 0,
-            "candles": len(steps), "setups": len(seen), "counts": counts, "stats": stats,
+            "candles": len(steps), "setups": len(seen), "counts": counts, "stats": stats, "agents": agents,
             "by_grade": group("grade"), "by_tf": group("tf"), "by_dir": group("dir"),
-            "trades": [{k: t.get(k) for k in keep} for t in trades]}
+            "trades": [{k: t.get(k) for k in keep} for t in model],   # the Modelo's, as the panel has always shown
+            "more": [{k: t.get(k) for k in keep} for t in trades if t["agent"] != "model"]}   # the other accounts (robots)
 
 
 async def history() -> dict:

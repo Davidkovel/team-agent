@@ -23,7 +23,7 @@ from .markets import BY_ID, INSTRUMENTS
 from .sessions import london_offset
 
 UTC = timezone.utc
-AGENTS = {"penguin": "Pinguim", "twoface": "Duas-Caras", "model": "Modelo"}
+AGENTS = {"penguin": "Pinguim", "twoface": "Duas-Caras", "model": "Modelo", "ema": "EMA 125/200", "vwap": "VWAP + EMA", "combo": "Combinado"}
 ACTIVE = ("pending", "open")
 DONE = ("won", "lost", "be")
 MAX_NEW, MAX_ACTIVE, MAX_HOURS, TIME_STOP_H = 2, 4, 24, 72

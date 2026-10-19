@@ -144,6 +144,8 @@
         <div><small>${esc(t("Pior"))}</small><b class="${cls(r.worst)}">${r.worst == null ? "—" : signed(r.worst, cur)}</b></div>
         <div><small>${esc(t("Operações"))}</small><b>${r.ops}</b></div></div>
       <p class="rb-meta">${esc(t("Estratégia"))}: <b>${esc(r.agent_name)}</b> · ${esc(r.symbols.join(", "))} · ${esc(t("histórico"))} ${r.all.n ? `${r.all.n} trades, ${r.all.winrate}% ${esc(t("de acerto"))}, ${r.all.r >= 0 ? "+" : ""}${String(r.all.r).replace(".", ",")}R` : esc(t("ainda sem trades fechadas"))}</p>
+      ${r.bt ? `<p class="rb-meta">${esc(t("Backtest"))} (${String(r.bt.days || "—").replace(".", ",")} ${esc(t("dias de M5"))}): ${r.bt.n ? `<b>${r.bt.n} trades, ${r.bt.winrate}% ${esc(t("de acerto"))}, <em class="${r.bt.r >= 0 ? "up" : "down"}">${r.bt.r >= 0 ? "+" : ""}${String(r.bt.r).replace(".", ",")}R</em>${r.bt.pf ? ` · PF ${String(r.bt.pf).replace(".", ",")}` : ""}</b>` : esc(t("nenhum setup A/A+ neste período"))}</p>` : ""}
+      ${r.needs_claude ? `<p class="rb-meta">${esc(t("Só negoceia nas reuniões com o Claude ligado (Sala de Trading › Claude). Neste PC está desligado, por isso não tem trades. Para ter histórico já, muda a Estratégia para EMA 125/200, VWAP + EMA ou Combinado."))}</p>` : ""}
       ${r.note ? `<p class="rb-note">${esc(r.note)}</p>` : ""}
       <h4>${esc(t("Últimas trades"))}</h4>
       <div class="rb-trades">${r.last.length ? r.last.map((x) => `<div class="rb-tr"><b class="${x.dir === "buy" ? "up" : "down"}">${x.dir === "buy" ? "▲" : "▼"} ${esc(x.symbol)}</b>

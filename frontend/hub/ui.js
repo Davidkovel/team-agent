@@ -46,6 +46,7 @@ lazyView("kit", "hub/kit.js", "hub/kit.css");   // Trabalho › Kit do Claude: t
 lazyView("mercados", "hub/mercados.js", "hub/mercados.css"); // Mercados: TradingView, SEC, paper trading
 lazyView("trading", "hub/trading-room.js", "hub/trading-room.css"); // Sala de Trading: the room's two traders, SMC, the big alert
 lazyView("robos", "hub/robots.js", "hub/robots.css");
+lazyView("gap", "hub/gap.js", "hub/gap.css"); // Gap da manhã: the gaps on the FundedNext MT5 quotes, told to everyone
 lazyView("reforco", "hub/reforco.js", "hub/reforco.css"); // Reforço na notícia: the Hub adds to the trader's news position on MT5 // Escritório de Robôs: the robots at their desks, the FundedNext accounts by API
 
 const HUB_ICONS = {

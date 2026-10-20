@@ -1,10 +1,12 @@
 """Gap da manhã (#/gap): the gaps on the quotes of the FundedNext MT5 account, sent to the team every day.
 
 David (20 Oct): every morning (around 08:00) GER30 at FundedNext opens with a gap that the room's own feed (OANDA DE30)
-does not show, because the gap belongs to the broker's quote. So the Hub reads the M1 bars of the instruments straight from
-the MT5 account of this PC (the Escritório de Robôs' accounts, robots.OFFICE) and finds where a bar opens away from the
+does not show, because the gap belongs to the broker's quote. It is the DAX cash gap: the cash index (TradingView TVC:DEU40,
+on every PC, no MT5) trades 09:00-17:30 Frankfurt and opens each morning away from yesterday's close. The instruments of
+the MT5 account of this PC (the Escritório de Robôs' accounts, robots.OFFICE), when there is one, are read from their M1
+bars there. Either way the Hub finds where a bar opens away from the
 close of the bar before: after a pause in the quotes (the broker's session break), or a jump far bigger than the usual
-bar-to-bar step. Each new gap goes to everyone (bell, phone) once, with the close it would fill back to; when the price
+bar-to-bar step. Each Hub tells its own person (bell, phone) about each new gap once, with the close it would fill back to; when the price
 gets back there, a second note says the gap is closed and how long it took. The history gives the fill rate per instrument.
 
 State is a JSON file next to the room's, nothing here goes by sync. All synchronous, on the MT5 thread (mt5.run): the async
@@ -23,8 +25,13 @@ from .room import DIR
 
 log = logging.getLogger("tradingroom.gap")
 FILE = DIR / "gap.json"
-SYMS = ["GER40", "NAS100", "US30", "XAUUSD", "EURUSD", "GBPUSD"]
-DEFAULTS = {"on": True, "account": "", "symbols": ["GER40", "NAS100", "US30", "XAUUSD"], "min_pct": 0.05, "main": "GER40"}
+SRC = {"mt5": "FundedNext", "tv": "Xetra"}
+SYMS = ["DAX", "GER40", "NAS100", "US30", "XAUUSD", "EURUSD", "GBPUSD"]
+# read from TradingView, not MT5, so every PC has them: {ours: (TradingView symbol, name, digits)}. TVC:DEU40 is the DAX
+# cash index in real time (XETR:DAX is 15 min late): it trades 09:00-17:30 Frankfurt, so every morning at 09:00 it opens
+# away from yesterday's close, the same gap GER30 shows at FundedNext.
+TV = {"DAX": ("TVC:DEU40", "DAX (Xetra)", 2)}
+DEFAULTS = {"on": True, "account": "", "symbols": ["DAX", "GER40", "NAS100", "US30", "XAUUSD"], "min_pct": 0.05, "main": "DAX"}
 HOLE = 10 * 60      # a pause this long in the M1 bars is a session break
 JUMP = 6            # or a bar-to-bar step this many times the usual big one (95th percentile)
 FRESH = 30 * 60     # a gap older than this when first seen goes to the history without a note
@@ -51,11 +58,14 @@ def find_gaps(bars: list, min_pct: float) -> list[dict]:
 
 
 def fill(bars: list, g: dict) -> dict:
-    """From the gap's bar on: when the price got back to the close before the gap (filled), how far it ran away first,
-    and how much of the gap is still open now (0 = filled)."""
+    """From the gap's bar to the end of its session (the next pause): when the price got back to the close before the gap
+    (filled), how far it ran away first, and how much of the gap is still open (0 = filled)."""
     up = g["dir"] == "up"
     away, left = 0.0, abs(g["pts"])
-    for t, _o, h, l, c in bars[g["i"]:]:
+    for k in range(g["i"], len(bars)):
+        t, _o, h, l, c = bars[k]
+        if k > g["i"] and t - bars[k - 1][0] >= HOLE:
+            break
         away = max(away, (h - g["open"]) if up else (g["open"] - l))
         if (l <= g["prev"]) if up else (h >= g["prev"]):
             return {"filled": t, "away": away, "left": 0.0}
@@ -156,8 +166,11 @@ class Watch:
     # -------------------------------------------------------------- the pass (MT5 thread)
     def step(self):
         acc = self.account()
+        wanted = [s for s in self.state["cfg"]["symbols"] if s not in TV]
         if not acc:
-            self.error = "Não há conta MT5 neste PC (Escritório de Robôs)."
+            for ours in wanted:
+                self.live[ours] = {"ok": False, "error": "a conta MT5 está noutro PC"}
+            self.error = ""
             return
         err = mt5.login(self._office().full(acc))
         if err:
@@ -167,7 +180,7 @@ class Watch:
         self.error, self.at, now = "", time.time(), time.time()
         c, changed = self.state["cfg"], False
         read = {}
-        for ours in c["symbols"]:
+        for ours in wanted:
             name = mt5.symbol(acc, ours)
             if not name or not m.symbol_select(name, True):
                 self.live[ours] = {"ok": False, "error": "a conta não tem este instrumento"}
@@ -196,35 +209,52 @@ class Watch:
             return
         off = self.state["offset"]
         for ours, (name, digits, tick, bars) in read.items():
-            bars = [(t - off, o, h, l, cl) for t, o, h, l, cl in bars]
-            gaps = find_gaps(bars, c["min_pct"])
-            self.live[ours] = {"ok": True, "symbol": name, "digits": digits, "price": bars[-1][4], "at": bars[-1][0],
-                               "bid": tick.bid if tick else None}
-            for g in gaps:
-                key = f"{ours}:{g['t']}"
-                rec = next((d for d in self.state["days"] if d["key"] == key), None)
-                f = fill(bars, g)
-                if rec is None:
-                    rec = {"key": key, "symbol": ours, "name": name, "digits": digits, "t": g["t"], "prev": g["prev"], "open": g["open"],
-                           "pts": round(g["pts"], digits), "pct": round(g["pct"], 3), "dir": g["dir"], "kind": g["kind"],
-                           "after": g["after"], "filled": f["filled"], "told": now - g["t"] < FRESH}
-                    rec["told_fill"] = bool(f["filled"]) and not rec["told"]
-                    self.state["days"].append(rec)
-                    changed = True
-                    if rec["told"]:
-                        self.outbox.append(("medium", *self.note_open(rec)))
-                if rec.get("final"):
-                    continue
-                rec.update(away=round(f["away"], digits), left=round(f["left"], digits), spark=spark(bars, g["i"]))
-                if f["filled"] and not rec.get("filled"):
-                    rec["filled"] = f["filled"]
-                    changed = True
-                if rec["filled"] and not rec.get("told_fill"):
-                    rec["told_fill"] = True
-                    self.outbox.append(("low", *self.note_fill(rec)))
-                if now - rec["t"] > 18 * 3600 or rec["filled"] and now - rec["filled"] > 4 * 3600:
-                    rec["final"] = True   # the chart stays as it was
-                changed = True
+            changed |= self.ingest(ours, name, digits, [(t - off, o, h, l, cl) for t, o, h, l, cl in bars], "mt5", now)
+        self.tidy(changed)
+
+    def tv_pass(self, rows: dict):
+        """The TradingView instruments: rows = {ours: [(t, o, h, l, c, v), ...]} in UTC."""
+        now, changed = time.time(), False
+        for ours, (_sym, name, digits) in TV.items():
+            if ours not in self.state["cfg"]["symbols"]:
+                continue
+            bars = [r[:5] for r in rows.get(ours) or []]
+            if len(bars) < 50:
+                self.live[ours] = {"ok": False, "error": "o TradingView não respondeu"}
+                continue
+            changed |= self.ingest(ours, name, digits, bars, "tv", now)
+        self.tidy(changed)
+
+    def ingest(self, ours: str, name: str, digits: int, bars: list, src: str, now: float) -> bool:
+        """Finds the gaps of one instrument in its bars (UTC), records the new ones and follows their fill."""
+        changed = False
+        self.live[ours] = {"ok": True, "symbol": name, "digits": digits, "price": bars[-1][4], "at": bars[-1][0], "src": SRC[src]}
+        for g in find_gaps(bars, self.state["cfg"]["min_pct"]):
+            key = f"{ours}:{g['t']}"
+            rec = next((d for d in self.state["days"] if d["key"] == key), None)
+            f = fill(bars, g)
+            if rec is None:
+                rec = {"key": key, "symbol": ours, "name": name, "src": SRC[src], "digits": digits, "t": g["t"], "prev": g["prev"],
+                       "open": g["open"], "pts": round(g["pts"], digits), "pct": round(g["pct"], 3), "dir": g["dir"], "kind": g["kind"],
+                       "after": g["after"], "filled": f["filled"], "told": now - g["t"] < FRESH}
+                rec["told_fill"] = bool(f["filled"]) and not rec["told"]
+                self.state["days"].append(rec)
+                if rec["told"]:
+                    self.outbox.append(("medium", *self.note_open(rec)))
+            if rec.get("final"):
+                continue
+            rec.update(away=round(f["away"], digits), left=round(f["left"], digits), spark=spark(bars, g["i"]))
+            if f["filled"] and not rec.get("filled"):
+                rec["filled"] = f["filled"]
+            if rec["filled"] and not rec.get("told_fill"):
+                rec["told_fill"] = True
+                self.outbox.append(("low", *self.note_fill(rec)))
+            if now - rec["t"] > 18 * 3600 or rec["filled"] and now - rec["filled"] > 4 * 3600:
+                rec["final"] = True   # the chart stays as it was
+            changed = True
+        return changed
+
+    def tidy(self, changed: bool):
         self.state["days"].sort(key=lambda d: -d["t"])
         del self.state["days"][KEEP:]
         for d in self.state["days"][40:]:
@@ -237,7 +267,7 @@ class Watch:
         s = stats([d for d in self.state["days"] if d is not r], r["symbol"])
         hist = f" Nos últimos {s['n']} gaps de {r['symbol']} fechou {s['filled']} ({s['rate']}%)." if s["n"] >= 3 else ""
         return (f"Gap {r['name']} {arrow} {'+' if r['pts'] > 0 else ''}{fmt(r['pts'], r['digits'])} ({r['pct']:+.2f}%)",
-                f"FundedNext, {hm(r['t'])}: gap {word}. Fecho anterior {fmt(r['prev'], r['digits'])} → abertura {fmt(r['open'], r['digits'])}. "
+                f"{r.get('src', 'FundedNext')}, {hm(r['t'])}: gap {word}. Fecho anterior {fmt(r['prev'], r['digits'])} → abertura {fmt(r['open'], r['digits'])}. "
                 f"O gap fecha se o preço voltar a {fmt(r['prev'], r['digits'])}.{hist}")
 
     def note_fill(self, r: dict) -> tuple[str, str]:
@@ -258,26 +288,39 @@ WATCH = Watch()
 
 
 async def send(items: list[tuple]):
-    """The notes go to everyone, like a task: bell, widget, phone."""
+    """The notes go to this PC's own person (bell, widget, phone): every Hub watches the same DAX, so each tells only its
+    own person and nobody gets it three times by sync. A Hub outside the team's network tells everyone on it."""
     from sqlalchemy import select
 
+    from .. import sync
     from ..db import SessionLocal
     from ..models import User
     from ..services import notify
+    me = sync.whoami()
     async with SessionLocal() as db:
-        ids = (await db.execute(select(User.id))).scalars().all()
+        q = select(User.id).where(User.username == me[1]) if me else select(User.id)
+        ids = (await db.execute(q)).scalars().all() or (await db.execute(select(User.id))).scalars().all()
         for severity, title, body in items:
             await notify(db, ids, "gap", severity, title, body, "#/gap")
 
 
 async def loop():
-    """Every 30 s while there is an MT5 account on this PC."""
+    """Every 30 s: the TradingView instruments on every PC, the MT5 ones where there is an account."""
     import asyncio
+
+    from .markets import tv_candles
     await asyncio.sleep(30)
     while True:
         try:
-            if WATCH.state["cfg"]["on"] and WATCH.accounts():
-                await asyncio.wrap_future(mt5.run(WATCH.step))
+            c = WATCH.state["cfg"]
+            if c["on"]:
+                tv = [s for s in TV if s in c["symbols"]]
+                if tv:
+                    got = await tv_candles([(TV[s][0], "M5") for s in tv], bars={"M5": 400})
+                    WATCH.tv_pass({s: got.get((TV[s][0], "M5")) for s in tv})
+                if any(s not in TV for s in c["symbols"]):
+                    await asyncio.wrap_future(mt5.run(WATCH.step))
+                WATCH.at = time.time()
                 items, WATCH.outbox = WATCH.outbox, []
                 if items:
                     await send(items)

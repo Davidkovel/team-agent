@@ -69,9 +69,9 @@ class Office:
 def test_a_pass_tells_the_gap_once_then_the_fill(monkeypatch, tmp_path):
     monkeypatch.setattr(gap, "FILE", tmp_path / "gap.json")
     monkeypatch.setattr(gap, "DIR", tmp_path)
-    now = int(time.time()) // 60 * 60
+    now = int(time.time())
     b = bars_with(80, True, at=100)   # the gap 20 minutes ago, the last bar 1 minute ago, the broker's clock 3 h ahead of UTC
-    shift = now - 60 + 3 * 3600 - b[-1][0]
+    shift = now - 30 + 3 * 3600 - b[-1][0]
     b = [(t + shift, o, h, l, c) for t, o, h, l, c in b]
     fake = FakeMT5(b)
     monkeypatch.setattr(gap.mt5, "lib", lambda: fake)
@@ -90,3 +90,17 @@ def test_a_pass_tells_the_gap_once_then_the_fill(monkeypatch, tmp_path):
     w.step()
     assert [x[0] for x in w.outbox] == ["low"] and "fechado em" in w.outbox[0][1]
     assert w.out()["today"][0]["filled"]
+
+
+def test_the_dax_from_tradingview_without_mt5(monkeypatch, tmp_path):
+    monkeypatch.setattr(gap, "FILE", tmp_path / "gap.json")
+    monkeypatch.setattr(gap, "DIR", tmp_path)
+    now = int(time.time()) // 300 * 300
+    b = bars_with(-82, True, at=100)   # the Xetra open 20 bars ago, the close of yesterday before the pause
+    b = [(t - b[-1][0] + now - 300, o, h, l, c, 0.0) for t, o, h, l, c in b]
+    b = [(t, o, h, l, c, v) for t, o, h, l, c, v in b]
+    w = gap.Watch(Office())
+    w.state["cfg"]["symbols"] = ["DAX"]
+    w.tv_pass({"DAX": b})
+    assert w.live["DAX"]["src"] == "Xetra" and w.state["days"][0]["symbol"] == "DAX"
+    assert len(w.outbox) == 1 and "Gap DAX (Xetra) ▼ -82" in w.outbox[0][1] and "Xetra," in w.outbox[0][2]

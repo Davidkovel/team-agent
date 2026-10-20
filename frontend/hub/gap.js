@@ -1,7 +1,7 @@
-// Gap da manhã (#/gap, a tab of the Sala de Trading): the gaps on the quotes of the FundedNext MT5 account, which the room's
-// own feed does not show. The Hub finds where a bar opens away from the close before it (the broker's session break, or a
-// jump), tells everyone once, and again when the price gets back to that close (backend/app/tradingroom/gap.py).
-// Runs on the PC where the MT5 account is (the Escritório de Robôs' accounts).
+// Gap da manhã (#/gap, a tab of the Sala de Trading): the morning gap of the DAX cash index (Xetra, from TradingView, on
+// every PC) and of the FundedNext MT5 instruments where the account is. The Hub finds where a bar opens away from the
+// close before it (the session break, or a jump), tells this PC's person once, and again when the price gets back to that
+// close (backend/app/tradingroom/gap.py).
 (function () {
   let S = null, timer = 0;
   const loc = (v, d) => Number(v).toLocaleString("pt-PT", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -15,8 +15,8 @@
   HUB_VIEWS.gap = async function () {
     page(`<div class="gp" id="gp">
       <header class="gp-head">
-        <div><small>${esc(t("Sala de Trading · cotações da FundedNext (MT5)"))}</small><h1>${esc(t("Gap da manhã"))}</h1>
-          <p class="gp-sub">${esc(t("O gap da cotação da corretora, que o gráfico do Hub não mostra. Chega a todos quando abre e outra vez quando o preço volta ao fecho anterior."))}</p></div>
+        <div><small>${esc(t("Sala de Trading · DAX da Xetra e cotações da FundedNext"))}</small><h1>${esc(t("Gap da manhã"))}</h1>
+          <p class="gp-sub">${esc(t("O gap das 09:00 de Frankfurt (08:00 em Portugal), que o gráfico do Hub não mostra. Chega-te quando abre e outra vez quando o preço volta ao fecho anterior. Não precisa do MT5."))}</p></div>
         <div class="gp-ctl" id="gp-ctl"></div>
       </header>
       <div class="gp-msg" id="gp-msg" hidden></div>
@@ -47,11 +47,11 @@
   }
 
   function paintCtl() {
-    const c = S.cfg, live = S.accounts.length && c.on && !S.error;
-    const state = !S.accounts.length ? t("Sem conta MT5 neste PC") : !c.on ? t("Desligado") : S.error ? S.error : t("A vigiar · {h}", { h: S.at ? hm(S.at) : "…" });
-    paint($("gp-ctl"), `<span class="gp-pill ${live ? "on" : S.error && c.on ? "warn" : ""}"><i></i>${esc(state)}</span>
+    const c = S.cfg;
+    const state = !c.on ? t("Desligado") : S.error ? `MT5: ${S.error}` : t("A vigiar · {h}", { h: S.at ? hm(S.at) : "…" });
+    paint($("gp-ctl"), `<span class="gp-pill ${c.on ? (S.error ? "warn" : "on") : ""}"><i></i>${esc(state)}</span>
       <div class="gp-btns">
-        ${S.accounts.length ? `<button type="button" class="btn" data-act="toggle">${esc(c.on ? t("Desligar") : t("Ligar"))}</button>` : ""}
+        <button type="button" class="btn" data-act="toggle">${esc(c.on ? t("Desligar") : t("Ligar"))}</button>
         <button type="button" class="btn" data-act="test">${esc(t("Testar a nota"))}</button>
       </div>`);
   }
@@ -59,17 +59,17 @@
   // the main instrument: the last gap of today, big, with its chart
   function paintHero() {
     const c = S.cfg, main = c.main;
-    if (!S.accounts.length) {
-      return paint($("gp-hero"), `<div class="gp-empty"><h2>${esc(t("A conta MT5 está noutro PC"))}</h2>
-        <p>${esc(t("O gap lê-se das cotações da conta FundedNext, no PC onde ela está (o do Marco). As notas chegam a todos na mesma; o gráfico abre-se no Hub dele."))}</p>
-        ${S.marco ? `<a class="btn primary" href="${esc(S.marco)}" target="_blank" rel="noopener">${esc(t("Abrir o Hub do Marco"))}</a>` : ""}</div>`);
-    }
     const g = S.today.find((x) => x.symbol === main);
     const st = S.stats[main] || {};
     const lv = S.live[main] || {};
     const name = lv.symbol || main;
+    if (!g && !S.accounts.length && main !== "DAX") {
+      return paint($("gp-hero"), `<div class="gp-empty"><small>${esc(main)} · FundedNext</small><h2>${esc(t("A conta MT5 está noutro PC"))}</h2>
+        <p>${esc(t("{s} lê-se da conta FundedNext, no PC onde ela está (o do Marco). Escolhe o DAX como instrumento principal para o ver aqui sem MT5.", { s: main }))}</p>
+        ${S.marco ? `<a class="btn primary" href="${esc(S.marco)}" target="_blank" rel="noopener">${esc(t("Abrir o Hub do Marco"))}</a>` : ""}</div>`);
+    }
     if (!g) {
-      return paint($("gp-hero"), `<div class="gp-empty"><small>${esc(name)} · FundedNext</small><h2>${esc(t("Hoje ainda não houve gap"))}</h2>
+      return paint($("gp-hero"), `<div class="gp-empty"><small>${esc(name)} · ${esc(lv.src || "")}</small><h2>${esc(t("Hoje ainda não houve gap"))}</h2>
         <p>${esc(t("Quando a cotação abrir com um gap de {p}% ou mais, chega a nota a todos.", { p: num(c.min_pct, 2) }))}
         ${lv.ok ? esc(t("Agora: {p}.", { p: num(lv.price, lv.digits) })) : ""}</p>${statLine(st, main)}</div>`);
     }
@@ -79,7 +79,7 @@
       : `<span class="gp-tag open">${esc(t("Aberto · faltam {p}", { p: num(g.left ?? Math.abs(g.pts), d) }))}</span>`;
     paint($("gp-hero"), `<div class="gp-hero-in ${up ? "up" : "down"}">
       <div class="gp-figs">
-        <small>${esc(name)} · FundedNext · ${hm(g.t)}</small>
+        <small>${esc(name)} · ${esc(g.src || "FundedNext")} · ${hm(g.t)}</small>
         <div class="gp-big"><span class="gp-arrow">${up ? "▲" : "▼"}</span>${sig(g.pts, d)}<em>${esc(t("pts"))}</em></div>
         <div class="gp-pct">${sig(g.pct, 2)}% · ${esc(up ? t("gap para cima") : t("gap para baixo"))}${g.kind === "salto" ? ` · ${esc(t("salto"))}` : ""}</div>
         ${status}
@@ -133,7 +133,6 @@
   }
 
   function paintOthers() {
-    if (!S.accounts.length) return paint($("gp-others"), "");
     const rows = S.cfg.symbols.filter((s) => s !== S.cfg.main).map((sym) => {
       const g = S.today.find((x) => x.symbol === sym), lv = S.live[sym] || {};
       if (!lv.ok) return `<div class="gp-mini off"><b>${esc(sym)}</b><span>${esc(lv.error || t("a ler…"))}</span></div>`;
@@ -159,7 +158,7 @@
     const c = S.cfg, el = $("gp-cfg");
     el._html = "1";
     const accs = S.accounts.map((a) => `<option value="${esc(a.id)}" ${a.id === S.account ? "selected" : ""}>${esc(a.name)}</option>`).join("");
-    const chips = S.symbols.map((s) => `<label class="gp-chip"><input type="checkbox" name="sym" value="${esc(s)}" ${c.symbols.includes(s) ? "checked" : ""}><span>${esc(s)}</span></label>`).join("");
+    const chips = S.symbols.map((s) => `<label class="gp-chip"><input type="checkbox" name="sym" value="${esc(s)}" ${c.symbols.includes(s) ? "checked" : ""}><span>${esc(s === "DAX" ? t("DAX (Xetra, sem MT5)") : s)}</span></label>`).join("");
     const mains = S.symbols.map((s) => `<option ${s === c.main ? "selected" : ""}>${esc(s)}</option>`).join("");
     paint(el, `<h2>${esc(t("Definições"))}</h2>
       <form class="gp-form" id="gp-form">
@@ -167,7 +166,7 @@
         <label>${esc(t("Instrumento principal"))}<select name="main">${mains}</select></label>
         <label>${esc(t("Gap mínimo (%)"))}<input name="min_pct" type="number" step="0.01" min="0.005" max="2" value="${esc(c.min_pct)}"></label>
         <div><span class="gp-flabel">${esc(t("Instrumentos a vigiar"))}</span><div class="gp-chips">${chips}</div></div>
-        <p class="gp-none">${esc(t("Gap = uma barra de 1 min abre longe do fecho da anterior, depois da pausa da corretora ou num salto muito maior do que o normal."))}</p>
+        <p class="gp-none">${esc(t("Gap = uma barra abre longe do fecho da anterior, depois da pausa da sessão ou num salto muito maior do que o normal. O DAX vem do TradingView (Xetra); os outros, da conta MT5 da FundedNext."))}</p>
       </form>`);
   }
 

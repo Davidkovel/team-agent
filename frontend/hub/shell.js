@@ -243,7 +243,7 @@ const COMMANDS = [
   ["Uso de IA", "token", "#/uso"], ["Despesas", "wallet", "#/despesas"], ["Memória", "layers", "#/memoria"], ["Definições", "gear", "#/definicoes"],
   ["Início", "home", "#/home"],
   ["BareDesk", "bag", "#/baredesk"],
-  ["Sala de Trading", "trend", "#/trading"], ["Convocar reunião de trading", "users", "#/trading"], ["Escritório de Robôs", "trend", "#/robos"], ["Reforço na notícia (MT5)", "trend", "#/reforco"], ["Gap da manhã (GER30, FundedNext)", "trend", "#/gap"], ["Contas de trading (FundedNext)", "wallet", "#/robos"],
+  ["Fábrica Etsy (print-on-demand)", "spark", "#/etsy"], ["Sala de Trading", "trend", "#/trading"], ["Convocar reunião de trading", "users", "#/trading"], ["Escritório de Robôs", "trend", "#/robos"], ["Reforço na notícia (MT5)", "trend", "#/reforco"], ["Gap da manhã (GER30, FundedNext)", "trend", "#/gap"], ["Contas de trading (FundedNext)", "wallet", "#/robos"],
   ["Mercados", "candles", "#/mercados"], ["Paper trading", "wallet", "#/mercados/paper"], ["Notícias dos mercados", "news", "#/mercados/noticias"],
 ];
 const RESULT_ICON = { person: "users", task: "tasks", project: "folder", company: "building", memory: "layers", approval: "check", activity: "history", code: "code" };

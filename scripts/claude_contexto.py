@@ -40,6 +40,9 @@ AREAS = [
                                  r"redes sociais|social media|conte[uú]dos?|\bcontent\b|newsletter|e-?mails?\b|\bblog|"
                                  r"инстаграм|контент|пост",
      ["social-content", "content-creation", "draft-content", "email-sequence", "campaign-plan", "brand-review"]),
+    ("Print-on-demand", r"\betsy\b|printify|printful|print[- ]on[- ]demand|\bpod\b|estampas?|t-?shirts?|sweatshirts?|canecas?|"
+                        r"fiverr|farmar dinheiro|ganhar dinheiro|fazer dinheiro|renda passiva|passive income",
+     ["pod-etsy"]),
     ("Loja Shopify", r"shopify|loja online|e-?commerce|\bliquid\b|checkout|online store|магазин",
      ["shopify-liquid", "shopify-admin", "shopify-dev", "shopify-custom-data", "shopify-use-shopify-cli", "seo-ecommerce"]),
     ("Marca e design", r"\bmarcas?\b|log[oó]tipo|\blogo\b|identidade visual|branding|\bbrand\b|cartaz|poster|flyer|"

@@ -299,6 +299,22 @@ cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/ap
   `git pull` no baredesk-theme.
 - Armadilha: uma classe CSS chamada `.src` já existe no `design.css` (rebentou o layout); nas páginas novas, prefixar as classes.
 
+### Fábrica Etsy (print-on-demand) — desde 20 out
+
+Pedido do David a 20 out (um reel de agentes que correm lojas Etsy de print-on-demand): `#/etsy`
+(`frontend/hub/etsy.js` + `.css`, `lazyView`), `backend/app/etsy.py` e `backend/app/routers/etsy.py` (`/api/etsy`). Skill
+`pod-etsy` na biblioteca (área «Print-on-demand» do `claude_contexto.py`).
+
+- **Um lote** = três `ask_claude` da Sala de Trading (`council.py`): **Riddler** com `WebSearch` (a Etsy dá 403 a pedidos de
+  fora) devolve ideias com a prova de que vendem; **Catwoman** desenha cada uma em SVG (só tipografia e formas, fontes do
+  sistema, sem `<image>`/scripts/links: `clean_svg` recusa) e o Chrome sem janela passa-o a PNG 4500 × 5400 transparente;
+  **Joker** escreve título ≤ 140, 13 tags ≤ 20, descrição com o aviso de IA e preço. O **Alfred** é código (`BLOCKED`):
+  marca de terceiros ou anúncio incompleto → «Barrados». ~1 min e ~0,35 $ (estimado, do plano) por desenho em Sonnet.
+- **Nada é publicado sozinho** e **o dinheiro é só o registado** à mão («Entrou uma venda?») até haver app na Etsy Open API.
+- Por PC, como a Sala de Trading: `~/.team-agent/etsy/` (`state.json` e uma pasta por desenho), nada vai por sync. «Ligar
+  todos os dias» faz um lote por dia a partir da hora marcada no PC onde foi ligado, e avisa quem o ligou (`owner`).
+- O Hub guarda o estado em memória: mexer no `state.json` à mão só com o Hub parado, senão a próxima gravação apaga a mudança.
+
 ### Mercados (TradingView, SEC, paper trading) — desde 9 out
 
 Pedido do David a 9 out (um reel de um «agente de trading do Claude» com dados de insiders, alertas e paper trading):

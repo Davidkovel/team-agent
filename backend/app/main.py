@@ -14,7 +14,7 @@ from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, office, ponto, tasks, team, trading, week, work, ws
-from .routers import gap, newsadd, robots, skills, tradingroom
+from .routers import etsy, gap, newsadd, robots, skills, tradingroom
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -111,7 +111,10 @@ async def lifespan(app: FastAPI):
     reforco = asyncio.create_task(newsadd.loop()) if robots_loop else None  # Reforço na notícia: the ladder on the MT5 account
     gaps = asyncio.create_task(gap.loop()) if robots_loop else None  # Gap da manhã: the gaps on the MT5 account's quotes
     kit = asyncio.create_task(claude_kit.loop()) if settings.sync else None  # idle until the PC's person turns it on (Trabalho › Kit do Claude)
+    factory = asyncio.create_task(etsy.loop()) if settings.sync else None  # Fábrica Etsy: idle until this PC's person turns it on
     yield
+    if factory:
+        factory.cancel()
     if kit:
         kit.cancel()
     if reforco:
@@ -142,6 +145,7 @@ app.include_router(tradingroom.router)  # Sala de Trading
 app.include_router(robots.router)  # Escritório de Robôs
 app.include_router(newsadd.router)  # Reforço na notícia
 app.include_router(gap.router)  # Gap da manhã
+app.include_router(etsy.router)  # Fábrica Etsy
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
 app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here
 

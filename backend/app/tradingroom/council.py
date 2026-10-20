@@ -248,6 +248,10 @@ def _status(s: str) -> str:
 def claude_exe() -> str | None:
     """The Claude Code binary itself, not npm's .cmd (a .cmd goes through cmd.exe, which mangles a long prompt)."""
     found = shutil.which("claude")
+    if not found:  # no Mac o Hub arranca pelo widget com o PATH mínimo (/usr/bin:/bin...): procura onde o instalador o põe
+        home = Path.home()
+        found = next((str(p) for p in (Path("/opt/homebrew/bin/claude"), Path("/usr/local/bin/claude"), home / ".local/bin/claude",
+                                       home / ".claude/local/claude") if p.exists()), None)
     if not found:
         return None
     if found.lower().endswith((".cmd", ".ps1")) or not found.lower().endswith(".exe"):

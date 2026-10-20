@@ -314,6 +314,8 @@ Pedido do David a 20 out (um reel de agentes que correm lojas Etsy de print-on-d
 - Por PC, como a Sala de Trading: `~/.team-agent/etsy/` (`state.json` e uma pasta por desenho), nada vai por sync. «Ligar
   todos os dias» faz um lote por dia a partir da hora marcada no PC onde foi ligado, e avisa quem o ligou (`owner`).
 - O Hub guarda o estado em memória: mexer no `state.json` à mão só com o Hub parado, senão a próxima gravação apaga a mudança.
+- **No Mac o Hub arrancado pelo widget tem o PATH mínimo** (`/usr/bin:/bin`) e não via o `claude`: a Fábrica e a Sala de Trading
+  ficavam sem Claude. O `council.claude_exe()` procura também em `/opt/homebrew/bin`, `/usr/local/bin` e `~/.local/bin`.
 
 ### Mercados (TradingView, SEC, paper trading) — desde 9 out
 

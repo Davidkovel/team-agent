@@ -57,11 +57,18 @@ bonita e algumas formas simples (flores, estrelas, folhas, ondas, molduras) feit
 - texto em inglês, sem erros, sem marcas nem personagens.
 Respondes só com o SVG, do <svg ao </svg>."""
 
-JOKER = """És o Joker, o marketing da Empresa AMG. Escreves anúncios da Etsy que vendem e que a pesquisa da Etsy encontra:
-título até 140 caracteres com as palavras que as pessoas procuram primeiro, exactamente 13 tags de até 20 caracteres
-(frases de 2-3 palavras, sem repetir o título palavra a palavra), descrição curta e calorosa com tamanhos/cuidados genéricos
-de print-on-demand e o aviso "Design created with the help of AI tools", e um preço em euros que aguente a Printify
-(t-shirt ~12 € de custo, sweatshirt ~20 €, caneca ~7 €) mais ~6,5 % + 3 % da Etsy com pelo menos 8 € de margem.
+JOKER = """És o Joker, o marketing da Empresa AMG. Escreves anúncios da Etsy que vendem, que a pesquisa da Etsy encontra e
+que soam a uma pessoa a sério que tem uma loja pequena, nunca a uma IA:
+- título até 140 caracteres, as palavras que as pessoas procuram primeiro, separadas por vírgulas, sem palavras vazias;
+- exactamente 13 tags de até 20 caracteres (frases de 2-3 palavras, sem repetir o título palavra a palavra);
+- descrição em inglês, na 1.ª pessoa do singular («I made this one for…»), concreta e com um pormenor verdadeiro sobre a
+  ideia ou para quem é. Frases curtas e normais. PROIBIDO: «perfect for», «whether you're», «elevate», «unique», «stunning»,
+  «must-have», «look no further», «cozy vibes», travessões longos (—), emojis, pontos de exclamação a mais, listas de
+  adjectivos. Depois um bloco simples com o material e os cuidados (genéricos de print-on-demand, sem inventar medidas que
+  não saibas) e a produção por encomenda. A última linha diz com naturalidade que o desenho é feito por ti com ferramentas
+  digitais, incluindo IA, e revisto à mão (a Etsy obriga a dizer que há IA; diz-se uma vez, sem pedir desculpa);
+- preço em euros que aguente a Printify (t-shirt ~12 € de custo, sweatshirt ~20 €, caneca ~7 €) mais ~6,5 % + 3 % da Etsy
+  com pelo menos 8 € de margem, a acabar em ,90 ou ,50.
 Nada de marcas. Respondes só com JSON."""
 
 
@@ -123,6 +130,34 @@ class Factory:
             raise ValueError("valor inválido")
         self.state["sales"].append({"at": time.time(), "amount": round(amount, 2), "note": note[:200]})
         self.save()
+
+    def start_rewrite(self, ids: list[str]) -> bool:
+        """O Joker volta a escrever o anúncio destes desenhos (o tom mudou, ou o primeiro não ficou bom)."""
+        if self.running:
+            return False
+        self.task = asyncio.create_task(self.rewrite(ids))
+        return True
+
+    async def rewrite(self, ids: list[str]):
+        model, work = self.state["cfg"]["model"], DIR / "work"
+        todo = [i for i in self.state["items"] if i["id"] in ids]
+        try:
+            for k, item in enumerate(todo, 1):
+                self.stage = {"who": "joker", "what": f"A reescrever o anúncio de «{item['frase']}» ({k}/{len(todo)})", "at": time.time()}
+                try:
+                    text, _ = await ask_claude(JOKER, self.listing_prompt(item), model, work, timeout=180)
+                    new = listing(parse_json(text) or {})
+                    if new["titulo"] and len(new["tags"]) == 13:
+                        item.update(new)
+                        bad = alfred(item)
+                        item.update(status="blocked", blocked=bad) if bad else item.pop("blocked", None)
+                        self.save()
+                except Exception as e:
+                    log.exception("etsy: reescrever %s", item["id"])
+                    self.error = str(e)[:300]
+        finally:
+            self.stage = None
+            self.save()
 
     def start(self, reason: str) -> bool:
         if self.running:

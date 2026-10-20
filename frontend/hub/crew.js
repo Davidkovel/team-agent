@@ -21,7 +21,7 @@
   // x runs to the right and down, y to the left and down; z is height in pixels. P() is where a point lands on the small
   // canvas (LW × LH); the camera shows a piece of it blown up. The cave is not a rectangle: it is an island of rock over an
   // abyss, and MAP says what each tile is. o the office · ~ the underground river · b the bridge over it · g the garage ·
-  // v the vault · t the bar terrace · p the lookout · x the trading floor · . nothing (the drop). Walls stand only along y = 0 and x = 0; every
+  // v the vault · t the bar terrace · p the lookout · x the trading floor · e the Etsy studio · . nothing (the drop). Walls stand only along y = 0 and x = 0; every
   // other edge is a drop with a light along it. A new wing: letters here, then its furniture, its spots and its blocked tiles.
   const MAP = [
     "oooooooooooooooo~gggggggggggggg",
@@ -37,10 +37,10 @@
     "oooooooooooooooobgggggggggggggg",
     "vvvvvvv.ttttttt.........ppppppp",
     "vvvvvvv.ttttttt.........ppppppp",
-    "vvvvvvv..ttttt....xxxxxxxppppp.",
-    "vvvvvvv...ttt.....xxxxxxx.ppp..",
-    "vvvvvv............xxxxxxx......",
-    "vvvv..............xxxxxxx......",
+    "vvvvvvv..ttttteeeexxxxxxxppppp.",
+    "vvvvvvv...ttt.eeeexxxxxxx.ppp..",
+    "vvvvvv........eeeexxxxxxx......",
+    "vvvv..........eeeexxxxxxx......",
   ];
   const W = MAP[0].length, D = MAP.length, WALL = 64, OFFICE_W = 17, GD = 11;   // GD: how deep the office and the garage are
   const tile = (x, y) => (x >= 0 && y >= 0 && x < W && y < D ? MAP[y][x] : ".");
@@ -50,7 +50,7 @@
   const LW = (W + D) * 16 + 20, LH = OY + (W + D) * 8 + 24;
   const P = (x, y, z = 0) => [OX + (x - y) * 16, OY + (x + y) * 8 - z];
   const ASPECT = 468 / 334, WS = 2;                     // WS: the moving world is drawn at twice the cave's pixels
-  const VIEWS = { office: { x: 40, y: 34, w: 512 }, vault: { x: -26, y: 104, w: 312 }, garage: { x: 354, y: 150, w: 438 }, trading: { x: 228, y: 258, w: 300 }, all: { x: -8, y: -30, w: 806 } };
+  const VIEWS = { office: { x: 40, y: 34, w: 512 }, vault: { x: -26, y: 104, w: 312 }, garage: { x: 354, y: 150, w: 438 }, trading: { x: 228, y: 258, w: 300 }, etsy: { x: 176, y: 256, w: 250 }, all: { x: -8, y: -30, w: 806 } };
   const NEON = { cyan: "#7fe3ff", blue: "#4fb4ff", yellow: "#ffd23f", red: "#ff2d4f", green: "#4dff9a", amber: "#ffbf3c", violet: "#a66bff", white: "#eef5ff", pink: "#ff4fa3" };
   const FONT = '"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
   const DISPLAY = '"Space Grotesk", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
@@ -162,6 +162,9 @@
     { x: 12, y: 12, at: [12.5, 12.3], pose: "drink", dir: "ne", bar: true, word: "no bar" },
     { x: 12, y: 13, pose: "phone", dir: "se", word: "na varanda" },
     { x: 26, y: 12, at: [26.4, 12.6], pose: "look", dir: "se", word: "no miradouro", far: true },
+    { x: 15, y: 14, at: [15.5, 14.3], pose: "look", dir: "ne", word: "a ver as estampas novas" },
+    { x: 16, y: 15, at: [16.4, 15.5], pose: "think", dir: "sw", word: "a escolher a próxima estampa" },
+    { x: 15, y: 16, at: [15.5, 16.4], pose: "phone", dir: "se", word: "ao telefone com a Printify" },
     { x: 21, y: 14, at: [21.5, 14.4], pose: "look", dir: "ne", wing: "trading", word: "a ler o ouro no ecrã" },
     { x: 24, y: 14, at: [24.45, 14.55], pose: "phone", dir: "sw", wing: "trading", word: "ao telefone com a corretora" },
     { x: 20, y: 16, at: [20.4, 16.5], pose: "drink", dir: "se", wing: "trading", word: "um café a ver o mercado" },
@@ -172,6 +175,8 @@
   const TWALL = { x0: 18.9, x1: 23.1, y: 13.14, z0: 24, z1: 50 };
   const MEET = [{ x: 21, y: 16, at: [21.2, 16.62], dir: "se" }, { x: 22, y: 16, at: [22.15, 16.32], dir: "sw" }];
   const BULL = [18, 16];
+  // the Fábrica Etsy (etsy.js): the board with the newest prints at its back, the heat press and the parcels going out
+  const EWALL = { x0: 14.1, x1: 17.9, y: 13.14, z0: 18, z1: 44 }, PRESS = [14, 15], PARCELS = [14, 16];
   // what stands on the new wings: the vault's gold, its cart and its counter; the bar and its table; the searchlight and the telescope
   const FIXED = [[1, 12], [2, 12], [3, 12], [4, 13], [5, 13], [4, 14], [5, 14], [1, 14], [2, 14], [3, 14], [1, 15], [2, 15], [3, 15], [5, 11], [6, 11],
     [9, 11], [10, 11], [11, 11], [12, 11], [13, 11], [11, 13], [27, 13], [25, 11]];
@@ -182,8 +187,9 @@
     k2(...LOUNGE.table), ...[1, 2, 3].flatMap((x) => [k2(x, 3), k2(x, 9)]),
     ...ROCKS.map(([x, y]) => k2(x, y)), k2(2, 0), k2(4, 0), ...FIXED.map(([x, y]) => k2(x, y)),
     ...[19, 20, 21, 22, 23].map((x) => k2(x, 13)), k2(...BULL),
+    ...[14, 15, 16, 17].map((x) => k2(x, 13)), k2(...PRESS), k2(...PARCELS),
   ]);
-  for (let x = 0; x < W; x++) for (let y = 0; y < D; y++) if (!"ogvtpbx".includes(tile(x, y))) blocked.add(k2(x, y)); // the drop and the water
+  for (let x = 0; x < W; x++) for (let y = 0; y < D; y++) if (!"ogvtpbxe".includes(tile(x, y))) blocked.add(k2(x, y)); // the drop and the water
   for (const c of CARS) for (let x = OFFICE_W; x < W; x++) for (let y = 0; y < D; y++) {
     if (x + 1 > c.cx - STAND.hx && x < c.cx + STAND.hx && y + 1 > c.cy - STAND.hy && y < c.cy + STAND.hy) blocked.add(k2(x, y));
   }
@@ -692,7 +698,7 @@
 
   // glass along the drops of the vault, the terrace and the lookout: one pane per tile edge, sorted where it stands
   const RAIL = { v: ["rgba(255,207,90,.11)", "rgba(255,226,150,.9)"], t: ["rgba(150,205,255,.12)", "rgba(235,242,250,.85)"], p: ["rgba(255,60,80,.09)", "rgba(220,226,235,.85)"],
-    x: ["rgba(245,196,81,.08)", "rgba(255,226,150,.8)"] };
+    x: ["rgba(245,196,81,.08)", "rgba(255,226,150,.8)"], e: ["rgba(241,100,30,.08)", "rgba(255,190,150,.8)"] };
   function pane(g, a, b, h, tint, edge, z0 = 0) {
     const A = P(a[0], a[1], z0), B = P(b[0], b[1], z0), C = P(b[0], b[1], z0 + h), E = P(a[0], a[1], z0 + h);
     poly(g, [A, B, C, E], tint);
@@ -776,12 +782,13 @@
     const odd = (x + y) % 2;
     const color = c === "g" ? ((Math.floor(x / 2) + Math.floor(y / 2)) % 2 ? "#15181e" : "#13161b")
       : c === "v" ? (odd ? "#18150e" : "#120f0a") : c === "t" ? (odd ? "#1b1713" : "#17130f") : c === "p" ? (odd ? "#181c23" : "#14181e")
-      : c === "x" ? (odd ? "#0f1218" : "#0c0f14")
+      : c === "x" ? (odd ? "#0f1218" : "#0c0f14") : c === "e" ? (odd ? "#1b1511" : "#17120e")
       : x >= 5 ? (odd ? "#15181e" : "#13161b") : (odd ? "#1a1d23" : "#171a20");
     poly(b, [P(x, y), P(x + 1, y), P(x + 1, y + 1), P(x, y + 1)], color);
     if (c === "o" && x >= 5) { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(0,0,0,.32)", .4); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(0,0,0,.32)", .4); }
     if (c === "v") { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(201,162,39,.3)", .5); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(201,162,39,.3)", .5); }
     else if (c === "x") { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(245,196,81,.16)", .4); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(245,196,81,.16)", .4); }
+    else if (c === "e") { seg(b, P(x, y + 1), P(x + 1, y + 1), "rgba(241,100,30,.16)", .4); seg(b, P(x + 1, y), P(x + 1, y + 1), "rgba(241,100,30,.16)", .4); }
     else if (c === "t") for (let i = 1; i < 4; i++) seg(b, P(x + i / 4, y), P(x + i / 4, y + 1), "rgba(0,0,0,.28)", .5);
     else if (c === "p") for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) dot(b, ...P(x + .2 + i * .3, y + .2 + j * .3), "rgba(170,185,210,.1)");
   }
@@ -1140,6 +1147,7 @@
           since: ag.started_at, project: s.project, model: ag.model, skills: ag.skills || [], href: "#/escritorio" });
       }
     }
+    out.push(...etsyJobs());
     const rank = { work: 0, help: 1, start: 2, wait: 3, pause: 4 };
     return out.sort((p, q) => rank[p.state] - rank[q.state] || String(q.since).localeCompare(String(p.since)));
   }
@@ -1293,7 +1301,7 @@
     for (const y of [.75, 10.5, 16.85]) tube([0, y, 8], [0, y, 46], "rgba(223,232,242,.45)", .8);
     tube([4.6, .4, .2], [4.6, GD - .4, .2], "rgba(223,232,242,.3)", .5);
     // every edge of the island has a light along it, the colour of the wing it belongs to
-    const EDGE = { v: "rgba(255,207,90,.75)", t: "rgba(255,191,60,.65)", p: "rgba(255,45,79,.6)" };
+    const EDGE = { v: "rgba(255,207,90,.75)", t: "rgba(255,191,60,.65)", p: "rgba(255,45,79,.6)", e: "rgba(241,100,30,.7)" };
     for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) {
       if (!solid(x, y)) continue;
       const c = EDGE[tile(x, y)] || "rgba(214,224,236,.42)";
@@ -1750,6 +1758,7 @@
       tradeTicker(g);
     }
     glow(g, ...P(BULL[0] + .5, BULL[1] + .5, 12), 15, "#ffcf5a", .26 + (hoverTrade ? .14 : 0));
+    glow(g, ...P((EWALL.x0 + EWALL.x1) / 2, EWALL.y + .6, 30), 24, "#f1641e", (etsy && etsy.stage ? .3 + Math.sin(clock * 3) * .06 : .16) + (hoverEtsy ? .12 : 0));
     // the bar's light under its lip and its lamps; the river glowing from below; the lookout's beacons and its searchlight
     for (const x of BAR.lamps) { glow(g, ...P(x, 11.9, 2), 13, NEON.amber, .2); glow(g, ...P(x, 11.45, 33), 16, "#ffe2a8", .3); }
     for (let y = 1; y < GD; y += 2) glow(g, ...P(16.5, y, -3), 12, "#3fa9ff", .1 + Math.sin(clock * 2 + y) * .025);
@@ -1929,6 +1938,7 @@
     const placed = [], k = dpr * LS;
     carPlates(g, placed);
     tradingPlates(g, placed);
+    etsyPlates(g, placed);
     if (talker && talker.head && !(MINI && cv.width < 520 * dpr)) { const text = chatLine(); if (text) placed.push(speech(g, text, SX(talker.head[0]), SY(talker.head[1] - 7))); }
     meetSay();
     if (meetSpeaker && meetSpeaker.head && meetLine && !(MINI && cv.width < 520 * dpr)) placed.push(speech(g, meetLine, SX(meetSpeaker.head[0]), SY(meetSpeaker.head[1] - 7)));
@@ -2221,6 +2231,89 @@
     g.restore();
   }
 
+
+  // ================================================================ the Fábrica Etsy (etsy.js, backend/app/etsy.py)
+  // An island between the bar's terrace and the trading floor. Its board shows the three newest prints on the colour of
+  // their garment; the heat press and the parcels stand in front. While a batch runs, the agent doing that step works at
+  // their own post with the step as their mission (jobsOf), and hands over to the next one: the Riddler, the Catwoman, the
+  // Joker. All of it from /api/etsy, read with the rest (load); a PC without the factory just shows it empty.
+  let etsy = null, etsyAt = 0, etsyPlate = null, hoverEtsy = false;
+  const etsyPics = {};   // id -> { img, c } : each print loaded once and shrunk once to the board's size
+  const ETSY_BG = [[/black|pret/i, "#141518"], [/navy|marinho/i, "#1c2541"], [/burgundy|bord|maroon|vinho/i, "#5a1424"], [/forest|verde/i, "#23402f"],
+    [/charcoal|antracite/i, "#36393f"], [/heather|grey|gray|cinz/i, "#a3a6ab"], [/sand|areia|beige|bege/i, "#dccbaa"], [/cream|creme|natural/i, "#efe6d2"],
+    [/pink|rosa/i, "#f2c6cf"], [/white|branc/i, "#f7f7f5"]];
+  const etsyBg = (c) => (ETSY_BG.find(([re]) => re.test(c || "")) || [0, "#f3efe8"])[1];
+  async function loadEtsy() {
+    if (Date.now() - etsyAt < 10000) return;
+    etsyAt = Date.now();
+    try { etsy = await api("/api/etsy"); } catch (e) { etsy = null; return; }
+    for (const it of etsyShown()) {
+      if (etsyPics[it.id]) continue;
+      const img = new Image(), rec = (etsyPics[it.id] = { c: null });
+      img.onload = () => {
+        const c = document.createElement("canvas"); c.width = 60; c.height = 72;
+        const q = c.getContext("2d"); q.fillStyle = etsyBg(it.cor_peca); q.fillRect(0, 0, 60, 72);
+        const k = Math.min(54 / img.width, 66 / img.height), w = img.width * k, h = img.height * k;
+        q.drawImage(img, (60 - w) / 2, (72 - h) / 2, w, h); rec.c = c; wake();
+      };
+      img.src = `/api/etsy/file/${encodeURIComponent(it.id)}/design.png?token=${encodeURIComponent(token)}`;
+    }
+  }
+  const etsyShown = () => (etsy ? etsy.items.filter((i) => i.status !== "rejected" && i.status !== "blocked").slice(0, 3) : []);
+  function etsyJobs() {
+    const st = etsy && etsy.stage;
+    if (!st || !st.who) return [];
+    const who = etsy.cfg && etsy.cfg.owner ? etsy.cfg.owner[0].toUpperCase() + etsy.cfg.owner.slice(1) : "";
+    return [{ key: "etsy-" + st.who, type: "etsy", crew: st.who, title: st.what, goal: t("Fábrica Etsy"), action: st.what, who, state: "work",
+      since: new Date(st.at * 1000).toISOString(), project: t("Fábrica Etsy"), href: "#/etsy" }];
+  }
+  // the board: a frame on two legs, three prints on their garment's colour, the factory's orange along the top
+  function etsyWall(g) {
+    const { x0, x1, y, z0, z1 } = EWALL, n = 3, gap = .1, pw = (x1 - x0 - gap * (n + 1)) / n;
+    for (const lx of [x0 + .1, x1 - .16]) box(g, lx, y - .04, .06, .06, 0, z0, METAL);
+    box(g, x0, y - .12, x1 - x0, .1, z0 - 2, z1 - z0 + 4, ["#2a211b", "#120d0a", "#1d1712"]);
+    box(g, x0 - .02, y - .14, x1 - x0 + .04, .14, z1 + 2, 2.5, ["#ff8a4c", "#b8470f", "#8f360b"]);
+    const shown = etsyShown(), live = !!(etsy && etsy.stage);
+    for (let i = 0; i < n; i++) {
+      const px = x0 + gap + i * (pw + gap), [sx, sy] = P(px, y - .13, z1 - 2), k = g.k || 1, Wd = pw * 16, H = z1 - z0 - 4;
+      g.save(); g.setTransform(k, .5 * k, 0, k, sx * k, sy * k);
+      const it = shown[i], pic = it && etsyPics[it.id];
+      g.fillStyle = it ? etsyBg(it.cor_peca) : "#0d0a08"; g.fillRect(0, 0, Wd, H);
+      if (pic && pic.c) g.drawImage(pic.c, 0, 0, Wd, H);
+      else { g.fillStyle = "rgba(241,100,30,.25)"; g.fillRect(Wd / 2 - 4, H / 2 - 1, 8, 2); }
+      if (live && i === 0 && Math.floor(clock * 2) % 2) { g.strokeStyle = "rgba(241,100,30,.95)"; g.lineWidth = .75; g.strokeRect(.4, .4, Wd - .8, H - .8); }
+      g.fillStyle = "rgba(255,255,255,.05)"; g.beginPath(); g.moveTo(0, 0); g.lineTo(Wd * .45, 0); g.lineTo(Wd * .15, H); g.lineTo(0, H); g.closePath(); g.fill();
+      g.restore();
+    }
+  }
+  // the heat press on its table, the plate glowing while a print is being made
+  function heatPress(g) {
+    const [x, y] = PRESS, live = etsy && etsy.stage && etsy.stage.who === "catwoman";
+    box(g, x + .1, y + .15, .8, .7, 0, 9, ["#2b2f36", "#15181d", "#1d2026"]);
+    box(g, x + .2, y + .25, .6, .5, 9, 2, ["#d9dde3", "#8f959e", "#b4b9c1"]);
+    box(g, x + .22, y + .27, .56, .46, 11, 1, [live && Math.floor(clock * 3) % 2 ? "#ff8a4c" : "#f4f1ea", "#c9c4ba", "#dcd7cd"]);
+    box(g, x + .2, y + .25, .6, .5, 15, 3, ["#3a3f48", "#1b1e24", "#262a31"]);
+    box(g, x + .46, y + .2, .08, .08, 18, 6, METAL);
+  }
+  // the parcels going out: one box per print already on the shop (a few at least), with their tape
+  function parcels(g) {
+    const [x, y] = PARCELS, n = clamp((etsy && etsy.counts && etsy.counts.published) || 0, 2, 6);
+    for (let i = 0; i < n; i++) {
+      const bx = x + .12 + (i % 2) * .38, by = y + .12 + (Math.floor(i / 2) % 2) * .38, bz = Math.floor(i / 4) * 7;
+      box(g, bx, by, .34, .34, bz, 7, ["#c99a63", "#8a6440", "#a87c4f"]);
+      seg(g, P(bx + .17, by, bz + 7), P(bx + .17, by + .34, bz + 7), "#e8d3b0", .6);
+    }
+  }
+  function etsyPlates(g, placed) {
+    if (!etsy) { etsyPlate = null; return; }
+    const st = etsy.stage, c = etsy.counts || {};
+    const money = Number(etsy.revenue || 0).toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
+    const line = st ? st.what : t("{n} para aprovar · {m} em vendas", { n: c.new || 0, m: money });
+    const [px, py] = P(16, 17.1, -22);
+    etsyPlate = plateAt(g, SX(px), SY(py), t("Fábrica Etsy"), t("Print-on-demand"), line.length > 44 ? line.slice(0, 43) + "…" : line, hoverEtsy);
+    if (etsyPlate) placed.push(etsyPlate);
+  }
+
   // ================================================================ one frame
   const FURN = [];
   const furn = (x, y, draw) => FURN.push({ k: x + y + 1, x, draw });
@@ -2240,6 +2333,8 @@
   ROCKS.forEach(([x, y]) => furn(x, y, still(`rock${x},${y}`, [x, y, x + 1, y + 1, 38], (q) => rock(q, x, y))));
   furn(2, 0, still("suit", [2, 0, 3, 1, 42], suitCase)); furn(4, 0, coffee);
   item(TWALL.x0 + TWALL.y - .05, TWALL.x0, tradeWall);   // behind the traders' desks and whoever walks in front of it
+  item(EWALL.x0 + EWALL.y - .05, EWALL.x0, etsyWall);   // behind whoever walks in front of it
+  furn(PRESS[0], PRESS[1], heatPress); furn(PARCELS[0], PARCELS[1], parcels);
   furn(BULL[0], BULL[1], still("bull", [BULL[0], BULL[1], BULL[0] + 1, BULL[1] + 1, 24], bull));
   item(15.95, 2.5, (g) => { const n = Math.min(30, vaultStats().total); cachedDraw(g, "goldA" + n, [1.6, 12.05, 3.4, 13.05, 16], (q) => goldPile(q, 2.5, 12.55, n)); });
   item(19.5, 4.85, (g) => { const n = clamp(vaultStats().total - 30, 0, 30); cachedDraw(g, "goldB" + n, [3.95, 13.25, 5.75, 14.25, 16], (q) => goldPile(q, 4.85, 13.75, n)); });
@@ -2425,6 +2520,11 @@
       const tp = tradePlate; if (tp && mx >= tp.x && mx <= tp.x + tp.w && my >= tp.y && my <= tp.y + tp.h) return { trading: "plate" };
       const [bx2, by2] = P(BULL[0] + .5, BULL[1] + .5, 9); if (Math.abs(wx - bx2) < 10 && Math.abs(wy - by2) < 11) return { trading: "bull" };
     }
+    { // the Fábrica Etsy: its board and its plate
+      const { x0, x1, y, z0, z1 } = EWALL, [ax, ay] = P(x0, y, z1), [bx] = P(x1, y, z1);
+      if (etsy && wx >= ax && wx <= bx) { const top = ay + (wx - ax) * .5; if (wy >= top - 6 && wy <= top + (z1 - z0) + 4) return { etsy: true }; }
+      const ep = etsyPlate; if (ep && mx >= ep.x && mx <= ep.x + ep.w && my >= ep.y && my <= ep.y + ep.h) return { etsy: true };
+    }
     for (const c of [...CARS].reverse()) {
       const p = c.plate; if (p && mx >= p.x && mx <= p.x + p.w && my >= p.y && my <= p.y + p.h) return { car: c };
       const b = c.bounds; if (b && mx >= SX(b[0]) && mx <= SX(b[2]) && my >= SY(b[1]) && my <= SY(b[3])) return { car: c };
@@ -2467,6 +2567,14 @@
   };
   const tipHead = (kind, title, color) => `<div class="cr-tip-h"><div><span>${esc(t(kind))}</span><b${color ? ` style="color:${color}"` : ""}>${esc(title)}</b></div></div>`;
   function tipHtml(hit) {
+    if (hit.etsy) {
+      const c = etsy.counts || {}, st = etsy.stage, who = st && crewById(st.who);
+      const money = Number(etsy.revenue || 0).toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
+      return `${tipHead(t("Fábrica Etsy"), t("Print-on-demand"), "#f1641e")}
+        <dl>${row(t("Para aprovar"), c.new || 0)}${row(t("Prontos a publicar"), c.approved || 0)}${row(t("Na Etsy"), c.published || 0)}${row(t("Vendas"), money)}</dl>
+        <p class="cr-tip-idle"><i style="--c:${st ? NEON.green : "#f1641e"}"></i>${esc(st && who ? `${who.name}: ${st.what}` : etsy.cfg.on ? t("Um lote por dia às {h}h", { h: etsy.cfg.hour }) : t("Horário desligado"))}</p>
+        <small>${esc(t("Clica para abrir a Fábrica Etsy"))}</small>`;
+    }
     if (hit.trading) {
       const w = (pulse && pulse.wall) || [], m = pulse && pulse.meeting, live = m && m.status === "running";
       const status = live ? t("Em reunião: o Pinguim e o Duas-Caras") : m && m.title ? t("Última reunião: {t}", { t: m.title }) : t("O Pinguim e o Duas-Caras");
@@ -2547,7 +2655,7 @@
       }
     }
     const hit = hitTest(e), tip = $("cr-tip"), target = Object.keys(hit).length ? hit : null;
-    hovered = hit.agent || null; hoverCar = hit.car || null; hoverVault = !!hit.vault; hoverTrade = !!hit.trading;
+    hovered = hit.agent || null; hoverCar = hit.car || null; hoverVault = !!hit.vault; hoverTrade = !!hit.trading; hoverEtsy = !!hit.etsy;
     stage.classList.toggle("point", !!target);
     if (!target) { tip.hidden = true; return; }
     tip.innerHTML = tipHtml(hit); tip.hidden = false;
@@ -2576,6 +2684,7 @@
     else if (hit.car) openPanel({ kind: "car", ref: hit.car });
     else if (hit.vault) openPanel({ kind: "vault", ref: "vault" });
     else if (hit.trading) location.hash = "#/trading";
+    else if (hit.etsy) location.hash = "#/etsy";
     else closePanel();
   }
   // the wheel brings the cave closer or takes it away, around the point under the pointer
@@ -2634,7 +2743,7 @@
         <button class="cp-x" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>${stripes()}`;
     const own = !j || j.type === "task";
     const mind = own ? `<div class="cp-mind">${icon("bolt")}<div><b>${esc(t("Conversa própria do Claude"))}</b><span>${esc(memoryLine())}</span></div></div>`
-      : `<div class="cp-mind">${icon("bot")}<div><b>${esc(t(j.type === "sub" ? "Subagente de um Claude" : "Janela do Claude Code"))}</b><span>${esc(t("De {w}, vista ao vivo pelos hooks do Hub.", { w: j.who }))}</span></div></div>`;
+      : `<div class="cp-mind">${icon("bot")}<div><b>${esc(t(j.type === "etsy" ? "Fábrica Etsy" : j.type === "sub" ? "Subagente de um Claude" : "Janela do Claude Code"))}</b><span>${esc(j.type === "etsy" ? t("Um passo do lote de hoje: pesquisa, desenho ou anúncio.") : t("De {w}, vista ao vivo pelos hooks do Hub.", { w: j.who }))}</span></div></div>`;
     if (!j) {
       return `${head}<section class="cp-sec"><small class="cp-k">${esc(t("Quem é"))}</small><p class="cp-bio">${esc(t(a.bio))}</p></section>
         <section class="cp-sec"><small class="cp-k">${esc(t("Nova missão"))}</small>
@@ -2652,7 +2761,7 @@
     const cost = tk && tk.ai_cost_usd != null ? `≈ $${tk.ai_cost_usd.toFixed(2)}` : j.tokens ? `${fmt.tokens(j.tokens)} tokens` : "—";
     const text = (tk && tk.description) || j.description || (j.request !== j.title && j.request) || "";
     const short = j.request && j.title.length > 90 ? j.title.slice(0, 89).trimEnd() + "…" : j.title;
-    return `${head}<section class="cp-sec cp-mission"><small class="cp-k">${esc(t(j.type === "task" ? "Missão" : j.type === "sub" ? "Missão de subagente" : "Pedido ao Claude"))}</small>
+    return `${head}<section class="cp-sec cp-mission"><small class="cp-k">${esc(t(j.type === "task" ? "Missão" : j.type === "etsy" ? "Fábrica Etsy" : j.type === "sub" ? "Missão de subagente" : "Pedido ao Claude"))}</small>
         <h4>${esc(short)}</h4>${text ? `<p class="cp-req">${esc(text)}</p>` : ""}</section>
       <section class="cp-tele">${gauge(pct, color, pct == null)}
         <div class="cp-stats">
@@ -2668,7 +2777,7 @@
       ${j.subagents && j.subagents.length ? `<section class="cp-sec"><small class="cp-k">${esc(t("Subagentes"))}</small>${j.subagents.map((s) => `<div class="cp-sub ${s.state === "working" ? "on" : ""}"><i></i><b>${esc(s.kind)}</b><span>${esc(s.description || "")}</span></div>`).join("")}</section>` : ""}
       ${events.length ? `<section class="cp-sec"><small class="cp-k">${esc(t("Registo"))}</small><div class="cp-log">${events.map((e) => `<div class="cp-ev ${esc(e.kind)}"><time>${esc(fmt.hhmm(e.created_at))}</time><span>${esc(e.message)}</span></div>`).join("")}</div></section>` : ""}
       ${mind}
-      <footer class="cp-foot">${j.href ? `<button class="btn primary" data-href="${esc(j.href)}">${icon("arrow")}${esc(t(j.type === "task" ? "Abrir a tarefa" : "Ver no Escritório"))}</button>` : ""}
+      <footer class="cp-foot">${j.href ? `<button class="btn primary" data-href="${esc(j.href)}">${icon("arrow")}${esc(t(j.type === "task" ? "Abrir a tarefa" : j.type === "etsy" ? "Abrir a Fábrica Etsy" : "Ver no Escritório"))}</button>` : ""}
         ${ctl.map(([act, label, ic]) => `<button class="btn ${act === "stop" ? "danger" : ""}" data-control="${act}">${icon(ic)}${esc(t(label))}</button>`).join("")}</footer>`;
   }
   // the vault, opened: the missions as gold, who filled it most, the shop's sales and what the AI cost
@@ -2960,6 +3069,7 @@
     try {
       const [o, ts] = await Promise.all([api("/api/office"), api("/api/tasks")]);
       office = o; tasks = ts; arsenalList = o.arsenal || [];
+      await loadEtsy();
     } catch (e) {
       if (e.message !== "unauthorized" && $("cx-sum") && firstLoad) $("cx-sum").textContent = e.message;
       return;
@@ -3098,7 +3208,7 @@
         <section class="cr-stage" id="cr-stage"><canvas id="cr-canvas" aria-label="${esc(t("A Batcave dos agentes"))}"></canvas>
           <div class="cr-hud"><div class="cr-live"><i></i>${t("Ao vivo")}</div><div class="cr-stats" id="cr-stats"></div></div>
           <div class="cr-crew" id="cr-crew"></div>
-          <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["trading", "Trading"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
+          <div class="cr-views" role="tablist">${[["office", "Escritório"], ["vault", "Cofre"], ["garage", "Stand"], ["trading", "Trading"], ["etsy", "Etsy"], ["all", "Tudo"]].map(([v, l]) => `<button type="button" data-view="${v}">${esc(t(l))}</button>`).join("")}</div>
           <div class="cr-legend" aria-label="${esc(t("Legenda"))}">${[["a trabalhar", NEON.green], ["à espera", NEON.amber], ["precisa de ajuda", NEON.red], ["livre", "#8b95a1"]]
             .map(([l, c]) => `<span><i class="st" style="--c:${c}"></i>${esc(t(l))}</span>`).join("")}<b></b>${PARTNERS.map(([, n, c]) => `<span><i style="--c:${c}"></i>${esc(n)}</span>`).join("")}</div>
           ${MINI ? `<div class="cr-mtop" id="cr-mtop"></div><div class="cr-np" id="cr-np"></div>` : ""}

@@ -54,6 +54,14 @@ def item(item_id: str, body: dict, user: User = Depends(viewer)):
     return FACTORY.out()
 
 
+@router.post("/rewrite")
+async def rewrite(body: dict, user: User = Depends(viewer)):
+    ids = [str(i) for i in body.get("ids") or []] or [i["id"] for i in FACTORY.state["items"] if i["status"] in ("new", "approved")]
+    if not FACTORY.start_rewrite(ids):
+        raise HTTPException(409, "Já há um lote a correr")
+    return FACTORY.out()
+
+
 @router.post("/sale")
 def sale(body: dict, user: User = Depends(viewer)):
     try:

@@ -314,6 +314,14 @@ Pedido do David a 20 out (um reel de agentes que correm lojas Etsy de print-on-d
 - Por PC, como a Sala de Trading: `~/.team-agent/etsy/` (`state.json` e uma pasta por desenho), nada vai por sync. «Ligar
   todos os dias» faz um lote por dia a partir da hora marcada no PC onde foi ligado, e avisa quem o ligou (`owner`).
 - O Hub guarda o estado em memória: mexer no `state.json` à mão só com o Hub parado, senão a próxima gravação apaga a mudança.
+- **A sala na cave** (`crew.js`, câmara «Etsy»): uma ilha `e` no `MAP` (x 14–17, y 13–16) entre a varanda do bar e o
+  trading, com o painel das três estampas mais novas na cor da peça (`etsyWall`, carregadas uma vez do `/api/etsy/file`), a
+  prensa (`PRESS`, acende quando a Catwoman desenha), as encomendas (`PARCELS`, uma caixa por desenho na Etsy) e a placa.
+  Enquanto um lote corre, quem faz o passo trabalha no seu posto com o passo como missão (`etsyJobs` → `jobsOf`, tipo
+  `etsy`) e passa ao seguinte. Clicar no painel ou na placa abre `#/etsy`.
+- **«Reescrever anúncio»** (`POST /api/etsy/rewrite`, sem ids = todos os por aprovar e aprovados): o Joker volta a escrever.
+  A 20 out o tom mudou a pedido do David («descrições que não pareçam AI»): 1.ª pessoa, frases normais, lista de
+  expressões proibidas no `JOKER`, e o aviso de IA numa frase natural no fim (a Etsy obriga a dizê-lo).
 - **No Mac o Hub arrancado pelo widget tem o PATH mínimo** (`/usr/bin:/bin`) e não via o `claude`: a Fábrica e a Sala de Trading
   ficavam sem Claude. O `council.claude_exe()` procura também em `/opt/homebrew/bin`, `/usr/local/bin` e `~/.local/bin`.
 

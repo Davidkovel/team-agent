@@ -124,6 +124,7 @@
           ${(i.fontes || []).map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60))}</a>`).join("")}</details>
         <div class="ey-acts">
           ${btns.map(([s, l, k]) => `<button type="button" class="btn sm ${k}" data-status="${s}">${esc(t(l))}</button>`).join("")}
+          <button type="button" class="btn sm quiet" data-rewrite="1" ${S.running ? "disabled" : ""}>${esc(t("Reescrever anúncio"))}</button>
           <button type="button" class="btn sm quiet" data-copy="titulo">${esc(t("Copiar título"))}</button>
           <button type="button" class="btn sm quiet" data-copy="tags">${esc(t("Copiar tags"))}</button>
           <button type="button" class="btn sm quiet" data-copy="descricao">${esc(t("Copiar descrição"))}</button>
@@ -178,6 +179,7 @@
       if (b.dataset.act === "toggle") { await post("/api/etsy/cfg", { on: !S.cfg.on }); return; }
       const id = b.closest("[data-id]") && b.closest("[data-id]").dataset.id;
       const it = S.items.find((i) => i.id === id);
+      if (b.dataset.rewrite && it) { await post("/api/etsy/rewrite", { ids: [id] }); msg(t("O Joker está a reescrever o anúncio.")); return; }
       if (b.dataset.status && it) { await post(`/api/etsy/item/${encodeURIComponent(id)}`, { status: b.dataset.status }); return; }
       if (b.dataset.copy && it) {
         const v = b.dataset.copy === "tags" ? (it.tags || []).join(", ") : it[b.dataset.copy] || "";

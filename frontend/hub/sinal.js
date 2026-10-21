@@ -108,11 +108,8 @@
 
   HUB_VIEWS.sinal = async function () {
     page(`<div class="sn" id="sn">
-      <header class="sn-head">
-        <div><small>${esc(t("Sala de Trading · notícias vermelhas"))}</small><h1>${esc(t("Sinal na notícia"))}</h1>
-          <p class="sn-sub">${esc(t("Todas as notícias de impacto alto, de qualquer moeda. No segundo em que o número sai, BUY ou SELL em grande: o Hub tem 4 ligações à TradingView e 5 ao Forex Factory a perguntar ao mesmo tempo, ~15 respostas por segundo (o máximo que os dois sites aceitam), e compara com a previsão do Forex Factory."))}</p></div>
-        <div class="sn-ctl" id="sn-ctl"></div>
-      </header>
+      ${ui.head("Trading", t("Sinal na notícia"), t("BUY ou SELL em grande no segundo em que sai uma notícia de impacto alto, de qualquer moeda, comparada com a previsão do Forex Factory."),
+        `<div class="sn-ctl" id="sn-ctl"></div>`)}
       <div class="sn-msg" id="sn-msg" hidden></div>
       <section class="sn-stage" id="sn-stage"></section>
       <div class="sn-grid">

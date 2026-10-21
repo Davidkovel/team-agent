@@ -1,7 +1,7 @@
 /* Painel FundedNext (fundednext.js): the Hub's black-and-chrome; green/red only on money, AI blue on what waits. Classes fn-. */
 .fn { --up: #16e08a; --down: #ff3b5c; --ai: #8fb4ff; --warn: #ffc35c; display: grid; gap: 12px; font-variant-numeric: tabular-nums; min-width: 0; }
 .fn .up { color: var(--up); } .fn .down { color: var(--down); } .fn .bad { color: var(--down); }
-.fn h1 { font: 600 24px/1.1 var(--display); margin: 2px 0 4px; }
+/* the head is ui.head (docs/hub-paginas.md): its title keeps the house serif */
 .fn h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 15px/1.2 var(--display); margin: 0 0 12px; }
 .fn h2 small { margin-left: auto; font: 500 11.5px var(--ui); color: var(--faint); }
 .fn h4 { font: 600 10.5px/1 var(--ui); text-transform: uppercase; letter-spacing: .14em; color: var(--muted); margin: 4px 0 8px; }

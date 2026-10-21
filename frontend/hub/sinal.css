@@ -3,7 +3,7 @@
    alert over the Hub (.sn-ov). Classes prefixed sn-. */
 .sn, .sn-ov { --up: #16e08a; --up-rgb: 22, 224, 138; --down: #ff3b5c; --down-rgb: 255, 59, 92; --ai: #8fb4ff; }
 .sn { display: grid; gap: 12px; font-variant-numeric: tabular-nums; }
-.sn h1 { font: 600 24px/1.1 var(--display); margin: 2px 0 6px; }
+/* the head is ui.head (docs/hub-paginas.md): its title keeps the house serif */
 .sn-sub { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; max-width: 64ch; }
 .sn-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; padding: 16px 18px; border-radius: 16px;
   background: radial-gradient(110% 160% at 0% 0%, rgba(255, 255, 255, .07), transparent 50%), linear-gradient(180deg, #121519, #0a0c0f);

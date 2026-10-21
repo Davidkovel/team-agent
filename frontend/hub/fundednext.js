@@ -41,10 +41,9 @@
   HUB_VIEWS.fundednext = async function () {
     acc = store.get("acc", null);
     page(`<div class="fn" id="fn">
-      <header class="fn-head">
-        <div class="fn-title"><small>${esc(t("Sala de Trading · a tua conta da prop, ao vivo pelo MT5"))}</small><h1>FundedNext</h1><div class="fn-accs" id="fn-accs"></div></div>
-        <div class="fn-ctl" id="fn-ctl"></div>
-      </header>
+      ${ui.head("Trading", "FundedNext", t("A tua conta da prop ao vivo pelo MT5: quanto ainda podes perder hoje, os objetivos, as posições e o diário."),
+        `<div class="fn-ctl" id="fn-ctl"></div>`)}
+      <div class="fn-accs" id="fn-accs"></div>
       <div class="fn-msg" id="fn-msg" hidden></div>
       <section class="fn-start" id="fn-start" hidden></section>
       <div class="fn-body" id="fn-body" hidden>

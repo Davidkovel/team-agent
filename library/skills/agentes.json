@@ -27,5 +27,20 @@
  "site-scroll-infinito": [
   "catwoman",
   "batman"
+ ],
+ "security-sweep": [
+  "alfred",
+  "robin"
+ ],
+ "caveman": [
+  "batman"
+ ],
+ "watch": [
+  "riddler",
+  "catwoman"
+ ],
+ "task-observer": [
+  "lucius",
+  "alfred"
  ]
 }

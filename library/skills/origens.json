@@ -22,5 +22,29 @@
  "pod-etsy": {
   "de": "reel instagram.com/reel/Dd7XBExRZQy (androo.agi)",
   "autor": "Empresa AMG; escrita pelo Claude do David a 20 out 2026"
+ },
+ "security-sweep": {
+  "de": "github.com/Onome-AJ/security-sweep-plugin",
+  "autor": "Onome AJ (onomeaj), MIT",
+  "licenca": "aberta",
+  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
+ },
+ "caveman": {
+  "de": "github.com/JuliusBrussee/caveman",
+  "autor": "Julius Brussee, Apache-2.0",
+  "licenca": "aberta",
+  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
+ },
+ "watch": {
+  "de": "github.com/bradautomates/claude-video",
+  "autor": "Bradley Bonanno (bradautomates), MIT",
+  "licenca": "aberta",
+  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
+ },
+ "task-observer": {
+  "de": "github.com/rebelytics/one-skill-to-rule-them-all",
+  "autor": "Eoghan Henn e contribuidores, CC-BY-4.0",
+  "licenca": "aberta",
+  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
  }
 }

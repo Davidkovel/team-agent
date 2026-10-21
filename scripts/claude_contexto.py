@@ -73,12 +73,14 @@ AREAS = [
      []),
     ("Código", r"\bbugs?\b|\berros?\b|debug|n[aã]o funciona|partiu|crash|\btestes?\b|\btests?\b|refactor|implementa|"
                r"\bfeature|c[oó]digo|\bcode\b|pull request|\bcommit|\bmerge\b|deploy|cloudflare|wrangler|\bworkers?\b|"
-               r"\bsdk\b|database|base de dados|mongodb|postgres|stripe|ошибк|\bбаг|тест|\bкод",
-     ["systematic-debugging", "test-driven-development", "brainstorming", "writing-plans", "executing-plans",
+               r"\bsdk\b|database|base de dados|mongodb|postgres|stripe|seguran[cç]a|security|vulnerab|"
+               r"chaves? (de api )?expostas|api keys?|owasp|ошибк|\bбаг|тест|\bкод|безопасн",
+     ["security-sweep", "systematic-debugging", "test-driven-development", "brainstorming", "writing-plans", "executing-plans",
       "verification-before-completion", "requesting-code-review"]),
     ("Claude, MCP e skills", r"\bskills?\b|\bmcp\b|\bplugins?\b|claude api|anthropic|agent sdk|claude\.?md|connectors?\b|"
-                             r"conectores?|discord|agent-browser|скилл",
-     ["skill-creator", "writing-skills", "mcp-builder", "claude-api", "dispatching-parallel-agents"]),
+                             r"conectores?|discord|agent-browser|respostas? curtas|responde curto|menos tokens|"
+                             r"poupar tokens|скилл",
+     ["task-observer", "caveman", "skill-creator", "writing-skills", "mcp-builder", "claude-api", "dispatching-parallel-agents"]),
     ("Operações e suporte", r"processos?\b|procedimentos?|runbook|status report|relat[oó]rio de estado|fornecedor|vendor|"
                             r"an[aá]lise de risco|risk|compliance|suporte|tickets?|reclama[cç]|\bfaq\b|base de conhecimento|"
                             r"knowledge base|inbox|caixa de entrada|\bslack\b|digest|briefing|reuni[aã]o|meetings?\b|"

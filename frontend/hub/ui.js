@@ -50,6 +50,7 @@ lazyView("robos", "hub/robots.js", "hub/robots.css");
 lazyView("gap", "hub/gap.js", "hub/gap.css"); // Gap da manhã: the gaps on the FundedNext MT5 quotes, told to everyone
 lazyView("etsy", "hub/etsy.js", "hub/etsy.css"); // Fábrica Etsy: Riddler, Catwoman e Joker a fazer a loja de print-on-demand
 lazyView("sinal", "hub/sinal.js", "hub/sinal.css"); // Sinal na notícia: BUY/SELL the second a US figure is out
+lazyView("fundednext", "hub/fundednext.js", "hub/fundednext.css"); // Painel FundedNext: the prop account, its objectives, ticket and statistics
 lazyView("reforco", "hub/reforco.js", "hub/reforco.css"); // Reforço na notícia: the Hub adds to the trader's news position on MT5 // Escritório de Robôs: the robots at their desks, the FundedNext accounts by API
 
 const HUB_ICONS = {

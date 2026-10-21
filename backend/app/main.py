@@ -14,7 +14,7 @@ from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, messages, office, ponto, tasks, team, trading, week, work, ws
-from .routers import etsy, gap, newsadd, robots, sinal, skills, tradingroom
+from .routers import etsy, fundednext, gap, newsadd, robots, sinal, skills, tradingroom
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -149,6 +149,7 @@ app.include_router(robots.router)  # Escritório de Robôs
 app.include_router(newsadd.router)  # Reforço na notícia
 app.include_router(sinal.router)  # Sinal na notícia
 app.include_router(gap.router)  # Gap da manhã
+app.include_router(fundednext.router)  # Painel FundedNext
 app.include_router(etsy.router)  # Fábrica Etsy
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
 app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here

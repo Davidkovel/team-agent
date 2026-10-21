@@ -45,7 +45,23 @@ PRESETS = {
     "fn-funded": {"name": "FundedNext financiada", "daily": 5.0, "max": 10.0, "target": 0.0},
     "custom": {"name": "Outra conta", "daily": 5.0, "max": 10.0, "target": 0.0},
 }
-LINKS = {"mt5": {"name": "API do MetaTrader 5 (neste PC)", "lib": mt5}, "metaapi": {"name": "MetaApi (cloud)", "lib": metaapi}}
+# each program's phases: (id, name, profit target %, minimum trading days). The funded phase has no target; it pays the split.
+PHASES = {
+    "fn-stellar-2": [("f1", "Fase 1", 8.0, 5), ("f2", "Fase 2", 5.0, 5), ("funded", "Financiada", 0.0, 0)],
+    "fn-stellar-1": [("f1", "Fase 1", 10.0, 2), ("funded", "Financiada", 0.0, 0)],
+    "fn-lite": [("f1", "Fase 1", 8.0, 5), ("f2", "Fase 2", 4.0, 5), ("funded", "Financiada", 0.0, 0)],
+    "fn-funded": [("funded", "Financiada", 0.0, 0)],
+    "custom": [("f1", "Avaliação", 0.0, 0), ("funded", "Financiada", 0.0, 0)],
+}
+
+
+def phase_of(acc: dict) -> dict:
+    rows = PHASES.get(acc.get("preset"), PHASES["custom"])
+    pid, name, target, days = next((p for p in rows if p[0] == acc.get("phase")), rows[0])
+    return {"id": pid, "name": name, "target": target, "min_days": days, "all": [{"id": p[0], "name": p[1]} for p in rows]}
+
+
+LINKS = {"mt5":{"name": "API do MetaTrader 5 (neste PC)", "lib": mt5}, "metaapi": {"name": "MetaApi (cloud)", "lib": metaapi}}
 LOOKS = ["#d9dde3", "#8fb4ff", "#5fcf8c", "#e2b55c", "#c49bff", "#5fd3d3", "#ef8f6e", "#f2f4f7"]
 
 
@@ -229,10 +245,29 @@ class Office:
                    symbols={k: str(v).strip() for k, v in (body.get("symbols") or acc.get("symbols") or {}).items() if str(v).strip()})
         if body.get("preset") in PRESETS and body.get("preset") != "custom" and not body.get("daily"):
             acc.update(daily=p["daily"], max=p["max"], target=p["target"])
+        # the FundedNext panel: the phase (its target and minimum days), the person's own daily stop and goal, the reward
+        if body.get("size"):
+            acc["size_set"] = True   # typed by the person: the panel no longer takes it from the first deposit
+        if body.get("phase") and body["phase"] != acc.get("phase") or body.get("preset") in PRESETS:
+            acc["phase"] = str(body.get("phase") or acc.get("phase") or "")[:12]
+            ph = phase_of(acc)
+            acc["phase"] = ph["id"]
+            if body.get("target") in (None, "") and (ph["target"] or ph["id"] == "funded"):
+                acc["target"] = ph["target"]
+            if body.get("min_days") in (None, ""):
+                acc["min_days"] = ph["min_days"]
+        for k, lo, hi in (("my_stop", 0, 20), ("my_goal", 0, 50), ("split", 0, 100), ("min_days", 0, 60), ("first_reward", 0, 60), ("cycle", 1, 60)):
+            if k in body:
+                v = body[k]
+                acc[k] = None if v in (None, "") else min(hi, max(lo, float(v)))
+        if "start" in body:
+            acc["start"] = str(body["start"] or "")[:10]
         sec = self.secrets.setdefault(aid, {})
         for k in SECRET_KEYS:
             if body.get(k):   # blank = keep what was there
                 sec[k] = _seal(str(body[k]))
+        # MT5 with no password on the Hub: the account the terminal is logged in to (mt5._attach)
+        acc["attach"] = acc["link"] == "mt5" and not sec.get("password")
         self.note(f"Conta «{acc['name']}» guardada ({LINKS[acc['link']]['name']}).", acc=aid)
         self.save(True)
         return acc
@@ -285,6 +320,10 @@ class Office:
             del day["curve"][:-1500]
         if not acc.get("size"):
             acc["size"] = round(snap["balance"], 2)   # the first balance seen is the initial one (set it on the account if not)
+        eq = self.state.setdefault("eq", {}).setdefault(acc["id"], [])   # the equity over the weeks, one point per 5 min
+        if not eq or time.time() - eq[-1][0] >= 300:
+            eq.append([int(time.time()), round(snap["equity"], 2), round(snap["balance"], 2)])
+            del eq[:-6000]
         return snap
 
     def guard(self, acc: dict) -> dict:
@@ -312,6 +351,10 @@ class Office:
             out.update(can=False, why="A conta não deixa negociar por API (ativa o «Algo Trading» no MT5).")
         elif acc.get("target") and eq - size >= size * acc["target"] / 100:
             out.update(can=False, why="Objetivo da fase atingido: os robôs param para não arriscar o que já está ganho.")
+        elif acc.get("my_stop") and out["day_pnl"] <= -size * acc["my_stop"] / 100:
+            out.update(can=False, why=f"Chegaste ao teu stop do dia (−{acc['my_stop']:g}%): sem ordens novas até amanhã.")
+        elif acc.get("my_goal") and out["day_pnl"] >= size * acc["my_goal"] / 100:
+            out.update(can=False, why=f"Meta do dia feita (+{acc['my_goal']:g}%): sem ordens novas até amanhã.")
         return out
 
     # ---------------------------------------------------------------- the robots
@@ -483,7 +526,8 @@ class Office:
 
     # ---------------------------------------------------------------- the loop (every 15 s)
     def accounts_to_read(self) -> list[dict]:
-        return [a for a in self.state["accounts"] if (a["id"] in self.secrets) or a.get("link") == "metaapi"]
+        return [a for a in self.state["accounts"] if (a["id"] in self.secrets and any(self.secrets[a["id"]].values())) or a.get("attach")
+                or a.get("link") == "metaapi"]
 
     def sync_account(self, acc: dict, now: datetime):
         """Blocking: read the account, enforce the guard and the day-trading hours, send and follow the robots' orders."""

@@ -144,7 +144,7 @@ const NAV = [
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes"], ["historico", "Histórico"]], "agentes"],
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]], "negocios"],
   ["Fábrica Etsy", "bag", [["etsy", "Fábrica Etsy"]], "negocios"],
-  ["Sala de Trading", "trend", [["trading", "Sala de Trading"], ["sinal", "Sinal na notícia"], ["robos", "Robôs"], ["reforco", "Reforço na notícia"], ["gap", "Gap da manhã"]], "trading"],
+  ["Sala de Trading", "trend", [["trading", "Sala de Trading"], ["sinal", "Sinal na notícia"], ["fundednext", "FundedNext"], ["robos", "Robôs"], ["reforco", "Reforço na notícia"], ["gap", "Gap da manhã"]], "trading"],
   ["Mercados", "candles", [["mercados", "Mercados"]], "trading"],
   ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA"], ["despesas", "Despesas"]], "sistema"],
   ["Sistema", "gear", [["memoria", "Memória"], ["saude", "Saúde"], ["definicoes", "Definições"]], "sistema"],

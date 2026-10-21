@@ -347,7 +347,7 @@ const ACTIONS = [
   ["Entregar tarefa à IA", "bot", () => newTask({ for_ai: "developer" })],
 ];
 const PLACES = [
-  ["Convocar reunião de trading", "users", "#/trading"], ["Contas de trading (FundedNext)", "wallet", "#/robos"],
+  ["Convocar reunião de trading", "users", "#/trading"], ["Painel FundedNext (conta, objetivos, ticket)", "wallet", "#/fundednext"], ["Contas de trading (FundedNext)", "wallet", "#/robos"],
   ["Paper trading", "wallet", "#/mercados/paper"], ["Notícias dos mercados", "news", "#/mercados/noticias"],
 ];
 const COMMANDS = [];

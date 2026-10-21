@@ -245,6 +245,25 @@ class Notification(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Message(Base):
+    """Mensagens (21 Oct, Marco: «mandar como se fossem mensagens lá no widget»): one person to another, or to the whole team
+    (to_user_id None). Travels to every PC by sync like any row; only the people in the conversation are shown it."""
+    __tablename__ = "messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    to_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    body: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MessageSeen(Base):
+    """Up to when a person has read a conversation: `peer` is "team" or the other person's id."""
+    __tablename__ = "message_seen"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    peer: Mapped[str] = mapped_column(String(20), primary_key=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Memory(Base):
     """What the AI should know before it starts: facts and decisions, kept per scope."""
     __tablename__ = "memory"

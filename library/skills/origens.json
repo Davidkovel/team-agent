@@ -1,11 +1,157 @@
 {
+ "ad-creative": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/ad-creative",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "caveman": {
+  "de": "github.com/JuliusBrussee/caveman",
+  "autor": "Julius Brussee, Apache-2.0",
+  "licenca": "aberta",
+  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
+ },
+ "cold-email": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/cold-email",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "competitor-profiling": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/competitor-profiling",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "content-strategy": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/content-strategy",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "copy-editing": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/copy-editing",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "copywriting": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/copywriting",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "cro": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/cro",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "customer-research": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/customer-research",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "hub-pagina": {
+  "de": "docs/hub-paginas.md do team-agent",
+  "autor": "Empresa AMG (Claude, a pedido do Marco, 21 out 2026)"
+ },
+ "humanizer": {
+  "de": "github.com/blader/humanizer",
+  "autor": "Siqi Chen (blader), MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "impeccable": {
+  "de": "github.com/pbakaus/impeccable",
+  "autor": "Paul Bakaus, Apache-2.0",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "launch": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/launch",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "lead-magnets": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/lead-magnets",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "marketing-ideas": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/marketing-ideas",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "marketing-plan": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/marketing-plan",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "marketing-psychology": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/marketing-psychology",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "offers": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/offers",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "pod-etsy": {
+  "de": "reel instagram.com/reel/Dd7XBExRZQy (androo.agi)",
+  "autor": "Empresa AMG; escrita pelo Claude do David a 20 out 2026"
+ },
  "premium-site-rebuild": {
   "de": "github.com/tomas476/deantonio",
   "autor": "Tomás (tomas476); skill escrita pelo David"
  },
+ "pricing": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/pricing",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "prompt-master": {
+  "de": "github.com/nidhinjs/prompt-master",
+  "autor": "Nidhin Joseph Nelson, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "prospecting": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/prospecting",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
  "realtor-landing": {
   "de": "github.com/tomas476/imogrow-realtor-kit",
   "autor": "Tomás (tomas476)"
+ },
+ "referrals": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/referrals",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
+ },
+ "security-sweep": {
+  "de": "github.com/Onome-AJ/security-sweep-plugin",
+  "autor": "Onome AJ (onomeaj), MIT",
+  "licenca": "aberta",
+  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
+ },
+ "site-architecture": {
+  "de": "github.com/coreyhaines31/marketingskills/skills/site-architecture",
+  "autor": "Corey Haines, MIT",
+  "licenca": "aberta",
+  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
  },
  "site-empresa-local": {
   "de": "github.com/tomas476/bluemagnitude e github.com/tomas476/detalhes-cautelosos",
@@ -19,19 +165,9 @@
   "de": "3 TikToks escolhidos pelo Marco: @wearebrand.io (Levora), @webforge6 (Mr. Day), @webloved (DRIP)",
   "autor": "Empresa AMG (Claude, a pedido do Marco, 18 out 2026); código nosso, sem nada copiado dos sites"
  },
- "pod-etsy": {
-  "de": "reel instagram.com/reel/Dd7XBExRZQy (androo.agi)",
-  "autor": "Empresa AMG; escrita pelo Claude do David a 20 out 2026"
- },
- "security-sweep": {
-  "de": "github.com/Onome-AJ/security-sweep-plugin",
-  "autor": "Onome AJ (onomeaj), MIT",
-  "licenca": "aberta",
-  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
- },
- "caveman": {
-  "de": "github.com/JuliusBrussee/caveman",
-  "autor": "Julius Brussee, Apache-2.0",
+ "task-observer": {
+  "de": "github.com/rebelytics/one-skill-to-rule-them-all",
+  "autor": "Eoghan Henn e contribuidores, CC-BY-4.0",
   "licenca": "aberta",
   "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
  },
@@ -40,137 +176,5 @@
   "autor": "Bradley Bonanno (bradautomates), MIT",
   "licenca": "aberta",
   "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
- },
- "task-observer": {
-  "de": "github.com/rebelytics/one-skill-to-rule-them-all",
-  "autor": "Eoghan Henn e contribuidores, CC-BY-4.0",
-  "licenca": "aberta",
-  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
- },
- "humanizer": {
-  "de": "github.com/blader/humanizer",
-  "autor": "Siqi Chen (blader), MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "prompt-master": {
-  "de": "github.com/nidhinjs/prompt-master",
-  "autor": "Nidhin Joseph Nelson, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "impeccable": {
-  "de": "github.com/pbakaus/impeccable",
-  "autor": "Paul Bakaus, Apache-2.0",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "cold-email": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/cold-email",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "prospecting": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/prospecting",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "copywriting": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/copywriting",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "copy-editing": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/copy-editing",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "cro": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/cro",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "offers": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/offers",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "pricing": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/pricing",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "lead-magnets": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/lead-magnets",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "launch": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/launch",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "referrals": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/referrals",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "marketing-psychology": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/marketing-psychology",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "customer-research": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/customer-research",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "site-architecture": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/site-architecture",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "marketing-plan": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/marketing-plan",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "competitor-profiling": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/competitor-profiling",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "ad-creative": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/ad-creative",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "content-strategy": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/content-strategy",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
- },
- "marketing-ideas": {
-  "de": "github.com/coreyhaines31/marketingskills/skills/marketing-ideas",
-  "autor": "Corey Haines, MIT",
-  "licenca": "aberta",
-  "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
  }
 }

@@ -75,6 +75,9 @@ AREAS = [
                     r"compensation|sal[aá]rios?|performance review|avalia[cç][aã]o de desempenho|headcount|\bpto\b|"
                     r"new hire|novos? colaborador",
      []),
+    ("Hub e widget", r"\bhub\b|widget|dashboard|central de comando|escrit[oó]rio|empresa amg|agente amg|barra (do )?lado|"
+                     r"sidebar|ctrl\+?k|separador(es)?|p[aá]ginas? do hub|виджет|хаб",
+     ["hub-pagina"]),
     ("Código", r"\bbugs?\b|\berros?\b|debug|n[aã]o funciona|partiu|crash|\btestes?\b|\btests?\b|refactor|implementa|"
                r"\bfeature|c[oó]digo|\bcode\b|pull request|\bcommit|\bmerge\b|deploy|cloudflare|wrangler|\bworkers?\b|"
                r"\bsdk\b|database|base de dados|mongodb|postgres|stripe|seguran[cç]a|security|vulnerab|"
@@ -108,6 +111,7 @@ PARA = {
     "Finanças e dados": "Contas, faturas, impostos, orçamentos e análise de dados.",
     "Trading": "Mercados, notícias, análise de gráficos e robôs.",
     "Equipa e RH": "Contratar, entrevistas, integrar pessoas novas e avaliações.",
+    "Hub e widget": "Páginas novas e mudanças no Hub do Agente AMG, sempre arrumadas e com o mesmo aspeto.",
     "Código": "Corrigir erros, testar, construir e pôr no ar.",
     "Claude, MCP e skills": "Fazer skills, ligar ferramentas ao Claude e afiná-lo.",
     "Operações e suporte": "Processos, relatórios, reuniões, contratos e apoio ao cliente.",

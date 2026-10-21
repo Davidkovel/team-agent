@@ -3201,7 +3201,7 @@
   // the page at its own proportions; the agent under the pointer is a small card beside it (peek).
   function buildCave() {
     cave = Object.assign(document.createElement("div"), { className: "cr-cave", id: "cr-cave" });
-    cave.innerHTML = `<div class="cr-cave-bar"><div><small>${esc(t("Agente AMG · a cave dos agentes"))}</small><b>${esc(t("Empresa AMG"))}</b>
+    cave.innerHTML = `<div class="cr-cave-bar"><div><small>${esc(t("02 · Agentes · a cave dos agentes"))}</small><b>${esc(t("Empresa AMG"))}</b>
           <span>${esc(t("Arrasta para andar · roda para aproximar · clica num agente"))}</span></div>
         <div class="cx-acts"><a class="btn" href="#/escritorio" title="${esc(t("Escritório"))}">${icon("bot")}<span>${esc(t("Escritório"))}</span></a><button type="button" class="btn cx-mini" id="cr-mini" title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}<span>${esc(t("Mini janela"))}</span></button></div></div>
       <div class="cr-cave-body" id="cr-cave-body">

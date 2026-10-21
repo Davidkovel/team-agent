@@ -5,7 +5,7 @@
 // and settings. «Contas» connects the accounts (MT5 API on this PC or MetaApi) and shows the prop firm's limits.
 // Robots out of hours, or off, go to the lounge. The canvas only draws while the page is open, at ~20 frames a second.
 (function () {
-  const UP = "#16e08a", DOWN = "#ff3b5c", AI = "#8fb4ff", CHROME = "#e8ebef", INK = "#07080a";
+  const UP = "#5fcf8c", DOWN = "#ef6f5e", AI = "#8fb4ff", CHROME = "#e8ebef", INK = "#07080a";
   const STATE_PT = { trade: "Em operação", wait: "Ordem à espera", watch: "A vigiar o mercado", rest: "Descanso (fora de horas)", off: "Desligado" };
   const SES = ["Ásia", "Londres", "Pré-NY", "Nova Iorque", "Tarde NY"];
   const COLS = 16, ROWS = 11;
@@ -36,16 +36,18 @@
 
   // ================================================================ the page
   HUB_VIEWS.robos = async function () {
+    // the standard anatomy (docs/hub-paginas.md): the head with the accounts' state as the chip, the day's figures,
+    // then the accounts, the office and the tuning and log
+    const sec = (title, hint = "", id = "") => `<div class="sec"><span>${esc(t(title))}</span>${hint || id ? `<small class="rb-sr"${id ? ` id="${id}"` : ""}>${hint}</small>` : ""}</div>`;
     page(`<div class="rb" id="rb">
-      <header class="rb-head">
-        <div class="rb-brand"><span class="rb-logo">${svg(IC.bot)}</span><div><small>${esc(t("AMG Capital · os robôs da Sala de Trading"))}</small><h1>${esc(t("Escritório de Robôs"))}</h1></div></div>
-        <div class="rb-kpis" id="rb-kpis"></div>
-        <div class="rb-acts">
-          <button type="button" class="btn" id="rb-tune">${svg(IC.tune)}${esc(t("Afinação"))}</button>
-          <button type="button" class="btn primary" id="rb-accs">${svg(IC.plug)}${esc(t("Contas"))}</button>
-        </div>
-      </header>
+      ${ui.head("Trading", t("Robôs"), t("Cada robô é uma estratégia da sala nos seus instrumentos: negoceia em papel ou, com a conta ligada, na FundedNext."),
+        `<span id="rb-state"></span>
+        <button type="button" class="btn quiet" id="rb-tune">${svg(IC.tune)}${esc(t("Afinação"))}</button>
+        <button type="button" class="btn primary" id="rb-accs">${svg(IC.plug)}${esc(t("Contas"))}</button>`)}
+      <div class="bd-kpis rb-kpis" id="rb-kpis"></div>
+      ${sec("Contas", esc(t("a prop vê cada ordem como se fosse tua · a guarda da prop pára os robôs antes dos limites")))}
       <div class="rb-accline" id="rb-accline"></div>
+      ${sec("Escritório", esc(t("toca num robô para ver o dia dele e mudar as definições · arrasta para mexer a sala")))}
       <section class="rb-stage" id="rb-stage">
         <canvas id="rb-cv"></canvas>
         <div class="rb-tape" id="rb-tape"></div>
@@ -54,8 +56,8 @@
         <aside class="rb-side" id="rb-side" hidden></aside>
       </section>
       <div class="rb-low">
-        <section class="rb-card" id="rb-tuning"><h2>${svg(IC.tune)}${esc(t("Afinação dos setups"))}<small id="rb-tune-src"></small></h2><div id="rb-tune-body" class="rb-none">${esc(t("A ler as trades…"))}</div></section>
-        <section class="rb-card" id="rb-logbox"><h2>${svg(IC.shield)}${esc(t("Diário dos robôs"))}</h2><div id="rb-log"></div></section>
+        <div id="rb-tuning">${sec("Afinação dos setups", "", "rb-tune-src")}<section class="panel pad rb-card"><div id="rb-tune-body" class="rb-none">${esc(t("A ler as trades…"))}</div></section></div>
+        <div id="rb-logbox">${sec("Diário dos robôs", esc(t("o que fazem nas contas")))}<section class="panel pad rb-card"><div id="rb-log"></div></section></div>
       </div>
       <div class="rb-sheet" id="rb-sheet" hidden></div>
     </div>`);
@@ -93,19 +95,25 @@
   // ---------------------------------------------------------------- head, tape, accounts line
   function paintHead() {
     const T = S.totals, cur = T.currency;
+    // the state beside the actions: paper, an account only watched, or orders going to the account
+    const auto = S.accounts.some((a) => a.mode === "auto"), live = S.accounts.some((a) => a.snap && a.snap.ok);
+    paint($("rb-state"), !S.accounts.length ? `<span class="st off"><i></i>${esc(t("Em papel · sem conta"))}</span>`
+      : auto ? `<span class="st ok"><i></i>${esc(t("Automático: envia ordens"))}</span>`
+      : `<span class="st ${live ? "ok" : "wait"}"><i></i>${esc(live ? t("Conta a observar") : t("Conta sem ligação"))}</span>`);
     paint($("rb-kpis"), [
-      [T.paper ? t("Saldo · papel") : t("Saldo total"), T.paper ? "—" : money(T.balance, cur), ""],
-      [t("Resultado hoje"), signed(T.day, cur), cls(T.day)],
-      [t("Operações hoje"), String(T.ops), ""],
-      [t("Robôs a operar"), `${T.working}<small>/${T.on}</small>`, T.working ? "live" : ""],
-    ].map(([k, v, c]) => `<div class="rb-kpi ${c}"><small>${esc(k)}</small><b>${v}</b></div>`).join(""));
+      [T.paper ? t("Saldo da conta") : t("Saldo total"), T.paper ? null : money(T.balance, cur), "", T.paper ? t("Sem conta ligada: os robôs negoceiam em papel.") : ""],
+      [t("Resultado hoje"), signed(T.day, cur), cls(T.day), T.paper ? t("Em papel, a 100 000 $ por robô") : ""],
+      [t("Operações hoje"), String(T.ops), "", ""],
+      [t("Robôs a operar"), `${T.working}<small>/${T.on}</small>`, "", t("{n} ligados de {m}", { n: T.on, m: T.n })],
+    ].map(([k, v, c, sub]) => `<div class="panel bd-kpi rb-kpi ${c}"><span class="bd-l">${esc(k)}</span>${ui.num(v, c)}${sub ? `<small class="faint">${esc(sub)}</small>` : ""}</div>`).join(""));
     paint($("rb-accline"), S.accounts.length ? S.accounts.map((a) => {
       const ok = a.snap && a.snap.ok, g = a.guard || {};
-      return `<button type="button" class="rb-acc ${ok ? "ok" : "bad"} ${a.mode === "auto" ? "auto" : ""}" data-acc="${esc(a.id)}">
+      return `<button type="button" class="panel rb-acc ${ok ? "ok" : "bad"} ${a.mode === "auto" ? "auto" : ""}" data-acc="${esc(a.id)}">
         <i></i><b>${esc(a.name)}</b><span>${ok ? `${money(a.snap.equity, a.snap.currency)} · ${t("hoje")} <em class="${cls(g.day_pnl)}">${signed(g.day_pnl, a.snap.currency)}</em>` : esc(t("sem ligação"))}</span>
         <u>${a.mode === "auto" ? esc(t("AUTOMÁTICO")) : esc(t("a observar"))}</u>
         ${ok && g.ok ? `<span class="rb-gauge" title="${esc(t("Perda diária usada"))}"><span style="width:${Math.min(100, g.daily_pct)}%"></span></span>` : ""}</button>`;
-    }).join("") : `<button type="button" class="rb-acc empty" data-acc="">${svg(IC.plug)}<b>${esc(t("Ligar a conta FundedNext"))}</b><span>${esc(t("Pela API do MetaTrader 5 neste PC (o teu IP) ou pela MetaApi. Até lá os robôs negoceiam em papel."))}</span></button>`);
+    }).join("") : `<div class="panel rb-acc-empty">${svg(IC.plug)}<div><b>${esc(t("Nenhuma conta ligada"))}</b><span>${esc(t("Liga a conta FundedNext pela API do MetaTrader 5 neste PC (o teu IP) ou pela MetaApi. Até lá os robôs negoceiam em papel."))}</span></div>
+      <button type="button" class="btn" data-acc="">${svg(IC.plus)}${esc(t("Ligar a conta"))}</button></div>`);
   }
   function paintTape() {
     paint($("rb-tape"), (S.tape || []).map((s) => `<div class="rb-tk"><b>${esc(s.id)}</b><span>${Number(s.price).toLocaleString("pt-PT", { minimumFractionDigits: s.dp, maximumFractionDigits: s.dp })}</span><em class="${cls(s.chg)}">${s.chg == null ? "" : `${s.chg >= 0 ? "+" : ""}${s.chg.toFixed(2).replace(".", ",")}%`}</em></div>`).join(""));
@@ -202,7 +210,7 @@
     $("rb-tune-body").innerHTML = `<div class="rb-heat"><div></div>${SES.map((s) => `<div class="rb-hh">${esc(s)}</div>`).join("")}
       ${focus.map((s) => `<div class="rb-hs">${esc(s)}</div>${SES.map((ss) => { const c = cell(s, ss); if (!c) return `<div class="rb-hc none">—</div>`;
         const v = Math.max(-1, Math.min(1, c.avg / .8));
-        return `<div class="rb-hc" style="--h:${v > 0 ? `rgba(22,224,138,${.08 + v * .35})` : `rgba(255,59,92,${.08 - v * .35})`}" title="${c.n} trades · ${c.winrate}% · PF ${c.pf ?? "—"}"><b class="${cls(c.avg)}">${c.avg > 0 ? "+" : ""}${String(c.avg).replace(".", ",")}R</b><small>${c.n} · ${c.winrate}%</small></div>`; }).join("")}`).join("")}</div>
+        return `<div class="rb-hc" style="--h:${v > 0 ? `rgba(95,207,140,${.06 + v * .26})` : `rgba(239,111,94,${.06 - v * .26})`}" title="${c.n} trades · ${c.winrate}% · PF ${c.pf ?? "—"}"><b class="${cls(c.avg)}">${c.avg > 0 ? "+" : ""}${String(c.avg).replace(".", ",")}R</b><small>${c.n} · ${c.winrate}%</small></div>`; }).join("")}`).join("")}</div>
       <div class="rb-tips">${T.tips.map((x) => `<p class="${x.kind}">${esc(x.text)}</p>`).join("")}</div>
       ${T.grades.length ? `<div class="rb-grades">${T.grades.map((g) => `<span>${esc(t("Setup"))} <b>${esc(g.grade)}</b> ${g.n} · ${g.winrate}% · <em class="${cls(g.avg)}">${g.avg > 0 ? "+" : ""}${String(g.avg).replace(".", ",")}R</em></span>`).join("")}${T.agents.map((a) => `<span>${esc(a.name)} ${a.n} · ${a.winrate}% · <em class="${cls(a.avg)}">${a.avg > 0 ? "+" : ""}${String(a.avg).replace(".", ",")}R</em></span>`).join("")}</div>` : ""}`;
   }
@@ -642,7 +650,7 @@
     g.font = `600 ${Math.max(9, Math.min(13, s * .2))}px Inter, system-ui`;
     const tw0 = g.measureText(tag).width + 12, th0 = Math.max(15, Math.min(22, s * .32)), tx = px - tw0 / 2, ty = hy - s * .3 - th0;
     rr(g, tx, ty, tw0, th0, th0 / 2); g.fillStyle = "rgba(10,12,15,.88)"; g.fill();
-    g.strokeStyle = sel0 ? "rgba(236,238,241,.9)" : day > 0 ? "rgba(22,224,138,.55)" : day < 0 ? "rgba(255,59,92,.55)" : "rgba(255,255,255,.18)"; g.lineWidth = 1; g.stroke();
+    g.strokeStyle = sel0 ? "rgba(236,238,241,.9)" : day > 0 ? "rgba(95,207,140,.55)" : day < 0 ? "rgba(239,111,94,.55)" : "rgba(255,255,255,.18)"; g.lineWidth = 1; g.stroke();
     g.fillStyle = "#eceef1"; g.textAlign = "left";
     const nw = g.measureText(r.name).width;
     g.fillText(r.name, tx + 6, ty + th0 * .68);

@@ -25,16 +25,35 @@
       ${PARTS.map((part) => partRow(pc, part, limits)).join("")}</article>`;
   }
 
+  // the numbers on top: how many PCs measured themselves lately, and how many of those are within the limits
+  function summary(d) {
+    const fresh = d.pcs.filter((pc) => pc.updated_at && Date.now() - new Date(pc.updated_at) <= d.every * 3000);
+    const over = fresh.filter((pc) => PARTS.some(([key]) => pc[`${key}_cpu`] != null && pc[`${key}_cpu`] > d.limits[key]));
+    const box = (label, value, sub) => `<div class="panel pad vw-kpi"><small>${esc(t(label))}</small>${ui.num(value)}<span class="vw-sub"><em>${esc(sub)}</em></span></div>`;
+    return `<div class="vw-kpis">${box("PCs medidos agora", d.pcs.length ? `${fresh.length}/${d.pcs.length}` : null, t("cada um mede-se de minuto a minuto"))}
+      ${box("Dentro dos limites", fresh.length ? `${fresh.length - over.length}/${fresh.length}` : null,
+        !fresh.length ? t("nenhum PC se mediu nos últimos minutos") : over.length ? t("pesado: {n}", { n: over.map((pc) => pc.name).join(", ") }) : t("tudo leve"))}
+      ${box("Limite", `${cpu(d.limits.hub)}`, t("widget e Hub parados · janela grande {n}", { n: cpu(d.limits.web) }))}</div>`;
+  }
+
   async function loadHealth() {
     if (!$("hl-pcs")) return;
-    const d = await api("/api/health");
-    paint($("hl-pcs"), d.pcs.map((pc) => pcCard(pc, d.limits, d.every)).join(""));
+    let d;
+    try { d = await api("/api/health"); }
+    catch (e) { if (e.message !== "unauthorized" && $("hl-pcs")) paint($("hl-pcs"), ui.error(e.message)); return; }
+    if (!$("hl-pcs")) return;
+    if ($("hl-top")) paint($("hl-top"), summary(d));
+    paint($("hl-pcs"), d.pcs.length ? d.pcs.map((pc) => pcCard(pc, d.limits, d.every)).join("")
+      : `<div class="panel">${ui.empty("pulse", "Ainda sem medições", "Cada PC com o widget aberto mede-se a si próprio de minuto a minuto. Abre o widget e volta daqui a um minuto.")}</div>`);
   }
 
   HUB_VIEWS.saude = async function () {
-    page(`${ui.head("Sistema", t("Saúde"), t("Quanto o Agente AMG gasta em cada PC. Limites com tudo parado: widget e Hub abaixo de 1% do PC, janela grande aberta abaixo de 3%."))}
+    await lazyFile("hub/pages.css").catch(() => {});
+    page(`${ui.head("Sistema", t("Saúde"), t("Quanto o Agente AMG pesa em cada PC, contra os limites que combinámos."))}
+      <div id="hl-top"></div>${ui.sec("Por PC", `<span class="faint vw-secnote">${t("a barra vai até três vezes o limite; o traço é o limite")}</span>`)}
       <div class="hl-pcs" id="hl-pcs">${ui.skeleton(4)}</div>
-      <p class="faint" style="margin-top:14px">${t("Cada PC mede-se a si próprio de minuto a minuto, com as contas do Windows (não pesa nada), e a sincronização traz os outros. A barra vai até três vezes o limite; o traço é o limite.")}</p>`);
+      <p class="vw-note">${t("Limites com tudo parado: widget e Hub abaixo de 1% do PC, janela grande aberta abaixo de 3%. Cada PC mede-se a si próprio com as contas do Windows (não pesa nada), e a sincronização traz os outros.")}</p>`);
+    $("hl-pcs").addEventListener("click", (e) => { if (e.target.closest("[data-retry]")) loadHealth(); });
     await loadHealth();
   };
   onLive(["tick"], () => loadHealth());

@@ -760,7 +760,7 @@ async function openTaskModal(id) {
 }
 
 HUB_VIEWS.tarefas = async function (r) {
-  page(`${ui.head("Centro de comando", t("Tarefas"), t("Cada sócio tem a sua cor, e as tuas dizem TU. Carrega numa pessoa para ver só as dela."),
+  page(`${ui.head("Comando", t("Tarefas"), t("Cada sócio tem a sua cor, e as tuas dizem TU. Carrega numa pessoa para ver só as dela."),
     `<div class="segx" id="task-view">${[["pessoas", "Por pessoa"], ["lista", "Por prazo"], ["quadro", "Quadro"]].map(([v, l]) => `<button data-view="${v}" class="${v === taskView ? "on" : ""}">${t(l)}</button>`).join("")}</div>
     ${ui.btn("Nova tarefa", "data-new-task", "primary", "plus")}`)}
     <div class="pstrip" id="task-people"></div><div class="chipbar" id="task-filter"></div><div class="board" id="board"></div><div class="bin" id="bin"></div>`);
@@ -876,7 +876,12 @@ async function loadApprovalsPage() {
   await mount($("appr-pending"), async () => {
     all = await api("/api/approvals");
     const pending = all.filter((a) => a.status === "PENDING");
-    if (!pending.length) return `<div class="panel" style="grid-column:1/-1">${ui.empty("check", "Sem pedidos pendentes", "Quando um agente quiser fazer algo sensível, o pedido aparece aqui.")}</div>`;
+    const month = all.filter((a) => a.status !== "PENDING" && a.decided_at && Date.now() - new Date(a.decided_at) < 30 * 864e5);
+    if ($("appr-kpis")) paint($("appr-kpis"), kpiRow([kpi("À espera", pending.length, { sub: t(pending.length ? (me.lead ? "decide já: o agente está parado à espera" : "à espera do owner") : "nada por decidir") }),
+      kpi("Aprovadas", month.filter((a) => a.status === "APPROVED").length, { sub: t("últimos 30 dias · o agente seguiu") }),
+      kpi("Recusadas", month.filter((a) => a.status === "REJECTED").length, { sub: t("últimos 30 dias · o agente não o fez") })]));
+    if (!pending.length) return `<div class="panel" style="grid-column:1/-1">${ui.empty("check", "Nada à espera de ti", "Quando um agente quiser fazer algo sensível (um push, apagar ficheiros, publicar), pára e o pedido aparece aqui e no sino.",
+      `<a class="btn sm" href="#/agentes">${t("Ver os agentes")}</a>`)}</div>`;
     return pending.map((a) => `<article class="panel appr">
       <div class="rowx">${ui.avatar(a.user_name, "ai")}<div class="grow"><b>Claude / ${esc(a.user_name)}</b><div class="faint">${fmt.ago(a.created_at)}</div></div>
         ${a.risk ? ui.tag(`${t("Risco")} ${t(RISK[a.risk])}`, a.risk) : ui.tag(t("Risco não indicado"))}</div>
@@ -888,9 +893,10 @@ async function loadApprovalsPage() {
           : `<span class="faint">${t("Só o owner decide")}</span>`}</div></article>`).join("");
   }, 4);
   const decided = all.filter((a) => a.status !== "PENDING").slice(0, 25);
+  if (!$("appr-done")) return;
   paint($("appr-done"), decided.length ? `<div class="panel rows">${decided.map((a) => `<div class="rw"><span class="st ${a.status === "APPROVED" ? "ok" : "bad"}"><i></i></span>
     <div class="rw-main"><b>${esc(a.action)}</b><span>Claude / ${esc(a.user_name)} · ${t(a.status === "APPROVED" ? "aprovado" : "recusado")} ${fmt.ago(a.decided_at)}</span></div>
-    ${a.risk ? ui.tag(t(RISK[a.risk]), a.risk) : ""}</div>`).join("")}</div>` : `<p class="faint">${t("Ainda nada foi decidido.")}</p>`);
+    ${a.risk ? ui.tag(t(RISK[a.risk]), a.risk) : ""}</div>`).join("")}</div>` : `<p class="vw-none">${t("Ainda nada foi decidido.")}</p>`);
   if (!$("appr-pending")) return; // the person moved to another page while this was loading
   $("appr-pending").onclick = async (e) => {
     const diff = e.target.closest("[data-diff]"), decide = e.target.closest("[data-decide]");
@@ -907,14 +913,72 @@ async function loadApprovalsPage() {
   };
 }
 HUB_VIEWS.aprovacoes = async function () {
-  page(`${ui.head("Centro de comando", t("Aprovações"), t("O que os agentes pedem para fazer antes de o fazerem."))}
-    <div class="cards" id="appr-pending" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))"></div>
-    ${ui.sec("Regras de permissão")}
+  await pagesCss();
+  page(`${ui.head("Comando", t("Aprovações"), t("O que os agentes pedem para fazer antes de o fazerem. Só o owner decide."))}
+    <div id="appr-kpis"></div>${ui.sec("Pedidos à espera")}
+    <div class="cards vw-appr" id="appr-pending"></div>
+    ${ui.sec("Regras de permissão", `<span class="faint vw-secnote">${t("o que o agente faz sozinho e o que tem de pedir")}</span>`)}
     <div class="panel pad"><div class="rules">${RULES.map(([what, rule]) => `<div><span>${t(what)}</span>${ui.tag(t(RULE_LABEL[rule][1]), RULE_LABEL[rule][0])}</div>`).join("")}</div></div>
     ${ui.sec("Decididas")}<div id="appr-done"></div>`);
   await loadApprovalsPage();
 };
 onLive(["approval", "tick"], loadApprovalsPage);
+
+/* ================================================================ what these pages share (their look is hub/pages.css) */
+const pagesCss = () => lazyFile("hub/pages.css").catch(() => {});
+pagesCss();   // asked for as the Hub opens, so these pages never show without their look
+// Tokens as the Escritório says them: 524k, 1,2M
+const tok = (n) => (n == null ? null : n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(".", ",")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
+// A figure on top of a page: the label in small capitals, the number in serif, and under it a short line and where it comes from.
+function kpi(label, value, { sub = "", src = "", href = "" } = {}) {
+  const tag = href ? "a" : "div";
+  return `<${tag} class="panel pad vw-kpi${href ? " hover" : ""}"${href ? ` href="${href}"` : ""}><small>${esc(t(label))}</small>${ui.num(value)}${sub || src
+    ? `<span class="vw-sub">${sub ? `<em>${esc(sub)}</em>` : ""}${src ? ui.src(src) : ""}</span>` : ""}</${tag}>`;
+}
+const kpiRow = (cards) => `<div class="vw-kpis">${cards.join("")}</div>`;
+const limitTone = (pct) => (pct == null ? "none" : pct >= 90 ? "bad" : pct >= 75 ? "warn" : "");
+const bar = (pct, tone = "") => `<i class="vw-bar ${tone}"><u style="width:${Math.max(0, Math.min(100, Number(pct) || 0)).toFixed(1)}%"></u></i>`;
+const sameDay = (iso) => !!iso && new Date(iso).toDateString() === new Date().toDateString();
+const winTokens = (s) => (s.tokens || 0) + (s.agents || []).reduce((n, a) => n + (a.tokens || 0), 0);
+// a window worth a line: open, or one that did something (the agent's own short runs end with nothing in them)
+const worthy = (s) => s.state !== "ended" || winTokens(s) > 0;
+// The Claude plan of each person as their PC last read it; this PC's own, fresher, read straight, as in the side panel.
+async function planLimits() {
+  const [team, mine] = await Promise.all([api("/api/limits/team").catch(() => ({})), api("/api/limits").catch(() => null)]);
+  const out = { ...(team || {}) };
+  if (mine?.claude) out[me.username] = { ...mine.claude, seen: new Date(mine.claude.saved_at * 1000).toISOString() };
+  return out;
+}
+// A page that follows the Claude windows redraws at most every few seconds: a window at work sends a step every 2 s.
+function calm(fn, ms = 8000) {
+  let last = 0, timer = 0;
+  return () => {
+    const wait = last + ms - Date.now();
+    if (wait <= 0) { last = Date.now(); return fn(); }
+    clearTimeout(timer);
+    timer = setTimeout(() => { last = Date.now(); fn().catch(() => {}); }, wait);
+    return Promise.resolve();
+  };
+}
+
+// The automatic agent runs (WORKING...); ONLINE is only the widget or an open page (CLAUDE.md, «Agente automático ligado»).
+const AGENT_ON = ["WORKING", "IDLE", "WAITING", "PAUSED", "ERROR"];
+// A Claude Code window (the Escritório's /api/office): its state in words
+const CLAUDE_ST = { working: ["busy", "A trabalhar"], waiting: ["wait", "À espera"], idle: ["ok", "Aberta"], stalled: ["wait", "Parada"], ended: ["off", "Fechada"] };
+const WAIT_SAY = { permission: "Pede autorização", answer: "Fez uma pergunta", done: "Acabou" };
+function claudeSt(s) {
+  const [tone, label] = CLAUDE_ST[s.state] || ["off", s.state];
+  const waiting = s.state === "waiting" && WAIT_SAY[s.wait];
+  return `<span class="st ${s.state === "waiting" && s.wait === "done" ? "ok" : tone}"><i></i>${t(waiting || label)}</span>`;
+}
+const WIN_ORDER = { working: 0, waiting: 1, stalled: 2, idle: 3, ended: 4 };
+const byWork = (x, y) => (WIN_ORDER[x.state] ?? 5) - (WIN_ORDER[y.state] ?? 5) || String(y.updated_at).localeCompare(String(x.updated_at));
+// One Claude Code window in a line: what it is about, what it does now (or what it used), its state.
+function winRow(s, who = false) {
+  const n = winTokens(s), busy = s.state === "working" || s.state === "waiting";
+  return `<a class="vw-win" href="#/escritorio">${who ? ui.avatar(s.name, "sm") : ""}<div><b>${esc(s.topic || s.prompt || s.title || t("Janela sem pedido"))}</b>
+    <span>${esc([who ? s.name : "", busy && s.action ? s.action : "", s.project, n ? `${tok(n)} tokens` : ""].filter(Boolean).join(" · "))}</span></div>${claudeSt(s)}</a>`;
+}
 
 /* ================================================================ agents */
 const SUBAGENT_ROLES = [["research", "Pesquisa", "Lê o workspace e relata factos. Não altera nada."], ["coding", "Código", "Faz uma alteração concreta e diz que ficheiros mudou."],
@@ -922,29 +986,66 @@ const SUBAGENT_ROLES = [["research", "Pesquisa", "Lê o workspace e relata facto
 const subName = (s) => SUBAGENT_ROLES.find(([id]) => id === s.role)?.[1] || s.name || s.role || "Subagente";
 const subsHtml = (subs) => subs.map((s) => `<div class="sub">${ui.status(s.status, " ")}<b>${esc(t(subName(s)))}</b><span class="dim ell grow">${esc(s.task)}</span>
   <span class="mono faint">${s.total_tokens == null ? "" : fmt.tokens(s.total_tokens)}</span></div>`).join("");
+const SESSION_KIND = { task: "Tarefa", chat: "Pergunta no Hub", weekly_report: "Relatório semanal" };
+const sessionRow = (x) => `<a class="rw" href="#/agentes/${esc(x.user)}">${ui.status(x.status)}<div class="rw-main"><b>${esc(x.user_name)} · ${esc(t(SESSION_KIND[x.kind] || x.kind))}${x.task_id ? ` #${x.task_id}` : ""}</b>
+  <span>${esc(x.model || "—")} · ${fmt.day(x.started_at)} ${fmt.hhmm(x.started_at)} · ${fmt.span(x.started_at, x.finished_at)}${x.subagents?.length ? ` · ${x.subagents.length} ${t("subagentes")}` : ""}</span></div>
+  <span class="mono dim">${tok(x.tokens.total)}</span>${x.cost_usd == null ? "" : `<span class="mono vw-cost">${fmt.usd(x.cost_usd)}</span>`}</a>`;
+
+// A person's automatic agent: on or off, what it is doing, its session and subagents, and how many Claude windows they have open.
+function agentCard(a, wins) {
+  const on = AGENT_ON.includes(a.status), working = a.status === "WORKING", s = a.session;
+  const open = wins.filter((w) => w.user === a.user && w.state !== "ended").length;
+  const seen = a.status === "OFFLINE" ? t("{n} está offline · visto {q}", { n: a.display_name, q: fmt.ago(a.last_seen) }) : t("{n} está online", { n: a.display_name });
+  const hint = on ? { IDLE: "Ligado e livre: começa sozinho a próxima tarefa que for para o escritório.", PAUSED: "Em pausa: abre a tarefa para a retomar.",
+    ERROR: "A última tarefa deu erro: abre-a para ver o que se passou.", WAITING: "À espera de uma resposta ou de uma aprovação." }[a.status]
+    : isMe(a.user) ? "O teu agente está desligado. Liga-o no widget (Agente automático) e o escritório faz as tuas tarefas sozinho."
+      : "Desligado: as tarefas do escritório para {n} esperam até ele o ligar no PC dele.";
+  const body = working && a.task ? `<div class="vw-agent-task"><small>${t("A fazer")}</small><b>${esc(a.task)}</b>${ui.progress(a.progress, "ai")}
+      ${s?.current_action || a.current_action ? `<span>${esc(s?.current_action || a.current_action)}</span>` : ""}</div>`
+    : `<p class="vw-hint">${esc(t(hint || "", { n: a.display_name }))}</p>`;
+  return `<a class="panel hover vw-agent ${on ? "on" : "off"}" href="#/agentes/${esc(a.id)}">
+    <header>${ui.avatar(a.display_name, "ai")}<div><b>${esc(a.name)}</b><span>${esc(seen)}</span></div>${on ? ui.status(a.status) : `<span class="st off"><i></i>${t("Desligado")}</span>`}</header>
+    ${body}
+    ${s ? `<dl class="vw-facts"><div><dt>${t("Modelo")}</dt><dd>${esc(s.model || "—")}</dd></div><div><dt>Tokens</dt><dd>${tok(s.tokens.total)}</dd></div><div><dt>${t("Há")}</dt><dd>${fmt.span(s.started_at)}</dd></div></dl>` : ""}
+    ${a.subagents.length ? `<div class="subs">${subsHtml(a.subagents)}</div>` : ""}
+    <footer>${icon("monitor")}<span>${open ? t(open === 1 ? "1 janela do Claude aberta" : "{n} janelas do Claude abertas", { n: open }) : t("Nenhuma janela do Claude aberta")}</span></footer></a>`;
+}
 
 async function loadAgentsPage() {
+  if (!$("agents-grid")) return;
   await mount($("agents-grid"), async () => {
-    const agents = await api("/api/agents");
-    if (!agents.length) return ui.empty("bot", "Sem agentes", "Ainda não há ninguém na equipa.");
-    return agents.map((a) => `<a class="panel hover agent-card" href="#/agentes/${esc(a.id)}">
-      <div class="rowx">${ui.avatar(a.display_name, "ai")}<b class="grow ell">${esc(a.name)}</b>${ui.status(a.status)}</div>
-      <dl class="kv" style="margin:0"><dt>${t("Projeto")}</dt><dd>${esc(a.project || "—")}</dd><dt>${t("Tarefa")}</dt><dd>${esc(a.task || "—")}</dd>
-        <dt>${t("Modelo")}</dt><dd>${esc(a.session?.model || "—")}</dd>
-        <dt>Tokens</dt><dd class="mono">${a.session ? fmt.tokens(a.session.tokens.total) : "—"}</dd>
-        <dt>${t("Tempo")}</dt><dd>${a.session ? fmt.span(a.session.started_at) : a.status === "OFFLINE" ? t("visto {quando}", { quando: fmt.ago(a.last_seen) }) : "—"}</dd></dl>
-      ${a.task ? ui.progress(a.progress, "ai") : ""}
-      ${a.subagents.length ? `<div class="subs">${subsHtml(a.subagents)}</div>` : ""}</a>`).join("");
-  }, 5);
+    const [agents, office, sessions] = await Promise.all([api("/api/agents"), api("/api/office").catch(() => null), api("/api/sessions?limit=8").catch(() => [])]);
+    if (!agents.length) return `<div class="panel">${ui.empty("bot", "Sem agentes", "Cada pessoa da equipa tem o seu agente: aparece aqui quando a pessoa entra no Hub.")}</div>`;
+    const wins = office?.sessions || [], live = wins.filter((s) => s.state !== "ended").sort(byWork);
+    const on = agents.filter((a) => AGENT_ON.includes(a.status));
+    const subs = wins.flatMap((s) => s.agents || []).filter((x) => sameDay(x.started_at));
+    const today = wins.filter((s) => sameDay(s.updated_at)).reduce((n, s) => n + winTokens(s), 0);
+    return kpiRow([
+        kpi("Agentes ligados", `${on.length}/${agents.length}`, { sub: on.length ? on.map((a) => a.display_name).join(", ") : t("nenhum agente automático ligado") }),
+        kpi("Janelas do Claude", office ? live.length : null, { sub: t("{n} a trabalhar agora", { n: live.filter((s) => s.state === "working").length }), href: "#/escritorio" }),
+        kpi("Subagentes hoje", office ? subs.length : null, { sub: t("{n} a correr", { n: subs.filter((x) => x.state === "working").length }) }),
+        kpi("Tokens hoje", office ? tok(today) || "0" : null, { src: office ? "live" : "not_connected", href: "#/uso" })])
+      + ui.sec("Agente automático de cada um") + `<div class="vw-agents">${agents.map((a) => agentCard(a, wins)).join("")}</div>`
+      + ui.sec("Janelas do Claude abertas", `<a class="vw-link" href="#/escritorio">${t("Ver no Escritório")}${icon("chevron")}</a>`)
+      + (live.length ? `<div class="panel vw-wins">${live.map((s) => winRow(s, true)).join("")}</div>`
+        : `<div class="panel">${ui.empty("monitor", "Nenhuma janela do Claude aberta", "Quando alguém abre o Claude Code no PC, a janela aparece aqui e no Escritório, com o que está a fazer.",
+          `<a class="btn sm" href="#/escritorio">${t("Abrir o Escritório")}</a>`)}</div>`)
+      + ui.sec("Sessões recentes do agente", `<a class="vw-link" href="#/uso">${t("Uso de IA")}${icon("chevron")}</a>`)
+      + (sessions.length ? `<div class="panel rows">${sessions.map(sessionRow).join("")}</div>`
+        : `<div class="panel">${ui.empty("bot", "O agente ainda não correu", "Manda uma tarefa ao escritório: o agente automático de quem a recebe corre-a, e cada sessão aparece aqui com os tokens e o custo.",
+          `<button class="btn sm" data-office-task>${t("Mandar tarefa ao escritório")}</button>`)}</div>`);
+  }, 6);
 }
 HUB_VIEWS.agentes = async function (r) {
+  await pagesCss();
   if (r.company) return viewAgent(r.company);
-  page(`${ui.head("Equipa", t("Agentes"), t("O agente local de cada pessoa, a sessão de IA que está a correr e os subagentes que ela lançou."))}
-    <div class="cards" id="agents-grid"></div>
-    ${ui.sec("Subagentes disponíveis")}
-    <div class="cards">${SUBAGENT_ROLES.map(([, name, what]) => `<div class="panel pad"><div class="rowx" style="margin-bottom:6px">${icon("bot")}<b>${t(name)}</b></div>
-      <p class="dim" style="margin:0">${t(what)}</p></div>`).join("")}</div>
-    <p class="faint" style="margin-top:12px">${t("Um subagente só existe dentro de uma sessão: é o agente principal que decide lançá-lo. Usa as mesmas ferramentas e a mesma política de permissões.")}</p>`);
+  page(`${ui.head("Equipa", t("Agentes"), t("O agente automático de cada pessoa, as janelas do Claude abertas e os subagentes que lançaram."),
+      ui.btn("Mandar tarefa ao escritório", "data-office-task", "primary", "bot"))}
+    <div id="agents-grid"></div>
+    ${ui.sec("Subagentes que o agente pode lançar")}
+    <div class="vw-roles">${SUBAGENT_ROLES.map(([, name, what]) => `<div class="panel pad"><b>${icon("bot")}${t(name)}</b><p>${t(what)}</p></div>`).join("")}</div>
+    <p class="vw-note">${t("Um subagente só existe dentro de uma sessão: é o agente principal que decide lançá-lo. Usa as mesmas ferramentas e a mesma política de permissões.")}</p>`);
+  $("view").onclick = (e) => { if (e.target.closest("[data-office-task]")) newTask({ for_ai: true }); };
   await loadAgentsPage();
 };
 
@@ -953,40 +1054,42 @@ async function loadAgentDetail() {
   if (!el) return;
   await mount(el, async () => {
     const a = await request_(`/api/agents/${el.dataset.user}`);
-    const s = a.session, task = a.task_detail;
+    const s = a.session;
     const hidden = !me.lead && a.user !== me.username;
+    const on = AGENT_ON.includes(a.status);
     const timeline = [...a.events.map((e) => ({ at: e.created_at, text: e.message, tone: e.kind === "error" ? "bad" : "ai" })),
-      ...a.activity.map((x) => ({ at: x.created_at, text: x.message, tone: activityTone(x) }))].sort((x, y) => y.at.localeCompare(x.at)).slice(0, 40);
-    return `${ui.head("Agente", a.name, "", `${ui.status(a.status)}
+      ...a.activity.map((x) => ({ at: x.created_at, text: x.message, tone: activityTone(x), kind: activityKind(x.kind),
+        presence: PRESENCE_KINDS.includes(x.kind) ? { user: a.user, name: a.display_name, kind: x.kind } : null }))].sort((x, y) => y.at.localeCompare(x.at)).slice(0, 60);
+    const fact = (label, value) => `<div><dt>${t(label)}</dt><dd>${value}</dd></div>`;
+    return `${ui.head("Agente", a.name, t(on ? "O agente automático de {n} está ligado." : "O agente automático de {n} está desligado.", { n: a.display_name }),
+      `${on ? ui.status(a.status) : `<span class="st off"><i></i>${t("Desligado")}</span>`}
       ${a.task_id && ["WORKING", "WAITING"].includes(a.status) ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
       ${a.task_id && a.status === "PAUSED" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
-      ${a.task_id ? `<a class="btn" href="#/tarefas/${a.task_id}">${t("Abrir tarefa")}</a>` : ""}`)}
+      ${a.task_id ? `<a class="btn primary" href="#/tarefas/${a.task_id}">${t("Abrir tarefa")}</a>` : ""}`)}
     <div class="detail"><div class="stack">
-      <div class="panel pad"><dl class="kv" style="margin:0;grid-template-columns:120px minmax(0,1fr)">
-        <dt>${t("Projeto")}</dt><dd>${esc(a.project || "—")}</dd><dt>${t("Tarefa atual")}</dt><dd>${esc(a.task || "—")}</dd>
-        <dt>${t("Modelo")}</dt><dd>${esc(s?.model || "—")}</dd><dt>${t("Sessão")}</dt><dd>${s ? fmt.span(s.started_at) : "—"}</dd>
-        <dt>${t("Visto")}</dt><dd>${a.status === "OFFLINE" ? fmt.ago(a.last_seen) : t("agora")}</dd></dl>
-        ${a.task ? `<div class="rowx" style="margin-top:12px"><div class="grow">${ui.progress(a.progress, "ai")}</div><span class="mono">${a.progress}%</span></div>` : ""}</div>
-      <div class="panel pad"><div class="ph-eyebrow">${t("Ação atual")}</div>
-        ${s?.current_action || a.current_action ? `<div class="now">${esc(s?.current_action || a.current_action)}</div>` : `<p class="faint" style="margin:0">${t(hidden ? "Só o próprio e o owner veem o que o agente está a fazer." : "O agente não está a fazer nada agora.")}</p>`}</div>
-      <div class="panel">${ui.sec("Atividade").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
-        ${timeline.length ? `<div class="tl" style="padding-bottom:8px">${ui.feed(timeline)}</div>` : `<p class="faint" style="margin:0;padding:6px var(--pad) 14px">${t("Sem atividade registada.")}</p>`}</div>
+      <div class="panel pad"><dl class="vw-facts wide">${fact("Tarefa atual", esc(a.task || t("Nenhuma")))}${a.project ? fact("Projeto", esc(a.project)) : ""}
+        ${s ? fact("Modelo", esc(s.model || "—")) + fact("Sessão", fmt.span(s.started_at)) : ""}${fact("Visto", a.status === "OFFLINE" ? fmt.ago(a.last_seen) : t("agora"))}</dl>
+        ${a.task ? `<div class="rowx" style="margin-top:12px"><div class="grow">${ui.progress(a.progress, "ai")}</div><span class="mono">${a.progress}%</span></div>` : ""}
+        ${s?.current_action || a.current_action ? `<div class="now" style="margin-top:12px">${esc(s?.current_action || a.current_action)}</div>`
+          : `<p class="vw-none" style="margin-top:10px">${t(hidden ? "Só o próprio e o owner veem o que o agente está a fazer." : "O agente não está a fazer nada agora.")}</p>`}</div>
+      ${ui.sec("Atividade")}<div class="panel">
+        ${timeline.length ? `<div class="tl vw-tl">${timelineHtml(timeline)}</div>` : ui.empty("pulse", "Sem atividade registada", "O que o agente e a pessoa fizerem aparece aqui.")}</div>
     </div><div class="stack">
-      <div class="panel pad"><div class="rowx" style="margin-bottom:10px"><div class="ph-eyebrow grow" style="margin:0">Tokens</div>${s ? ui.src("live") : ""}</div>
+      ${ui.sec("Tokens", s ? ui.src("live") : "")}<div class="panel pad">
         ${s ? `<dl class="tok" style="margin:0"><dt>${t("Entrada")}</dt><dd>${fmt.int(s.tokens.input)}</dd><dt>${t("Saída")}</dt><dd>${fmt.int(s.tokens.output)}</dd>
           <dt>${t("Cache lida")}</dt><dd>${fmt.int(s.tokens.cache_read)}</dd><dt class="total">Total</dt><dd class="total">${fmt.int(s.tokens.total)}</dd></dl>
-          <p class="faint" style="margin:10px 0 0">${t("{n} chamadas a ferramentas nesta sessão.", { n: s.tool_uses })}</p>`
-          : `<p class="faint" style="margin:0">${t("Sem sessão de IA a correr.")}</p>`}</div>
-      <div class="panel pad"><div class="ph-eyebrow">${t("Subagentes")}</div>
-        ${a.subagents.length ? `<div class="subs">${subsHtml(a.subagents)}</div>` : `<p class="faint" style="margin:0">${t("Esta sessão não lançou subagentes.")}</p>`}</div>
-      <div class="panel">${ui.sec("Sessões recentes").replace('class="sec"', 'class="sec" style="margin:0;padding:12px var(--pad) 4px"')}
-        ${a.sessions.length ? a.sessions.slice(0, 8).map((x) => `<div class="rw">${ui.status(x.status)}<div class="rw-main"><b>${t({ task: "Tarefa", chat: "Pergunta no Hub", weekly_report: "Relatório semanal" }[x.kind] || x.kind)}${x.task_id ? ` #${x.task_id}` : ""}</b>
-          <span>${fmt.day(x.started_at)} ${fmt.hhmm(x.started_at)} · ${fmt.span(x.started_at, x.finished_at)}${x.subagents.length ? ` · ${x.subagents.length} ${t("subagentes")}` : ""}</span></div>
-          <span class="mono dim">${fmt.tokens(x.tokens.total)}</span></div>`).join("")
-          : `<p class="faint" style="margin:0;padding:6px var(--pad) 14px">${t(hidden ? "Só o próprio e o owner veem as sessões." : "Ainda sem sessões registadas.")}</p>`}</div>
+          <p class="vw-none" style="margin-top:10px">${t("{n} chamadas a ferramentas nesta sessão.", { n: s.tool_uses })}</p>`
+          : `<p class="vw-none">${t("Sem sessão de IA a correr.")}</p>`}</div>
+      ${ui.sec("Subagentes")}<div class="panel pad">
+        ${a.subagents.length ? `<div class="subs">${subsHtml(a.subagents)}</div>` : `<p class="vw-none">${t("Esta sessão não lançou subagentes.")}</p>`}</div>
+      ${ui.sec("Sessões recentes")}<div class="panel">
+        ${a.sessions.length ? `<div class="rows">${a.sessions.slice(0, 8).map((x) => sessionRow({ ...x, user: a.user, user_name: a.display_name })).join("")}</div>`
+          : ui.empty("bot", hidden ? "Sessões privadas" : "Ainda sem sessões", hidden ? "Só o próprio e o owner veem as sessões." : "Quando o agente correr uma tarefa, a sessão aparece aqui.")}</div>
     </div></div>`;
   }, 6);
   el.onclick = async (e) => {
+    const fold = e.target.closest("[data-fold]");
+    if (fold) { presenceOpen.has(fold.dataset.fold) ? presenceOpen.delete(fold.dataset.fold) : presenceOpen.add(fold.dataset.fold); return loadAgentDetail(); }
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
     const a = await api(`/api/agents/${el.dataset.user}`);
@@ -994,30 +1097,87 @@ async function loadAgentDetail() {
   };
 }
 async function viewAgent(username) {
-  page(`<p style="margin:0 0 10px"><a class="dim" href="#/agentes">← ${t("Agentes")}</a></p><div id="agent-detail" data-user="${esc(username)}"></div>`);
+  page(`<p class="vw-back"><a href="#/agentes">${icon("chevron")}${t("Agentes")}</a></p><div id="agent-detail" data-user="${esc(username)}"></div>`);
   await loadAgentDetail();
 }
-onLive(["presence", "session", "task", "tick"], async () => { if ($("agents-grid")) await loadAgentsPage(); await loadAgentDetail(); });
+onLive(["presence", "session", "task", "tick"], async () => { await loadAgentsPage(); await loadAgentDetail(); });
+onLive(["office"], calm(async () => { await loadAgentsPage(); }));
 
 /* ================================================================ team */
+// Equipa: a card per partner with what matters about them now: here or not, the task they said they are on, their Claude
+// windows (the Escritório's), their automatic agent, their Claude plan, and what they did today.
+function personCard(m, d) {
+  const u = m.user, online = m.status !== "OFFLINE", a = d.agents.find((x) => x.user === u) || m;
+  const wins = (d.office?.sessions || []).filter((s) => s.user === u && worthy(s) && (s.state !== "ended" || sameDay(s.updated_at))).sort(byWork);
+  const live = wins.filter((s) => s.state !== "ended").length;
+  const today = wins.filter((s) => sameDay(s.updated_at)).reduce((n, s) => n + winTokens(s), 0);
+  const open = d.tasks.filter((x) => x.assignee === u && x.stage !== "done").length;
+  const did = d.tasks.filter((x) => x.assignee === u && x.stage === "done" && sameDay(x.completed_at)).length;
+  const commits = d.rank ? (d.rank.today.find((p) => p.user === u)?.commits ?? 0) : null;
+  const where = (m.where || []).map((w) => t(w === "phone" ? "telemóvel" : "PC")).join(t(" e "));
+  const presence = online ? `<span class="st ok"><i></i>${t("Online")}${where ? ` · ${t("no")} ${esc(where)}` : ""}</span>`
+    : `<span class="st off"><i></i>${t("Offline")} · ${t("visto {q}", { q: fmt.ago(m.last_seen) })}</span>`;
+  const lim = d.limits[u];
+  const limRow = (label, pct) => `<div class="vw-lim ${limitTone(pct)}"><em>${t(label)}</em>${bar(pct, limitTone(pct))}<b>${pct == null ? "—" : `${pct}%`}</b></div>`;
+  const plan = lim ? `<div class="vw-lims ${Date.now() - new Date(lim.seen) > 864e5 ? "old" : ""}" title="${esc(t("Plano do Claude · lido {q}", { q: fmt.ago(lim.seen) }))}">${limRow("5 h", lim.five)}${limRow("Semana", lim.week)}</div>` : "";
+  const doing = m.doing ? `<a class="vw-doing" href="#/tarefas/${m.doing.id}"><small>${t("A fazer agora")} · ${t("desde")} ${sinceOf(m.doing.since)}</small><b>${esc(m.doing.title)}</b></a>` : "";
+  const agentOn = AGENT_ON.includes(a.status);
+  const agent = a.status === "WORKING" && a.task ? `<div class="vw-line"><span class="st busy"><i></i>${t("A trabalhar")}</span><b class="ell">${esc(a.task)}</b>${a.progress ? `<em>${a.progress}%</em>` : ""}</div>`
+    : agentOn ? `<div class="vw-line">${ui.status(a.status)}<span class="ell">${a.status === "IDLE" ? t("começa sozinho a próxima tarefa do escritório") : ""}</span></div>`
+    : `<div class="vw-line"><span class="st off"><i></i>${t("Desligado")}</span><span class="ell">${esc(t(isMe(u) ? "liga-o no widget e o escritório faz as tuas tarefas" : "as tarefas do escritório para {n} esperam", { n: m.display_name }))}</span></div>`;
+  return `<article class="panel vw-person ${online ? "on" : "off"}">
+    <header><a class="vw-pid" href="#/agentes/${esc(u)}">${m.doing ? `<span class="dl-ring">${ui.avatar(m.display_name, "lg")}</span>` : ui.avatar(m.display_name, "lg")}
+      <div><b>${esc(m.display_name)}${isMe(u) ? `<small>${t("Tu")}</small>` : ""}</b>${presence}</div></a>${plan}</header>
+    ${doing}
+    <section class="vw-part"><h5>${t("Claude")}<em>${live ? t(live === 1 ? "1 janela aberta" : "{n} janelas abertas", { n: live }) : wins.length ? t("hoje") : ""}</em></h5>
+      ${wins.length ? wins.slice(0, 3).map((s) => winRow(s)).join("") + (wins.length > 3 ? `<a class="vw-more" href="#/escritorio">${t("Mais {n} no Escritório", { n: wins.length - 3 })}</a>` : "")
+        : `<p class="vw-none">${t("Sem janelas do Claude hoje.")}</p>`}</section>
+    <section class="vw-part"><h5>${t("Agente automático")}</h5>${agent}</section>
+    <footer class="vw-today"><button type="button" data-tasks-of="${esc(u)}" title="${esc(t("Ver as tarefas de {n}", { n: m.display_name }))}"><b>${open}</b><span>${t(open === 1 ? "aberta" : "abertas")}</span></button>
+      <span><b>${did}</b><span>${t(did === 1 ? "feita hoje" : "feitas hoje")}</span></span>
+      <span><b>${commits ?? "—"}</b><span>${t("commits hoje")}</span></span>
+      <span><b>${tok(today) || "0"}</b><span>${t("tokens hoje")}</span></span></footer></article>`;
+}
+async function teamData() {
+  const [team, agents, office, limits, tasks, rank] = await Promise.all([api("/api/team"), api("/api/agents"), api("/api/office").catch(() => null),
+    planLimits(), api("/api/tasks").catch(() => []), api("/api/analytics/ranking").catch(() => null)]);
+  return { team, agents, office, limits, tasks: tasks.filter((x) => !x.trashed_at), rank };
+}
+async function loadTeamPage() {
+  if (!$("team-grid")) return;
+  await mount($("team-grid"), async () => {
+    const d = await teamData();
+    if (!d.team.length) return `<div class="panel">${ui.empty("users", "Ainda não há ninguém na equipa", "Junta as pessoas da equipa: cada uma entra no Hub e tem o seu agente.",
+      leadOnly(`<button class="btn sm" data-add-user>${t("Adicionar pessoa")}</button>`))}</div>`;
+    const wins = d.office?.sessions || [];
+    const online = d.team.filter((m) => m.status !== "OFFLINE");
+    const busy = new Set(d.team.filter((m) => m.doing || m.status === "WORKING" || wins.some((s) => s.user === m.user && s.state === "working")).map((m) => m.user));
+    const open = wins.filter((s) => s.state !== "ended");
+    const did = d.tasks.filter((x) => x.stage === "done" && sameDay(x.completed_at)).length;
+    const commits = d.rank ? d.rank.today.reduce((n, p) => n + p.commits, 0) : null;
+    const order = [...d.team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || busy.has(b.user) - busy.has(a.user)
+      || isMe(b.user) - isMe(a.user) || a.display_name.localeCompare(b.display_name));
+    return kpiRow([
+        kpi("Online agora", `${online.length}/${d.team.length}`, { sub: online.map((m) => m.display_name).join(", ") || t("ninguém") }),
+        kpi("A trabalhar", busy.size, { sub: t("numa tarefa ou com o Claude") }),
+        kpi("Janelas do Claude", d.office ? open.length : null, { sub: t("{n} a trabalhar", { n: open.filter((s) => s.state === "working").length }), href: "#/escritorio" }),
+        kpi("Feito hoje", did, { sub: commits == null ? t("tarefas concluídas") : t("tarefas · {n} commits", { n: commits }), href: "#/historico" })])
+      + ui.sec("Pessoas") + `<div class="vw-people">${order.map((m) => personCard(m, d)).join("")}</div>`;
+  }, 6);
+}
 HUB_VIEWS.equipa = async function () {
-  page(`${ui.head("Equipa", t("Equipa"), t("Quem está cá, no que está a trabalhar e o que o agente de cada um está a fazer."),
-    leadOnly(ui.btn("Adicionar pessoa", "id=add-user", "", "plus")))}<div class="cards" id="team-grid"></div>`);
-  if ($("add-user")) $("add-user").onclick = addUser;
+  await pagesCss();
+  page(`${ui.head("Equipa", t("Equipa"), t("Quem está cá, no que está cada um e o que o Claude de cada um está a fazer."),
+    leadOnly(ui.btn("Adicionar pessoa", "data-add-user", "", "plus")))}<div id="team-grid"></div>`);
+  $("view").onclick = (e) => {
+    if (e.target.closest("[data-add-user]")) return addUser();
+    const tasksOf = e.target.closest("[data-tasks-of]");
+    if (tasksOf) { taskFilter = tasksOf.dataset.tasksOf; location.hash = "#/tarefas"; }
+  };
   await loadTeamPage();
 };
-async function loadTeamPage() {
-  // whoever said "Estou a fazer" on a task: their photo in the turning ring and the task, first thing on their card
-  await mount($("team-grid"), async () => (await api("/api/agents"))
-    .sort((a, b) => !!b.doing - !!a.doing || (a.status === "OFFLINE") - (b.status === "OFFLINE")).map((a) => `<a class="panel hover agent-card ${a.doing ? "doing" : ""}" href="${a.doing ? `#/tarefas/${a.doing.id}` : `#/agentes/${esc(a.id)}`}">
-    <div class="rowx">${a.doing ? `<span class="dl-ring">${ui.avatar(a.display_name, "lg")}</span>` : ui.avatar(a.display_name, "lg")}<div class="grow"><b style="font-size:15px">${esc(a.display_name)}</b>
-      <div>${ui.status(a.status === "OFFLINE" ? "OFFLINE" : "ONLINE")}</div></div></div>
-    ${a.doing ? `<div class="ag-doing"><small>${t("A fazer agora")} · ${t("desde")} ${sinceOf(a.doing.since)}</small><b>${esc(a.doing.title)}</b></div>` : ""}
-    <dl class="kv" style="margin:0"><dt>${t("A trabalhar em")}</dt><dd>${esc(a.task || (a.doing ? a.doing.title : "") || "—")}</dd>
-      <dt>Claude</dt><dd>${ui.status(a.status)}</dd>
-      <dt>${t("Visto")}</dt><dd>${a.status === "OFFLINE" ? fmt.ago(a.last_seen) : t("agora")}</dd></dl></a>`).join(""), 4);
-}
-onLive(["presence", "task", "tick"], async () => { if ($("team-grid")) await loadTeamPage(); });
+onLive(["presence", "task", "tick"], loadTeamPage);
+onLive(["office"], calm(loadTeamPage));
 function addUser() {
   formModal("Adicionar pessoa", field("Nome", '<input name="display_name" required placeholder="ex: David">')
     + field("Utilizador", '<input name="username" required pattern="[a-zA-Z0-9_]{2,30}" placeholder="ex: david">')
@@ -1027,105 +1187,247 @@ function addUser() {
 }
 
 /* ================================================================ live and history */
+// Comings and goings (entrou no Hub, ficou online, saiu, ligou o agente) are folded: between two real events, one line per
+// person, «Marco entrou no Hub 9×, ficou online 3× · 09:45–10:51», that opens to show each one (21 Oct: fifteen of them in
+// a row hid the commits and the tasks). «Tudo» shows every line as it was.
+const PRESENCE_KINDS = ["login", "hub_online", "hub_offline", "agent_online", "agent_offline"];
+const PRESENCE_SAY = { login: "entrou no Hub", hub_online: "ficou online", hub_offline: "saiu", agent_online: "ligou o agente", agent_offline: "desligou o agente" };
+const KIND_LABEL = { tasks: "Tarefa", approvals: "Aprovação", ai: "Agente", code: "Código", companies: "Empresa", claude: "Claude" };
+let feedMode = (() => { try { return localStorage.getItem("hub.feedMode") || "resumo"; } catch { return "resumo"; } })();
+const presenceOpen = new Set();   // the folded lines opened by hand stay open when the feed redraws
+const feedItem = (a, fresh = false) => ({ ...activityItem(a, fresh), id: a.id, kind: a.company ? "companies" : activityKind(a.kind),
+  cats: [activityKind(a.kind), ...(a.company ? ["companies"] : [])], presence: PRESENCE_KINDS.includes(a.kind) ? { user: a.user, name: a.name, kind: a.kind } : null });
+const commitItem = (c) => ({ at: c.date, who: c.author, text: t("commit em {r}: {m}", { r: c.repo, m: c.message }), tone: "", kind: "code", cats: ["code"] });
+const lineHtml = (i) => `<div class="fd ${i.tone || ""} ${i.fresh ? "new" : ""}"><time>${fmt.hhmm(i.at)}</time><i class="dot"></i>
+  <p>${KIND_LABEL[i.kind] ? `<em class="vw-kind">${t(KIND_LABEL[i.kind])}</em>` : ""}${i.who ? `<b>${esc(i.who)}</b> ` : ""}${esc(i.text)}</p></div>`;
+function foldPresence(items, split) {   // items newest first
+  const out = [];
+  let run = new Map(), day = "";
+  const flush = () => {
+    [...run.values()].sort((a, b) => new Date(b.items[0].at) - new Date(a.items[0].at)).forEach((g) => out.push(g.items.length > 1 ? { fold: g } : g.items[0]));
+    run = new Map();
+  };
+  for (const i of items) {
+    if (split) { const d = new Date(i.at).toDateString(); if (d !== day) { flush(); day = d; } }
+    if (!i.presence) { flush(); out.push(i); continue; }
+    if (!run.has(i.presence.user)) run.set(i.presence.user, { user: i.presence.user, name: i.presence.name, items: [] });
+    run.get(i.presence.user).items.push(i);
+  }
+  flush();
+  return out;
+}
+function foldLine(g) {
+  const counts = {};
+  for (const i of g.items) counts[i.presence.kind] = (counts[i.presence.kind] || 0) + 1;
+  const said = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${t(PRESENCE_SAY[k] || k)}${n > 1 ? ` ${n}×` : ""}`).join(", ");
+  const newest = g.items[0].at, oldest = g.items[g.items.length - 1].at, key = `${g.user}|${oldest}`, open = presenceOpen.has(key);
+  const span = fmt.hhmm(oldest) === fmt.hhmm(newest) ? fmt.hhmm(newest) : `${fmt.hhmm(oldest)}–${fmt.hhmm(newest)}`;
+  return `<div class="fd vw-pres ${open ? "open" : ""}"><time>${fmt.hhmm(newest)}</time><i class="dot"></i>
+    <p><button type="button" class="vw-fold" data-fold="${esc(key)}" aria-expanded="${open}"><span><b>${esc(g.name)}</b> ${esc(said)}</span><em>${span}</em>${icon("chevron")}</button></p></div>
+    ${open ? `<div class="vw-pres-list">${g.items.map(lineHtml).join("")}</div>` : ""}`;
+}
+function timelineHtml(items, days = false) {
+  const rows = feedMode === "tudo" ? items : foldPresence(items, days);
+  let day = "";
+  return rows.map((r) => {
+    const at = r.fold ? r.fold.items[0].at : r.at, label = days ? fmt.day(at) : "";
+    const head = days && label !== day ? `<div class="dayh">${esc(label)}</div>` : "";
+    day = label;
+    return head + (r.fold ? foldLine(r.fold) : lineHtml(r));
+  }).join("");
+}
+const modeSeg = () => `<div class="segx" id="feed-mode" title="${esc(t("Resumido junta as entradas e saídas de cada pessoa numa linha"))}">${[["resumo", "Resumido"], ["tudo", "Tudo"]]
+  .map(([v, l]) => `<button data-mode="${v}" class="${v === feedMode ? "on" : ""}">${t(l)}</button>`).join("")}</div>`;
+// The clicks both timelines share: Resumido / Tudo, and a folded line opened or closed. `draw` paints the feed again.
+function feedClicks(e, draw) {
+  const mode = e.target.closest("#feed-mode [data-mode]");
+  if (mode) {
+    feedMode = mode.dataset.mode;
+    try { localStorage.setItem("hub.feedMode", feedMode); } catch { /* private window: not remembered */ }
+    $("feed-mode").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === mode));
+    draw();
+    return true;
+  }
+  const fold = e.target.closest("[data-fold]");
+  if (fold) { presenceOpen.has(fold.dataset.fold) ? presenceOpen.delete(fold.dataset.fold) : presenceOpen.add(fold.dataset.fold); draw(); return true; }
+  return false;
+}
+
 const seenActivity = new Set();
-let liveFirst = true;
+let liveFirst = true, liveData = null;
+function liveHtml() {
+  const items = liveData.items;
+  if (!items.length) return ui.empty("pulse", "Sem atividade hoje", "O que as pessoas e os agentes fizerem aparece aqui no momento em que acontece: tarefas, commits, janelas do Claude, aprovações.",
+    `<a class="btn sm" href="#/historico">${t("Ver o histórico")}</a>`);
+  const real = items.some((i) => !i.presence);
+  return `${real ? "" : `<p class="vw-note in">${t("Hoje ainda só houve entradas e saídas. O trabalho (tarefas, commits, janelas do Claude) aparece aqui quando começar.")}</p>`}
+    <div class="tl vw-tl">${timelineHtml(items)}</div>`;
+}
+function liveSide(d) {
+  const wins = d.office?.sessions || [];
+  const order = [...d.team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || isMe(b.user) - isMe(a.user) || a.display_name.localeCompare(b.display_name));
+  const now = (m) => {
+    const a = d.agents.find((x) => x.user === m.user), w = wins.filter((s) => s.user === m.user && (s.state === "working" || s.state === "waiting")).sort(byWork)[0];
+    if (m.doing) return [`${t("A fazer")}: ${m.doing.title}`, `#/tarefas/${m.doing.id}`];
+    if (a?.status === "WORKING" && a.task) return [`${t("Agente")}: ${a.task}`, `#/agentes/${m.user}`];
+    if (w) return [`${t("Claude")}: ${w.topic || w.prompt || w.action}`, "#/escritorio"];
+    return [m.status === "OFFLINE" ? t("visto {q}", { q: fmt.ago(m.last_seen) }) : t("sem nada em curso"), `#/agentes/${m.user}`];
+  };
+  const people = order.map((m) => {
+    const [line, href] = now(m), online = m.status !== "OFFLINE";
+    return `<a class="rw vw-nowrow ${online ? "" : "off"}" href="${href}">${m.doing ? `<span class="dl-ring">${ui.avatar(m.display_name, "sm")}</span>` : ui.avatar(m.display_name, "sm")}
+      <div class="rw-main"><b>${esc(m.display_name)}</b><span>${esc(line)}</span></div><span class="st ${online ? "ok" : "off"}"><i></i></span></a>`;
+  }).join("");
+  const items = liveData?.items || [];
+  const n = (f) => items.filter(f).length;
+  const mini = (label, value, href) => `<a class="vw-mini" href="${href}"><b>${value}</b><span>${t(label)}</span></a>`;
+  return `${ui.sec("Agora")}<div class="panel rows">${people || ui.empty("users", "Ninguém na equipa")}</div>
+    ${ui.sec("Hoje")}<div class="panel vw-minis">
+      ${mini("tarefas concluídas", n((i) => i.kind === "tasks" && /^concluiu/.test(i.text)), "#/tarefas")}
+      ${mini("commits", n((i) => i.kind === "code"), "#/codigo")}
+      ${mini("janelas do Claude", wins.filter((s) => sameDay(s.updated_at) && winTokens(s)).length, "#/escritorio")}
+      ${mini("aprovações pedidas", n((i) => i.kind === "approvals" && !/aprovou|recusou/.test(i.text)), "#/aprovacoes")}</div>`;
+}
 async function loadLive() {
   const el = $("live-feed");
   if (!el) return;
+  let side = null;
   await mount(el, async () => {
-    const items = (await api("/api/history?limit=120")).filter((a) => new Date(a.created_at).toDateString() === new Date().toDateString());
-    const html = items.length ? `<div class="tl" style="padding:8px 0">${ui.feed(items.map((a) => activityItem(a, !liveFirst && !seenActivity.has(a.id))))}</div>`
-      : ui.empty("pulse", "Sem atividade hoje", "O que as pessoas e os agentes fizerem aparece aqui no momento em que acontece.");
-    items.forEach((a) => seenActivity.add(a.id));
+    const [feed, commits, office, team, agents] = await Promise.all([api("/api/analytics/feed?limit=80").catch(() => null), api("/api/commits?limit=40").catch(() => []),
+      api("/api/office").catch(() => null), api("/api/team"), api("/api/agents").catch(() => [])]);
+    const rows = feed ? [...feed.items, ...feed.presence] : await api("/api/history?limit=150");
+    const acts = rows.filter((a) => sameDay(a.created_at));
+    const film = (office?.film || []).filter((f) => sameDay(f.at) && f.text && (f.kind === "window_open" || f.kind === "agent_start"));
+    liveData = { items: [...acts.map((a) => feedItem(a, !liveFirst && !seenActivity.has(a.id))), ...commits.filter((c) => sameDay(c.date)).map(commitItem),
+      ...film.map((f) => ({ at: f.at, who: f.who, kind: "claude", tone: "",
+        text: f.kind === "window_open" ? t("abriu o Claude em {p}: {x}", { p: f.project, x: f.text }) : t("lançou um subagente ({k}): {x}", { k: f.agent, x: f.text }) }))]
+      .sort((a, b) => new Date(b.at) - new Date(a.at)) };
+    acts.forEach((a) => seenActivity.add(a.id));
     liveFirst = false;
-    return html;
+    side = { team, agents, office };
+    return liveHtml();
   }, 8);
-  await mount($("live-agents"), async () => {
-    const running = (await api("/api/agents")).filter((a) => a.status !== "OFFLINE");
-    if (!running.length) return ui.empty("bot", "Ninguém online", "");
-    return `<div class="rows">${running.map((a) => `<a class="rw" href="#/agentes/${esc(a.id)}">${ui.avatar(a.display_name, "ai")}
-      <div class="rw-main"><b>${esc(a.name)}</b><span>${esc(a.session?.current_action || a.current_action || a.task || t("sem tarefa"))}</span></div>${ui.status(a.status)}</a>`).join("")}</div>`;
-  });
+  if (side && $("live-side")) paint($("live-side"), liveSide(side));
 }
 HUB_VIEWS.aovivo = async function () {
   liveFirst = true;
-  page(`${ui.head("Equipa", t("Ao vivo"), t("O que está a acontecer hoje, à medida que acontece."), `<span class="st busy"><i></i>${t("Em direto")}</span>`)}
-    <div class="detail"><div class="panel" id="live-feed"></div><div class="stack"><div class="panel" id="live-agents"></div></div></div>`);
+  await pagesCss();
+  page(`${ui.head("Equipa", t("Ao vivo"), t("O que está a acontecer hoje, à medida que acontece."), `${modeSeg()}<span class="st busy"><i></i>${t("Em direto")}</span>`)}
+    <div class="detail vw-live"><div class="panel" id="live-feed"></div><aside class="stack" id="live-side"></aside></div>`);
+  $("view").onclick = (e) => feedClicks(e, () => liveData && paint($("live-feed"), liveHtml()));
   await loadLive();
 };
 onLive(["activity", "task", "approval", "presence", "session", "tick"], loadLive);
+onLive(["office"], calm(loadLive, 15000));
 
-let historyCat = "all";
+let historyCat = "all", historyData = null, historyOlder = [], historyMore = false;
 const HISTORY_CATS = [["all", "Tudo"], ["people", "Pessoas"], ["ai", "IA"], ["tasks", "Tarefas"], ["code", "Código"], ["approvals", "Aprovações"], ["companies", "Empresas"]];
+function historyHtml() {
+  const items = historyData.filter((i) => historyCat === "all" || i.cats.includes(historyCat));
+  if (!items.length) return ui.empty("history", "Nada aqui", historyCat === "all" ? "Ainda não há registos." : "Não há registos deste tipo. Escolhe «Tudo» para ver a linha do tempo inteira.",
+    historyCat === "all" ? "" : `<button class="btn sm" data-c="all">${t("Ver tudo")}</button>`);
+  return `<div class="tl vw-tl">${timelineHtml(items, true)}</div>${historyMore ? `<div class="vw-older"><button class="btn sm" data-older>${t("Ver mais antigos")}</button></div>` : ""}`;
+}
 async function loadHistoryPage() {
   const el = $("history-feed");
   if (!el) return;
   paint($("history-cats"), HISTORY_CATS.map(([id, label]) => `<button class="chp ${id === historyCat ? "on" : ""}" data-c="${id}">${t(label)}</button>`).join(""));
   await mount(el, async () => {
-    const [activity, commits] = await Promise.all([api("/api/history?limit=300"), api("/api/commits?limit=60").catch(() => [])]);
-    const items = [...activity.map((a) => ({ ...activityItem(a), cats: [activityKind(a.kind), ...(a.company ? ["companies"] : [])] })),
-      ...commits.map((c) => ({ at: c.date, who: c.author, text: `commit em ${c.repo}: ${c.message}`, tone: "", cats: ["code"] }))]
-      .filter((i) => historyCat === "all" || i.cats.includes(historyCat)).sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 250);
-    if (!items.length) return ui.empty("history", "Nada aqui", "Não há registos deste tipo.");
-    let day = "";
-    return items.map((i) => {
-      const label = fmt.day(i.at), head = label !== day ? `<div class="dayh">${esc(label)}</div>` : "";
-      day = label;
-      return head + ui.feed([i]);
-    }).join("");
+    const [feed, commits] = await Promise.all([api("/api/analytics/feed?limit=200").catch(() => null), api("/api/commits?limit=100").catch(() => [])]);
+    let rows;
+    if (feed) {
+      rows = [...feed.items, ...feed.presence, ...historyOlder.flatMap((p) => [...p.items, ...p.presence])];
+      historyMore = historyOlder.length ? historyOlder[historyOlder.length - 1].more : feed.more;
+    } else { rows = await api("/api/history?limit=300"); historyMore = false; }   // a Hub from before /api/analytics/feed
+    const byId = new Map(rows.map((a) => [a.id, a]));
+    historyData = [...[...byId.values()].map((a) => feedItem(a)), ...commits.map(commitItem)].sort((a, b) => new Date(b.at) - new Date(a.at));
+    return historyHtml();
   }, 8);
 }
+async function loadOlderHistory(button) {
+  const oldest = historyData.filter((i) => i.id && !i.presence).at(-1);
+  if (!oldest) return;
+  button.disabled = true;
+  try { historyOlder.push(await request_(`/api/analytics/feed?limit=200&before=${oldest.id}`)); } catch (err) { flash(err.message); button.disabled = false; return; }
+  $("history-feed")._html = null;
+  await loadHistoryPage();
+}
 HUB_VIEWS.historico = async function () {
-  page(`${ui.head("Trabalho", t("Histórico"), t("Uma só linha do tempo: pessoas, IA, tarefas, código e aprovações."))}
-    <div class="chipbar" id="history-cats"></div><div class="panel" id="history-feed" style="padding-bottom:10px"></div>`);
-  $("history-cats").onclick = (e) => { if (e.target.dataset.c) { historyCat = e.target.dataset.c; $("history-feed")._html = null; loadHistoryPage(); } };
+  historyOlder = [];
+  await pagesCss();
+  page(`${ui.head("Equipa", t("Histórico"), t("Uma só linha do tempo: pessoas, IA, tarefas, código e aprovações."), modeSeg())}
+    <div class="chipbar" id="history-cats"></div><div class="panel" id="history-feed"></div>`);
+  const draw = () => historyData && paint($("history-feed"), historyHtml());
+  $("view").onclick = (e) => {
+    if (feedClicks(e, draw)) return;
+    const cat = e.target.closest("[data-c]");
+    if (cat) { historyCat = cat.dataset.c; paint($("history-cats"), HISTORY_CATS.map(([id, label]) => `<button class="chp ${id === historyCat ? "on" : ""}" data-c="${id}">${t(label)}</button>`).join("")); return draw(); }
+    const older = e.target.closest("[data-older]");
+    if (older) loadOlderHistory(older);
+  };
   await loadHistoryPage();
 };
 onLive(["activity", "tick"], loadHistoryPage);
 
 /* ================================================================ projects */
 const PROJECT_ST = { active: ["ok", "Ativo"], maintenance: ["wait", "Manutenção"], paused: ["off", "Em pausa"], done: ["off", "Terminado"] };
+const projectSt = (p) => { const [tone, label] = PROJECT_ST[p.status] || ["off", p.status]; return `<span class="st ${tone}"><i></i>${t(label)}</span>`; };
 const projectFields = (p = {}) => field("Nome", `<input name="name" required value="${esc(p.name || "")}">`, true)
   + field("Estado", `<select name="status">${options(Object.entries(PROJECT_ST).map(([k, v]) => [k, t(v[1])]), p.status || "active")}</select>`)
   + field("Empresa", `<select name="company">${options([["", t("Sem empresa")], ...companies.map((c) => [c.id, c.name])], p.company)}</select>`)
   + field("Repositório", `<input name="repo" value="${esc(p.repo || "")}" placeholder="${t("nome em library/repos.json")}">`, true)
   + field("Descrição", `<textarea name="description">${esc(p.description || "")}</textarea>`, true);
 const projectBody = (v) => ({ ...v, company: v.company || null });
+function projectCard(p) {
+  const co = companies.find((c) => c.id === p.company)?.name, total = p.open_tasks + p.done_tasks;
+  return `<a class="panel hover vw-project" href="#/projetos/${p.id}">
+    <header><b>${esc(p.name)}</b>${projectSt(p)}</header>
+    <p>${esc(p.description || t("Sem descrição."))}</p>
+    ${co || p.repo ? `<div class="vw-ptags">${co ? ui.tag(co) : ""}${p.repo ? `<span>${icon("code")}${esc(p.repo)}</span>` : ""}</div>` : ""}
+    <div class="vw-pnums"><div><b>${p.open_tasks}</b><span>${t(p.open_tasks === 1 ? "aberta" : "abertas")}</span></div><div><b>${p.done_tasks}</b><span>${t(p.done_tasks === 1 ? "concluída" : "concluídas")}</span></div>
+      <div><b>${p.active_sessions}</b><span>${t(p.active_sessions === 1 ? "agente ativo" : "agentes ativos")}</span></div></div>
+    <footer>${total ? `${ui.progress((p.done_tasks / total) * 100)}<em>${Math.round((p.done_tasks / total) * 100)}%</em>` : `<span>${t("Ainda sem tarefas: abre-o e cria a primeira.")}</span>`}
+      ${p.people.length ? `<span class="vw-faces">${p.people.map((u) => ui.avatar(nameOf(u), "sm")).join("")}</span>` : ""}</footer></a>`;
+}
 async function loadProjects() {
+  if (!$("projects-grid")) return;
   await mount($("projects-grid"), async () => {
     const projects = await api("/api/projects");
-    if (!projects.length) return `<div class="panel" style="grid-column:1/-1">${ui.empty("folder", "Sem projetos", "Um projeto junta tarefas, agentes e custo num só sítio.",
-      leadOnly(`<button class="btn sm primary" data-new-project>${t("Novo projeto")}</button>`))}</div>`;
-    return projects.map((p) => `<a class="panel hover agent-card" href="#/projetos/${p.id}">
-      <div class="rowx"><b class="grow ell" style="font-size:15px">${esc(p.name)}</b><span class="st ${PROJECT_ST[p.status][0]}"><i></i>${t(PROJECT_ST[p.status][1])}</span></div>
-      <p class="dim ell" style="margin:0">${esc(p.description || companies.find((c) => c.id === p.company)?.name || "")}&nbsp;</p>
-      <div class="kpis"><div class="kpi"><b class="num sm">${p.open_tasks}</b><span>${t("tarefas abertas")}</span></div>
-        <div class="kpi"><b class="num sm">${p.done_tasks}</b><span>${t("concluídas")}</span></div>
-        <div class="kpi"><b class="num sm">${p.active_sessions}</b><span>${t("agentes ativos")}</span></div></div></a>`).join("");
+    if (!projects.length) return `<div class="panel">${ui.empty("folder", "Sem projetos", "Um projeto junta as tarefas, os agentes e o custo de uma coisa grande (um site, uma app) num só sítio.",
+      leadOnly(`<button class="btn sm" data-new-project>${t("Criar o primeiro projeto")}</button>`))}</div>`;
+    const sum = (k) => projects.reduce((n, p) => n + (p[k] || 0), 0);
+    const active = projects.filter((p) => p.status === "active").length;
+    return kpiRow([kpi("Projetos ativos", active, { sub: t(projects.length === 1 ? "de 1 projeto" : "de {n} projetos", { n: projects.length }) }),
+        kpi("Tarefas abertas", sum("open_tasks"), { sub: t("nos projetos"), href: "#/tarefas" }), kpi("Concluídas", sum("done_tasks"), { sub: t("nos projetos") }),
+        kpi("A trabalhar", sum("active_sessions"), { sub: t("agentes numa tarefa de um projeto"), href: "#/agentes" })])
+      + ui.sec("Todos os projetos", `<span class="faint">${projects.length}</span>`)
+      + `<div class="vw-projects">${projects.map(projectCard).join("")}${leadOnly(`<button type="button" class="vw-add" data-new-project>${icon("plus")}<b>${t("Novo projeto")}</b>
+        <span>${t("Junta tarefas, agentes e custo de uma coisa grande num só sítio.")}</span></button>`)}</div>`;
   }, 4);
 }
 const newProject = () => formModal("Novo projeto", projectFields(), async (v) => { await api("/api/projects", { method: "POST", body: projectBody(v) }); loadProjects(); }, { submit: "Criar projeto" });
 HUB_VIEWS.projetos = async function (r) {
+  await pagesCss();
   if (r.company) return viewProject(Number(r.company));
   page(`${ui.head("Trabalho", t("Projetos"), t("Cada projeto com as suas tarefas, os seus agentes e o seu custo."), leadOnly(ui.btn("Novo projeto", "data-new-project", "primary", "plus")))}
-    <div class="cards" id="projects-grid"></div>`);
+    <div id="projects-grid"></div>`);
   $("view").onclick = (e) => { if (e.target.closest("[data-new-project]")) newProject(); };
   await loadProjects();
 };
 async function viewProject(id) {
-  page(`<p style="margin:0 0 10px"><a class="dim" href="#/projetos">← ${t("Projetos")}</a></p><div id="project-detail"></div>`);
+  page(`<p class="vw-back"><a href="#/projetos">${icon("chevron")}${t("Projetos")}</a></p><div id="project-detail"></div>`);
   await mount($("project-detail"), async () => {
     const p = await request_(`/api/projects/${id}`);
-    return `${ui.head("Projeto", p.name, p.description, `<span class="st ${PROJECT_ST[p.status][0]}"><i></i>${t(PROJECT_ST[p.status][1])}</span>
+    const co = companies.find((c) => c.id === p.company)?.name;
+    return `${ui.head("Projeto", p.name, p.description || [co, p.repo].filter(Boolean).join(" · "), `${projectSt(p)}
       ${leadOnly(ui.btn("Editar", "data-edit-project", "quiet"))}${ui.btn("Nova tarefa", "data-new-task", "primary", "plus")}`)}
-    <div class="stats"><div class="panel statc"><span>${t("Tarefas abertas")}</span>${ui.num(p.open_tasks)}</div>
-      <div class="panel statc"><span>${t("Concluídas")}</span>${ui.num(p.done_tasks)}</div>
-      <div class="panel statc"><span>${t("Agentes ativos")}</span>${ui.num(p.active_sessions)}</div>
-      <div class="panel statc"><span>${t("Custo de IA")} ${p.ai_cost_usd == null ? "" : ui.src("estimated")}</span>${ui.num(p.ai_cost_usd == null ? null : fmt.usd(p.ai_cost_usd))}</div></div>
+    ${kpiRow([kpi("Tarefas abertas", p.open_tasks), kpi("Concluídas", p.done_tasks), kpi("Agentes ativos", p.active_sessions),
+      kpi("Custo de IA", p.ai_cost_usd == null ? null : fmt.usd(p.ai_cost_usd), { src: p.ai_cost_usd == null ? "" : "estimated", sub: p.ai_cost_usd == null ? t("o agente ainda não correu aqui") : "" })])}
     ${ui.sec("Tarefas")}
     ${p.task_list.length ? `<div class="panel rows">${p.task_list.map((x) => `<a class="rw" href="#/tarefas/${x.id}">${ui.avatar(nameOf(x.assignee), "sm")}
       <div class="rw-main"><b>${esc(x.title)}</b><span>${esc(nameOf(x.assignee))}</span></div>${ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}</a>`).join("")}</div>`
-      : `<div class="panel">${ui.empty("tasks", "Sem tarefas", "Este projeto ainda não tem tarefas.")}</div>`}`;
+      : `<div class="panel">${ui.empty("tasks", "Sem tarefas", "Este projeto ainda não tem tarefas. Cria a primeira: fica contigo ou vai direta para o escritório.",
+        `<button class="btn sm" data-new-task>${t("Nova tarefa")}</button>`)}</div>`}`;
   }, 6);
   $("view").onclick = async (e) => {
     if (e.target.closest("[data-new-task]")) return newTask({ project_id: id });
@@ -1138,10 +1440,11 @@ async function viewProject(id) {
 /* ================================================================ analytics, AI usage, expenses */
 let analyticsDays = 7;
 const barRows = (rows, total) => (rows.length ? `<div class="bars">${rows.map((r) => `<div class="bar-row"><span class="ell">${esc(r.name || r.title)}</span>
-  ${ui.progress(total ? (r.cost_usd / total) * 100 : 0)}<span>${fmt.usd(r.cost_usd)}</span></div>`).join("")}</div>` : `<p class="faint" style="margin:0">${t("Sem dados")}</p>`);
-const statCard = (label, value, source) => `<div class="panel statc"><span>${t(label)}</span>${ui.num(value)}${source ? ui.src(source) : ""}</div>`;
+  ${ui.progress(total ? (r.cost_usd / total) * 100 : 0)}<span>${fmt.usd(r.cost_usd)}</span></div>`).join("")}</div>` : `<p class="vw-none">${t("Sem dados")}</p>`);
+const statCard = (label, value, source) => kpi(label, value, { src: source });
 // Who did most, today and this week: commits and lines from git, tasks completed and AI sessions from the Hub.
 async function loadRanking() {
+  if (!$("ranking")) return;
   await mount($("ranking"), async () => {
     const r = await api("/api/analytics/ranking");
     const board = (title, people) => {
@@ -1157,41 +1460,64 @@ async function loadRanking() {
     return `${ui.sec("Quem fez mais", ui.src(r.source))}<div class="rank-grid">${board("Hoje", r.today)}${board("Esta semana", r.week)}</div>`;
   }, 4);
 }
-onLive(["activity", "task"], async () => { if ($("ranking")) await loadRanking(); });
+onLive(["activity", "task"], loadRanking);
 
+// "Quem fez o quê": a card per person, the period in a sentence and in bars against the busiest of the team.
+function whoCard(p, all, claudeDays) {
+  const top = (k) => Math.max(1, ...all.map((x) => x[k] || 0));
+  const parts = [p.commits ? t(p.commits === 1 ? "1 commit" : "{n} commits", { n: p.commits }) : "", p.tasks_done ? t(p.tasks_done === 1 ? "1 tarefa feita" : "{n} tarefas feitas", { n: p.tasks_done }) : "",
+    p.claude_tokens ? t("{n} tokens do Claude", { n: tok(p.claude_tokens) }) : "", p.agent_sessions ? t(p.agent_sessions === 1 ? "1 sessão do agente" : "{n} sessões do agente", { n: p.agent_sessions }) : ""].filter(Boolean);
+  const said = parts.length ? parts.length > 1 ? `${parts.slice(0, -1).join(", ")} ${t("e")} ${parts.at(-1)}` : parts[0] : t("Sem registos neste período.");
+  const row = (label, value, pct, note = "") => `<div class="vw-wrow"><span>${t(label)}</span>${bar(pct)}<b>${value}</b><em>${note}</em></div>`;
+  return `<article class="panel vw-whoc ${parts.length ? "" : "quiet"}"><header>${ui.avatar(p.name, "lg")}<div><b>${esc(p.name)}</b><span>${esc(said.charAt(0).toUpperCase() + said.slice(1))}</span></div></header>
+    ${row("Commits", p.commits, (p.commits / top("commits")) * 100, p.commits ? `+${fmt.int(p.added)} −${fmt.int(p.deleted)}` : "")}
+    ${row("Tarefas feitas", p.tasks_done, (p.tasks_done / top("tasks_done")) * 100, p.tasks_created ? t("{n} criadas", { n: p.tasks_created }) : "")}
+    ${row("Claude", tok(p.claude_tokens) || "0", (p.claude_tokens / top("claude_tokens")) * 100, p.claude_windows ? t(p.claude_windows === 1 ? "1 janela" : "{n} janelas", { n: p.claude_windows }) : "")}
+    ${row("Agente", p.agent_sessions, (p.agent_sessions / top("agent_sessions")) * 100, p.approvals ? t("{n} aprovações", { n: p.approvals }) : "")}</article>`;
+}
 async function loadAnalytics() {
+  if (!$("analytics")) return;
+  let a = null;
   await mount($("analytics"), async () => {
-    const a = await api(`/api/analytics?days=${analyticsDays}`);
-    const hours = a.ai.ai_seconds ? (a.ai.ai_seconds / 3600).toFixed(1) + " h" : null;
-    return `${ui.sec("Equipa", ui.src(a.team.source))}<div class="stats">
-        ${statCard("Pessoas online", `${a.team.active_users}/${a.team.people}`)}${statCard("Sessões de IA ativas", a.team.active_sessions)}
-        ${statCard("Tarefas criadas", a.team.tasks_created)}${statCard("Tarefas concluídas", a.team.tasks_completed)}
-        ${statCard("Tarefas abertas", a.team.tasks_open)}${statCard("Pedidos de aprovação", a.team.approvals)}</div>
-      ${a.ai.sessions || a.ai.runs ? `${ui.sec("Uso de IA", ui.src(a.ai.source))}<div class="stats">
-        ${statCard("Sessões", a.ai.sessions || null)}${statCard("Tokens de entrada", a.ai.runs ? fmt.tokens(a.ai.tokens.input) : null)}
-        ${statCard("Tokens de saída", a.ai.runs ? fmt.tokens(a.ai.tokens.output) : null)}${statCard("Agentes", a.ai.agents || null)}
-        ${statCard("Subagentes", a.ai.sessions ? a.ai.subagents : null)}${statCard("Chamadas a ferramentas", a.ai.sessions ? a.ai.tool_uses : null)}
-        ${statCard("Tempo de trabalho da IA", hours)}</div>
-      ${a.ai.models.length ? `<div class="panel" style="margin-top:10px"><table class="tbl"><tr><th>${t("Modelo")}</th><th class="r">${t("Sessões")}</th><th class="r">Tokens</th></tr>
+    a = await api(`/api/analytics?days=${analyticsDays}`);
+    const people = a.people?.list || [], cd = a.people?.claude_days;
+    const claude = a.people ? people.reduce((n, p) => n + p.claude_tokens, 0) : null;
+    const live = a.code.source === "live";
+    return kpiRow([
+        kpi("Commits", live ? a.code.commits : null, { sub: live ? t("+{a} −{d} linhas", { a: fmt.int(a.code.added), d: fmt.int(a.code.deleted) }) : "", src: live ? "" : a.code.source, href: "#/codigo" }),
+        kpi("Concluídas", a.team.tasks_completed, { sub: t("tarefas · {n} criadas", { n: a.team.tasks_created }), href: "#/tarefas" }),
+        kpi("Tokens do Claude", claude == null ? null : tok(claude) || "0", { sub: cd && cd < analyticsDays ? t("só os últimos {n} dias", { n: cd }) : t("janelas do Claude Code"), href: "#/uso" }),
+        kpi("Pessoas online", `${a.team.active_users}/${a.team.people}`, { sub: t("{n} tarefas abertas", { n: a.team.tasks_open }), href: "#/equipa" })])
+      + (people.length ? ui.sec(t(analyticsDays === 7 ? "Quem fez o quê · últimos 7 dias" : "Quem fez o quê · últimos {n} dias", { n: analyticsDays }),
+        cd && cd < analyticsDays ? `<span class="faint vw-secnote">${t("O Claude só guarda {n} dias", { n: cd })}</span>` : "") + `<div class="vw-who">${people.map((p) => whoCard(p, people, cd)).join("")}</div>` : "");
+  }, 6);
+  if (!a || !$("analytics-more")) return;
+  const hours = a.ai.ai_seconds ? (a.ai.ai_seconds / 3600).toFixed(1).replace(".", ",") + " h" : null;
+  paint($("analytics-more"), `${ui.sec("Equipa", ui.src(a.team.source))}${kpiRow([statCard("Sessões ativas", a.team.active_sessions), statCard("Tarefas criadas", a.team.tasks_created),
+      statCard("Tarefas abertas", a.team.tasks_open), statCard("Aprovações pedidas", a.team.approvals)])}
+    ${a.ai.sessions || a.ai.runs ? `${ui.sec("Agente automático", ui.src(a.ai.source))}${kpiRow([statCard("Sessões", a.ai.sessions || null),
+      statCard("Tokens de entrada", a.ai.runs ? fmt.tokens(a.ai.tokens.input) : null), statCard("Tokens de saída", a.ai.runs ? fmt.tokens(a.ai.tokens.output) : null),
+      statCard("Subagentes", a.ai.sessions ? a.ai.subagents : null), statCard("Ferramentas usadas", a.ai.sessions ? a.ai.tool_uses : null), statCard("Tempo da IA", hours)])}
+      ${a.ai.models.length ? `<div class="panel" style="margin-top:12px"><table class="tbl"><tr><th>${t("Modelo")}</th><th class="r">${t("Sessões")}</th><th class="r">Tokens</th></tr>
         ${a.ai.models.map((m) => `<tr><td>${esc(m.model)}</td><td class="r">${m.sessions}</td><td class="r mono">${fmt.tokens(m.tokens)}</td></tr>`).join("")}</table></div>` : ""}` : ""}
-      ${a.cost.total_usd != null ? `${ui.sec("Custo", ui.src(a.cost.source))}
-      <div class="detail"><div class="stack"><div class="panel pad"><div class="ph-eyebrow">${t("Por pessoa")}</div>${barRows(a.cost.per_user, a.cost.total_usd)}</div>
-        <div class="panel pad"><div class="ph-eyebrow">${t("Por tarefa")}</div>${barRows(a.cost.per_task, a.cost.total_usd)}</div></div>
-        <div class="stack">${statCard("Custo total de IA", a.cost.total_usd == null ? null : fmt.usd(a.cost.total_usd))}
-        <div class="panel pad"><div class="ph-eyebrow">${t("Por projeto")}</div>${barRows(a.cost.per_project, a.cost.total_usd)}</div></div></div>` : ""}
-      ${ui.sec("Código", ui.src(a.code.source))}<div class="stats">
-        ${statCard("Commits", a.code.source === "live" ? a.code.commits : null)}
-</div>
-      ${a.value.cost_per_task.usd != null || a.value.cost_per_commit.usd != null ? `${ui.sec("Valor")}<div class="stats">
-        ${statCard("Custo por tarefa concluída", a.value.cost_per_task.usd == null ? null : fmt.usd(a.value.cost_per_task.usd), a.value.cost_per_task.source)}
-        ${statCard("Custo por commit", a.value.cost_per_commit.usd == null ? null : fmt.usd(a.value.cost_per_commit.usd), a.value.cost_per_commit.source)}</div>
-      <p class="faint" style="margin-top:14px">${t("O custo é a estimativa que o SDK do Claude dá em cada sessão; não é uma fatura.")}</p>` : ""}`;
-  }, 8);
+    ${a.cost.total_usd != null ? `${ui.sec("Custo do agente", ui.src(a.cost.source))}
+      <div class="vw-two"><div class="panel pad"><small class="vw-label">${t("Por pessoa")}</small>${barRows(a.cost.per_user, a.cost.total_usd)}</div>
+        <div class="panel pad"><small class="vw-label">${t("Por tarefa")}</small>${barRows(a.cost.per_task, a.cost.total_usd)}</div>
+        <div class="panel pad"><small class="vw-label">${t("Por projeto")}</small>${barRows(a.cost.per_project, a.cost.total_usd)}</div>
+        ${statCard("Custo total de IA", fmt.usd(a.cost.total_usd), "estimated")}</div>` : ""}
+    ${ui.sec("Código", ui.src(a.code.source))}${a.code.source === "live" ? `<div class="panel pad vw-repos"><span>${t("Repositórios com commits neste período")}</span>
+      <div>${a.code.repos.length ? a.code.repos.map((x) => ui.tag(x)).join("") : `<em class="faint">${t("nenhum")}</em>`}</div></div>`
+      : `<div class="panel">${ui.empty("code", "Sem ligação ao git", "Não consegui ler os repositórios agora. Confirma-os em library/repos.json.")}</div>`}
+    ${a.value.cost_per_task.usd != null || a.value.cost_per_commit.usd != null ? `${ui.sec("Valor")}${kpiRow([
+      statCard("Custo por tarefa", a.value.cost_per_task.usd == null ? null : fmt.usd(a.value.cost_per_task.usd), a.value.cost_per_task.source),
+      statCard("Custo por commit", a.value.cost_per_commit.usd == null ? null : fmt.usd(a.value.cost_per_commit.usd), a.value.cost_per_commit.source)])}` : ""}
+    <p class="vw-note">${t("Commits e linhas: do git. Tarefas e sessões: registos do Hub. Tokens do Claude: as janelas do Claude Code de cada um (o Escritório guarda uma semana). O custo é a estimativa do SDK do agente; não é uma fatura.")}</p>`);
 }
 HUB_VIEWS.analise = async function () {
-  page(`${ui.head("Análise", t("Análise"), t("Quem fez o quê, a equipa e o código."),
+  await pagesCss();
+  page(`${ui.head("Análise", t("Análise"), t("Quem fez o quê: commits, tarefas, Claude e o agente de cada um."),
     `<div class="segx" id="days">${[7, 30, 90].map((d) => `<button data-d="${d}" class="${d === analyticsDays ? "on" : ""}">${d} ${t("dias")}</button>`).join("")}</div>`)}
-    <div id="ranking"></div><div id="analytics"></div>`);
+    <div id="analytics"></div><div id="ranking"></div><div id="analytics-more"></div>`);
   loadRanking();
   $("days").onclick = (e) => {
     if (!e.target.dataset.d) return;
@@ -1202,58 +1528,136 @@ HUB_VIEWS.analise = async function () {
   await loadAnalytics();
 };
 
+/* Uso de IA: how much Claude the team used, from the two sources there are: every Claude Code window on the team's PCs
+   (the Escritório's, tokens read from each transcript) and the runs of each person's automatic agent (with the SDK's cost
+   estimate). Until 21 Oct the page read only the agent's runs and said «Sem dados» while the Escritório showed 524k tokens
+   today. Then the plan's limits (5 h and week, as each PC last read them) and Higgsfield (set by hand). */
+const GREYS = ["#eef1f4", "#9ea6b0", "#5d646d", "#3b4047", "#262a30"];
+const WEEKDAY = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const shortDay = (iso) => WEEKDAY[new Date(`${iso}T12:00:00`).getDay()];
+function daysChart(c) {
+  const totals = c.dates.map((d) => c.people.reduce((n, p) => n + (p.by_day[d] || 0), 0)), max = Math.max(1, ...totals);
+  return `<div class="panel pad vw-chart"><div class="vw-cols">${c.dates.map((d, i) => `<div class="vw-col ${i === c.dates.length - 1 ? "today" : ""}"
+      title="${esc(`${fmt.date(d)}: ${c.people.filter((p) => p.by_day[d]).map((p) => `${p.name} ${tok(p.by_day[d])}`).join(", ") || t("nada")}`)}">
+      <em>${totals[i] ? tok(totals[i]) : ""}</em><div class="vw-track"><div class="vw-stack" style="height:${((totals[i] / max) * 100).toFixed(1)}%">
+        ${c.people.map((p, k) => (p.by_day[d] ? `<i style="flex:${p.by_day[d]};background:${GREYS[k % GREYS.length]}"></i>` : "")).join("")}</div></div>
+      <span>${esc(i === c.dates.length - 1 ? t("Hoje") : shortDay(d))}<b>${Number(d.slice(8))}</b></span></div>`).join("")}</div>
+    <div class="vw-legend">${c.people.map((p, k) => `<span><i style="background:${GREYS[k % GREYS.length]}"></i>${esc(p.name)} · ${tok(p.tokens) || "0"}</span>`).join("")}</div></div>`;
+}
+function planRow(m, l) {
+  const when = (ts, week) => {
+    if (!ts) return "";
+    const d = new Date(ts * 1000);
+    return week ? `${d.toLocaleDateString("pt-PT", { weekday: "long" })} ${fmt.hhmm(d.toISOString())}` : fmt.hhmm(d.toISOString());
+  };
+  const old = l && (Date.now() - new Date(l.seen) > 864e5);
+  const cell = (label, pct, note) => `<div class="vw-plan-c ${limitTone(pct)}"><div><em>${t(label)}</em><b>${pct == null ? "—" : `${pct}%`}</b></div>${bar(pct, limitTone(pct))}<span>${esc(note)}</span></div>`;
+  return `<div class="vw-plan ${old ? "old" : ""}">${ui.avatar(m.display_name)}<div class="vw-plan-who"><b>${esc(m.display_name)}${isMe(m.user) ? `<small>${t("Tu")}</small>` : ""}</b>
+      <span>${l ? t("lido {q}", { q: fmt.ago(l.seen) }) : t("ainda sem leitura")}</span></div>
+    ${cell("5 horas", l?.five, l?.five_reset ? t("renova às {h}", { h: when(l.five_reset) }) : "")}
+    ${cell("Semana", l?.week, l?.week_reset ? t("renova {d}", { d: when(l.week_reset, true) }) : "")}
+    ${cell("Higgsfield", m.higgsfield_pct, m.higgsfield_pct == null ? t("por indicar") : t("indicado à mão"))}</div>`;
+}
+function usageRow(p, max, dates) {
+  return `<div class="vw-urow">${ui.avatar(p.name)}<div class="vw-uwho"><b>${esc(p.name)}</b><span>${esc([t(p.windows === 1 ? "1 janela" : "{n} janelas", { n: p.windows }),
+      p.subagents ? t(p.subagents === 1 ? "1 subagente" : "{n} subagentes", { n: p.subagents }) : "", p.working ? t("{n} aberta agora", { n: p.working }) : "",
+      p.models[0] ? p.models[0].replace(/^claude-/, "") : ""].filter(Boolean).join(" · "))}</span></div>
+    <span class="vw-spark" aria-hidden="true">${dates.map((d) => `<i class="${d === dates[dates.length - 1] ? "today" : ""}" style="height:${p.by_day[d] ? Math.max(6, (p.by_day[d] / max) * 100).toFixed(1) : 0}%"></i>`).join("")}</span>
+    <div class="vw-unum"><b>${tok(p.tokens) || "0"}</b><span>${t("hoje")} ${tok(p.today) || "0"}</span></div>
+    <div class="vw-unum"><b>${p.agent_sessions}</b><span>${t(p.agent_sessions === 1 ? "sessão do agente" : "sessões do agente")}${p.agent_cost_usd != null ? ` · ${fmt.usd(p.agent_cost_usd)}` : ""}</span></div></div>`;
+}
+const shareRows = (rows, total) => (rows.length ? rows.map((r) => `<div class="vw-share"><span class="ell" title="${esc(r.name)}">${esc(r.name.replace(/^claude-/, ""))}</span>${bar((r.tokens / Math.max(1, total)) * 100)}
+  <b>${tok(r.tokens)}</b></div>`).join("") : `<p class="vw-none">${t("Sem dados")}</p>`);
 async function loadUsagePage() {
+  if (!$("usage-page")) return;
   await mount($("usage-page"), async () => {
-    const [summary, users, sessions] = await Promise.all([api("/api/usage/summary"), api("/api/usage"), api("/api/sessions?limit=25")]);
-    return `<div class="stats">${statCard("Tokens · 7 dias", summary.runs ? fmt.tokens(summary.input_tokens + summary.output_tokens) : null, summary.source)}
-        ${statCard("Custo · 7 dias", summary.cost_usd == null ? null : fmt.usd(summary.cost_usd), summary.cost_source)}
-        ${statCard("Sessões · 7 dias", summary.runs || null)}</div>
-      ${ui.sec("Por pessoa (desde sempre)")}
-      ${users.length ? `<div class="panel"><table class="tbl"><tr><th>${t("Pessoa")}</th><th class="r">${t("Sessões")}</th><th class="r">${t("Entrada")}</th><th class="r">${t("Saída")}</th><th class="r">${t("Custo")} ≈</th></tr>
-        ${users.map((u) => `<tr><td>${esc(nameOf(u.user))}</td><td class="r">${u.runs}</td><td class="r mono">${fmt.tokens(u.input_tokens)}</td><td class="r mono">${fmt.tokens(u.output_tokens)}</td><td class="r mono">${fmt.usd(u.cost_usd)}</td></tr>`).join("")}</table></div>`
-        : `<div class="panel">${ui.empty("token", "Sem uso registado", "Quando um agente correr uma sessão, os tokens aparecem aqui.")}</div>`}
-      ${ui.sec("Sessões recentes")}
-      ${sessions.length ? `<div class="panel rows">${sessions.map((s) => `<a class="rw" href="#/agentes/${esc(s.user)}">${ui.status(s.status)}
-        <div class="rw-main"><b>Claude / ${esc(s.user_name)}${s.task_id ? ` · #${s.task_id}` : ""}</b><span>${esc(s.model || "—")} · ${fmt.day(s.started_at)} ${fmt.hhmm(s.started_at)} · ${fmt.span(s.started_at, s.finished_at)}</span></div>
-        <span class="mono dim">${fmt.tokens(s.tokens.total)}</span><span class="mono" style="width:64px;text-align:right">${s.cost_usd == null ? "—" : fmt.usd(s.cost_usd)}</span></a>`).join("")}</div>`
-        : `<div class="panel">${ui.empty("bot", "Sem sessões", "Ainda nenhuma sessão de IA foi registada.")}</div>`}
-      ${ui.sec("Limites do plano")}<div class="grid" id="meters"></div>
-      <p class="faint" style="margin-top:12px">${t("Tokens: o que cada sessão reportou. Custo: estimativa do SDK do Claude, não é faturação. Higgsfield: indicado à mão por cada pessoa nas Definições.")}</p>`;
+    const [c, users, sessions, limits, team] = await Promise.all([api("/api/analytics/claude?days=7").catch(() => null), api("/api/usage"), api("/api/sessions?limit=25"),
+      planLimits(), api("/api/team").catch(() => [])]);
+    const old = c ? null : await api("/api/usage/summary");   // a Hub from before /api/analytics/claude: only the agent's runs
+    const w = c?.windows, ag = c?.agent;
+    const agentTokens = ag ? ag.input_tokens + ag.output_tokens : old?.runs ? old.input_tokens + old.output_tokens : 0;
+    const cost = ag ? ag.cost_usd : old?.cost_usd, costSrc = ag ? ag.cost_source : old?.cost_source;
+    const maxDay = c ? Math.max(1, ...c.people.flatMap((p) => Object.values(p.by_day))) : 1;
+    const people = c ? c.people.filter((p) => p.windows || p.agent_sessions) : [];
+    return kpiRow([
+        kpi("Tokens hoje", w ? tok(w.today) || "0" : null, { sub: t("janelas do Claude Code"), src: w ? "live" : "not_connected", href: "#/escritorio" }),
+        kpi("Tokens · 7 dias", w || agentTokens ? tok((w?.tokens || 0) + agentTokens) : null, { sub: w ? t("{a} janelas · {b} sessões do agente", { a: w.count, b: ag.sessions }) : "", src: w ? w.source : old?.source }),
+        kpi("Janelas abertas", w ? w.working : null, { sub: w ? t("{n} subagentes esta semana", { n: w.subagents }) : "", href: "#/agentes" }),
+        kpi("Custo do agente", cost == null ? null : fmt.usd(cost), { sub: t("7 dias · o Claude Code vai no plano"), src: costSrc })])
+      + ui.sec("Limites do plano", `<span class="faint vw-secnote">${t("como cada PC os leu da última vez")}</span>`)
+      + `<div class="panel vw-plans">${team.map((m) => planRow(m, limits[m.user])).join("") || ui.empty("users", "Sem equipa")}</div>`
+      + (c ? ui.sec("Dia a dia · tokens do Claude Code", ui.src(c.windows.source)) + daysChart(c)
+        + ui.sec("Por pessoa · 7 dias") + (people.length ? `<div class="panel vw-urows">${people.map((p) => usageRow(p, maxDay, c.dates)).join("")}</div>`
+          : `<div class="panel">${ui.empty("token", "Ninguém usou o Claude esta semana", "As janelas do Claude Code de cada PC aparecem aqui com os tokens que gastaram, e o agente automático com as suas sessões.",
+            `<a class="btn sm" href="#/escritorio">${t("Abrir o Escritório")}</a>`)}</div>`)
+        + (c.top.length ? ui.sec("As janelas que mais gastaram") + `<div class="panel rows">${c.top.map((x) => `<div class="rw">${ui.avatar(x.name, "sm")}
+            <div class="rw-main"><b>${esc(x.topic || t("Janela sem pedido"))}</b><span>${esc([x.name, x.project, (x.model || "").replace(/^claude-/, ""), `${fmt.day(x.updated_at)} ${fmt.hhmm(x.updated_at)}`].filter(Boolean).join(" · "))}</span></div>
+            <span class="mono vw-tok">${tok(x.tokens)}</span></div>`).join("")}</div>` : "")
+        + (c.models.length ? `<div class="vw-two"><div>${ui.sec("Por modelo")}<div class="panel pad">${shareRows(c.models, c.windows.tokens)}</div></div>
+            <div>${ui.sec("Por projeto")}<div class="panel pad">${shareRows(c.projects, c.windows.tokens)}</div></div></div>` : "") : "")
+      + ui.sec("Agente automático", ui.src(costSrc || "no_data"))
+      + (sessions.length ? `<div class="panel rows">${sessions.map(sessionRow).join("")}</div>`
+        : `<div class="panel">${ui.empty("bot", "O agente ainda não correu", "Quando o agente automático de alguém fizer uma tarefa do escritório, a sessão aparece aqui com os tokens e o custo estimado.",
+          `<a class="btn sm" href="#/agentes">${t("Ver os agentes")}</a>`)}</div>`)
+      + (users.length ? `${ui.sec("Agente automático · desde sempre")}<div class="panel rows">${users.map((u) => {
+          const m = team.find((x) => x.user === u.user);
+          return `<div class="rw">${ui.avatar(nameOf(u.user), "sm")}<div class="rw-main"><b>${esc(nameOf(u.user))}</b><span>${t(u.runs === 1 ? "1 sessão" : "{n} sessões", { n: u.runs })} · ${t("entrada")} ${fmt.tokens(u.input_tokens)} · ${t("saída")} ${fmt.tokens(u.output_tokens)}${m ? ` · ${t("esta semana {a} de {b}", { a: fmt.usd(m.week_cost_usd), b: fmt.usd(m.week_budget_usd) })}` : ""}</span></div>
+            <span class="mono vw-tok">${fmt.usd(u.cost_usd)}</span></div>`;
+        }).join("")}</div>` : "")
+      + `<p class="vw-note">${t("Janelas do Claude Code: os tokens que cada janela gastou, lidos do histórico dela no PC de cada um (o Escritório guarda uma semana); vão no plano do Claude, sem custo à parte. Agente automático: o que cada sessão reportou, e o custo é a estimativa do SDK, não uma fatura. Higgsfield: indicado à mão por cada pessoa nas Definições.")}</p>`;
   }, 8);
-  loadMeters().catch(() => {});
 }
 HUB_VIEWS.uso = async function () {
-  page(`${ui.head("Análise", t("Uso de IA"), t("Tokens, sessões e custo estimado, por pessoa."))}<div id="usage-page"></div>`);
+  await pagesCss();
+  page(`${ui.head("Análise", t("Uso de IA"), t("Quanto Claude a equipa gastou: as janelas do Claude Code de cada um e o agente automático."),
+    `<a class="btn" href="#/escritorio">${icon("monitor")}${t("Ver no Escritório")}</a>`)}<div id="usage-page"></div>`);
   await loadUsagePage();
 };
-onLive(["usage", "session"], async () => { if ($("usage-page")) await loadUsagePage(); });
+onLive(["usage", "session"], loadUsagePage);
+onLive(["office"], calm(loadUsagePage, 30000));
 
 const EXPENSE_CATS = { ai: "IA", software: "Software", ads: "Anúncios", infrastructure: "Infraestrutura", other: "Outros" };
+const EXPENSE_HINT = { ai: "Claude, Higgsfield e outras IAs", software: "Assinaturas e licenças", ads: "Meta, Google, TikTok", infrastructure: "Domínios, alojamento, servidores", other: "O resto" };
+const EXPENSE_ICON = { ai: "spark", software: "grid", ads: "trend", infrastructure: "monitor", other: "wallet" };
+const moneyOf = (list) => { const by = {}; for (const x of list) by[x.currency] = (by[x.currency] || 0) + x.amount; return by; };
+const moneyText = (by) => Object.entries(by).map(([cur, v]) => fmt.money(v, cur)).join(" + ");
 async function loadExpenses() {
+  if (!$("expenses")) return;
   await mount($("expenses"), async () => {
     const e = await api("/api/expenses");
-    const totals = (cat) => Object.entries(e.month_totals[cat] || {}).map(([cur, v]) => fmt.money(v, cur)).join(" + ");
-    return `${ui.sec("Custo de IA · 7 dias", ui.src(e.ai_cost.source))}
-      <div class="stats">${statCard("Esta semana", e.ai_cost.total_usd == null ? null : fmt.usd(e.ai_cost.total_usd))}
-        ${e.ai_cost.people.map((p) => statCard(p.name, fmt.usd(p.cost_usd))).join("")}</div>
-      ${ui.sec(`${t("Despesas registadas")} · ${e.month}`)}
-      <div class="stats">${Object.entries(EXPENSE_CATS).map(([cat, label]) => `<div class="panel statc"><span>${t(label)}</span>
-        ${totals(cat) ? `<span class="num sm">${totals(cat)}</span>` : `<span class="num none">${t("Nada registado")}</span>`}</div>`).join("")}</div>
-      ${ui.sec("Movimentos")}
-      ${e.items.length ? `<div class="panel"><table class="tbl"><tr><th>${t("Data")}</th><th>${t("O quê")}</th><th>${t("Categoria")}</th><th>${t("Por")}</th><th class="r">${t("Valor")}</th><th></th></tr>
-        ${e.items.map((x) => `<tr><td class="mono">${esc(x.spent_on)}</td><td>${esc(x.title)}</td><td>${t(EXPENSE_CATS[x.category])}</td><td>${esc(x.by)}</td><td class="r mono">${fmt.money(x.amount, x.currency)}</td>
-          <td class="r">${leadOnly(`<button class="btn quiet sm" data-del-expense="${x.id}">${icon("x")}</button>`)}</td></tr>`).join("")}</table></div>`
-        : `<div class="panel">${ui.empty("wallet", "Sem despesas registadas", "As despesas são escritas por pessoas. Não há ligação a bancos nem a contas de anúncios.",
-          leadOnly(`<button class="btn sm primary" data-new-expense>${t("Registar despesa")}</button>`))}</div>`}`;
+    const month = e.items.filter((x) => String(x.spent_on).startsWith(e.month));
+    const monthName = new Date(`${e.month}-15T12:00:00`).toLocaleDateString("pt-PT", { month: "long" });
+    const ai = e.ai_cost;
+    const register = leadOnly(`<button class="btn sm" data-new-expense>${t("Registar despesa")}</button>`);
+    const top = kpiRow([kpi(`${t("Registado em")} ${monthName}`, month.length ? moneyText(moneyOf(month)) : null, { sub: t(month.length === 1 ? "1 movimento" : "{n} movimentos", { n: month.length }) }),
+      kpi("Desde sempre", e.items.length ? moneyText(moneyOf(e.items)) : null, { sub: t(e.items.length === 1 ? "1 movimento" : "{n} movimentos", { n: e.items.length }) }),
+      kpi("Custo do agente", ai.total_usd == null ? null : fmt.usd(ai.total_usd), { src: ai.source, sub: t("7 dias · estimativa do SDK"), href: "#/uso" })]);
+    const aiBlock = ui.sec("Custo de IA · 7 dias", ui.src(ai.source)) + (ai.people.length
+      ? `<div class="panel rows">${ai.people.map((p) => `<div class="rw">${ui.avatar(p.name, "sm")}<div class="rw-main"><b>${esc(p.name)}</b><span>${t(p.runs === 1 ? "1 sessão do agente" : "{n} sessões do agente", { n: p.runs })}</span></div>
+          <span class="mono vw-tok">${fmt.usd(p.cost_usd)}</span></div>`).join("")}</div>`
+      : `<div class="panel vw-hintrow">${icon("spark")}<p>${t("O agente automático não correu esta semana, por isso não há custo estimado. As janelas do Claude Code vão no plano: os tokens de cada um estão em Uso de IA.")}</p><a class="btn sm" href="#/uso">${t("Uso de IA")}</a></div>`);
+    if (!e.items.length) return top + ui.sec("Movimentos") + `<div class="panel">${ui.empty("wallet", "Ainda sem despesas registadas",
+      "Regista o que a equipa paga: o plano do Claude, o Higgsfield, domínios, anúncios. Cada despesa fica com a data, a categoria e quem a registou. Não há ligação a bancos.", register)}</div>` + aiBlock;
+    const sums = Object.keys(EXPENSE_CATS).map((cat) => [cat, month.filter((x) => x.category === cat)]);
+    const most = Math.max(1, ...sums.map(([, l]) => l.reduce((n, x) => n + x.amount, 0)));
+    return top + ui.sec(`${t("Por categoria")} · ${monthName}`) + `<div class="panel vw-cats">${sums.map(([cat, list]) => `<div class="vw-cat ${list.length ? "" : "none"}">
+        <span class="vw-cat-ic">${icon(EXPENSE_ICON[cat])}</span><div><b>${t(EXPENSE_CATS[cat])}</b><span>${t(EXPENSE_HINT[cat])}</span></div>
+        ${bar((list.reduce((n, x) => n + x.amount, 0) / most) * 100)}<em>${list.length ? esc(moneyText(moneyOf(list))) : "—"}</em></div>`).join("")}</div>`
+      + ui.sec("Movimentos", `<span class="faint">${e.items.length}</span>`)
+      + `<div class="panel rows">${e.items.map((x) => `<div class="rw vw-exp"><span class="vw-cat-ic">${icon(EXPENSE_ICON[x.category] || "wallet")}</span>
+          <div class="rw-main"><b>${esc(x.title)}</b><span>${esc([fmt.date(x.spent_on), t(EXPENSE_CATS[x.category] || x.category), x.by, companies.find((c) => c.id === x.company)?.name].filter(Boolean).join(" · "))}</span></div>
+          <span class="mono vw-tok">${fmt.money(x.amount, x.currency)}</span>${leadOnly(`<button class="btn quiet sm" data-del-expense="${x.id}" title="${t("Apagar")}" aria-label="${t("Apagar")}">${icon("x")}</button>`)}</div>`).join("")}</div>`
+      + aiBlock;
   }, 6);
 }
 HUB_VIEWS.despesas = async function () {
-  page(`${ui.head("Análise", t("Despesas"), t("O que a IA custou (estimado) e o que a equipa registou à mão."), leadOnly(ui.btn("Registar despesa", "data-new-expense", "primary", "plus")))}<div id="expenses"></div>`);
+  await pagesCss();
+  page(`${ui.head("Análise", t("Despesas"), t("O que a equipa paga, registado à mão, e o que a IA custou (estimado)."), leadOnly(ui.btn("Registar despesa", "data-new-expense", "primary", "plus")))}<div id="expenses"></div>`);
   $("view").onclick = async (e) => {
     const del = e.target.closest("[data-del-expense]");
     if (del) { await api(`/api/expenses/${del.dataset.delExpense}`, { method: "DELETE" }).catch((err) => flash(err.message)); $("expenses")._html = null; return loadExpenses(); }
     if (!e.target.closest("[data-new-expense]")) return;
-    formModal("Registar despesa", field("O quê", '<input name="title" required>', true)
+    formModal("Registar despesa", field("O quê", '<input name="title" required placeholder="ex: Plano do Claude · outubro">', true)
       + field("Categoria", `<select name="category">${options(Object.entries(EXPENSE_CATS).map(([k, v]) => [k, t(v)]), "software")}</select>`)
       + field("Data", `<input name="spent_on" type="date" value="${new Date().toISOString().slice(0, 10)}">`)
       + field("Valor", '<input name="amount" type="number" step="0.01" min="0.01" required>')
@@ -1361,6 +1765,7 @@ async function editMemory(existing) {
 }
 HUB_VIEWS.memoria = async function () {
   memoryScope = "team";   // where a new note goes by default
+  pagesCss();
   page(`${ui.head("Sistema", t("Memória"), t("O que a IA deve saber antes de começar. As mais recentes em cima; clica numa nota para a abrir."), ui.btn("Adicionar à memória", "data-new-memory", "primary", "plus"))}
     <div class="mem-bar"><div class="mem-seg" id="memory-view"><button class="chp" data-view="recent">${t("Mais recentes")}</button><button class="chp" data-view="topic">${t("Por tema")}</button></div>
       <label class="mem-search">${icon("search")}<input id="memory-q" type="search" placeholder="${esc(t("Procurar na memória"))}" value="${esc(memoryQuery)}"></label></div>
@@ -1382,13 +1787,13 @@ HUB_VIEWS.memoria = async function () {
 
 /* ================================================================ week, code, companies: the older pages, extended */
 HUB_VIEWS.semana = async function () {
-  page(`${ui.head("Centro de comando", t("Semana"), t("O que ficou feito, o que está preso e o que vem a seguir."), ui.btn("Gerar relatório semanal", "id=week-report", "primary", "spark"))}
-    <div id="week-ai"></div><div class="cards" id="week-blocks" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>
+  await pagesCss();
+  page(`${ui.head("Comando", t("Semana"), t("O que ficou feito, o que está preso e o que vem a seguir."), ui.btn("Gerar relatório semanal", "id=week-report", "primary", "spark"))}
+    <div id="week-ai"></div><div class="cards vw-week" id="week-blocks"></div>
     ${ui.sec("Dia a dia")}<div id="week"></div>`);
   const showReport = (r) => {
     if (!r) return;
-    $("week-ai").innerHTML = `<div class="panel pad" style="margin-bottom:12px"><div class="rowx" style="margin-bottom:8px"><div class="ph-eyebrow grow" style="margin:0">${t("Relatório semanal")}</div>
-      <span class="faint">${["PENDING", "RUNNING"].includes(r.status) ? "" : fmt.day(r.created_at) + " " + fmt.hhmm(r.created_at)}</span></div>
+    $("week-ai").innerHTML = `${ui.sec("Relatório semanal", `<span class="faint">${["PENDING", "RUNNING"].includes(r.status) ? "" : fmt.day(r.created_at) + " " + fmt.hhmm(r.created_at)}</span>`)}<div class="panel pad vw-report">
       ${["PENDING", "RUNNING"].includes(r.status) ? `<p class="msg think" style="margin:0">${t("O teu agente está a escrever o relatório a partir dos dados do Hub")}</p>`
         : r.status === "DONE" ? `<p style="margin:0;white-space:pre-wrap">${md(r.answer)}</p>` : `<p class="msg note" style="margin:0">${esc(aiError(r.error))}</p>`}</div>`;
   };
@@ -1403,10 +1808,11 @@ HUB_VIEWS.semana = async function () {
     const tasks = await api("/api/tasks");
     const monday = new Date(); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
     const rank = { urgent: 0, high: 1, normal: 2, low: 3 };
-    const block = (title, tone, list, emptyText) => `<div class="panel"><div class="sec" style="margin:0;padding:12px var(--pad) 6px"><span>${t(title)}</span><i style="font-style:normal">${list.length}</i></div>
+    const block = (title, tone, list, emptyText) => `<div class="vw-wblock">${ui.sec(title, `<span class="faint">${list.length}</span>`)}<div class="panel">
       ${list.length ? `<div class="rows">${list.slice(0, 7).map((x) => `<a class="rw" href="#/tarefas/${x.id}"><span class="st ${tone}"><i></i></span>
-        <div class="rw-main"><b>${esc(x.title)}</b><span>${esc(nameOf(x.assignee))}${x.blocked_reason ? " · " + esc(x.blocked_reason) : ""}</span></div></a>`).join("")}</div>`
-        : `<p class="faint" style="margin:0;padding:4px var(--pad) 14px">${t(emptyText)}</p>`}</div>`;
+        <div class="rw-main"><b>${esc(x.title)}</b><span>${esc(nameOf(x.assignee))}${x.blocked_reason ? " · " + esc(x.blocked_reason) : ""}</span></div></a>`).join("")}</div>
+        ${list.length > 7 ? `<a class="vw-more" href="#/tarefas">${t("Mais {n} em Tarefas", { n: list.length - 7 })}</a>` : ""}`
+        : `<p class="vw-none pad">${t(emptyText)}</p>`}</div></div>`;
     return block("Concluídas esta semana", "ok", tasks.filter((x) => x.status === "COMPLETED" && x.completed_at && new Date(x.completed_at) >= monday), "Nada concluído esta semana.")
       + block("Bloqueadas", "bad", tasks.filter((x) => x.stage === "blocked"), "Nada bloqueado.")
       + block("A seguir", "off", tasks.filter((x) => x.stage === "todo").sort((a, b) => rank[a.priority] - rank[b.priority]), "Nada por fazer.");
@@ -1415,20 +1821,23 @@ HUB_VIEWS.semana = async function () {
 };
 
 HUB_VIEWS.codigo = async function () {
-  const done = viewCode(); // the older page: work in progress and the commit feed
+  await pagesCss();
+  const done = viewCode(); // the older page (app.js): the work not yet committed and the commit feed
   const head = $("view").querySelector(".page-head");
-  head.insertAdjacentHTML("afterend", `<div id="code-status" style="margin:14px 0"></div>`);
+  if (head) head.outerHTML = `${ui.head("Trabalho", t("Código"), t("Quem mexeu, onde e quanto, em cada commit. Atualiza sozinho."))}<div id="code-status"></div>`;
   mount($("code-status"), async () => {
     const [commits, tasks] = await Promise.all([api("/api/commits?limit=100").catch(() => null), api("/api/tasks")]);
     const repos = {};
     for (const c of commits || []) (repos[c.repo] ||= { name: c.repo, commits: 0, last: c }).commits++;
+    const today = (commits || []).filter((c) => sameDay(c.date));
     const branches = tasks.filter((x) => x.git_branch && x.stage !== "done");
-    return `<div class="stats">
-      <div class="panel statc"><span>${t("Repositórios")}</span>${ui.num(commits ? Object.keys(repos).length : null)}${ui.src(commits ? "live" : "not_connected")}</div>
-      <div class="panel statc"><span>${t("Commits recentes")}</span>${ui.num(commits ? commits.length : null)}${ui.src(commits ? "live" : "not_connected")}</div>
-</div>
-      ${branches.length ? `${ui.sec("Branches com trabalho")}<div class="panel rows">${branches.map((x) => `<a class="rw" href="#/tarefas/${x.id}"><span class="mono" style="min-width:150px">${esc(x.git_branch)}</span>
-        <div class="rw-main"><b>${esc(x.title)}</b><span>${x.agent_role ? "Claude / " : ""}${esc(nameOf(x.assignee))}</span></div>${ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}</a>`).join("")}</div>` : ""}`;
+    const src = commits ? "live" : "not_connected";
+    return kpiRow([kpi("Repositórios", commits ? Object.keys(repos).length : null, { src, sub: commits ? Object.keys(repos).slice(0, 3).join(", ") : "" }),
+        kpi("Commits recentes", commits ? commits.length : null, { src, sub: commits?.length ? t("o último {q}", { q: fmt.ago(commits[0].date) }) : "" }),
+        kpi("Commits hoje", commits ? today.length : null, { sub: today.length ? [...new Set(today.map((c) => c.author))].join(", ") : t("ainda nenhum") }),
+        kpi("Branches abertos", branches.length, { sub: t("tarefas com um branch de git"), href: "#/tarefas" })])
+      + (branches.length ? `${ui.sec("Branches com trabalho")}<div class="panel rows">${branches.map((x) => `<a class="rw" href="#/tarefas/${x.id}"><span class="mono vw-branch">${esc(x.git_branch)}</span>
+        <div class="rw-main"><b>${esc(x.title)}</b><span>${x.agent_role ? "Claude / " : ""}${esc(nameOf(x.assignee))}</span></div>${ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}</a>`).join("")}</div>` : "");
   }, 2);
   await done;
 };
@@ -1566,19 +1975,29 @@ function pushHtml(c) {
 }
 
 HUB_VIEWS.entregas = async function () {
+  await pagesCss();
   page(`${ui.head("Trabalho", t("Entregas"), t("O que mudou em cada push: fotos, design, textos e código, cada coisa no seu sítio."))}
-    <div class="chips" id="push-who"></div><div class="chips" id="push-kind"></div>
-    <div class="push-list" id="push-list"><p class="muted">A carregar…</p></div>`);
-  const all = await api("/api/commits?limit=60");
+    <div class="vw-filters"><div class="chipbar" id="push-who"></div><div class="chipbar" id="push-kind"></div></div>
+    <div class="push-list" id="push-list">${ui.skeleton(6)}</div>`);
+  let all;
+  try { all = await api("/api/commits?limit=60"); }
+  catch (e) {
+    if (e.message === "unauthorized" || !$("push-list")) return;
+    $("push-list").innerHTML = `<div class="panel">${ui.error(e.message)}</div>`;
+    $("push-list").querySelector("[data-retry]").onclick = () => HUB_VIEWS.entregas();
+    return;
+  }
   const draw = () => {
     if (!$("push-list")) return;
     const authors = [...new Set(all.map((c) => c.author))];
-    $("push-who").innerHTML = '<span class="chip-label">Quem</span>' + ["", ...authors].map((a) =>
-      `<span class="chip ${a === pushWho ? "active" : ""}" data-a="${esc(a)}">${a ? esc(a) : "Todos"}</span>`).join("");
-    $("push-kind").innerHTML = '<span class="chip-label">O quê</span>' + [["", "Tudo"], ...PUSH_KINDS].map(([k, label]) =>
-      `<span class="chip ${k === pushKind ? "active" : ""}" data-k="${k}">${t(label)}</span>`).join("");
+    $("push-who").innerHTML = `<span class="vw-chip-label">${t("Quem")}</span>` + ["", ...authors].map((a) =>
+      `<button class="chp ${a === pushWho ? "on" : ""}" data-a="${esc(a)}">${a ? esc(a) : t("Todos")}</button>`).join("");
+    $("push-kind").innerHTML = `<span class="vw-chip-label">${t("O quê")}</span>` + [["", "Tudo"], ...PUSH_KINDS].map(([k, label]) =>
+      `<button class="chp ${k === pushKind ? "on" : ""}" data-k="${k}">${t(label)}</button>`).join("");
     const items = all.filter((c) => (!pushWho || c.author === pushWho) && (!pushKind || c.kinds?.[pushKind]));
-    $("push-list").innerHTML = items.length ? items.map(pushHtml).join("") : `<div class="empty">${t("Nenhum push com isto.")}</div>`;
+    $("push-list").innerHTML = items.length ? items.map(pushHtml).join("") : `<div class="panel">${!all.length
+      ? ui.empty("layers", "Ainda sem entregas", "Cada push para o GitHub aparece aqui, com as fotos, o design, os textos e o código que mudaram. Confirma os repositórios em library/repos.json.", `<a class="btn sm" href="#/codigo">${t("Ver o código")}</a>`)
+      : ui.empty("search", "Nenhum push com isto", "Muda o filtro de cima para ver os outros.", `<button class="btn sm" data-a="" data-k="">${t("Ver tudo")}</button>`)}</div>`;
     for (const img of $("push-list").querySelectorAll("img[data-blob]")) { // a picture needs the sign-in, so it cannot be a plain src
       fetch(img.dataset.blob, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => (r.ok ? r.blob() : Promise.reject()))
@@ -1586,7 +2005,12 @@ HUB_VIEWS.entregas = async function () {
         .catch(() => img.closest("figure").classList.add("gone"));
     }
   };
-  $("push-who").onclick = (e) => { if (e.target.dataset.a !== undefined) { pushWho = e.target.dataset.a; draw(); } };
-  $("push-kind").onclick = (e) => { if (e.target.dataset.k !== undefined) { pushKind = e.target.dataset.k; draw(); } };
+  $("view").onclick = (e) => {
+    const b = e.target.closest("[data-a], [data-k]");
+    if (!b) return;
+    if (b.dataset.a !== undefined) pushWho = b.dataset.a;
+    if (b.dataset.k !== undefined) pushKind = b.dataset.k;
+    draw();
+  };
   draw();
 };

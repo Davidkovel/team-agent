@@ -41,6 +41,7 @@ function lazyView(id, script, style) {
 lazyView("escritorio", "hub/crew.js", "hub/crew.css");   // the command centre (crew-board.js) runs on the cave's engine
 lazyView("saude", "hub/health.js", "hub/office.css");
 lazyView("empresa", "hub/crew.js", "hub/crew.css");
+lazyView("mensagens", "hub/mensagens.js", "hub/mensagens.css");   // the team writes to each other (routers/messages.py)
 lazyView("skills", "hub/skills.js", "hub/skills.css");   // the company's skills library: who masters each one
 lazyView("kit", "hub/kit.js", "hub/kit.css");   // Trabalho › Kit do Claude: the same plugins and skills on every PC
 lazyView("mercados", "hub/mercados.js", "hub/mercados.css"); // Mercados: TradingView, SEC, paper trading
@@ -58,6 +59,7 @@ const HUB_ICONS = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   token: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 9.5h7M12 9.5V16"/>',
   layers: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>',
+  chat: '<path d="M4 6.5A2.5 2.5 0 016.5 4h11A2.5 2.5 0 0120 6.5v7a2.5 2.5 0 01-2.5 2.5H10l-4.5 4v-4h0A1.5 1.5 0 014 14.5z"/><path d="M8.5 9h7M8.5 12h4.5"/>',
   link: '<path d="M10 14a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1"/><path d="M14 10a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/>',
   monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.5 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3h0a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9v0a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>',
@@ -164,8 +166,14 @@ const ui = {
   error: (message) => `<div class="empty-state err">${icon("alert")}<b>${t("Algo correu mal")}</b><p>${esc(message || t("Não foi possível ligar ao Hub."))}</p>
     <button class="btn sm" data-retry>${t("Tentar outra vez")}</button></div>`,
   skeleton: (lines = 3) => `<div class="skel">${"<i></i>".repeat(lines)}</div>`,
-  head: (eyebrow, title, sub = "", actions = "") => `<header class="ph"><div>${eyebrow ? `<div class="ph-eyebrow">${esc(t(eyebrow))}</div>` : ""}
-    <h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ""}</div><div class="ph-actions">${actions}</div></header>`,
+  // the eyebrow over every title is the page's section of the sidebar («04 · Trading»), so all pages say where they are
+  // the same way; the eyebrow a page passes is used only for a page outside the sidebar (docs/hub-paginas.md)
+  head: (eyebrow, title, sub = "", actions = "") => {
+    const where = typeof navOf === "function" && typeof route === "function" ? navOf(route().tab) : null;
+    const above = where ? `${where.section[0]} · ${t(where.section[1])}` : eyebrow ? t(eyebrow) : "";
+    return `<header class="ph"><div>${above ? `<div class="ph-eyebrow">${esc(above)}</div>` : ""}
+    <h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ""}</div><div class="ph-actions">${actions}</div></header>`;
+  },
   sec: (title, right = "") => `<div class="sec"><span>${esc(t(title))}</span>${right}</div>`,
   btn: (label, attrs = "", cls = "", ic = "") => `<button class="btn ${cls}" ${attrs}>${ic ? icon(ic) : ""}${esc(t(label))}</button>`,
   // a figure, or the plain statement that there is none: never a made-up zero

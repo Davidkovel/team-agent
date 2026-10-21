@@ -18,7 +18,7 @@
   const HALVES = [["lib", "Biblioteca"], ["pc", "Neste PC"], ["loja", "Loja"]];
   const THEME_ICON = { "Sites": "sites", "Clientes e vendas": "target", "SEO": "search", "Anúncios": "flag", "Vídeo": "videos",
     "Redes sociais e conteúdo": "note", "Print-on-demand": "bag", "Loja Shopify": "wallet", "Marca e design": "tema", "Marketing": "trend",
-    "Documentos": "docs", "Finanças e dados": "chart", "Trading": "candles", "Equipa e RH": "users", "Código": "code", "Claude, MCP e skills": "plugins", "Operações e suporte": "gear" };
+    "Documentos": "docs", "Finanças e dados": "chart", "Trading": "candles", "Equipa e RH": "users", "Hub e widget": "monitor", "Código": "code", "Claude, MCP e skills": "plugins", "Operações e suporte": "gear" };
   const fold = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const castOf = (id) => cast.find((c) => c.id === id);
   const of = (kind) => (S ? S.skills.filter((k) => k.kind === kind) : []);
@@ -171,7 +171,7 @@
   async function take(names, all, btn) {
     if (btn) { btn.disabled = true; btn.innerHTML = `${icon("spark")}${esc(t("A trazer…"))}`; }
     try {
-      const r = await api("/api/skills/adopt", { method: "POST", body: JSON.stringify(all ? { all: true } : { names }) });
+      const r = await api("/api/skills/adopt", { method: "POST", body: (all ? { all: true } : { names }) });
       if (!$("modal").hidden) closeModal();
       if (all) { tab = "lib"; sessionStorage.setItem("sk.tab", tab); }
       await load();
@@ -184,7 +184,7 @@
     if (!url) return input.focus();
     go.disabled = true; go.textContent = t("A ler o GitHub…");
     try {
-      const r = await api("/api/skills/import", { method: "POST", body: JSON.stringify({ url }) });
+      const r = await api("/api/skills/import", { method: "POST", body: ({ url }) });
       input.value = ""; tab = "lib"; sessionStorage.setItem("sk.tab", tab);
       await load();
       flash(landed(r.added) || t("Esse link não trouxe nada de novo: essas skills já estão na biblioteca."));
@@ -197,7 +197,7 @@
     const crew = k.crew.includes(id) ? k.crew.filter((c) => c !== id) : [...k.crew, id];
     btn.classList.toggle("on");
     try {
-      const r = await api(`/api/skills/${encodeURIComponent(name)}/crew`, { method: "PUT", body: JSON.stringify({ crew }) });
+      const r = await api(`/api/skills/${encodeURIComponent(name)}/crew`, { method: "PUT", body: ({ crew }) });
       k.crew = r.crew;
       draw();
     } catch (e) { btn.classList.toggle("on"); flash(e.message); }
@@ -208,7 +208,7 @@
     const before = k.tema;
     document.querySelectorAll("#sk-themes [data-tema]").forEach((b) => b.classList.toggle("on", b === btn));
     try {
-      await api(`/api/skills/${encodeURIComponent(name)}/tema`, { method: "PUT", body: JSON.stringify({ tema }) });
+      await api(`/api/skills/${encodeURIComponent(name)}/tema`, { method: "PUT", body: ({ tema }) });
       k.tema = tema;
       draw();
       flash(t("{s} passou para o tema {th}", { s: name, th: t(tema) }));

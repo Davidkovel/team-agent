@@ -59,10 +59,11 @@
     if (r.tab === "codigo" || r.tab === "entregas" || r.tab === "kit") return ["#/empresas", "Trabalho"];
     if (r.tab === "aprovacoes" || r.tab === "semana") return ["#/tarefas", "Tarefas"];
     if (r.tab === "agentes" && r.company) return ["#/equipa", "Equipa"];
+    if (r.tab === "mensagens" && r.company) return ["#/mensagens", "Mensagens"];   // a conversation goes back to the list
     if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
     return null;
   };
-  const MORE_PAGES = ["empresa", "skills", "etsy", "novidades", "mercados", "trading", "sinal", "robos", "reforco", "gap", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
+  const MORE_PAGES = ["mensagens", "empresa", "skills", "etsy", "novidades", "mercados", "trading", "sinal", "robos", "reforco", "gap", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
   const titleOf = (r, fallback) => {
     if (r.tab === "baredesk") return r.company ? companies.find((c) => c.id === "baredesk")?.sections.find((x) => x.id === r.company)?.label || (r.company === "loja" ? "Loja" : "BareDesk") : "BareDesk";
     if (r.tab === "empresas" && r.company) return r.section ? companies.find((c) => c.id === r.company)?.sections.find((x) => x.id === r.section)?.label || coName(r.company) : coName(r.company);
@@ -103,16 +104,24 @@
   $("m-bell").onclick = (e) => { e.stopPropagation(); sheet.hidden = true; location.hash = "#/avisos"; };
   $("m-search").onclick = (e) => { e.stopPropagation(); sheet.hidden = true; $("open-palette").click(); };
 
-  // "Mais": who you are on top, the rest of the Hub as a grid of chrome keys, then the phone's own settings
+  // "Mais": who you are on top, the rest of the Hub as chrome keys in the sidebar's five numbered sections (NAV in app.js,
+  // so a page added there shows up here by itself; the pages of the bar below are left out), then the phone's own settings
+  const KEY_ICON = { aovivo: "eye", robos: "bot", reforco: "target", gap: "clock", memoria: "note", saude: "pulse", definicoes: "gear" };
   function openMore() {
-    const keys = [["play", "Empresa AMG", "#/empresa"], ["layers", "Skills", "#/skills"], ["spark", "Fábrica Etsy", "#/etsy"], ["spark", "Novidades", "#/novidades"], ["users", "Equipa", "#/equipa"], ["chart", "Análise", "#/analise"], ["candles", "Mercados", "#/mercados"], ["trend", "Sala de Trading", "#/trading"], ["trend", "Sinal na notícia", "#/sinal"], ["trend", "Robôs", "#/robos"], ["trend", "Reforço na notícia", "#/reforco"], ["trend", "Gap da manhã", "#/gap"],
-      ["layers", "Memória", "#/memoria"], ["pulse", "Saúde", "#/saude"], ["gear", "Definições", "#/definicoes"]];
+    const inBar = new Set(TABS.flatMap(([, , , pages]) => pages));
+    const groups = [];
+    for (const [, ic, pages, sec] of NAV) {
+      const keys = pages.filter(([id, , hidden]) => !hidden && !inBar.has(id)).map(([id, label]) => [KEY_ICON[id] || ic, label, `#/${id}`]);
+      if (!keys.length) continue;
+      if (groups.length && groups[groups.length - 1].sec === sec) groups[groups.length - 1].keys.push(...keys);
+      else groups.push({ sec, keys });
+    }
     const here = location.hash;
     sheet.querySelector(".m-box").innerHTML = `<i class="m-grab"></i>
       <div class="m-me">${ui.avatar(me.display_name, "lg")}<div><b>${esc(me.display_name)}</b><span>${esc(me.username)} · ${t(me.lead ? "Dirige a equipa" : "Equipa")}</span></div>
         <img class="m-me-star" src="assets/icon-192.png" alt=""></div>
-      <h3>${t("Agente AMG")}</h3>
-      <div class="m-keys">${keys.map(([ic, label, href]) => `<a class="m-key ${here.startsWith(href) ? "on" : ""}" href="${href}"><span>${icon(ic)}</span>${t(label)}</a>`).join("")}</div>
+      ${groups.map(({ sec, keys }) => `<h3 class="m-sec"><i>${SECTIONS[sec][0]}</i>${t(SECTIONS[sec][1])}</h3>
+      <div class="m-keys">${keys.map(([ic, label, href]) => `<a class="m-key ${here === href || here.startsWith(href + "/") ? "on" : ""}" href="${href}"><span>${icon(ic)}</span>${t(label)}</a>`).join("")}</div>`).join("")}
       <h3>${t("Neste telemóvel")}</h3>
       <div class="m-list"><button class="m-row" data-act="phone">${icon("bell")}<span>${t("Receber as notificações no telemóvel")}</span>${icon("chev")}</button></div>`;
     sheet.hidden = false;

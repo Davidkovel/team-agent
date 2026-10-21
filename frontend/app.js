@@ -128,25 +128,33 @@ $("modal").onclick = (e) => { if (e.target === $("modal") || e.target.closest("[
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 /* ---------- routing ---------- */
-// sidebar: [label, icon, [id, label, hidden]...]. One link per section; a section with several pages shows them as
-// tabs on top of the page, so the sidebar stays short. A hidden page still opens by its address (links, Ctrl+K) but
-// has no tab: pages the team does not use day to day (agents, history, AI usage, expenses).
+// sidebar: [label, icon, [id, label, hidden]..., section]. Five numbered sections (Marco, 21 Oct: «muito organizada,
+// como uma aplicação»), one link per entry; an entry with several pages shows them as tabs on top of the page, so the
+// sidebar stays short. A hidden page still opens by its address (links, Ctrl+K) but has no tab. The Ctrl+K palette and
+// the phone's «Mais» read this same list, and every page's eyebrow says its section (ui.head). docs/hub-paginas.md.
+const SECTIONS = { comando: ["01", "Comando"], agentes: ["02", "Agentes"], negocios: ["03", "Negócios"], trading: ["04", "Trading"], sistema: ["05", "Sistema"] };
 const NAV = [
-  ["Início", "home", [["home", "Início"]]],
-  ["Escritório", "bot", [["escritorio", "Escritório"]]],
-  ["Empresa AMG", "users", [["empresa", "Empresa AMG"]]],
-  ["Skills", "layers", [["skills", "Skills"]]],
-  ["Novidades", "spark", [["novidades", "Novidades"]]],
-  ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]]],
-  ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes", true], ["historico", "Histórico", true]]],
-  ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]]],
-  ["Fábrica Etsy", "spark", [["etsy", "Fábrica Etsy"]]],
-  ["Mercados", "candles", [["mercados", "Mercados"]]],
-  ["Sala de Trading", "trend", [["trading", "Sala de Trading"], ["sinal", "Sinal na notícia"], ["robos", "Robôs"], ["reforco", "Reforço na notícia"], ["gap", "Gap da manhã"]]],
-  ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA", true], ["despesas", "Despesas", true]]],
-  ["Sistema", "gear", [["memoria", "Memória"], ["saude", "Saúde"], ["definicoes", "Definições"]]],
+  ["Início", "home", [["home", "Início"]], "comando"],
+  ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]], "comando"],
+  ["Mensagens", "chat", [["mensagens", "Mensagens"]], "comando"],
+  ["Novidades", "spark", [["novidades", "Novidades"]], "comando"],
+  ["Escritório", "bot", [["escritorio", "Escritório"]], "agentes"],
+  ["Empresa AMG", "grid", [["empresa", "Empresa AMG"]], "agentes"],
+  ["Skills", "layers", [["skills", "Skills"]], "agentes"],
+  ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes"], ["historico", "Histórico"]], "agentes"],
+  ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]], "negocios"],
+  ["Fábrica Etsy", "bag", [["etsy", "Fábrica Etsy"]], "negocios"],
+  ["Sala de Trading", "trend", [["trading", "Sala de Trading"], ["sinal", "Sinal na notícia"], ["robos", "Robôs"], ["reforco", "Reforço na notícia"], ["gap", "Gap da manhã"]], "trading"],
+  ["Mercados", "candles", [["mercados", "Mercados"]], "trading"],
+  ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA"], ["despesas", "Despesas"]], "sistema"],
+  ["Sistema", "gear", [["memoria", "Memória"], ["saude", "Saúde"], ["definicoes", "Definições"]], "sistema"],
 ];
 const TABS = NAV.flatMap(([, , pages]) => pages);
+// the entry and the section a page belongs to: {entry, section: ["04", "Trading"]}
+function navOf(tab) {
+  const entry = NAV.find(([, , pages]) => pages.some(([id]) => id === tab));
+  return entry ? { entry, section: SECTIONS[entry[3]] } : null;
+}
 const badgeCount = {}; // page id -> number, kept so tabs drawn later show it too
 const badgeHtml = (id) => `<i class="badge ${badgeHot[id] ? "hot" : ""}" data-badge="${id}" ${badgeCount[id] ? "" : "hidden"}>${badgeCount[id] || ""}</i>`;
 const badgeHot = {};   // page id -> true: the number is something new for this person, lit (the Tarefas of the sidebar)
@@ -166,8 +174,9 @@ function route() {
 
 function render() {
   const r = route();
-  $("tabs").innerHTML = NAV.map(([label, ic, pages]) =>
-    `<a class="side-link ${pages.some(([id]) => id === r.tab) ? "active" : ""}" href="#/${pages[0][0]}" title="${t(label)}">${icon(ic)}<span>${t(label)}</span>${badgeHtml(pages[0][0])}</a>`).join("");
+  $("tabs").innerHTML = NAV.map(([label, ic, pages, sec], i) =>
+    (sec !== (NAV[i - 1] || [])[3] ? `<div class="side-group"><i>${SECTIONS[sec][0]}</i>${t(SECTIONS[sec][1])}</div>` : "")
+    + `<a class="side-link ${pages.some(([id]) => id === r.tab) ? "active" : ""}" href="#/${pages[0][0]}" title="${t(label)}">${icon(ic)}<span>${t(label)}</span>${badgeHtml(pages[0][0])}</a>`).join("");
   $("view").scrollTop = 0;
   $("view").onclick = null; // a page's own click handling ends with the page
   // the pages of the Team AI Hub (frontend/hub/*.js) take the place of the older ones with the same name

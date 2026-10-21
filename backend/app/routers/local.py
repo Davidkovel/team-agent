@@ -83,6 +83,9 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
     return out
 
 
+CAPTION = {"message": "MENSAGEM PARA TI"}   # the widget card's small capitals; a task keeps its own
+
+
 @router.get("/notices")
 async def local_notices(request: Request, user: str, after: int | None = None, db: AsyncSession = Depends(get_db)):
     """The tasks that were sent (to anyone) since notice `after`, for the widget of `user` to show.
@@ -91,16 +94,16 @@ async def local_notices(request: Request, user: str, after: int | None = None, d
     replay old news. Each item says whether it is `directed` at this person (the widget rings for those)."""
     local_or_team_key(request)
     person = await _person(db, user)
-    mine = (Notification.user_id == person.id, Notification.kind == "task_new")
+    mine = (Notification.user_id == person.id, Notification.kind.in_(("task_new", "message")))   # a message is a card too (Mensagens)
     if sync.ACTIVE:  # ids are not in arrival order between computers: count by when each one got here
         latest, found = await sync.notices(db, Notification, mine, after)
         return {"latest": latest, "items": [{"id": seq, "title": n.title, "body": n.body, "href": n.href, "directed": bool(n.directed),
-                                             "created_at": iso(n.created_at)} for seq, n in found]}
+                                             "caption": CAPTION.get(n.kind), "created_at": iso(n.created_at)} for seq, n in found]}
     latest = (await db.execute(select(func.max(Notification.id)).where(*mine))).scalar() or 0
     rows = [] if after is None else (await db.execute(select(Notification).where(*mine, Notification.id > after)
                                                       .order_by(Notification.id))).scalars()
     return {"latest": latest, "items": [{"id": n.id, "title": n.title, "body": n.body, "href": n.href, "directed": bool(n.directed),
-                                         "created_at": iso(n.created_at)} for n in rows]}
+                                         "caption": CAPTION.get(n.kind), "created_at": iso(n.created_at)} for n in rows]}
 
 
 @router.get("/inbox")

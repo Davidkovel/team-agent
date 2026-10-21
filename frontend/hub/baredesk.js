@@ -1,7 +1,9 @@
-// BareDesk: a tab of Trabalho (Empresas, Projetos, Código, BareDesk). One page for the whole project: the shop's numbers
-// first, then the sections of the company (Tema, Skills, Plugins, Vídeos, Fotos, Documentos) as buttons on top.
-// Shopify (sales) and Meta Ads come from /api/store/summary, which the Hub keeps for 45 s. A figure is live or it says it
-// is missing: never a made-up zero. The sections are the company's own (library/companies/baredesk/company.json).
+// BareDesk: a tab of Trabalho (Empresas, Projetos, Código, Entregas, BareDesk, Kit do Claude). One page for the whole
+// project: the shop's numbers first, then the sections of the company (Sites, Tema, Skills, Plugins, Vídeos, Fotos,
+// Documentos) as a bar on top. Shopify (sales) and Meta Ads come from /api/store/summary, which the Hub keeps for 45 s.
+// A figure is live or it says it is missing: never a made-up zero. With neither connected the shop is one panel that says
+// what connecting gives and exactly which key is missing. The sections are the company's own
+// (library/companies/baredesk/company.json). Styles: amg.css (the shop's figures, shared with Mercados) and baredesk.css.
 
 let shopPeriod = "today";
 let shopSeen = null;   // the newest order already seen, so a new sale rings once
@@ -13,10 +15,34 @@ const shInt = (n) => (n == null ? "—" : Math.round(n).toLocaleString("pt-PT"))
 const shRoas = (n) => n.toFixed(2).replace(".", ",") + "×";
 const shPct = (n) => n.toFixed(n < 10 ? 1 : 0).replace(".", ",") + "%";
 
-const shOff = (what, key) => `<div class="sh-off">${icon("alert")}<div><b>${t("{x} por ligar", { x: what })}</b>
-  <span>${t("Falta {k} no backend/.env deste PC.", { k: key })}</span></div></div>`;
-const shBad = (what, err) => `<div class="sh-off bad">${icon("alert")}<div><b>${t("{x} não respondeu", { x: what })}</b><span>${esc(err)}</span></div></div>`;
-const shMissing = (what, block) => `<div class="panel pad">${block.source === "error" ? shBad(what, block.error) : shOff(what, block.missing)}</div>`;
+// The two sources of the shop: what each gives once connected, and how it stands on this PC.
+const SH_SOURCES = {
+  shopify: ["Shopify", "bag", "As vendas, a faturação e os produtos que mais vendem."],
+  meta: ["Meta Ads", "trend", "O gasto em anúncios, os cliques, o caminho até à compra e cada campanha."],
+};
+function shLink(key, block) {
+  const [name, ic, gives] = SH_SOURCES[key];
+  const [tone, state] = block.source === "live" ? ["ok", "Ligado"] : block.source === "error" ? ["bad", "Não respondeu"] : ["wait", "Por ligar"];
+  const fix = block.source === "error" ? `<span class="bd-err">${esc(block.error || "")}</span>`
+    : block.source === "live" ? "" : `<small>${t("Falta no backend/.env")}</small><code>${esc(block.missing || "")}</code>`;
+  return `<div class="bd-link ${tone}"><span class="bd-link-ic">${icon(ic)}</span>
+    <div class="bd-link-t"><b>${name}</b><span>${t(gives)}</span></div>
+    <div class="bd-link-k">${fix}</div><span class="st ${tone}"><i></i>${t(state)}</span></div>`;
+}
+
+// Neither Shopify nor Meta connected: one panel instead of six empty figures and two warnings.
+function shOffline(s) {
+  const keys = s.shopify.source === "not_connected" || s.meta.source === "not_connected";
+  return `<section class="panel bd-connect">
+    <div class="bd-connect-head"><span class="bd-connect-ic">${icon("bag")}</span>
+      <div><h2>${t("A loja ainda não está ligada a este Hub")}</h2>
+        <p>${t("Ligada, esta página mostra a faturação e as vendas da BareDesk, o que mais vende e o que os anúncios da Meta trazem, atualizado a cada minuto. Cada venda nova dá um aviso no Hub.")}</p></div></div>
+    <div class="bd-connect-list">${shLink("shopify", s.shopify)}${shLink("meta", s.meta)}</div>
+    <p class="bd-connect-foot">${icon("key")}<span>${keys
+      ? t("Para ligar: põe a chave que falta no ficheiro backend/.env deste PC e reinicia o Hub. Os números aparecem sozinhos.")
+      : t("As chaves estão postas, mas o serviço não respondeu. Confirma se a chave ainda é válida e reinicia o Hub.")}</span></p>
+  </section>`;
+}
 
 const shKpi = (label, value) => `<div class="panel bd-kpi"><span class="bd-l">${t(label)}</span>${ui.num(value)}</div>`;
 const shHead = (title, right = "") => `<header class="bd-ph"><b>${t(title)}</b>${right ? `<span>${right}</span>` : ""}</header>`;
@@ -92,7 +118,9 @@ function shCampaigns(a) {
 // The shop in one page: the numbers that matter, then the sales, then what sells and what the ads bring.
 function drawShop(s, p) {
   const shop = s.shopify, ads = s.meta, shopOn = shop.source === "live", adsOn = ads.source === "live";
+  if (!shopOn && !adsOn) return shOffline(s);
   const w = shopOn ? shop[p] : null, a = adsOn ? ads[p] : null;
+  const missing = [shopOn ? "" : shLink("shopify", shop), adsOn ? "" : shLink("meta", ads)].join("");
   return `<div class="bd-kpis">
       ${shKpi("Faturação", shopOn ? shMoney(w.revenue, shop.currency) : null)}
       ${shKpi("Vendas", shopOn ? w.orders : null)}
@@ -100,11 +128,23 @@ function drawShop(s, p) {
       ${shKpi("Gasto em anúncios", adsOn ? shMoney(a.spend, "EUR") : null)}
       ${shKpi("ROAS", adsOn && a.roas != null ? shRoas(a.roas) : null)}
       ${shKpi("Faturação ÷ anúncios", shopOn && adsOn && a.spend ? shRoas(w.revenue / a.spend) : null)}</div>
+    ${missing ? `<section class="panel bd-connect slim">${missing}</section>` : ""}
     ${shopOn ? `<div class="bd-cols">
       <section class="panel pad">${shHead("Faturação por dia", t("últimos 14 dias"))}${shBars(shop.days, shop.currency)}</section>
       <section class="panel pad">${shHead("Últimas vendas")}${shOrders(shop)}</section></div>` : ""}
-    <div class="bd-cols even">${shopOn ? shTop(shop) : shMissing("Shopify", shop)}${adsOn ? shFunnel(a) : shMissing("Meta Ads", ads)}</div>
+    ${shopOn && adsOn ? `<div class="bd-cols even">${shTop(shop)}${shFunnel(a)}</div>` : shopOn ? shTop(shop) : shFunnel(a)}
     ${adsOn ? shAds(a) + shCampaigns(a) : ""}`;
+}
+
+// Beside the title: live with the time of the figures and the period, or plainly not connected.
+function shTools(s) {
+  const el = $("bd-tools");
+  if (!el) return;
+  const live = s.shopify.source === "live" || s.meta.source === "live";
+  paint(el, live
+    ? `<span class="bd-state st ok"><i></i>${t("Ao vivo · {h}", { h: fmt.hhmm(s.at) })}</span>
+      <div class="segx">${SHOP_PERIODS.map(([v, l]) => `<button data-p="${v}" class="${v === shopPeriod ? "on" : ""}">${t(l)}</button>`).join("")}</div>`
+    : `<span class="bd-state st wait"><i></i>${t("Loja por ligar")}</span>`);
 }
 
 // A section of the company (Tema, Fotos, Vídeos...): the same lists and galleries as in Empresas, inside this page.
@@ -112,43 +152,41 @@ async function bdSection(company, section) {
   const body = $("bd-body");
   const data = await api(`/api/hub/${company.id}/${section.id}`);
   if ($("bd-body") !== body) return; // the person went elsewhere meanwhile
-  const note = data.missing?.length ? `<p class="muted">${t("Pasta não encontrada neste PC:")} ${data.missing.map(esc).join(", ")}</p>` : "";
+  const away = data.missing?.length ? t("Não encontrei neste PC: {x}.", { x: data.missing.join(", ") }) : "";
   const render = { cards: renderCards, static: renderCards, files: renderFiles, videos: renderMedia, photos: renderMedia, sites: renderSites }[data.kind];
-  body.innerHTML = note + (data.items.length ? "" : ui.empty(section.id, "Ainda não há nada aqui", ""));
-  if (data.items.length) render(body, { company, section, data });
+  if (!data.items.length) { body.innerHTML = `<div class="panel">${ui.empty(section.id, "Ainda não há nada aqui", away || section.description || "")}</div>`; return; }
+  body.innerHTML = away ? `<p class="bd-away">${icon("alert")}<span>${esc(away)}</span></p>` : "";
+  render(body, { company, section, data });
 }
 
 HUB_VIEWS.baredesk = async function (r) {
+  await lazyFile("hub/baredesk.css").catch(() => {});
   const company = companies.find((c) => c.id === "baredesk");
   if (!company) { page(ui.empty("building", "BareDesk não está na biblioteca", "Falta library/companies/baredesk.")); return; }
   const sections = [{ id: "loja", label: "Loja", icon: "bag" }, ...company.sections];
   const current = sections.find((x) => x.id === r.company) || sections[0], shop = current.id === "loja";
-  const periods = `<div class="bd-tools" ${shop ? "" : "hidden"}><span class="bd-live" id="bd-live"></span>
-    <div class="segx" id="bd-period">${SHOP_PERIODS.map(([v, l]) => `<button data-p="${v}" class="${v === shopPeriod ? "on" : ""}">${t(l)}</button>`).join("")}</div></div>`;
-  page(`${ui.head("Trabalho", "BareDesk", company.tagline || "", periods)}
-    <nav class="bd-nav">${sections.map((x) => `<a class="bd-pill ${x === current ? "on" : ""}" href="#/baredesk${x.id === "loja" ? "" : "/" + x.id}">${icon(x.id === "loja" ? "bag" : x.id)}<span>${esc(t(x.label))}</span>${x.count != null ? `<i>${x.count}</i>` : ""}</a>`).join("")}</nav>
-    ${shop ? "" : `<p class="bd-desc">${esc(current.description || "")}</p>`}<div class="${shop ? "bd" : ""}" id="bd-body"></div>`);
+  page(`<div class="bd-page">${ui.head("Trabalho", "BareDesk", company.tagline || "", shop ? `<div class="bd-tools" id="bd-tools"></div>` : "")}
+    <nav class="bd-nav">${sections.map((x) => `<a class="bd-pill ${x === current ? "on" : ""}" href="#/baredesk${x.id === "loja" ? "" : "/" + x.id}">${icon(x.id === "loja" ? "bag" : x.id)}<span>${esc(t(x.label))}</span>${x.count ? `<i>${x.count}</i>` : ""}</a>`).join("")}</nav>
+    ${shop ? "" : `<p class="bd-desc">${esc(current.description || "")}</p>`}<div class="${shop ? "bd" : "bd-sec"}" id="bd-body"></div></div>`);
   if (!shop) { shopReload = null; await bdSection(company, current); return; }
   const load = () => mount($("bd-body"), async () => {
     const s = await api("/api/store/summary");
     const newest = s.shopify.recent?.[0];
     if (newest && shopSeen && newest.name !== shopSeen) flash(t("Nova venda na BareDesk: {n} · {v}", { n: newest.name, v: shMoney(newest.total, s.shopify.currency) }));
     if (newest) shopSeen = newest.name;
-    const live = $("bd-live");
-    if (live) live.innerHTML = s.shopify.source === "live" || s.meta.source === "live"
-      ? `<span class="src live">● ${t("Ao vivo")}</span><span class="faint">${t("atualizado {h}", { h: fmt.hhmm(s.at) })}</span>` : "";
+    shTools(s);
     return drawShop(s, shopPeriod);
   }, 5);
   shopReload = load;
-  $("bd-period").onclick = (e) => {
+  $("bd-tools").onclick = (e) => {
     const b = e.target.closest("[data-p]");
     if (!b) return;
     shopPeriod = b.dataset.p;
-    $("bd-period").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    b.parentElement.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
     load();
   };
   await load();
 };
 
 // The shop moves while the page is open: refresh every minute, only while the shop is on screen.
-setInterval(() => { if (shopReload && $("bd-period")) shopReload(); }, 60000);
+setInterval(() => { if (shopReload && $("bd-tools")) shopReload(); }, 60000);

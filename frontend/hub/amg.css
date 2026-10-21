@@ -15,6 +15,8 @@
 
 /* ---------------------------------------------------------------- the room: black, with the light of the car on it */
 html, body { background: var(--bg); }
+/* lining figures everywhere: Cormorant draws old-style digits by default, and a `font:` shorthand resets font-variant-numeric (not this) */
+body { font-feature-settings: "lnum" 1; }
 .hub > main {
   background:
     radial-gradient(900px 380px at 72% 0%, rgba(196, 216, 255, .07), transparent 70%),
@@ -27,7 +29,19 @@ html, body { background: var(--bg); }
 .side-link { border-radius: 5px; letter-spacing: .01em; }
 .side-link.active { background: linear-gradient(90deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .02)); }
 .side-link.active::before { background: var(--chrome); width: 2px; box-shadow: 0 0 8px rgba(238, 245, 255, .6); }
-.side-group { letter-spacing: .2em; font-size: 9.5px; color: #4d535b; }
+/* the tabs of an entry, on top of its pages: a chrome line under the one that is open (it was the blue AI colour) */
+html:not(.is-phone) .subtabs a { position: relative; letter-spacing: .01em; }
+html:not(.is-phone) .subtabs a.on { border-bottom-color: transparent; color: #fff; }
+html:not(.is-phone) .subtabs a.on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 2px;
+  background: var(--chrome); box-shadow: 0 0 10px rgba(238, 245, 255, .35); }
+/* the five numbered sections (app.js NAV): the number in chrome, the name in small spaced capitals, a hairline after */
+.side-group { display: flex; align-items: center; gap: 8px; padding: 16px 8px 6px; letter-spacing: .22em; font-size: 9.5px; color: #5d646d; }
+.side-group:first-child { padding-top: 4px; }
+.side-group i { font: 600 9.5px var(--ui); font-style: normal; letter-spacing: .06em; background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.side-group::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255, 255, 255, .08), transparent); }
+.hub.collapsed .side-group { display: block; height: 1px; margin: 9px 8px 5px; padding: 0; font-size: 0; background: rgba(255, 255, 255, .08); }
+.hub.collapsed .side-group:first-child { display: none; }
+.hub.collapsed .side-group::after, .hub.collapsed .side-group i { display: none; }
 .side-search { border-radius: 6px; background: #0d0f12; }
 
 /* ---------------------------------------------------------------- type */
@@ -53,6 +67,9 @@ html, body { background: var(--bg); }
 .btn.primary, .btn.primary:hover { background: var(--chrome); border-color: #eef1f4; color: #0b0c0e; text-shadow: 0 1px 0 rgba(255, 255, 255, .6);
   box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(0, 0, 0, .25), 0 6px 18px rgba(0, 0, 0, .5); }
 .btn.primary:hover { filter: brightness(1.06); box-shadow: inset 0 1px 0 #fff, 0 8px 26px rgba(0, 0, 0, .55), 0 0 22px rgba(238, 245, 255, .18); }
+/* the old `button.primary` of styles.css took the capitals off every chrome button ("Fazer um lote agora", "Bater o ponto"): a .btn keeps the house type */
+.btn.primary { text-transform: uppercase; letter-spacing: .16em; }
+.btn.sm.primary { letter-spacing: .14em; }
 .btn.quiet { background: transparent; border-color: transparent; box-shadow: none; color: #9aa1aa; }
 .btn.quiet:hover { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .08); box-shadow: none; }
 .btn.ok { background: linear-gradient(180deg, rgba(95, 207, 140, .16), rgba(95, 207, 140, .06)); }
@@ -69,7 +86,7 @@ html, body { background: var(--bg); }
 /* ---------------------------------------------------------------- shared pieces: figures, empty states, avatars, panels */
 .kpi span { font-size: 11px; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi b.num.sm { font-size: 30px; line-height: 1; }
-.empty-state svg.i { width: 34px; height: 34px; padding: 8px; border-radius: 50%; color: #8b929b; border: 1px solid rgba(255, 255, 255, .1);
+.empty-state > svg.i { width: 34px; height: 34px; padding: 8px; border-radius: 50%; color: #8b929b; border: 1px solid rgba(255, 255, 255, .1);
   background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .06), transparent 70%); }
 .empty-state b { letter-spacing: .22em; font-size: 10px; color: #b5bcc4; }
 .st.busy, .st.ok { color: #cfeedd; }

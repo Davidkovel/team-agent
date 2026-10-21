@@ -709,7 +709,7 @@ html.is-phone .m-me b { color: #f4f6f8; font: 500 28px/1 var(--serif); }
 html.is-phone .m-me span { color: #8e939a; font: 600 10px var(--ui); letter-spacing: .18em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html.is-phone .m-me-star { flex: none; width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, .2), 0 0 16px rgba(238, 245, 255, .15); }
 html.is-phone .m-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
-html.is-phone .m-key { display: grid; justify-items: center; gap: 10px; padding: 16px 4px 13px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .07);
+html.is-phone .m-key { display: grid; justify-items: center; gap: 10px; padding: 16px 4px 13px; text-align: center; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .07);
   background: var(--m-lacquer); box-shadow: var(--m-edge); color: #dfe4ea; font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; text-decoration: none;
   transition: transform .12s var(--ease), border-color .15s; }
 html.is-phone .m-key > span { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--metal);
@@ -723,6 +723,10 @@ html.is-phone .m-key[href="#/empresa"] { grid-column: 1 / -1; grid-template-colu
   font-weight: 700; letter-spacing: .02em; }
 html.is-phone .m-key[href="#/empresa"] > span { color: #eef3f8; box-shadow: 0 0 18px rgba(220, 232, 245, .22); }
 html.is-phone .m-key.on > span { background: var(--chrome); color: #0b0c0e; }
+/* the sections of «Mais», numbered like the sidebar */
+html.is-phone #m-sheet h3.m-sec { display: flex; align-items: center; gap: 8px; margin: 2px 2px 10px; }
+html.is-phone #m-sheet h3.m-sec i { font-style: normal; letter-spacing: .06em; background: var(--chrome); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html.is-phone #m-sheet h3.m-sec::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255, 255, 255, .1), transparent); }
 
 /* fields */
 html.is-phone .field input, html.is-phone .field select, html.is-phone .field textarea, html.is-phone .inp, html.is-phone .modal-box input,

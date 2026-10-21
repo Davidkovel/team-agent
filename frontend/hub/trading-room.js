@@ -5,7 +5,9 @@
 // headlines. Also the big alert (showAlert), which trading-alert.js opens on any page.
 // Fetched the first time the page or an alert opens (lazyView). Live: the "trading" event, about once a minute.
 (function () {
-  const UP = "#16e08a", DOWN = "#ff3b5c", GOLD = "#f5c451", BLUE = "#5aa9ff", VIOLET = "#a77bff", INK = "#07080a";
+  // the chart's colours: up and down are the Hub's green and red, the liquidity its amber; blue and violet only tell the
+  // order blocks and the accounts' lines apart on the chart
+  const UP = "#5fcf8c", DOWN = "#ef6f5e", GOLD = "#e2b55c", BLUE = "#5aa9ff", VIOLET = "#a77bff", INK = "#07080a";
   const TFS = ["M5", "M15", "H1", "H4", "D1"];
   const TF_SEC = { M5: 300, M15: 900, H1: 3600, H4: 14400, D1: 86400 };
   const LAYERS = [["fvg", "FVG"], ["ob", "OB"], ["liq", "Liquidez"], ["bos", "BOS/CHoCH"], ["kz", "Killzones"], ["pd", "Premium/desconto"], ["vwap", "VWAP"], ["ema", "EMA 9/21/50"], ["setup", "Setup"]];
@@ -17,6 +19,7 @@
 
   let S = null, chartData = null, view = { n: 120, off: 0 }, hover = null, drag = null, openMeeting = null, clockTimer = 0, chartAt = 0, openTrade = null;
   const bookFilter = { agent: "", status: "", symbol: "" };
+  let bookShow = 30;   // the book shows the newest 30 and grows on request (a phone would otherwise get hundreds of cards)
   let sel = localStorage.getItem("trading.sel") || "XAUUSD", tf = localStorage.getItem("trading.tf") || "M15";
   let layers = Object.assign({ fvg: 1, ob: 1, liq: 1, bos: 1, kz: 1, pd: 0, vwap: 1, ema: 0, setup: 1 }, JSON.parse(localStorage.getItem("trading.layers") || "{}"));
 
@@ -40,63 +43,75 @@
   })();
 
   // ================================================================ the page
+  // The standard anatomy of a Hub page (docs/hub-paginas.md): the head with the actions and the Claude switch as the
+  // state, the sessions as the row of figures, then one section per idea, in the order the desk uses them.
+  const FOCUS = ["XAUUSD", "EURUSD", "GER40", "GBPUSD"];   // what the team trades; the room reads a few more
+  // a section label (ui.sec), with a short hint on the right (hidden on the phone) and maybe a control after it
+  const sec = (title, hint = "", id = "", extra = "") => `<div class="sec"><span${id ? ` id="${id}"` : ""}>${esc(t(title))}</span>${hint || extra
+    ? `<small class="tr-sr">${hint ? `<span class="tr-sr-t">${hint}</span>` : ""}${extra}</small>` : ""}</div>`;
   HUB_VIEWS.trading = async function () {
     await Promise.all([lazyFile("hub/crew-people.js").catch(() => {}), lazyFile("hub/trading-book.css").catch(() => {})]);
+    const actions = `<label class="tr-switch" title="${esc(t("Ligado: as reuniões são dois Claudes a sério, neste PC (gasta do plano deste computador). Desligado: a reunião é escrita a partir dos números."))}">
+        <input type="checkbox" id="tr-claude"><i></i><span id="tr-claude-l">${esc(t("Claude neste PC"))}</span></label>
+      <select id="tr-model" class="inp tr-model" title="${esc(t("Modelo do Claude nas reuniões"))}"></select>
+      <button type="button" class="btn quiet" id="tr-test" title="${esc(t("Mostra o aviso grande com o que a sala vê agora (só neste ecrã)"))}">${icon("bell")}${esc(t("Ver o aviso"))}</button>
+      <button type="button" class="btn primary" id="tr-meet">${icon("users")}${esc(t("Convocar reunião"))}</button>`;
     page(`<div class="tr" id="tr">
-      <header class="tr-head">
-        <div class="tr-brand"><span class="tr-logo">${bars()}</span><div><small>${esc(t("AMG Capital · a mesa de trading da Empresa AMG"))}</small><h1>${esc(t("Sala de Trading"))}</h1></div></div>
-        <div class="tr-clocks" id="tr-clocks"></div>
-        <div class="tr-acts">
-          <label class="tr-switch" title="${esc(t("Ligado: as reuniões são dois Claudes a sério, neste PC (gasta do plano deste computador). Desligado: a reunião é escrita a partir dos números."))}">
-            <input type="checkbox" id="tr-claude"><i></i><span id="tr-claude-l">${esc(t("Claude neste PC"))}</span></label>
-          <select id="tr-model" class="tr-model" title="${esc(t("Modelo do Claude nas reuniões"))}"></select>
-          <button type="button" class="btn" id="tr-test" title="${esc(t("Mostra o aviso grande com o que a sala vê agora (só neste ecrã)"))}">${icon("bell")}${esc(t("Ver o aviso"))}</button>
-          <button type="button" class="btn primary" id="tr-meet">${icon("users")}${esc(t("Convocar reunião"))}</button>
-        </div>
-      </header>
-      <div class="tr-tape" id="tr-tape"><div></div></div>
+      ${ui.head("Trading", t("Sala de Trading"), t("A mesa da AMG Capital: o Pinguim lê as notícias, o Duas-Caras lê o gráfico e reúnem-se para decidir as trades."), actions)}
+      <section class="bd-stats tr-clock" id="tr-clocks"></section>
+      ${sec("Mercados", esc(t("toca num para o abrir no gráfico")))}
       <section class="tr-radar" id="tr-radar"></section>
-      <section class="tr-react" id="tr-react" hidden></section>
-      <section class="tr-score" id="tr-score"></section>
-      <section class="tr-live" id="tr-live"></section>
+      <div class="tr-also" id="tr-also"></div>
+      <div id="tr-react-w" hidden><div id="tr-react-h"></div><section class="panel pad tr-react" id="tr-react"></section></div>
+      <div id="tr-live-w" hidden>${sec("Trades em jogo agora", esc(t("o plano de cada uma, a hora ideal e se ainda dá para entrar")))}<section class="tr-live" id="tr-live"></section></div>
       <div class="tr-main">
-        <section class="tr-chartbox">
-          <div class="tr-chartbar">
-            <div class="tr-sym" id="tr-sym"></div>
-            <div class="tr-tfs" id="tr-tfs">${TFS.map((x) => `<button type="button" data-tf="${x}">${x}</button>`).join("")}</div>
-            <div class="tr-layers" id="tr-layers">${LAYERS.map(([k, l]) => `<button type="button" data-layer="${k}">${esc(t(l))}</button>`).join("")}</div>
-          </div>
-          <div class="tr-canvas"><canvas id="tr-chart"></canvas><div class="tr-tip" id="tr-tip" hidden></div><p class="tr-wait" id="tr-wait">${esc(t("A ler o mercado…"))}</p></div>
-          <div class="tr-read" id="tr-read"></div>
-          <div class="tr-inst" id="tr-inst"></div>
-        </section>
-        <aside class="tr-table" id="tr-table"></aside>
+        <div class="tr-left">
+          ${sec("Gráfico", esc(t("arrasta para andar no tempo · roda para aproximar · duplo clique volta ao início")))}
+          <section class="panel tr-chartbox">
+            <div class="tr-chartbar">
+              <div class="tr-sym" id="tr-sym"></div>
+              <div class="segx tr-tfs" id="tr-tfs">${TFS.map((x) => `<button type="button" data-tf="${x}">${x}</button>`).join("")}</div>
+            </div>
+            <div class="tr-layers" id="tr-layers">${LAYERS.map(([k, l]) => `<button type="button" class="chp" data-layer="${k}">${esc(t(l))}</button>`).join("")}</div>
+            <div class="tr-canvas"><canvas id="tr-chart"></canvas><div class="tr-tip" id="tr-tip" hidden></div><p class="tr-wait" id="tr-wait">${esc(t("A ler o mercado…"))}</p></div>
+          </section>
+          ${sec("Leitura", "", "tr-read-h")}
+          <section class="panel pad tr-read" id="tr-read"></section>
+          ${sec("Contexto institucional", "", "tr-inst-h")}
+          <section class="panel pad tr-inst" id="tr-inst"></section>
+        </div>
+        <aside class="tr-aside">
+          ${sec("Mesa de reunião")}
+          <section class="panel pad tr-table" id="tr-table"></section>
+        </aside>
       </div>
-      <section class="tr-book">
-        <div class="tr-book-h"><h2>${icon("doc")}${esc(t("Diário de trades"))}<small>${esc(t("cada trade decidida numa reunião, seguida vela a vela · R = múltiplos do risco, spread descontado"))}</small></h2>
-          <div class="tr-book-f" id="tr-book-f">
-            <select data-f="agent"><option value="">${esc(t("Todos"))}</option><option value="penguin">Pinguim</option><option value="twoface">Duas-Caras</option><option value="model">${esc(t("Modelo SMC"))}</option></select>
-            <select data-f="status"><option value="">${esc(t("Todos os estados"))}</option><option value="pending,open">${esc(t("Ativas"))}</option><option value="won,lost,be">${esc(t("Fechadas"))}</option><option value="won">${esc(t("Boas"))}</option><option value="lost">${esc(t("Más"))}</option><option value="expired,missed,cancelled,refused">${esc(t("Não entraram"))}</option></select>
-            <select data-f="symbol"><option value="">${esc(t("Todos os instrumentos"))}</option></select>
-          </div></div>
+      ${sec("Placar das contas", esc(t("cada conta a 1% de risco por trade · toca numa para ver as trades dela")))}
+      <section class="cards tr-score" id="tr-score"></section>
+      ${sec("Diário de trades", esc(t("cada trade seguida vela a vela · R = múltiplos do risco, spread descontado")))}
+      <section class="panel tr-book">
+        <div class="tr-book-f" id="tr-book-f">
+          <select class="inp" data-f="agent"><option value="">${esc(t("Todas as contas"))}</option>${Object.keys(NAMES).map((k) => `<option value="${k}">${esc(t(NAMES[k]))}</option>`).join("")}</select>
+          <select class="inp" data-f="status"><option value="">${esc(t("Todos os estados"))}</option><option value="pending,open">${esc(t("Ativas"))}</option><option value="won,lost,be">${esc(t("Fechadas"))}</option><option value="won">${esc(t("Boas"))}</option><option value="lost">${esc(t("Más"))}</option><option value="expired,missed,cancelled,refused">${esc(t("Não entraram"))}</option></select>
+          <select class="inp" data-f="symbol"><option value="">${esc(t("Todos os instrumentos"))}</option></select>
+        </div>
         <div class="tr-book-t" id="tr-book"></div>
       </section>
-      <section class="tr-book tr-bt">
-        <div class="tr-book-h"><h2>${icon("doc")}${esc(t("Backtest do Modelo SMC"))}<small>${esc(t("as mesmas regras da sala, vela a vela sobre as últimas semanas · sem olhar para o futuro, spread descontado"))}</small></h2>
-          <button type="button" class="btn" id="tr-bt-run">${esc(t("Correr o backtest"))}</button></div>
-        <div id="tr-bt"></div>
-      </section>
+      ${sec("Backtest do Modelo SMC", esc(t("as regras da sala, vela a vela, sem olhar para o futuro")), "", `<button type="button" class="btn sm" id="tr-bt-run">${esc(t("Correr o backtest"))}</button>`)}
+      <section class="panel pad tr-bt"><div id="tr-bt"></div></section>
       <div class="tr-lower">
-        <section class="tr-cal"><h2>${icon("calendar")}${esc(t("Calendário económico"))}<small>${esc(t("alto e médio impacto · hora de Lisboa"))}</small></h2><div id="tr-cal"></div></section>
-        <section class="tr-news"><h2>${icon("doc")}${esc(t("Manchetes"))}<small>Reuters · Dow Jones · FXStreet</small></h2><div id="tr-news"></div></section>
+        <div>${sec("Calendário económico", esc(t("alto e médio impacto · hora de Lisboa")))}<section class="panel tr-cal"><div id="tr-cal"></div></section></div>
+        <div>${sec("Manchetes", "Reuters · Dow Jones · FXStreet")}<section class="panel tr-news"><div id="tr-news"></div></section></div>
       </div>
+      ${sec("Contexto", esc(t("o dólar, os juros, o petróleo e o medo do mercado · variação do dia")))}
+      <section class="bd-stats tr-ctx" id="tr-tape"></section>
     </div>`);
     const root = $("tr");
     root.querySelector("#tr-tfs").onclick = (e) => { const b = e.target.closest("[data-tf]"); if (b) { tf = b.dataset.tf; localStorage.setItem("trading.tf", tf); view = { n: 120, off: 0 }; loadChart(true); paintBar(); } };
     root.querySelector("#tr-layers").onclick = (e) => { const b = e.target.closest("[data-layer]"); if (b) { layers[b.dataset.layer] = layers[b.dataset.layer] ? 0 : 1; localStorage.setItem("trading.layers", JSON.stringify(layers)); paintBar(); drawMain(); } };
     root.querySelector("#tr-radar").onclick = (e) => { const b = e.target.closest("[data-sym]"); if (b) pick(b.dataset.sym); };
+    root.querySelector("#tr-also").onclick = (e) => { const b = e.target.closest("[data-sym]"); if (b) pick(b.dataset.sym); };
     root.querySelector("#tr-meet").onclick = () => meet();
-    root.querySelector("#tr-test").onclick = async (e) => { e.currentTarget.disabled = true; try { showAlert(await api("/api/trading-room/alerts/test", { method: "POST" })); } finally { e.currentTarget.disabled = false; } };
+    root.querySelector("#tr-test").onclick = async (e) => { const b = e.currentTarget; b.disabled = true; try { showAlert(await api("/api/trading-room/alerts/test", { method: "POST" })); } finally { b.disabled = false; } };
     root.querySelector("#tr-claude").onchange = (e) => setting({ claude: e.target.checked });
     root.querySelector("#tr-model").onchange = (e) => setting({ model: e.target.value });
     root.querySelector("#tr-table").onclick = (e) => {
@@ -104,8 +119,9 @@
       if (e.target.closest("[data-meet]")) meet();
       const f = e.target.closest("[data-focus]"); if (f) pick(f.dataset.focus);
     };
-    root.querySelector("#tr-book-f").onchange = (e) => { const f = e.target.closest("[data-f]"); if (f) { bookFilter[f.dataset.f] = f.value; paintBook(); } };
+    root.querySelector("#tr-book-f").onchange = (e) => { const f = e.target.closest("[data-f]"); if (f) { bookFilter[f.dataset.f] = f.value; bookShow = 30; paintBook(); } };
     root.querySelector("#tr-book").onclick = (e) => {
+      if (e.target.closest("[data-more-trades]")) { bookShow += 30; paintBook(); return; }
       const r = e.target.closest("[data-trade]"); if (!r) return;
       openTrade = openTrade === r.dataset.trade ? null : r.dataset.trade; paintBook();
     };
@@ -114,7 +130,8 @@
     bindChart($("tr-chart"));
     paintBar();
     clearInterval(clockTimer);
-    clockTimer = setInterval(() => { if (!$("tr")) { clearInterval(clockTimer); return; } paintClocks(); paintCal(); }, 1000);
+    // every second only the clock's text changes; the sessions and the calendar's countdowns are redrawn every 10 s
+    clockTimer = setInterval(() => { if (!$("tr")) { clearInterval(clockTimer); return; } if (document.hidden) return; paintClocks(); if (new Date().getSeconds() % 10 === 0) paintCal(); }, 1000);
     await load();
     loadChart(true);
     loadBacktest();
@@ -165,8 +182,8 @@
   let RX = null;
   function paintReaction() {
     const el = $("tr-react"); if (!el) return;
-    el.hidden = !(RX && RX.key);
-    if (el.hidden) return;
+    $("tr-react-w").hidden = !(RX && RX.key);
+    if (!(RX && RX.key)) return;
     el.onclick = (e) => { const b = e.target.closest("[data-rx]"); if (b) pickReaction(b.dataset.rx === RX.key ? "" : b.dataset.rx); };
     const SP = { BELOW: "Abaixo da previsão", ABOVE: "Acima da previsão", INLINE: "Igual à previsão" };
     // only the markets this event has history for (GBP/USD came later than the rest)
@@ -177,7 +194,7 @@
     const out = !!RX.t && new Date(RX.t) <= new Date();
     const head = !RX.t ? esc(t("Sem data no calendário desta semana · o histórico de todas as saídas"))
       : out && RX.surprise
-      ? `${esc(t("Saiu"))} <b>${fig(RX.actual)}</b> ${esc(t("contra"))} ${fig(RX.forecast)} ${esc(t("de previsão"))} <span class="tr-rx-s ${RX.surprise}">${esc(t(SP[RX.surprise]))}</span>`
+      ? `${esc(t("Saiu"))} <b>${fig(RX.actual)}</b> ${esc(t("contra"))} ${fig(RX.forecast)} ${esc(t("de previsão"))} ${ui.tag(t(SP[RX.surprise]), "warn")}`
       : `${esc(t("Sai"))} <b>${dt(RX.t)}</b> · ${esc(t("previsão"))} <b>${fig(RX.forecast)}</b> · ${esc(t("anterior"))} ${fig(RX.previous)}`;
     const rows = Object.keys(SP).map((s) => {
       const r = RX.table[s] || { n: 0 };
@@ -190,22 +207,23 @@
     const live = lv ? `<div class="tr-rx-live"><h4>${esc(t("Ouro agora"))}</h4>
         <p><b class="${cls(lv.now)}">${pc(lv.now)}</b> ${esc(t("desde a notícia"))} · ${lv.minutes} min · ${esc(t("mínimo"))} <b class="down">${pc(lv.low)}</b></p>
         <h4>${esc(t("As saídas passadas mais parecidas"))}</h4>
-        <table class="tr-rx-t"><thead><tr><th>${esc(t("Dia"))}</th><th>+60 min</th><th>+120 min</th><th>${esc(t("Voltou ao preço de antes?"))}</th></tr></thead><tbody>${
+        <table class="tbl tr-rx-t"><thead><tr><th>${esc(t("Dia"))}</th><th>+60 min</th><th>+120 min</th><th>${esc(t("Voltou ao preço de antes?"))}</th></tr></thead><tbody>${
           lv.similar.map((x) => `<tr><td>${new Date(x.t).toLocaleDateString("pt-PT")} <small>${esc(t(SP[x.surprise]))}</small></td><td class="${cls(x.p60)}">${pc(x.p60)}</td><td class="${cls(x.p120)}">${pc(x.p120)}</td><td>${x.back ? esc(t("sim, em {m} min", { m: x.back })) : esc(t("não no próprio dia"))}</td></tr>`).join("")}</tbody></table></div>` : "";
-    const tabs = (RX.tabs || []).filter((x) => x.has).map((x) => `<button type="button" data-rx="${x.key}" class="${x.key === RX.key ? "on" : ""}">${esc(t(x.name))}${x.t ? `<small>${esc(rxWhen(x.t))}</small>` : ""}</button>`).join("");
+    const tabs = (RX.tabs || []).filter((x) => x.has).map((x) => `<button type="button" data-rx="${x.key}" class="chp ${x.key === RX.key ? "on" : ""}">${esc(t(x.name))}${x.t ? `<small>${esc(rxWhen(x.t))}</small>` : ""}</button>`).join("");
     // the three outcomes at a glance: which way each market went in the first 5 minutes, and how often
     const cards = Object.keys(SP).map((s) => {
       const r = RX.table[s] || { n: 0 };
-      return `<div class="tr-rx-c ${s} ${out && RX.surprise === s ? "now" : ""}"><b>${esc(t("Se sair"))} ${esc(t(SP[s]).toLowerCase())}</b><small>${esc(t("{n} vezes desde {y}", { n: r.n, y: RX.since }))}</small>
+      return `<div class="tr-rx-c ${s} ${out && RX.surprise === s ? "now" : ""}"><b>${esc(t("Se sair"))} ${esc(t(SP[s]).toLowerCase())}</b>${out && RX.surprise === s ? ui.tag(t("Saiu assim"), "warn") : ""}<small>${esc(t("{n} vezes desde {y}", { n: r.n, y: RX.since }))}</small>
         <ul>${SYM.map(([k, n]) => { const c = r[k]; if (!c) return ""; const up = c.avg > 0, often = Math.max(c.up, c.n - c.up);
           return `<li><span>${esc(t(n))}</span><i class="${cls(c.avg)}">${up ? "▲" : "▼"}</i><b class="${cls(c.avg)}">${pc(c.avg)}</b><em>${esc(t(up ? "subiu {a} de {b}" : "desceu {a} de {b}", { a: up ? c.up : c.n - c.up, b: c.n }))}</em><u style="--w:${Math.round(often / Math.max(1, c.n) * 100)}%"></u></li>`; }).join("")}</ul></div>`;
     }).join("");
-    paint(el, `<h2>${icon("calendar")}${esc(t("Reação à notícia"))} · ${esc(t(RX.name))}<small>${esc(t("{n} saídas desde {y} · movimento nos primeiros 5 min, velas de 1 minuto", { n: RX.count, y: RX.since }))}</small></h2>
-      ${tabs ? `<nav class="tr-rx-tabs">${tabs}</nav>` : ""}
+    paint($("tr-react-h"), sec("Reação à notícia", esc(t("{n} saídas desde {y} · os primeiros 5 min, velas de 1 minuto", { n: RX.count, y: RX.since }))));
+    paint(el, `${tabs ? `<nav class="chipbar tr-rx-tabs">${tabs}</nav>` : ""}
+      <h3 class="tr-rx-name">${esc(t(RX.name))}</h3>
       <p class="tr-rx-h">${head}</p>
       <div class="tr-rx-cards">${cards}</div>
       <div class="tr-rx-g">
-        <div><table class="tr-rx-t"><thead><tr><th>${esc(t("O número saiu"))}</th>${SYM.map(([, n]) => `<th>${esc(t(n))}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
+        <div><table class="tbl tr-rx-t tr-rx-big"><thead><tr><th>${esc(t("O número saiu"))}</th>${SYM.map(([, n]) => `<th>${esc(t(n))}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
           <p class="tr-rx-n">${esc(t("Ouro com o número acima da previsão e a cair nos primeiros 5 min: 25 min depois estava mais alto em {a} de {b}. Quedas menores que 0,3% voltaram ao preço de antes em {c} de {d}{m}; de 0,3% ou mais, em {e} de {f}.", {
             a: g.bounce.back, b: g.bounce.n, c: g.small.back, d: g.small.n, m: g.small.minutes ? ` (${t("mediana {x} min", { x: g.small.minutes })})` : "", e: g.big.back, f: g.big.n }))}</p></div>
         ${live}
@@ -236,7 +254,7 @@
     await load().catch(() => {});
     if (Date.now() - chartAt > 15000) loadChart(false);
   });
-  function pick(id) { sel = id; localStorage.setItem("trading.sel", id); view = { n: 120, off: 0 }; paintRadar(); paintBar(); paintRead(); paintInst(); loadChart(true); $("tr-chart").scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+  function pick(id) { sel = id; localStorage.setItem("trading.sel", id); view = { n: 120, off: 0 }; paintRadar(); paintBar(); paintRead(); paintInst(); loadChart(true); $("tr-chart").scrollIntoView({ behavior: "smooth", block: "center" }); }
   async function setting(body) { try { S.settings = await api("/api/trading-room/settings", { method: "POST", body }); } catch (e) { /* shown by the next load */ } paintHead(); }
   async function meet() {
     const b = $("tr-meet"); if (b) b.disabled = true;
@@ -251,6 +269,7 @@
     const st = S && S.settings; if (!st) return;
     const c = $("tr-claude"), m = $("tr-model");
     c.checked = st.claude; c.disabled = !st.installed;
+    c.parentNode.classList.toggle("on", !!st.claude);
     $("tr-claude-l").textContent = !st.installed ? t("Claude não instalado") : st.claude ? t("Claude ligado · {n}/{c} hoje", { n: st.today, c: st.cap }) : t("Claude desligado");
     if (!m.options.length) m.innerHTML = st.models.map((x) => `<option value="${x}">${x[0].toUpperCase() + x.slice(1)}</option>`).join("");
     m.value = st.model; m.hidden = !st.claude;
@@ -259,38 +278,49 @@
     $("tr-meet").innerHTML = `${icon("users")}${esc(running ? t("Em reunião…") : t("Convocar reunião"))}`;
   }
 
+  // the row of figures under the head: the clock, the four sessions, and whether a killzone is on
   function paintClocks() {
     if (!S) return;
-    const now = new Date();
+    const now = new Date(), kz = S.killzone, el = $("tr-clocks"), clock = el && el.querySelector(".tr-now b");
+    if (clock && now.getSeconds() % 10 && el._S === S) { clock.textContent = now.toLocaleTimeString("pt-PT"); return; }
+    if (el) el._S = S;
+    const hm2 = (left) => ({ h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") });
     const ses = S.sessions.map((s) => {
       const left = Math.max(0, Math.round(((new Date(s.open ? s.closes : s.opens)) - now) / 60000));
-      return `<span class="tr-ses ${s.open ? "on" : ""}" title="${esc(s.open ? t("Aberta: fecha em {h}h{m}", { h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") }) : t("Fechada: abre em {h}h{m}", { h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") }))}"><i></i>${esc(t(s.name))}<small>${s.open ? t("fecha {h}h{m}", { h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") }) : t("abre {h}h{m}", { h: Math.floor(left / 60), m: String(left % 60).padStart(2, "0") })}</small></span>`;
+      return `<div class="${s.open ? "on" : ""}"><span class="bd-l">${esc(t(s.name))}</span>
+        <span class="st ${s.open ? "ok" : "off"}"><i></i>${esc(s.open ? t("Aberta") : t("Fechada"))}</span>
+        <small>${esc(s.open ? t("fecha em {h}h{m}", hm2(left)) : t("abre em {h}h{m}", hm2(left)))}</small></div>`;
     }).join("");
-    const kz = S.killzone ? `<span class="tr-kz">${icon("target")}${esc(t("Killzone"))} · ${esc(t(S.killzone.name))}${S.killzone.silver ? ` · <b>${esc(t("silver bullet"))}</b>` : ""}</span>` : "";
-    paint($("tr-clocks"), `<b class="tr-now">${now.toLocaleTimeString("pt-PT")}</b>${ses}${kz}`);
+    paint($("tr-clocks"), `<div class="tr-now"><span class="bd-l">${esc(t("Agora"))}</span><b>${now.toLocaleTimeString("pt-PT")}</b>
+      <small class="${kz ? "tr-kz" : ""}">${kz ? `${esc(t("Killzone de {k}", { k: t(kz.name) }))}${kz.silver ? ` · ${esc(t("silver bullet"))}` : ""}` : esc(t("fora das killzones"))}</small></div>${ses}`);
   }
 
+  // the context of the four: the dollar, the yields, oil, the VIX (the old moving tape, now still: nothing moves for nothing)
+  const CNAME = { DXY: "Dólar (DXY)", US10Y: "Juro 10a EUA", USOIL: "Petróleo", VIX: "VIX", US02Y: "Juro 2a EUA", DE02Y: "Juro 2a Alemanha",
+    GB02Y: "Juro 2a R. Unido", DE10Y: "Juro 10a Alemanha", REAL10: "Juro real 10a", BE10: "Inflação implícita 10a", SPX: "S&P 500", USDJPY: "USD/JPY" };
   function paintTape() {
-    const items = [...S.instruments.map((a) => ({ id: a.id, p: a.price, c: a.chg, dp: a.dp })), ...S.context.map((c) => ({ id: c.id, p: c.price, c: c.chg, dp: c.dp }))];
-    const one = items.map((x) => `<span><b>${x.id}</b>${num(x.p, x.dp)}<em class="${sign(x.c)}">${x.c >= 0 ? "▲" : "▼"} ${pct(x.c)}</em></span>`).join("");
-    const el = $("tr-tape").firstElementChild;
-    if (el._one !== one) { el._one = one; el.innerHTML = one + one; }
+    paint($("tr-tape"), (S.context || []).map((c) => `<div><span class="bd-l">${esc(t(CNAME[c.id] || c.id))}</span><b>${num(c.price, c.dp)}</b>
+      <small class="${sign(c.chg)}">${c.chg == null ? esc(t("Sem dados")) : `${c.chg >= 0 ? "▲" : "▼"} ${pct(c.chg)}`}</small></div>`).join("") || ui.empty("chart", "Sem dados", "O contexto ainda não chegou."));
   }
 
   function trendArrow(tr) { return tr === "bull" ? `<i class="up">▲</i>` : tr === "bear" ? `<i class="down">▼</i>` : `<i>•</i>`; }
+  // the team's four as cards; what else the room reads (Nasdaq, Dow, bitcoin) as a line under them
   function paintRadar() {
-    paint($("tr-radar"), S.instruments.map((a) => {
+    const four = FOCUS.map((id) => S.instruments.find((a) => a.id === id)).filter(Boolean);
+    const rest = S.instruments.filter((a) => !FOCUS.includes(a.id));
+    paint($("tr-radar"), four.map((a) => {
       const s = a.setups[0], pd = a.pd == null ? null : Math.max(0, Math.min(1, a.pd));
       const up = a.above[0], dn = a.below[0];
       return `<button type="button" class="tr-card ${a.id === sel ? "on" : ""} b-${a.bias.dir}" data-sym="${a.id}">
-        <div class="tr-card-h"><b>${a.id}</b><small>${esc(t(a.name))}</small>${s ? `<span class="tr-grade g-${s.grade.replace("+", "p")}">${s.grade}</span>` : ""}</div>
+        <div class="tr-card-h"><b>${a.id}</b><small>${esc(t(a.name))}</small>${a.open ? "" : `<span class="tr-closed">${esc(t("fechado"))}</span>`}${s ? `<span class="tr-grade g-${s.grade.replace("+", "p")}" title="${esc(t("Setup {g} do modelo", { g: s.grade }))}">${s.grade}</span>` : ""}</div>
         <div class="tr-card-p"><strong>${num(a.price, a.dp)}</strong><em class="${sign(a.chg)}">${pct(a.chg)}</em></div>
         <div class="tr-card-tf">${["D1", "H4", "H1", "M15"].map((x) => `<span>${x}${trendArrow(a.tf[x] && a.tf[x].trend)}</span>`).join("")}</div>
         <div class="tr-pd" title="${esc(t("Onde está o preço no range H4: à esquerda desconto, à direita premium"))}"><i style="left:${pd == null ? 50 : pd * 100}%"></i></div>
         <div class="tr-card-l"><span class="up">${up ? `▲ ${esc(short(up.label))} ${num(up.dist, 1)}` : "—"}</span><span class="down">${dn ? `▼ ${esc(short(dn.label))} ${num(dn.dist, 1)}` : "—"}</span></div>
-        ${a.open ? "" : `<span class="tr-closed">${esc(t("fechado"))}</span>`}
       </button>`;
     }).join(""));
+    paint($("tr-also"), rest.length ? `<span class="tr-also-l">${esc(t("Também na sala"))}</span>${rest.map((a) => `<button type="button" class="tr-also-b ${a.id === sel ? "on" : ""}" data-sym="${a.id}">
+      <b>${a.id}</b><span>${num(a.price, a.dp)}</span><em class="${sign(a.chg)}">${pct(a.chg)}</em>${a.setups[0] ? `<i class="tr-grade g-${a.setups[0].grade.replace("+", "p")}">${a.setups[0].grade}</i>` : ""}</button>`).join("")}` : "");
   }
   const short = (label) => label.replace("máximo de ontem (PDH)", "PDH").replace("mínimo de ontem (PDL)", "PDL").replace("máximo da semana passada (PWH)", "PWH")
     .replace("mínimo da semana passada (PWL)", "PWL").replace("máximo da Ásia", "Ásia ↑").replace("mínimo da Ásia", "Ásia ↓").replace("máximo de Londres", "Londres ↑")
@@ -300,7 +330,7 @@
     const a = S && S.instruments.find((x) => x.id === sel);
     $("tr-tfs").querySelectorAll("[data-tf]").forEach((b) => b.classList.toggle("on", b.dataset.tf === tf));
     $("tr-layers").querySelectorAll("[data-layer]").forEach((b) => b.classList.toggle("on", !!layers[b.dataset.layer]));
-    if (a) paint($("tr-sym"), `<b>${a.id}</b><strong>${num(a.price, a.dp)}</strong><em class="${sign(a.chg)}">${pct(a.chg)}</em><span class="tr-bias b-${a.bias.dir}">${esc(t(a.bias.text.split(" · ")[0]))}</span>`);
+    if (a) paint($("tr-sym"), `<b>${a.id}</b><strong>${num(a.price, a.dp)}</strong><em class="${sign(a.chg)}">${pct(a.chg)}</em>${ui.tag(t(a.bias.text.split(" · ")[0]), a.bias.dir === "bull" ? "ok" : a.bias.dir === "bear" ? "bad" : "")}`);
   }
 
   // what the room reads in the chosen instrument: the bias, the key levels, the zones, the setups
@@ -310,6 +340,7 @@
     const pois = a.pois.slice(0, 5).map((p) => `<li class="${p.dir}"><b>${p.type} ${p.tf}</b><span>${num(p.bot, a.dp)} – ${num(p.top, a.dp)}</span><em>${esc(p.dir === "up" ? t("compra") : t("venda"))}${p.inside ? " · " + esc(t("preço dentro")) : ""}</em></li>`).join("");
     const setups = a.setups.map((s) => setupCard(s, a)).join("") || `<p class="tr-none">${esc(t("Sem setup limpo agora. O SMC espera um sweep de liquidez, uma mudança de estrutura e uma zona para entrar; o VWAP + EMA espera um pullback rejeitado no VWAP a favor da tendência, e só aparece com nota A ou A+; no ouro e no Nasdaq, a inside bar do diário a favor da tendência."))}</p>`;
     const ev = a.events.slice(0, 6).map((e) => `<li><time>${hm(e.t * 1000)}</time>${esc(e.text.split(": ").slice(1).join(": "))}</li>`).join("");
+    $("tr-read-h").textContent = t("Leitura de {s}", { s: a.id });
     paint($("tr-read"), `<div class="tr-read-grid">
       <div><h3>${esc(t("Viés"))}</h3><p class="tr-biastext">${esc(a.bias.text)}</p>
         ${a.pd != null ? `<p class="tr-pdtext">${esc(t("{p}% do range H4", { p: Math.round(a.pd * 100) }))} · <b class="${a.pd > .5 ? "down" : "up"}">${esc(a.pd > .5 ? t("premium (zona de vender)") : t("desconto (zona de comprar)"))}</b></p>` : ""}
@@ -332,8 +363,12 @@
 
   // ================================================================ the scoreboard: each one's own account
   let bookRows = [];
-  const NAMES = { penguin: "Pinguim", twoface: "Duas-Caras", model: "Modelo" };
-  const ROLES = { penguin: "Macro e notícias", twoface: "Gráfico (SMC)", model: "Referência: os setups A e A+ do motor" };
+  // every account of the book (book.AGENTS): the two traders, the model, and one per strategy (19 out)
+  const NAMES = { penguin: "Pinguim", twoface: "Duas-Caras", model: "Modelo", ema: "EMA 125/200", vwap: "VWAP + EMA", combo: "Combinado" };
+  const ROLES = { penguin: "Macro e notícias", twoface: "Gráfico (SMC)", model: "Referência: os setups A e A+ do motor",
+    ema: "Tendência nas EMA 125 e 200", vwap: "Pullback ao VWAP a favor da tendência", combo: "Só quando as três leituras concordam" };
+  const side = (dir) => ui.tag(t(dir === "buy" ? "Compra" : "Venda"), dir === "buy" ? "ok" : "bad");
+  const face = (agent, cls = "tr-sc-ico") => (PEOPLE[agent] ? `<img src="${portrait(agent)}" alt="">` : `<span class="${cls}">${bars()}</span>`);
   const pctTxt = (v, d = 1) => (v == null ? "—" : `${v.toFixed(d).replace(".", ",")}%`);
   const nfx = (v, d = 2) => (v == null ? "—" : v.toFixed(d).replace(".", ","));
   function spark(curve, w = 220, h = 46) {
@@ -349,10 +384,15 @@
     const list = S.stats || [];
     const lead = list.filter((s) => s.agent !== "model" && s.n).sort((p, q) => q.total_r - p.total_r)[0];
     paint($("tr-score"), list.map((s) => {
-      const pic = s.agent === "model" ? `<span class="tr-sc-ico">${bars()}</span>` : `<img src="${portrait(s.agent)}" alt="">`;
+      const pic = face(s.agent);
       const streak = s.streak && s.streak.n ? `${s.streak.n} ${s.streak.kind === "w" ? t("ganhas") : s.streak.kind === "l" ? t("perdidas") : t("a zero")} ${t("seguidas")}` : "—";
+      // an account with nothing closed yet says so, instead of a card of zeros
+      if (!s.n) return `<button type="button" class="tr-sc empty ${s.agent} ${bookFilter.agent === s.agent ? "on" : ""}" data-agent="${s.agent}">
+        <div class="tr-sc-h">${pic}<div><b>${esc(t(NAMES[s.agent] || s.name || s.agent))}</b><small>${esc(t(ROLES[s.agent] || ""))}</small></div></div>
+        <p class="tr-sc-none">${esc(PEOPLE[s.agent] ? t("Ainda sem trades fechadas: só negoceia nas reuniões com o Claude ligado.") : t("Ainda sem trades fechadas: entra quando aparece um setup A ou A+ da estratégia."))}</p>
+        <div class="tr-sc-f"><span></span><span>${s.open || 0} ${esc(t("abertas"))} · ${s.pending || 0} ${esc(t("pendentes"))}</span></div></button>`;
       return `<button type="button" class="tr-sc ${s.agent} ${lead && lead.agent === s.agent ? "lead" : ""} ${bookFilter.agent === s.agent ? "on" : ""}" data-agent="${s.agent}">
-        <div class="tr-sc-h">${pic}<div><b>${esc(t(NAMES[s.agent]))}</b><small>${esc(t(ROLES[s.agent]))}</small></div>${lead && lead.agent === s.agent ? `<em>${esc(t("na frente"))}</em>` : ""}</div>
+        <div class="tr-sc-h">${pic}<div><b>${esc(t(NAMES[s.agent] || s.name || s.agent))}</b><small>${esc(t(ROLES[s.agent] || ""))}</small></div>${lead && lead.agent === s.agent ? ui.tag(t("na frente"), "ok") : ""}</div>
         <div class="tr-sc-main">
           <div class="tr-ring ${s.winrate == null ? "none" : ""}" style="--p:${s.winrate || 0}"><b>${s.winrate == null ? "—" : Math.round(s.winrate) + "%"}</b><small>${esc(t("acerto"))}</small></div>
           <div class="tr-sc-big"><strong class="${s.total_r >= 0 ? "up" : "down"}">${rfmt(s.total_r)}</strong><small>${s.return_pct >= 0 ? "+" : ""}${pctTxt(s.return_pct, 2)} ${esc(t("da conta (1% de risco por trade)"))}</small>
@@ -374,9 +414,10 @@
   }
 
   // ================================================================ the book: every trade, good or bad
-  const STATUS = { pending: ["pendente", "amber"], open: ["aberta", "blue"], won: ["ganha", "up"], lost: ["perdida", "down"], be: ["a zero", "grey"],
-    expired: ["expirou", "dim"], missed: ["fugiu sem entrar", "dim"], cancelled: ["cancelada", "dim"], refused: ["recusada", "dim"],
-    invalidated: ["ideia cancelada", "dim"] };
+  // the state of a trade as a tag of the Hub: amber waits, green won, red lost, the rest neutral or faint
+  const STATUS = { pending: ["pendente", "warn"], open: ["aberta", ""], won: ["ganha", "ok"], lost: ["perdida", "bad"], be: ["a zero", ""],
+    expired: ["expirou", "tr-dim"], missed: ["fugiu sem entrar", "tr-dim"], cancelled: ["cancelada", "tr-dim"], refused: ["recusada", "tr-dim"],
+    invalidated: ["ideia cancelada", "tr-dim"] };
   const CAN = { yes: "ainda dá para entrar", late: "entrou · ainda dá, junto à entrada", in: "já entrou · perdeste a entrada", no: "acabou" };
   const dt = (iso) => (iso ? new Date(iso).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
   const dur = (a, b) => { if (!a) return "—"; const m = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 60000); return m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`; };
@@ -384,17 +425,16 @@
   function paintLive() {
     const live = bookRows.filter((tr) => tr.status === "pending" || tr.status === "open");
     const el = $("tr-live");
-    if (!live.length) { paint(el, ""); el.hidden = true; return; }
-    el.hidden = false;
-    const PILL = { yes: ["À ESPERA DA ENTRADA", "amber"], late: ["ENTROU · AINDA DÁ", "blue"], in: ["ENTROU · JÁ ANDOU", "up"], no: ["ACABOU", "dim"] };
-    paint(el, `<h2>${icon("target")}${esc(t("Trades em jogo agora"))}<small>${esc(t("o plano de cada uma, a hora ideal e se ainda dá para entrar"))}</small></h2>
-      <div class="tr-live-g">${live.map((tr) => {
+    $("tr-live-w").hidden = !live.length;
+    if (!live.length) { paint(el, ""); return; }
+    const PILL = { yes: ["À espera da entrada", "warn"], late: ["Entrou · ainda dá", ""], in: ["Entrou · já andou", "ok"], no: ["Acabou", "tr-dim"] };
+    paint(el, `<div class="cards tr-live-g">${live.map((tr) => {
         const dp = tr.dp != null ? tr.dp : 2, can = (tr.now && tr.now.can) || "yes", [pill, tone] = PILL[can];
         const inWin = tr.win_from && Date.now() >= Date.parse(tr.win_from) && Date.now() <= Date.parse(tr.win_to);
-        const who = tr.agent === "model" ? `<span class="tr-who-s">${bars()}</span>` : `<img src="${portrait(tr.agent)}" alt="">`;
-        return `<article class="tr-lc ${tr.dir} ${can}" data-trade="${tr.id}">
-          <header>${who}<div><b>${esc(tr.symbol)} <span class="tr-side ${tr.dir}">${esc(t(tr.dir === "buy" ? "Compra" : "Venda"))}</span></b><small>${esc(t(NAMES[tr.agent] || tr.agent))} · ${dt(tr.at)}</small></div>
-            <span class="tr-pill ${inWin && can === "yes" ? "hot" : tone}">${esc(t(inWin && can === "yes" ? "HORA IDEAL AGORA" : pill))}</span></header>
+        const who = face(tr.agent, "tr-who-s");
+        return `<article class="panel tr-lc ${tr.dir} ${can}" data-trade="${tr.id}">
+          <header>${who}<div><b>${esc(tr.symbol)} ${side(tr.dir)}</b><small>${esc(t(NAMES[tr.agent] || tr.agent))} · ${dt(tr.at)}</small></div>
+            ${inWin && can === "yes" ? `<span class="tagx warn tr-hot">${esc(t("Hora ideal agora"))}</span>` : ui.tag(t(pill), tone)}</header>
           ${tr.plan ? `<p class="tr-lc-plan">${esc(tr.plan)}</p>` : `<p class="tr-lc-plan">${esc(tr.why)}</p>`}
           <dl class="tr-lc-k">
             ${tr.zone ? `<div><dt>${esc(t("Zona"))}</dt><dd>${num(tr.zone[0], dp)} – ${num(tr.zone[1], dp)}</dd></div>` : ""}
@@ -408,7 +448,7 @@
           ${tr.now ? `<p class="tr-nowl ${can}">${esc(tr.now.line)}</p>` : ""}
         </article>`;
       }).join("")}</div>`);
-    el.onclick = (e) => { const c = e.target.closest("[data-trade]"); if (c) { openTrade = c.dataset.trade; bookFilter.agent = ""; paintBook(); $("tr-book").scrollIntoView({ behavior: "smooth", block: "start" }); } };
+    el.onclick = (e) => { const c = e.target.closest("[data-trade]"); if (c) { openTrade = c.dataset.trade; bookFilter.agent = ""; $("tr-book-f").querySelector('[data-f="agent"]').value = ""; paintBook(); $("tr-book").scrollIntoView({ behavior: "smooth", block: "start" }); } };
   }
 
   function paintBook() {
@@ -416,24 +456,27 @@
     if (sf.options.length < 2 && S) sf.innerHTML += S.instruments.map((a) => `<option value="${a.id}">${a.id}</option>`).join("");
     const rows = bookRows.filter((tr) => (!bookFilter.agent || tr.agent === bookFilter.agent) && (!bookFilter.symbol || tr.symbol === bookFilter.symbol)
       && (!bookFilter.status || bookFilter.status.split(",").includes(tr.status)));
-    if (!rows.length) { paint($("tr-book"), `<p class="tr-none">${esc(t("Ainda não há trades aqui. Cada reunião com o Claude pode abrir até duas por agente; o Modelo SMC abre uma por cada setup A ou A+."))}</p>`); return; }
-    paint($("tr-book"), `<table class="tr-tbl"><thead><tr><th>${esc(t("Quando"))}</th><th>${esc(t("Quem"))}</th><th>${esc(t("Instrumento"))}</th><th>${esc(t("Direção"))}</th>
+    if (!rows.length) { paint($("tr-book"), ui.empty("doc", bookRows.length ? "Nenhuma trade com estes filtros" : "Ainda sem trades", "Cada reunião com o Claude pode abrir até duas por agente; o Modelo SMC abre uma por cada setup A ou A+.")); return; }
+    const shown = rows.slice(0, bookShow), more = rows.length - shown.length;
+    paint($("tr-book"), `<table class="tbl tr-tbl"><thead><tr><th>${esc(t("Quando"))}</th><th>${esc(t("Quem"))}</th><th>${esc(t("Instrumento"))}</th><th>${esc(t("Direção"))}</th>
       <th class="n">${esc(t("Entrada"))}</th><th class="n">${esc(t("Stop"))}</th><th class="n">${esc(t("Alvos"))}</th><th class="n">RR</th><th>${esc(t("Estado"))}</th><th class="n">${esc(t("Resultado"))}</th><th>${esc(t("Avaliação"))}</th></tr></thead>
-      <tbody>${rows.map((tr) => bookRow(tr)).join("")}</tbody></table>`);
+      <tbody>${shown.map((tr) => bookRow(tr)).join("")}</tbody></table>
+      ${more > 0 ? `<div class="tr-more"><button type="button" class="btn sm" data-more-trades>${esc(t("Mostrar mais {n} de {m}", { n: Math.min(30, more), m: more }))}</button></div>` : ""}`);
   }
   function bookRow(tr) {
-    const dp = tr.dp != null ? tr.dp : 2, [label, tone] = STATUS[tr.status] || [tr.status, "dim"], open = openTrade === String(tr.id);
+    const dp = tr.dp != null ? tr.dp : 2, [label, tone] = STATUS[tr.status] || [tr.status, "tr-dim"], open = openTrade === String(tr.id);
     const res = tr.r != null ? tr.r : tr.live_r;
-    const grade = tr.outcome === "boa" ? `<span class="tr-ev-b good">${esc(t("Boa trade"))}</span>` : tr.outcome === "má" ? `<span class="tr-ev-b bad">${esc(t("Má trade"))}</span>`
-      : tr.outcome === "neutra" ? `<span class="tr-ev-b">${esc(t("Neutra"))}</span>` : tr.status === "open" ? `<span class="tr-ev-b live">${esc(t("em curso"))}</span>` : "—";
-    const who = tr.agent === "model" ? `<span class="tr-who-s">${bars()}</span>` : `<img src="${portrait(tr.agent)}" alt="">`;
+    const grade = tr.outcome === "boa" ? ui.tag(t("Boa trade"), "ok") : tr.outcome === "má" ? ui.tag(t("Má trade"), "bad")
+      : tr.outcome === "neutra" ? ui.tag(t("Neutra")) : tr.status === "open" ? ui.tag(t("Em curso")) : "—";
+    const L = (k) => `data-l="${esc(t(k))}"`;
+    const who = face(tr.agent, "tr-who-s");
     return `<tr class="${tr.status} ${open ? "open-row" : ""}" data-trade="${tr.id}">
-      <td>${dt(tr.at)}</td><td class="tr-who-c">${who}${esc(t(NAMES[tr.agent] || tr.agent))}</td><td><b>${esc(tr.symbol || "—")}</b></td>
-      <td>${tr.dir ? `<span class="tr-side ${tr.dir}">${esc(t(tr.dir === "buy" ? "Compra" : "Venda"))}</span>` : "—"}</td>
-      <td class="n">${tr.entry != null ? num(tr.entry, dp) : "—"}${tr.market ? `<small>${esc(t("a mercado"))}</small>` : ""}</td><td class="n">${tr.stop != null ? num(tr.stop, dp) : "—"}</td>
-      <td class="n">${tr.tp1 != null ? num(tr.tp1, dp) : "—"}${tr.tp2 ? ` · ${num(tr.tp2, dp)}` : ""}</td><td class="n">${tr.rr ? nfx(tr.rr, 1) : "—"}</td>
-      <td><span class="tr-st ${tone}">${esc(t(label))}${tr.half && tr.status === "open" ? " · ½" : ""}</span>${tr.now ? `<small class="tr-can ${tr.now.can}">${esc(t(CAN[tr.now.can]))}</small>` : ""}</td>
-      <td class="n ${res == null ? "" : res >= 0 ? "up" : "down"}">${res == null ? "—" : `${rfmt(res)}${tr.r == null ? "" : `<small>${res >= 0 ? "+" : ""}${pctTxt(res, 2)}</small>`}`}</td><td>${grade}</td></tr>
+      <td ${L("Quando")}>${dt(tr.at)}</td><td ${L("Quem")}><span class="tr-who-c">${who}${esc(t(NAMES[tr.agent] || tr.agent))}</span></td><td ${L("Instrumento")}><b>${esc(tr.symbol || "—")}</b></td>
+      <td data-l="${esc(t("Direção"))}">${tr.dir ? side(tr.dir) : "—"}</td>
+      <td class="n" ${L("Entrada")}>${tr.entry != null ? num(tr.entry, dp) : "—"}${tr.market ? `<small>${esc(t("a mercado"))}</small>` : ""}</td><td class="n" ${L("Stop")}>${tr.stop != null ? num(tr.stop, dp) : "—"}</td>
+      <td class="n" ${L("Alvos")}>${tr.tp1 != null ? num(tr.tp1, dp) : "—"}${tr.tp2 ? ` · ${num(tr.tp2, dp)}` : ""}</td><td class="n" ${L("RR")}>${tr.rr ? nfx(tr.rr, 1) : "—"}</td>
+      <td ${L("Estado")}>${ui.tag(t(label) + (tr.half && tr.status === "open" ? " · ½" : ""), tone)}${tr.now ? `<small class="tr-can ${tr.now.can}">${esc(t(CAN[tr.now.can]))}</small>` : ""}</td>
+      <td class="n ${res == null ? "" : res >= 0 ? "up" : "down"}" ${L("Resultado")}>${res == null ? "—" : `${rfmt(res)}${tr.r == null ? "" : `<small>${res >= 0 ? "+" : ""}${pctTxt(res, 2)}</small>`}`}</td><td ${L("Avaliação")}>${grade}</td></tr>
       ${open ? `<tr class="tr-detail"><td colspan="11"><div class="tr-detail-g">
         <div>${tr.now ? `<p class="tr-nowl ${tr.now.can}">${esc(tr.now.line)}</p>` : ""}
           ${tr.plan ? `<h4>${esc(t("Plano"))}</h4><p>${esc(tr.plan)}</p>` : ""}${tr.trigger ? `<h4>${esc(t("Gatilho da entrada"))}</h4><p>${esc(tr.trigger)}</p>` : ""}
@@ -473,7 +516,8 @@
     const ma = tech.ma || {}, rsi = tech.rsi || {}, adr = tech.adr, vp = tech.vp;
     const maHtml = ["D1", "H4", "H1"].filter((tf) => ma[tf]).map((tf) => `<span class="tr-ma ${ma[tf].stack}"><b>${tf}</b>${ma[tf].stack === "up" ? "▲" : ma[tf].stack === "down" ? "▼" : "◆"} ${esc(ma[tf].above.length === 3 ? t("acima das 3 EMA") : !ma[tf].above.length ? t("abaixo das 3 EMA") : t("acima da EMA {e}", { e: ma[tf].above.join("/") }))}</span>`).join("");
     const div = Object.entries(tech.div || {}).map(([tf, d]) => `<span class="tr-div ${d.dir}">${esc(t(d.dir === "bear" ? "Divergência de baixa" : "Divergência de alta"))} RSI ${tf} (${d.rsi[0]}→${d.rsi[1]})</span>`).join("");
-    paint(el, `<h3>${esc(t("Contexto institucional"))}${S.macro && S.macro.regime ? `<span class="tr-regime">${esc(t(S.macro.regime))}</span>` : ""}</h3>
+    $("tr-inst-h").textContent = t("Contexto institucional de {s}", { s: sel });
+    paint(el, `${S.macro && S.macro.regime ? `<p class="tr-regime">${esc(t("Regime do mercado"))}: <b>${esc(t(S.macro.regime))}</b></p>` : ""}
       <div class="tr-inst-g">
         <div><h4>${esc(t("Posicionamento dos grandes (COT)"))}</h4>${cotHtml}</div>
         <div><h4>${esc(t("O que o move"))}</h4><div class="tr-drvs">${drivers || `<p class="tr-none">—</p>`}</div>
@@ -495,9 +539,9 @@
     const v = m && m.verdict;
     const st = S.settings;
     paint($("tr-table"), `<div class="tr-duo">
-        ${["penguin", "twoface"].map((w) => `<div class="tr-who ${w} ${next === w ? "speaking" : ""}"><img src="${portrait(w)}" alt=""><b>${esc(t(PEOPLE[w].name))}</b><small>${esc(t(PEOPLE[w].what))}</small></div>`).join(`<span class="tr-vs">${icon("users")}</span>`)}
+        ${["penguin", "twoface"].map((w) => `<div class="tr-who ${w} ${next === w ? "speaking" : ""}"><img src="${portrait(w)}" alt=""><b>${esc(t(PEOPLE[w].name))}</b><small>${esc(t(PEOPLE[w].what))}</small></div>`).join(`<span class="tr-vs">vs</span>`)}
       </div>
-      <div class="tr-mhead"><h2>${esc(t("Mesa de reunião"))}</h2>${m ? `<span class="tr-mode ${m.mode}">${esc(m.mode === "claude" ? `Claude ${m.model || ""}` : t("automática"))}</span><time>${hm(m.at)}</time>` : ""}</div>
+      ${m ? `<div class="tr-mhead">${ui.tag(m.mode === "claude" ? `Claude ${m.model || ""}` : t("Reunião automática"), m.mode === "claude" ? "tr-claude" : "")}${running ? `<span class="st busy"><i></i>${esc(t("Em reunião"))}</span>` : ""}<time>${esc(fmt.day(m.at))} · ${hm(m.at)}</time></div>` : ""}
       ${m ? `<p class="tr-reason">${esc(m.reason)}</p>` : `<p class="tr-none">${esc(t("Ainda não houve reunião. Reúnem-se sozinhos antes de Londres e de Nova Iorque, antes e depois das notícias de alto impacto e quando aparece um sweep ou um setup que importa."))}</p>`}
       ${m && m.error ? `<p class="tr-err">${esc(m.error)}</p>` : ""}
       <div class="tr-talk">${turns}</div>
@@ -631,7 +675,7 @@
     }
     // killzones (intraday): London, New York AM, Asia
     if (L.kz && !mini && TF_SEC[d.tf] <= 3600) {
-      const KZ = [[2, 5, "rgba(90,169,255,.07)", "Londres"], [7, 10, "rgba(167,123,255,.075)", "NY AM"], [20, 24, "rgba(255,255,255,.03)", "Ásia"]];
+      const KZ = [[2, 5, "rgba(236,238,241,.05)", "Londres"], [7, 10, "rgba(236,238,241,.065)", "NY AM"], [20, 24, "rgba(236,238,241,.025)", "Ásia"]];
       let prev = null;
       vis.forEach((x, k) => {
         const h = nyHour(x[0]), z = KZ.find(([a, b]) => h >= a && h < b);
@@ -642,8 +686,8 @@
     // premium / discount of the dealing range
     if (L.pd && d.range && d.range.hi && !mini) {
       const eq = (d.range.hi + d.range.lo) / 2;
-      g.fillStyle = "rgba(255,59,92,.05)"; g.fillRect(0, Y(d.range.hi), PW, Y(eq) - Y(d.range.hi));
-      g.fillStyle = "rgba(22,224,138,.05)"; g.fillRect(0, Y(eq), PW, Y(d.range.lo) - Y(eq));
+      g.fillStyle = "rgba(239,111,94,.05)"; g.fillRect(0, Y(d.range.hi), PW, Y(eq) - Y(d.range.hi));
+      g.fillStyle = "rgba(95,207,140,.05)"; g.fillRect(0, Y(eq), PW, Y(d.range.lo) - Y(eq));
       dashed(g, 0, Y(eq), PW, "rgba(255,255,255,.25)", [2, 4]);
       tag(g, 6, Y(eq) - 9, "EQ 50%", "rgba(255,255,255,.55)", null);
       tag(g, 6, Y(d.range.hi) + 4, t("PREMIUM"), "rgba(255,120,140,.75)", null);
@@ -656,7 +700,7 @@
       g.strokeStyle = line; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0 + .5); g.lineTo(right, y0 + .5); g.moveTo(x0, y1 - .5); g.lineTo(right, y1 - .5); g.stroke();
       if (label && !mini) { g.font = "700 9px Inter, system-ui"; g.fillStyle = line; g.textBaseline = "bottom"; g.fillText(label, Math.max(x0, 0) + 3, y1 - 2); }
     };
-    if (L.fvg) for (const f of d.fvg || []) box(Math.max(0, XT(f.t) - slot / 2), f.top, f.bot, f.dir === "up" ? "rgba(22,224,138,.11)" : "rgba(255,59,92,.11)", f.dir === "up" ? "rgba(22,224,138,.55)" : "rgba(255,59,92,.55)", "FVG");
+    if (L.fvg) for (const f of d.fvg || []) box(Math.max(0, XT(f.t) - slot / 2), f.top, f.bot, f.dir === "up" ? "rgba(95,207,140,.11)" : "rgba(239,111,94,.11)", f.dir === "up" ? "rgba(95,207,140,.55)" : "rgba(239,111,94,.55)", "FVG");
     if (L.ob) for (const b of d.ob || []) box(Math.max(0, XT(b.t) - slot / 2), b.top, b.bot, b.dir === "up" ? "rgba(90,169,255,.12)" : "rgba(255,159,67,.12)", b.dir === "up" ? "rgba(90,169,255,.75)" : "rgba(255,159,67,.75)", "OB");
     // liquidity: equal highs/lows and swings still resting, and where they were swept
     if (L.liq) {
@@ -664,7 +708,7 @@
         const x0 = XT(p.t), y = Y(p.p);
         if (y < 0 || y > PH || x0 > right) continue;
         const done = p.state === "swept" || p.state === "taken", x1 = done && p.tt ? XT(p.tt) : right;
-        if (p.eq) { dashed(g, x0, y, x1, done ? "rgba(245,196,81,.35)" : "rgba(245,196,81,.85)", [5, 3]); if (!done && !mini) tag(g, x0 + 2, y + (p.kind === "BSL" ? -14 : 3), `$$$ ${p.kind === "BSL" ? "EQH" : "EQL"}`, GOLD, null); }
+        if (p.eq) { dashed(g, x0, y, x1, done ? "rgba(226,181,92,.35)" : "rgba(226,181,92,.85)", [5, 3]); if (!done && !mini) tag(g, x0 + 2, y + (p.kind === "BSL" ? -14 : 3), `$$$ ${p.kind === "BSL" ? "EQH" : "EQL"}`, GOLD, null); }
         else if (!done) dashed(g, x0, y, x1, "rgba(200,208,220,.28)", [1, 3]);
         if (p.state === "swept" && p.tt && !mini) sweepMark(g, XT(p.tt), Y(p.x), p.kind === "BSL");
       }
@@ -694,7 +738,7 @@
     };
     const edge = (p, text, col) => { if (p != null && Y(p) > 0 && Y(p) < PH) tag(g, right - 6, Y(p) - 7, text, col, "rgba(7,9,12,.85)", true); };
     if (L.ema && !mini && d.ema) {
-      const EC = { 9: "rgba(90,169,255,.75)", 21: "rgba(245,196,81,.8)", 50: "rgba(167,123,255,.75)" };
+      const EC = { 9: "rgba(90,169,255,.75)", 21: "rgba(226,181,92,.8)", 50: "rgba(167,123,255,.75)" };
       for (const k of [50, 21, 9]) { const arr = d.ema[k]; if (arr) { curve((i) => arr[i], EC[k], k === 21 ? 1.4 : 1); edge(arr[arr.length - 1], `EMA ${k}`, EC[k]); } }
     }
     if (L.vwap && !mini && d.vwap) {
@@ -729,14 +773,14 @@
         if (tr.status === "pending" || tr.status === "open") {
           // the zone it waits in, and the ideal hour as a band (in the space to the right of the last candle when it is ahead)
           const lastT = all[all.length - 1][0], XF = (ts) => Math.min(right, ts <= lastT ? XT(ts) : X(all.length - 1) + ((ts - lastT) / TF_SEC[d.tf]) * slot);
-          if (tr.zone) { g.fillStyle = tr.dir === "buy" ? "rgba(22,224,138,.10)" : "rgba(255,59,92,.10)"; g.fillRect(x0, Y(tr.zone[1]), right - x0, Y(tr.zone[0]) - Y(tr.zone[1])); }
+          if (tr.zone) { g.fillStyle = tr.dir === "buy" ? "rgba(95,207,140,.10)" : "rgba(239,111,94,.10)"; g.fillRect(x0, Y(tr.zone[1]), right - x0, Y(tr.zone[0]) - Y(tr.zone[1])); }
           if (tr.win_from && tr.status === "pending") {
             const wa = XF(Date.parse(tr.win_from) / 1000), wb = XF(Date.parse(tr.win_to) / 1000);
-            if (wb > wa + 1) { g.fillStyle = "rgba(245,196,81,.08)"; g.fillRect(wa, 0, wb - wa, PH); g.strokeStyle = GOLD; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(Math.round(wa) + .5, 0); g.lineTo(Math.round(wa) + .5, PH); g.stroke(); g.setLineDash([]); tag(g, wa + 3, 20, `${t("hora ideal")} ${hm(tr.win_from)}–${hm(tr.win_to)}`, GOLD, "rgba(7,9,12,.85)"); }
+            if (wb > wa + 1) { g.fillStyle = "rgba(226,181,92,.08)"; g.fillRect(wa, 0, wb - wa, PH); g.strokeStyle = GOLD; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(Math.round(wa) + .5, 0); g.lineTo(Math.round(wa) + .5, PH); g.stroke(); g.setLineDash([]); tag(g, wa + 3, 20, `${t("hora ideal")} ${hm(tr.win_from)}–${hm(tr.win_to)}`, GOLD, "rgba(7,9,12,.85)"); }
           }
           dashed(g, x0, Y(tr.entry), right, col, tr.status === "open" ? [] : [6, 3]);
-          dashed(g, x0, Y(tr.half ? tr.entry : tr.stop), right, "rgba(255,59,92,.8)", [3, 3]);
-          for (const p of [tr.tp1, tr.tp2]) if (p != null) dashed(g, x0, Y(p), right, "rgba(22,224,138,.8)", [3, 3]);
+          dashed(g, x0, Y(tr.half ? tr.entry : tr.stop), right, "rgba(239,111,94,.8)", [3, 3]);
+          for (const p of [tr.tp1, tr.tp2]) if (p != null) dashed(g, x0, Y(p), right, "rgba(95,207,140,.8)", [3, 3]);
           const lr = tr.live_r != null ? ` ${rfmt(tr.live_r)}` : ` ${t("pendente")}`;
           tag(g, right - 8, Y(tr.entry) - 16, `${t(NAMES[tr.agent] || tr.agent)} · ${t(tr.dir === "buy" ? "compra" : "venda")}${lr}`, INK, col, true);
         } else if (tr.filled_at && tr.closed_at && tr.exit != null) {

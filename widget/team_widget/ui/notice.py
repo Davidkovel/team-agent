@@ -156,7 +156,8 @@ class NoticeCard(Card):
 
     def __init__(self, item: dict, hold: int = HOLD):
         directed = bool(item.get("directed"))
-        self._caption = "NOVA TAREFA PARA TI" if directed else "NOVA TAREFA"
+        # the Hub says what the card is when it is not a task: "MENSAGEM PARA TI" (Mensagens, routers/messages.py)
+        self._caption = item.get("caption") or ("NOVA TAREFA PARA TI" if directed else "NOVA TAREFA")
         self._title, self._body = item.get("title", ""), (item.get("body") or "").strip()
         self._f_caption, self._f_title, self._f_body = _font(7.5, QFont.Bold, 1.4), _font(11.5, QFont.DemiBold), _font(9.5)
         self._text_x = PAD + ICON + 14
@@ -213,7 +214,9 @@ class Notices(QObject):
     def push(self, items):
         items = list(items)
         if len(items) > MAX_BATCH:
-            items = [{"title": f"{len(items)} tarefas novas", "body": "Foram enviadas enquanto estiveste fora.", "href": "#/tarefas",
+            talk = all(i.get("caption") for i in items)   # all of them messages (Mensagens), not tasks
+            items = [{"title": f"{len(items)} {'mensagens novas' if talk else 'tarefas novas'}", "body": "Foram enviadas enquanto estiveste fora.",
+                      "href": "#/mensagens" if talk else "#/tarefas", "caption": items[0].get("caption") if talk else None,
                       "directed": any(i.get("directed") for i in items)}]
         self._queue.extend(items)
         if self._card is None:

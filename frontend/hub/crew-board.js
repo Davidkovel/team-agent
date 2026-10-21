@@ -561,7 +561,7 @@ window.CrewBoard = (function () {
     const mine = host.partnerOf(me.display_name).id || host.partners[0][0];
     root.innerHTML = `<nav class="cb-seg">${TABS.map(([id, label]) => `<button type="button" data-tab="${id}">${esc(t(label))}</button>`).join("")}</nav>
       <header class="cx-top" data-pane="now">
-        <div class="cx-id"><small>${esc(t("Agente AMG · central de comando"))}</small><h1>${esc(t("Escritório"))}</h1><p id="cx-sum">${esc(t("A ler o que a empresa está a fazer…"))}</p></div>
+        <div class="cx-id"><small>${esc(t("02 · Agentes · central de comando"))}</small><h1>${esc(t("Escritório"))}</h1><p id="cx-sum">${esc(t("A ler o que a empresa está a fazer…"))}</p></div>
         <div class="cb-nums" id="cb-nums"></div>
         <div class="cx-acts"><nav class="cx-view"><button type="button" data-view="team">${icon("users")}${esc(t("Equipa"))}</button><button type="button" data-view="cams">${icon("grid")}${esc(t("Câmaras"))}</button></nav><a class="btn cx-cave" href="#/empresa">${icon("play")}${esc(t("A cave"))}</a><button type="button" class="btn cx-mini" data-mini title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div>
         <ul class="cb-say" id="cb-say"></ul>

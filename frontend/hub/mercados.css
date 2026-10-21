@@ -1,14 +1,12 @@
 /* Mercados (hub/mercados.js): the trading desk. Built on the Hub's own tokens (design.css, amg.css); green and red only
    where a price went up or down, and always next to a sign or an arrow, never colour alone. */
-.mk { --up: #45c486; --down: #ef6f5e; --flat: #8b929c; --up-bg: rgba(69, 196, 134, .12); --down-bg: rgba(239, 111, 94, .12); }
+.mk { --up: var(--ok); --down: var(--bad); --flat: #8b929c; --up-bg: rgba(95, 207, 140, .12); --down-bg: rgba(239, 111, 94, .12); min-width: 0; }
 .mk .up { color: var(--up); } .mk .down { color: var(--down); } .mk .flat { color: var(--flat); }
 .mk .ok { color: var(--ok); } .mk .warn { color: var(--warn); }
 .mk .r { text-align: right; }
 .mk .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.mk-top { margin-bottom: 14px; }
-.mk-top h1 { font: 500 34px/1.05 var(--serif, var(--display)); letter-spacing: .01em; }
-.mk-top p { max-width: 640px; }
-.mk-live { display: inline-flex; align-items: center; gap: 8px; margin-right: 6px; font-size: 11.5px; }
+.mk-live { display: inline-flex; align-items: center; margin-right: 4px; }
+.mk-live:empty { display: none; }
 .mk-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--faint); vertical-align: 1px; }
 .mk-dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(95, 207, 140, .7); }
 .mk-dot.live { width: 6px; height: 6px; margin-right: 5px; background: var(--down); animation: mk-pulse 1.4s ease-in-out infinite; }
@@ -92,7 +90,7 @@
 .mk-fc-h .tool { margin-left: auto; opacity: .55; }
 .mk-fc:hover .mk-fc-h .tool { opacity: 1; }
 .mk-fc-p { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.mk-fc-p b { font: 600 27px var(--mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.mk .mk-fc-p b { font: 600 32px/1 var(--serif); font-variant-numeric: lining-nums tabular-nums; }
 .mk-fc-p .mk-chg { font-size: 13px; }
 .mk-fc-s { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .mk-fc-s > div { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 2px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); min-width: 0; }
@@ -217,8 +215,8 @@
 .mk-sym-l h2 { margin: 0; font: 500 26px/1.1 var(--serif, var(--display)); }
 .mk-sym-l .ph-eyebrow { margin-bottom: 2px; }
 .mk-sym-p { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.mk-big { font: 600 30px var(--mono); letter-spacing: -.02em; }
-.mk-big small { margin-left: 6px; color: var(--faint); font-size: 12px; font-weight: 500; }
+.mk .mk-big { font: 600 34px/1.05 var(--serif); font-variant-numeric: lining-nums tabular-nums; }
+.mk-big small { margin-left: 6px; color: var(--faint); font: 500 12px var(--ui); }
 .mk-sym-p .mk-chg { font-size: 14px; }
 .mk-sym-a { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .mk-chart-row { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; margin-bottom: 14px; }
@@ -267,7 +265,7 @@
 .mk-ins-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 .mk-ins-sum > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
 .mk-ins-sum span { color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .1em; text-transform: uppercase; }
-.mk-ins-sum b { font: 600 20px var(--mono); } .mk-ins-sum small { color: var(--faint); font-size: 11px; }
+.mk .mk-ins-sum b { font: 600 24px var(--serif); font-variant-numeric: lining-nums tabular-nums; } .mk-ins-sum small { color: var(--faint); font-size: 11px; }
 .mk-fin { padding: 14px var(--pad); margin-bottom: 14px; }
 .mk-fin-w { height: 520px; }
 
@@ -438,7 +436,7 @@
   .mk-four { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .mk-fc { gap: 8px; padding: 12px 14px; }
   .mk-fc .mk-range { display: none; }
-  .mk-fc-p b { font-size: 24px; }
+  .mk .mk-fc-p b { font-size: 28px; }
 }
 /* a news column of middle width: one story per row, the picture on the left (a phone keeps the tall cards) */
 @container mknews (min-width: 440px) and (max-width: 719px) {
@@ -457,23 +455,26 @@
 }
 @media (max-width: 760px) {
   .mk-2 { grid-template-columns: minmax(0, 1fr); }
-  .mk-top h1 { font-size: 28px; }
   .mk-nav { width: 100%; }
   .mk-nav .bd-pill { flex: 1 0 auto; justify-content: center; padding: 0 10px; }
   .mk-nav .bd-pill > svg.i:first-child { display: none; }
-  .mk-top .ph-actions { width: 100%; }
-  .mk-top .ph-actions .btn { flex: 1; }
+  .mk > .ph .ph-actions { width: 100%; }
+  .mk > .ph .ph-actions .btn { flex: 1; }
   .mk-sym-a { margin-left: 0; }
   .mk-chart { height: 380px; }
   .mk-perf { grid-template-columns: repeat(3, 1fr); }
   .mk-ins-f input { width: 100%; }
   .mk-map { height: 70vh; min-height: 420px; }
   .mk-news-top > span { display: none; }
-  .mk-topics { width: 100%; overflow-x: auto; scrollbar-width: none; }
-  .mk-topics button { flex: none; }
+  .mk-topics { width: 100%; flex-wrap: wrap; }
 }
 @media (max-width: 560px) {
-  .mk-symbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .mk-sp { flex: none; }
+  .mk-symbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mk-rd h2 { font-size: 21px; }
 }
+
+/* the phone: the page's own tabs in a tidy grid, nothing sideways */
+html.is-phone .mk-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+html.is-phone .mk-nav .bd-pill, html.is-phone .mk-more > .bd-pill { width: 100%; justify-content: center; padding: 0 8px; font-size: 12.5px; }
+html.is-phone .mk-more { min-width: 0; }
+html.is-phone .mk > .ph .mk-live { flex-basis: 100%; }

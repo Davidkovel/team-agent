@@ -1,67 +1,72 @@
-/* Kit do Claude (kit.js): a card per PC and who has each plugin and skill. AMG finish like Skills: black lacquer,
-   graphite panels with a chrome edge; colour only for the state of each PC. */
+/* Kit do Claude (kit.js), com as peças da casa (docs/hub-paginas.md): ui.head com o estado e o botão, secções ui.sec,
+   cartões .panel, estados .st. Monocromático: verde, âmbar e vermelho só no estado de cada PC e de cada plugin. */
 
-.kt-sum { margin: -4px 0 16px; color: #8b95a1; font: 500 14px/1.5 var(--ui); }
+.kt-ctl { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.kt-state { height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, .08); background: rgba(255, 255, 255, .025); font-size: 12px; }
+.kt-aside { color: var(--faint); font: 500 11.5px var(--ui); letter-spacing: 0; text-transform: none; }
+.kt-count { color: var(--faint); font: 500 11px var(--mono); letter-spacing: 0; }
 
-.kt-pcs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-bottom: 26px; }
-.kt-pc { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, .07);
-  background: linear-gradient(160deg, #1d2126, #0e1013 70%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 22px 40px -26px rgba(0, 0, 0, .95); }
-.kt-pc::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; height: 1px; background: var(--chrome-line); opacity: .4; }
-.kt-pc.here { border-color: rgba(255, 255, 255, .16); }
+/* um cartão por PC */
+.kt-pcs { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.kt-pc { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 16px; min-width: 0; }
+.kt-pc.here::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; height: 1px; background: var(--chrome-line); opacity: .5; }
+.kt-pc.here { border-color: rgba(255, 255, 255, .13); }
 .kt-pc.down { opacity: .62; }
-.kt-pc > header { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; }
-.kt-pc > header b { display: block; color: #f4f6f8; font: 500 22px/1.05 var(--serif); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.kt-pc > header div > span { display: block; margin-top: 3px; color: #7d8794; font: 600 10.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
-
-.kt-st { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .1);
-  color: #9aa1aa; font: 700 10px var(--ui); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
-.kt-st i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.kt-st.ok { color: #7fe0a8; border-color: rgba(95, 207, 140, .35); background: rgba(95, 207, 140, .07); }
-.kt-st.ok i { box-shadow: 0 0 8px rgba(95, 207, 140, .8); }
-.kt-st.warn { color: #e2b55c; border-color: rgba(226, 181, 92, .35); background: rgba(226, 181, 92, .06); }
-
+.kt-pc > header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.kt-pc > header .av { width: 36px; height: 36px; font-size: 15px; }
+.kt-pc > header b { display: block; overflow: hidden; color: #f4f6f8; font: 500 23px/1.05 var(--serif); white-space: nowrap; text-overflow: ellipsis; }
+.kt-pc > header div > span { display: block; margin-top: 3px; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
 .kt-facts { display: flex; flex-wrap: wrap; gap: 6px; }
-.kt-facts span:not(.kt-st) { padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .08); background: rgba(255, 255, 255, .04); color: #cfd5dc;
-  font: 600 9.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
-.kt-facts b { font-family: var(--mono); color: #fff; }
-.kt-why { margin: 0; color: #8b95a1; font: 500 13px/1.45 var(--ui); }
-.kt-on { align-self: flex-start; height: 42px; padding: 0 18px; border-radius: 12px; }
-.kt-on .i { width: 15px; height: 15px; }
-.kt-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: auto; }
-.kt-off { margin-left: auto; }
-.kt-note { color: #8b95a1; font: 500 12px var(--ui); }
-.kt-note.warn { color: #e2b55c; }
-.kt-busy { display: inline-flex; align-items: center; gap: 8px; color: #dfe4ea; font: 600 12px var(--ui); }
+.kt-facts span { padding: 4px 9px; border-radius: 4px; border: 1px solid var(--line); background: rgba(255, 255, 255, .03); color: #cfd5dc; font-size: 12px; }
+.kt-facts b { color: #fff; font: 600 12px var(--mono); }
+.kt-why { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.kt-notes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: auto; }
+.kt-note { color: var(--muted); font-size: 12px; }
+.kt-note.warn { color: #ecd3a0; }
+.kt-busy { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font: 600 12px var(--ui); }
 .kt-busy i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .2); border-top-color: #fff; animation: kt-spin 1s linear infinite; }
 @keyframes kt-spin { to { transform: rotate(360deg); } }
 
-/* who has what: a row per plugin or skill, a column per PC */
-.kt-count { color: #8b95a1; font: 500 11px var(--mono); }
-.kt-table { margin-bottom: 24px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .07); background: #0a0c10; overflow: hidden; }
-.kt-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(var(--n), 76px); align-items: center; min-height: 52px; padding: 0 14px; }
-.kt-row + .kt-row { border-top: 1px solid rgba(255, 255, 255, .05); }
-.kt-row.out { opacity: .55; }
-.kt-head { min-height: 46px; background: rgba(255, 255, 255, .025); }
-.kt-who { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.kt-who em { color: #9aa1aa; font: 600 9.5px var(--ui); font-style: normal; letter-spacing: .1em; text-transform: uppercase; }
-.kt-name { display: grid; gap: 2px; min-width: 0; padding: 8px 12px 8px 0; }
-.kt-name b { color: #eef1f4; font: 600 13.5px var(--ui); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.kt-name span { color: #737b85; font-size: 12px; line-height: 1.35; }
-.kt-c { justify-self: center; display: grid; place-items: center; min-width: 28px; height: 26px; padding: 0 7px; border-radius: 8px; color: #4c535c;
-  font: 700 9.5px var(--ui); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
-.kt-c .i { width: 15px; height: 15px; }
-.kt-c.yes { color: #0b0c0e; background: var(--chrome); box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(0, 0, 0, .45); }
-.kt-c.yes.copy { color: #dfe4ea; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
+/* quem tem o quê: uma linha por plugin ou skill, uma coluna por PC */
+.kt-table { overflow: hidden; }
+.kt-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(var(--n), 76px); align-items: center; min-height: 48px; padding: 0 var(--pad); }
+.kt-row + .kt-row { border-top: 1px solid var(--line); }
+.kt-row:not(.kt-head):hover { background: rgba(255, 255, 255, .025); }
+.kt-row.out { opacity: .5; }
+.kt-head { min-height: 52px; background: rgba(255, 255, 255, .02); }
+.kt-col { color: var(--faint); font: 600 10px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.kt-who { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.kt-who em { color: var(--muted); font: 600 9.5px var(--ui); font-style: normal; letter-spacing: .12em; text-transform: uppercase; }
+.kt-who.dim { opacity: .5; }
+.kt-name { display: grid; gap: 2px; min-width: 0; padding: 8px 14px 8px 0; }
+.kt-name b { overflow: hidden; color: var(--text); font: 600 13px var(--ui); white-space: nowrap; text-overflow: ellipsis; }
+.kt-name span { overflow: hidden; color: var(--faint); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.kt-c { justify-self: center; display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: 4px; color: #4c535c;
+  font: 600 9.5px var(--ui); font-style: normal; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.kt-c svg.i { width: 16px; height: 16px; stroke-width: 2.2; }
+.kt-c.yes { color: #eef1f4; }
+.kt-c.yes.copy { color: var(--muted); }
 .kt-c.way { color: #cfd5dc; border: 1px dashed rgba(255, 255, 255, .3); }
-.kt-c.bad { color: #f08b7e; border: 1px solid rgba(240, 139, 126, .35); cursor: help; }
-.kt-c.gone { color: #8b95a1; border: 1px solid rgba(255, 255, 255, .1); cursor: help; }
+.kt-c.bad { color: #f3ab9f; border: 1px solid rgba(239, 111, 94, .35); cursor: help; }
+.kt-c.gone { color: var(--muted); border: 1px solid var(--line-2); cursor: help; }
 .kt-c.none { color: #3a4048; }
-.kt-none, .kt-foot { margin: 0 0 22px; color: #6b727b; font: 500 13px/1.5 var(--ui); }
-.kt-foot { margin-top: -6px; font-size: 12px; }
+.kt-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin: 10px 2px 0; color: var(--faint); font-size: 11.5px; }
+.kt-legend > span { display: inline-flex; align-items: center; gap: 4px; }
+.kt-legend .kt-c { min-width: 18px; height: 18px; padding: 0 4px; }
+.kt-legend .kt-c svg.i { width: 13px; height: 13px; }
+.kt-foot { margin: 22px 2px 0; color: var(--faint); font-size: 12px; line-height: 1.5; }
 
 @media (max-width: 640px) {
-  .kt-pcs { grid-template-columns: minmax(0, 1fr); }
-  .kt-row { grid-template-columns: minmax(0, 1fr) repeat(var(--n), 48px); padding: 0 10px; }
-  .kt-name span { font-size: 11px; }
-  .kt-c { min-width: 24px; padding: 0 4px; font-size: 8.5px; letter-spacing: 0; }
+  .kt-row { grid-template-columns: minmax(0, 1fr) repeat(var(--n), 46px); padding: 0 12px; }
+  .kt-c { min-width: 22px; padding: 0 3px; font-size: 8.5px; letter-spacing: 0; }
 }
+
+/* telemóvel */
+html.is-phone .kt-ctl, html.is-phone .ph-actions:has(.kt-ctl) { width: 100%; }
+html.is-phone .kt-ctl { justify-content: flex-start; }
+html.is-phone .kt-state { height: 36px; padding: 0 14px; border-radius: 10px; }
+html.is-phone .kt-ctl .btn { flex: 1 1 auto; }
+html.is-phone .kt-pcs { grid-template-columns: minmax(0, 1fr); }
+html.is-phone .kt-row { grid-template-columns: minmax(0, 1fr) repeat(var(--n), 44px); padding: 0 12px; }
+html.is-phone .kt-name span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 11.5px; }
+html.is-phone .kt-c { min-width: 22px; padding: 0 3px; font-size: 8.5px; letter-spacing: 0; }

@@ -234,6 +234,25 @@ Coisas que custaram tempo e não se devem repetir:
 - **O holofote do miradouro** varre a gruta e, quando chega uma missão, projeta o bat-sinal na parede do escritório (já não sai de
   dentro do escritório).
 
+### Mensagens (21 out, pedido do Marco)
+
+«Quando quiser passar contas, comandos e tal, o pop-up ali pode abrir; consigo mandar como se fossem mensagens lá no widget.»
+`#/mensagens` (01 · Comando; `frontend/hub/mensagens.js` + `.css`) e `backend/app/routers/messages.py` (`/api/messages`).
+
+- Uma conversa é com uma pessoa (`peer` = id dela) ou com a equipa toda (`peer` = `team`). Tabelas `messages` e `message_seen`
+  (versão 18 da base de dados): vão por sync para os três PCs como qualquer linha; a API só mostra uma conversa a quem está nela.
+- Enviar escreve uma notificação `message` (dirigida) para quem recebe: acende o «Mensagens» da barra, abre em qualquer página o
+  cartão com o texto e uma caixa para responder ali (`msgNews`/`drawMsgPop` no `shell.js`), aparece no widget como cartão
+  «MENSAGEM PARA TI» (`/api/local/notices` inclui `message`; `caption` no `notice.py`) e chega à app do telemóvel (web push,
+  cifrado). O ntfy é texto aberto noutro servidor: recebe só «X mandou-te uma mensagem», nunca o conteúdo.
+- Abrir a conversa lê-a (e as notificações dela). O que vem dos outros PCs chega pelo sync, que não avisa as páginas: com a
+  página aberta ela volta a perguntar de 4 em 4 s.
+- Entre ``` fica um bloco com «Copiar» (comandos, contas), `assim` é código numa linha, links abrem no browser; cada mensagem
+  copia-se inteira e a própria apaga-se com dois toques (o delete vai por sync).
+- Testes em `tests/test_messages.py`.
+- **`api()` já faz o `JSON.stringify` do `body`**: passar o objeto (`body: { ... }`). Com `JSON.stringify` à mão o Hub recebe
+  uma string e responde 422; os botões da página Skills estiveram assim desde 14 out.
+
 ### Skills: a biblioteca da Empresa AMG (14 out, pedido do Marco)
 
 «Buscar as skills e colocar todas aí, que vocês dominem todas e que fiquem no widget, fácil para cada agente usar.»
@@ -508,7 +527,7 @@ Armadilhas que custaram tempo:
 
 ### Escritório de Robôs e as contas FundedNext (15 out, pedido do Marco)
 
-`#/robos`, 2.º separador da Sala de Trading (`frontend/hub/robots.js` + `.css`; no telemóvel em «Mais»), `/api/robots`
+`#/robos` (página «Robôs»), 2.º separador da Sala de Trading (`frontend/hub/robots.js` + `.css`; no telemóvel em «Mais»), `/api/robots`
 (`backend/app/routers/robots.py`) e o motor em `backend/app/tradingroom/robots.py`. Inspirado num reel (um escritório 3D de robôs
 de trading a operar contas de prop firm), **nas cores do Hub** (preto e cromado; verde/vermelho só no dinheiro, azul AI numa
 ordem à espera): o Marco disse que o amarelo do vídeo não é para copiar. A equipa faz **forex/CFD day trading** (XAUUSD,
@@ -662,6 +681,7 @@ control surface of the agent; it is not the agent.
   Claude on the data the Hub gathered and posts the answer back. No agent connected = no answer, and the UI says so.
 - **Where numbers come from**: every figure is `live`, `calculated`, `estimated` (cost is always the SDK's estimate) or
   `not_connected`. A missing source is shown as missing, never as zero. Do not add demo data.
+- **Uma página nova ou mexida segue `docs/hub-paginas.md`** (21 out, o Hub todo arrumado a pedido do Marco: «muito organizado, como uma obra de arte, funcional a sério»; a skill `hub-pagina` da biblioteca aparece sozinha nesses pedidos). A barra tem cinco secções numeradas (`SECTIONS` e `NAV` no `app.js`: 01 Comando, 02 Agentes, 03 Negócios, 04 Trading, 05 Sistema); o Ctrl+K (`allCommands` no `shell.js`) e o «Mais» do telemóvel (`openMore` no `mobile.js`) leem a mesma lista, e o `ui.head` põe a secção por cima de cada título. Cabeçalho sempre `ui.head`, nada de cabeçalhos dentro de cartões.
 - **Frontend** (`frontend/`, no build step): `hub/design.css` is the design system (tokens + components), `hub/ui.js` the
   components and `t()` (Portuguese text is its own key; another language is one more dictionary in `I18N`), `hub/home.js` the
   widget grid, `hub/pages.js` the pages, `hub/shell.js` notifications, Ctrl+K and the Team AI. `app.js` and `styles.css` are

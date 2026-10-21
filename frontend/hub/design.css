@@ -859,6 +859,15 @@ html.is-mini body { background: #030407; }
 .tpop-from .av + .av { margin-left: -14px; box-shadow: 0 0 0 2px #10131a; }
 .kpop-list { margin: -6px 0 14px; color: #8b95a1; font: 500 12.5px/1.5 var(--ui); overflow-wrap: anywhere; }
 .kpop-list em { font-style: normal; color: #dfe5ec; }
+/* a message (shell.js, drawMsgPop): the same card, white light instead of red, the text and a box to answer */
+.mpop.low { top: 250px; }
+.mpop .tpop-dot.mpop-dot { background: #eef3f8; box-shadow: 0 0 10px rgba(238, 243, 248, .8); animation: none; }
+.mpop header em { background: rgba(238, 243, 248, .12); color: #eef3f8; }
+.mpop-text { margin: 4px 0 12px; max-height: 9.5em; overflow: auto; color: #eceef1; font: 500 15px/1.5 var(--ui); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mpop-reply { display: flex; gap: 8px; margin-bottom: 10px; }
+.mpop-reply .inp { flex: 1; min-width: 0; height: 38px; }
+.mpop-reply .btn { height: 38px; }
+html.is-phone .mpop.low { top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px) + 240px); }
 html.is-phone .tpop { top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px) + 8px); }
 html.is-phone .tpop-acts .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
 

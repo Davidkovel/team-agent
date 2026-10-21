@@ -1,7 +1,69 @@
 {
+ "ad-creative": [
+  "joker",
+  "catwoman"
+ ],
+ "caveman": [
+  "batman"
+ ],
+ "cold-email": [
+  "joker",
+  "riddler"
+ ],
+ "competitor-profiling": [
+  "riddler"
+ ],
+ "content-strategy": [
+  "joker"
+ ],
+ "copy-editing": [
+  "joker",
+  "alfred"
+ ],
+ "copywriting": [
+  "joker"
+ ],
+ "cro": [
+  "joker",
+  "catwoman"
+ ],
+ "customer-research": [
+  "riddler"
+ ],
  "dossie-crescimento": [
   "riddler",
   "joker"
+ ],
+ "hub-pagina": [
+  "lucius",
+  "catwoman"
+ ],
+ "humanizer": [
+  "joker"
+ ],
+ "impeccable": [
+  "catwoman"
+ ],
+ "launch": [
+  "joker",
+  "gordon"
+ ],
+ "lead-magnets": [
+  "joker"
+ ],
+ "marketing-ideas": [
+  "joker"
+ ],
+ "marketing-plan": [
+  "gordon",
+  "joker"
+ ],
+ "marketing-psychology": [
+  "joker"
+ ],
+ "offers": [
+  "joker",
+  "gordon"
  ],
  "pod-etsy": [
   "riddler",
@@ -13,8 +75,31 @@
   "catwoman",
   "riddler"
  ],
+ "pricing": [
+  "gordon",
+  "joker"
+ ],
+ "prompt-master": [
+  "catwoman",
+  "lucius"
+ ],
+ "prospecting": [
+  "riddler",
+  "joker"
+ ],
  "realtor-landing": [
   "catwoman"
+ ],
+ "referrals": [
+  "joker"
+ ],
+ "security-sweep": [
+  "alfred",
+  "robin"
+ ],
+ "site-architecture": [
+  "catwoman",
+  "riddler"
  ],
  "site-empresa-local": [
   "catwoman",
@@ -28,93 +113,12 @@
   "catwoman",
   "batman"
  ],
- "security-sweep": [
-  "alfred",
-  "robin"
- ],
- "caveman": [
-  "batman"
- ],
- "watch": [
-  "riddler",
-  "catwoman"
- ],
  "task-observer": [
   "lucius",
   "alfred"
  ],
- "humanizer": [
-  "joker"
- ],
- "prompt-master": [
-  "catwoman",
-  "lucius"
- ],
- "impeccable": [
-  "catwoman"
- ],
- "cold-email": [
-  "joker",
-  "riddler"
- ],
- "prospecting": [
+ "watch": [
   "riddler",
-  "joker"
- ],
- "copywriting": [
-  "joker"
- ],
- "copy-editing": [
-  "joker",
-  "alfred"
- ],
- "cro": [
-  "joker",
   "catwoman"
- ],
- "offers": [
-  "joker",
-  "gordon"
- ],
- "pricing": [
-  "gordon",
-  "joker"
- ],
- "lead-magnets": [
-  "joker"
- ],
- "launch": [
-  "joker",
-  "gordon"
- ],
- "referrals": [
-  "joker"
- ],
- "marketing-psychology": [
-  "joker"
- ],
- "customer-research": [
-  "riddler"
- ],
- "site-architecture": [
-  "catwoman",
-  "riddler"
- ],
- "marketing-plan": [
-  "gordon",
-  "joker"
- ],
- "competitor-profiling": [
-  "riddler"
- ],
- "ad-creative": [
-  "joker",
-  "catwoman"
- ],
- "content-strategy": [
-  "joker"
- ],
- "marketing-ideas": [
-  "joker"
  ]
 }

@@ -1,0 +1,77 @@
+/* BareDesk (baredesk.js), carregado pela própria página. Os números da loja (.bd-kpi, .bd-bars, .bd-funnel...) vivem no
+   amg.css porque a página Mercados também os usa; aqui só o que é desta página, sempre dentro de .bd-page:
+   a barra das secções numa linha, o estado ao lado do título e o painel «loja por ligar». */
+
+/* o estado ao lado do título, da altura dos botões */
+.bd-page .bd-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bd-state { height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, .08); background: rgba(255, 255, 255, .025); font-size: 12px; }
+
+/* as secções da empresa: uma linha só, nunca duas */
+.bd-page .bd-nav { flex-wrap: nowrap; gap: 2px; padding: 3px; border-radius: 8px; overflow-x: auto; scrollbar-width: none; }
+.bd-page .bd-nav::-webkit-scrollbar { display: none; }
+.bd-page .bd-pill { flex: none; gap: 7px; height: 32px; padding: 0 13px; border-radius: 6px; font-size: 12.5px; }
+.bd-page .bd-pill svg.i { width: 14px; height: 14px; }
+.bd-page .bd-desc { max-width: 80ch; margin: -4px 0 16px; line-height: 1.5; }
+
+/* os números: três por linha numa janela normal, seis numa larga */
+.bd-page .bd-kpis { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.bd-page .bd-kpi .num.none { font-size: 15px; line-height: 34px; }
+/* os oito números dos anúncios em duas filas de quatro, sem buracos */
+.bd-page .bd-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* a loja por ligar: o que dá, e a chave exata que falta */
+.bd-connect { position: relative; padding: 24px 24px 18px; overflow: hidden; }
+.bd-connect::before { content: ""; position: absolute; left: 18px; right: 18px; top: 0; height: 1px; background: var(--chrome-line); opacity: .45; }
+.bd-connect-head { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: start; gap: 18px; }
+.bd-connect-ic { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .12);
+  background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .08), transparent 70%); color: #cfd5dc; }
+.bd-connect-ic svg.i { width: 21px; height: 21px; stroke-width: 1.5; }
+.bd-connect h2 { margin: 2px 0 8px; color: #f4f6f8; font: 500 28px/1.12 var(--serif); }
+.bd-connect-head p { max-width: 68ch; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.bd-connect-list { margin: 20px 0 0 66px; border: 1px solid var(--line); border-radius: 8px; background: rgba(0, 0, 0, .18); overflow: hidden; }
+.bd-link { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto 112px; align-items: center; gap: 14px; padding: 13px 16px; }
+.bd-link + .bd-link { border-top: 1px solid var(--line); }
+.bd-link-ic { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line-2); color: var(--muted); }
+.bd-link-ic svg.i { width: 16px; height: 16px; }
+.bd-link-t { display: grid; gap: 2px; min-width: 0; }
+.bd-link-t b { color: var(--text); font: 600 13.5px var(--ui); }
+.bd-link-t span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.bd-link-k { display: grid; justify-items: end; gap: 4px; min-width: 0; }
+.bd-link-k small { color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.bd-link-k code { padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .04); color: #e3e7ec; font: 500 11.5px var(--mono); }
+.bd-err { max-width: 300px; color: #f3ab9f; font-size: 12px; line-height: 1.4; text-align: right; overflow-wrap: anywhere; }
+.bd-link > .st { justify-self: end; }
+.bd-link.ok .bd-link-ic { color: var(--ok); border-color: rgba(95, 207, 140, .35); }
+.bd-connect-foot { display: flex; align-items: flex-start; gap: 9px; margin: 14px 0 0 66px; color: var(--faint); font-size: 12px; line-height: 1.5; }
+.bd-connect-foot svg.i { flex: none; width: 14px; height: 14px; margin-top: 1px; }
+/* com uma das duas ligada, a outra numa linha por baixo dos números */
+.bd-connect.slim { padding: 0; }
+.bd-connect.slim::before { display: none; }
+
+/* uma secção da empresa com pastas que não estão neste PC */
+.bd-away { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; color: #ecd3a0; font-size: 12.5px; }
+.bd-away svg.i { flex: none; width: 15px; height: 15px; margin-top: 1px; color: var(--warn); }
+.bd-sec > .panel .empty-state { padding: 40px 20px; }
+.bd-sec > .panel .empty-state p { max-width: 460px; line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .bd-page .bd-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bd-connect-list, .bd-connect-foot { margin-left: 0; }
+  .bd-link { grid-template-columns: 34px minmax(0, 1fr) auto; }
+  .bd-link-k { grid-column: 2 / -1; grid-row: 2; justify-items: start; }
+  .bd-err { text-align: left; }
+}
+
+/* telemóvel */
+html.is-phone .bd-page .bd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.is-phone .bd-page .bd-kpi .num { font-size: 24px; }
+html.is-phone .bd-page .bd-kpi .num.none { font-size: 14px; }
+html.is-phone .bd-page .bd-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.is-phone .bd-state { height: 34px; border-radius: 10px; }
+html.is-phone .bd-connect { padding: 18px 16px 16px; }
+html.is-phone .bd-connect-head { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+html.is-phone .bd-connect h2 { font-size: 25px; }
+html.is-phone .bd-connect-list, html.is-phone .bd-connect-foot { margin-left: 0; }
+html.is-phone .bd-link { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px 12px; padding: 13px 14px; }
+html.is-phone .bd-link-k { grid-column: 2 / -1; grid-row: 2; justify-items: start; }
+html.is-phone .bd-err { text-align: left; }

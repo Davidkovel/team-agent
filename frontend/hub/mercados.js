@@ -109,10 +109,8 @@ HUB_VIEWS.mercados = async function (r) {
   let root = document.querySelector("#view .mk");
   if (!root) { // the shell stays while moving between the sections
     page(`<div class="mk">
-      <header class="ph mk-top"><div><div class="ph-eyebrow">${t("Mercados · os nossos quatro")}</div><h1>${t("Mercados")}</h1>
-        <p>${t("Ouro, EUR/USD, GER40 e GBP/USD: o preço, o sinal e as notícias que mexem com eles, em português.")}</p></div>
-        <div class="ph-actions"><span class="mk-live" id="mk-live"></span>
-          <button class="btn primary" data-ask>${icon("spark")}${t("Pergunta ao Claude")}</button></div></header>
+      ${ui.head("Trading", t("Mercados"), t("Ouro, EUR/USD, GER40 e GBP/USD: o preço, o sinal e as notícias que mexem com eles, em português."),
+        `<span class="mk-live" id="mk-live"></span><button class="btn primary" data-ask>${icon("spark")}${t("Pergunta ao Claude")}</button>`)}
       <nav class="bd-nav mk-nav">${MK_TABS.map(([id, label, ic]) => `<a class="bd-pill" data-tab="${id}" href="#/mercados/${id}">${icon(ic)}<span>${t(label)}</span></a>`).join("")}
         <div class="mk-more"><button type="button" class="bd-pill" data-more>${icon("grid")}<span id="mk-more-l">${t("Mais")}</span>${icon("chevron")}</button>
           <div class="mk-more-m" id="mk-more-m" hidden>${MK_MORE.map(([id, label, ic]) => `<a data-tab="${id}" href="#/mercados/${id}">${icon(ic)}<span>${t(label)}</span></a>`).join("")}</div></div></nav>
@@ -153,7 +151,7 @@ function mkStartTimer() {
 
 function mkLive(at) {
   const el = $("mk-live");
-  if (el) el.innerHTML = `<span class="src live">● ${t("Ao vivo")}</span><span class="faint">${t("atualizado {h}", { h: fmt.hhmm(at || new Date().toISOString()) })}</span>`;
+  if (el) el.innerHTML = `<span class="st ok"><i></i>${t("Ao vivo · {h}", { h: fmt.hhmm(at || new Date().toISOString()) })}</span>`;
 }
 
 /* ---------- clicks, forms and inputs of the whole page ---------- */
@@ -365,14 +363,19 @@ const MK_PHOTOS = {
   usd: [["usd-1", "Federal Reserve", "Domínio público"], ["usd-2", "Hamster28", "Domínio público"], ["usd-3", "Billie Grace Ward", "CC0"]],
 };
 
-// the picture of a card: the story's own photo, or one of its market's (the same story always gets the same one)
+// the picture of a card: the story's own photo, or one of its market's (the same story always gets the same one).
+// The Investing.com photos refuse to be shown on other sites (HTTP 403): those stories take the market's photo at once.
+const mkOwnPhoto = (x) => {
+  try { return x.image && !/(^|\.)investing\.com$/.test(new URL(x.image).hostname) ? x.image : ""; } catch (e) { return ""; }
+};
 function mkArt(x, cls = "") {
   const list = MK_PHOTOS[mkTopicOf(x)] || MK_PHOTOS.usd;
   let h = 0;
   for (const c of x.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const [file, by, lic] = list[h % list.length];
-  const credit = /^CC BY/.test(lic) ? `<small class="mk-credit" ${x.image ? "hidden" : ""}>${t("Foto")}: ${esc(by)} · ${esc(lic)} · Wikimedia Commons</small>` : "";
-  const own = x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.querySelector('.mk-credit')?.removeAttribute('hidden'); this.remove()">` : "";
+  const image = mkOwnPhoto(x);
+  const credit = /^CC BY/.test(lic) ? `<small class="mk-credit" ${image ? "hidden" : ""}>${t("Foto")}: ${esc(by)} · ${esc(lic)} · Wikimedia Commons</small>` : "";
+  const own = image ? `<img src="${esc(image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.querySelector('.mk-credit')?.removeAttribute('hidden'); this.remove()">` : "";
   return `<div class="mk-nc-img ${cls}"><img src="assets/mercados/${file}.jpg" alt="" loading="lazy">${own}${credit}</div>`;
 }
 
@@ -538,7 +541,7 @@ function mkPaintSymbolHead() {
       <button class="btn" data-alert="${esc(sym)}" data-name="${esc(name)}" data-price="${d.price ?? ""}">${icon("bell")}${t("Alerta")}</button>
       <button class="btn ok" data-trade="${esc(sym)}" data-name="${esc(name)}" data-side="buy">${t("Comprar")}</button>
       <button class="btn danger" data-trade="${esc(sym)}" data-name="${esc(name)}" data-side="sell">${t("Vender")}</button>
-      <button class="btn primary" data-ask="${esc(sym)}">${icon("spark")}${t("Análise do Claude")}</button></div>`;
+      <button class="btn" data-ask="${esc(sym)}">${icon("spark")}${t("Análise do Claude")}</button></div>`;
   if (d.price != null) MK.last[sym] = d.price;
 }
 

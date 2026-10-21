@@ -1,0 +1,105 @@
+/* Mensagens (mensagens.js): AMG finish. Graphite panels with a thin edge; my messages in brushed chrome, the others' in
+   graphite; code in a black plate with its own «Copiar». Colour only for what is unread (white) and nothing else. */
+
+.ms { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: calc(100vh - 150px); min-height: 460px; border-radius: 16px; overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .005)), #0a0c10; border: 1px solid rgba(255, 255, 255, .07); }
+.subtabs + .ph + .ms, .ph + .ms { margin-top: 2px; }
+
+/* the conversations */
+.ms-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow-y: auto; padding: 12px 10px; border-right: 1px solid rgba(255, 255, 255, .06);
+  background: rgba(0, 0, 0, .18); scrollbar-width: thin; }
+.ms-list-h { padding: 4px 8px 10px; color: #6b7380; font: 700 10px var(--ui); letter-spacing: .22em; text-transform: uppercase; }
+.ms-conv { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 10px; border-radius: 12px; color: inherit;
+  text-decoration: none; border: 1px solid transparent; transition: background .15s, border-color .15s; }
+.ms-conv:hover { background: rgba(255, 255, 255, .04); }
+.ms-conv.on { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .1); }
+.ms-conv .av { width: 38px; height: 38px; font-size: 15px; }
+.ms-team { display: grid; place-items: center; background: var(--metal); color: #dfe4ea; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 0 0 1px rgba(255, 255, 255, .08); }
+.ms-team .i { width: 17px; height: 17px; }
+.ms-conv-m { display: grid; gap: 3px; min-width: 0; }
+.ms-conv-m b { color: #eceef1; font: 600 14px var(--ui); }
+.ms-conv-m small { color: #6b7380; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-conv.unread .ms-conv-m b { color: #fff; }
+.ms-conv.unread .ms-conv-m small { color: #c3c9d2; }
+.ms-conv-r { display: grid; justify-items: end; gap: 5px; }
+.ms-conv-r time { color: #5d646d; font: 600 10.5px var(--ui); white-space: nowrap; }
+.ms-conv-r i { min-width: 20px; padding: 2px 6px; border-radius: 999px; background: var(--chrome); color: #0b0c0e; font: 700 10.5px var(--ui); font-style: normal; text-align: center; }
+
+/* the open conversation */
+.ms-thread { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
+.ms-thread > .empty-state { grid-row: 1 / -1; align-self: center; }
+.ms-head { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.ms-head .av { width: 36px; height: 36px; }
+.ms-head b { display: block; color: #fff; font: 500 22px/1.1 var(--serif); }
+.ms-head small { color: #6b7380; font: 600 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.ms-body { overflow-y: auto; padding: 18px 20px 10px; scrollbar-width: thin; }
+.ms-day { display: flex; justify-content: center; margin: 14px 0 10px; }
+.ms-day span { padding: 3px 12px; border-radius: 999px; background: rgba(255, 255, 255, .05); color: #8b95a1; font: 600 10.5px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.ms-first { display: grid; justify-items: center; gap: 10px; max-width: 420px; margin: 8vh auto 0; text-align: center; }
+.ms-first .av { width: 58px; height: 58px; font-size: 22px; }
+.ms-first b { color: #fff; font: 500 26px var(--serif); }
+.ms-first p { margin: 0; color: #8b95a1; font-size: 14px; line-height: 1.55; }
+
+.ms-msg { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 9px; align-items: end; margin-top: 10px; }
+.ms-msg.joined { margin-top: 3px; }
+.ms-msg .av { width: 30px; height: 30px; font-size: 12px; }
+.ms-gap { width: 30px; }
+.ms-bub { justify-self: start; max-width: min(640px, 82%); padding: 9px 13px 7px; border-radius: 16px 16px 16px 5px; background: #15181d;
+  border: 1px solid rgba(255, 255, 255, .07); color: #e6e9ed; }
+.ms-msg.joined .ms-bub { border-radius: 16px 16px 16px 5px; }
+.ms-msg.mine { grid-template-columns: minmax(0, 1fr); }
+.ms-msg.mine .ms-gap { display: none; }
+.ms-msg.mine .ms-bub { justify-self: end; border-radius: 16px 16px 5px 16px; background: linear-gradient(180deg, #e9edf1, #c9d0d7); color: #0b0c0e; border-color: transparent;
+  box-shadow: inset 0 1px 0 #fff, 0 6px 18px -8px rgba(0, 0, 0, .7); }
+.ms-who { display: block; margin-bottom: 2px; color: #aeb5bf; font: 700 11px var(--ui); letter-spacing: .06em; }
+.ms-text { font: 500 14px/1.5 var(--ui); overflow-wrap: anywhere; }
+.ms-text code { padding: 1px 6px; border-radius: 5px; background: rgba(0, 0, 0, .35); font: 500 12.5px var(--mono); }
+.ms-msg.mine .ms-text code { background: rgba(0, 0, 0, .1); }
+.ms-text a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.ms-code { position: relative; margin: 6px 0; border-radius: 10px; background: #050608; border: 1px solid rgba(255, 255, 255, .08); }
+.ms-code pre { margin: 0; padding: 11px 13px 34px; overflow-x: auto; color: #e6e9ed; font: 500 12.5px/1.55 var(--mono); white-space: pre; scrollbar-width: thin; }
+.ms-copy { position: absolute; right: 7px; bottom: 6px; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 6px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .14); background: #14171b; color: #dfe4ea; font: 700 10px var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+.ms-copy:hover { border-color: rgba(255, 255, 255, .3); }
+.ms-copy .i { width: 11px; height: 11px; }
+.ms-meta { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; }
+.ms-meta time { color: #6b7380; font: 600 10.5px var(--ui); }
+.ms-msg.mine .ms-meta time { color: #4c535c; }
+.ms-act { display: inline-grid; place-items: center; height: 20px; min-width: 20px; padding: 0 4px; border: 0; border-radius: 5px; background: none; color: inherit; opacity: 0;
+  cursor: pointer; font: 700 10.5px var(--ui); transition: opacity .15s; }
+.ms-act .i { width: 12px; height: 12px; }
+.ms-msg:hover .ms-act, .ms-act.ask { opacity: .7; }
+.ms-act:hover { opacity: 1; background: rgba(127, 127, 127, .15); }
+.ms-act.ask { opacity: 1; color: var(--bad); }
+
+/* writing */
+.ms-send { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; align-items: end; padding: 12px 16px 12px; border-top: 1px solid rgba(255, 255, 255, .06);
+  background: rgba(0, 0, 0, .2); }
+.ms-send textarea { width: 100%; min-height: 42px; max-height: 200px; padding: 11px 14px; border-radius: 12px; resize: none; background: #06080b; color: #eceef1;
+  border: 1px solid rgba(255, 255, 255, .1); outline: 0; font: 500 14px/1.45 var(--ui); }
+.ms-send textarea:focus { border-color: rgba(255, 255, 255, .3); }
+.ms-send .btn { height: 42px; padding: 0 18px; gap: 7px; }
+.ms-hint { grid-column: 1 / -1; color: #4f565f; font: 500 11px var(--ui); }
+
+/* a narrow window and the phone: one at a time, the list or the conversation */
+@media (max-width: 860px) {
+  .ms { grid-template-columns: minmax(0, 1fr); }
+  .ms.has-peer .ms-list { display: none; }
+  .ms:not(.has-peer) .ms-thread { display: none; }
+}
+html.is-phone .ms { height: calc(100dvh - var(--m-bar, 48px) - 150px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); min-height: 360px; border-radius: 18px; }
+html.is-phone[data-page="mensagens"] .ph { display: none; }
+html.is-phone .ms:not(.has-peer) { height: auto; min-height: 0; }
+html.is-phone .ms-list { padding: 8px; border-right: 0; }
+html.is-phone .ms-conv { padding: 12px 10px; }
+html.is-phone .ms-conv-m b { font-size: 16px; }
+html.is-phone .ms-conv-m small { font-size: 14px; }
+html.is-phone .ms-head { padding: 12px 16px; }
+html.is-phone .ms-body { padding: 12px 12px 8px; }
+html.is-phone .ms-bub { max-width: 86%; }
+html.is-phone .ms-text { font-size: 16px; }
+html.is-phone .ms-act { opacity: .55; }
+html.is-phone .ms-send { padding: 10px; }
+html.is-phone .ms-send textarea { font-size: 16px; }
+html.is-phone .ms-send .btn { padding: 0 14px; }
+html.is-phone .ms-hint { display: none; }

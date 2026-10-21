@@ -18,6 +18,7 @@ async function hubNews() {
   if (!$("notif-panel").hidden) drawNotifications(inbox);
   taskNews(inbox);
   kitNudge().catch(() => {});
+  msgNews(inbox);
   return inbox;
 }
 /* A task somebody sent me: the Tarefas of the sidebar (and of the phone's tabs) says how many are new, lit, and the
@@ -36,6 +37,60 @@ function taskNews(inbox) {
   drawTaskPop(show);
 }
 function closeTaskPop() { const el = $("tpop"); if (el) el.remove(); }
+
+/* A message somebody wrote me (Mensagens, mensagens.js): the number on the sidebar's Mensagens, and a card on any page with
+   who wrote, what, and a box to answer there without leaving the page (Marco, 21 out: «quando quiser passar contas,
+   comandos e tal, o pop-up ali pode abrir»). Not while that conversation is open: the page itself reads it. */
+const msgPopSeen = new Set((() => { try { return JSON.parse(sessionStorage.getItem("mpop.seen") || "[]"); } catch { return []; } })());
+function msgNews(inbox) {
+  const fresh = inbox.items.filter((n) => n.kind === "message" && !n.read);
+  if (window.setBadge) setBadge("mensagens", fresh.length, fresh.length > 0, fresh.length ? t(fresh.length === 1 ? "1 mensagem por ler" : "{n} mensagens por ler", { n: fresh.length }) : "");
+  const open = location.hash.startsWith("#/mensagens/") ? location.hash : "";
+  const show = fresh.filter((n) => !msgPopSeen.has(n.id) && n.href !== open);
+  if (!show.length) { if (!fresh.some((n) => !msgPopSeen.has(n.id))) closeMsgPop(); return; }
+  if (document.documentElement.classList.contains("is-mini") || !$("modal").hidden) return;
+  if ($("mpop") && $("mpop").dataset.top === String(show[0].id) && $("mpop").contains(document.activeElement)) return;   // answering: leave it be
+  drawMsgPop(show);
+}
+function closeMsgPop() { const el = $("mpop"); if (el) el.remove(); }
+function seenMsgs(list) {
+  list.forEach((x) => msgPopSeen.add(x.id));
+  try { sessionStorage.setItem("mpop.seen", JSON.stringify([...msgPopSeen])); } catch { /* private window */ }
+}
+function drawMsgPop(show) {
+  const n = show[0], same = show.filter((x) => x.href === n.href), peer = (n.href.split("/")[2] || "team");
+  const who = n.title.replace(/^Mensagem de /, "").replace(/ na Equipa$/, "");
+  let el = $("mpop");
+  if (!el) { el = Object.assign(document.createElement("div"), { id: "mpop", className: "tpop mpop" }); el.setAttribute("role", "dialog"); document.body.append(el); }
+  el.dataset.top = n.id;
+  el.classList.toggle("low", !!$("tpop"));
+  el.innerHTML = `<i class="tpop-light" aria-hidden="true"></i>
+    <header><i class="tpop-dot mpop-dot"></i><b>${esc(peer === "team" ? t("Mensagem para a equipa") : t("Mensagem para ti"))}</b>${same.length > 1 ? `<em>${esc(t("+{n} novas", { n: same.length - 1 }))}</em>` : ""}
+      <button type="button" class="tpop-x" data-mpop-later aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
+    <div class="tpop-from">${ui.avatar(who || "?", "sm")}<span><b>${esc(who)}</b> · ${esc(fmt.ago(n.created_at))}</span></div>
+    <p class="mpop-text">${esc(n.body || n.title)}</p>
+    <form class="mpop-reply" data-mpop-form><input class="inp" name="reply" placeholder="${esc(peer === "team" ? t("Responder à equipa…") : t("Responder a {p}…", { p: who }))}" autocomplete="off">
+      <button class="btn primary">${esc(t("Enviar"))}</button></form>
+    <div class="tpop-acts"><button type="button" class="btn" data-mpop-open>${icon("chat")}${esc(t("Abrir a conversa"))}</button>
+      <button type="button" class="btn quiet" data-mpop-later>${esc(t("Mais tarde"))}</button></div>`;
+  el.onclick = (e) => {
+    if (e.target.closest("[data-mpop-later]")) { seenMsgs(show); closeMsgPop(); }
+    else if (e.target.closest("[data-mpop-open]")) { seenMsgs(show); closeMsgPop(); location.hash = n.href; }
+  };
+  el.querySelector("[data-mpop-form]").onsubmit = async (e) => {
+    e.preventDefault();
+    const input = e.target.reply, text = input.value.trim();
+    if (!text) return input.focus();
+    input.disabled = true;
+    try {
+      await api(`/api/messages/${encodeURIComponent(peer)}`, { method: "POST", body: ({ body: text }) });
+      await api("/api/notifications/read", { method: "POST", body: ({ ids: same.map((x) => x.id) }) });
+      seenMsgs(show); closeMsgPop();
+      flash(t("Resposta enviada"));
+      hubNews().catch(() => {});
+    } catch (err) { flash(err.message); input.disabled = false; }
+  };
+}
 function drawTaskPop(show) {
   const n = show[0], { who, title } = notifParts(n), id = taskIdOf(n), first = (me.display_name || "").split(" ")[0];
   let el = $("tpop");
@@ -286,25 +341,33 @@ async function toggleNotifications(open = $("notif-panel").hidden) {
 onLive(["notification"], hubNews);
 
 /* ---------- command palette ---------- */
-const COMMANDS = [
+// what can be done from anywhere, then every page of the sidebar (NAV in app.js, with its section) and a few places inside them
+const ACTIONS = [
   ["Criar tarefa", "plus", () => newTask()],
   ["Entregar tarefa à IA", "bot", () => newTask({ for_ai: "developer" })],
-  ["Ver agentes", "bot", "#/agentes"], ["Ver aprovações", "check", "#/aprovacoes"], ["Ao vivo", "pulse", "#/aovivo"],
-  ["Tarefas", "tasks", "#/tarefas"], ["Projetos", "folder", "#/projetos"], ["Empresas", "building", "#/empresas"], ["Código", "code", "#/codigo"], ["Entregas", "fotos", "#/entregas"],
-  ["Histórico", "history", "#/historico"], ["Semana", "calendar", "#/semana"], ["Equipa", "users", "#/equipa"], ["Análise", "chart", "#/analise"],
-  ["Uso de IA", "token", "#/uso"], ["Despesas", "wallet", "#/despesas"], ["Memória", "layers", "#/memoria"], ["Definições", "gear", "#/definicoes"],
-  ["Início", "home", "#/home"],
-  ["BareDesk", "bag", "#/baredesk"],
-  ["Fábrica Etsy (print-on-demand)", "spark", "#/etsy"], ["Sala de Trading", "trend", "#/trading"], ["Convocar reunião de trading", "users", "#/trading"], ["Escritório de Robôs", "trend", "#/robos"], ["Sinal na notícia (BUY/SELL)", "trend", "#/sinal"], ["Reforço na notícia (MT5)", "trend", "#/reforco"], ["Gap da manhã (GER30, FundedNext)", "trend", "#/gap"], ["Contas de trading (FundedNext)", "wallet", "#/robos"],
-  ["Mercados", "candles", "#/mercados"], ["Paper trading", "wallet", "#/mercados/paper"], ["Notícias dos mercados", "news", "#/mercados/noticias"],
 ];
+const PLACES = [
+  ["Convocar reunião de trading", "users", "#/trading"], ["Contas de trading (FundedNext)", "wallet", "#/robos"],
+  ["Paper trading", "wallet", "#/mercados/paper"], ["Notícias dos mercados", "news", "#/mercados/noticias"],
+];
+const COMMANDS = [];
+function allCommands() {
+  if (!COMMANDS.length) {
+    COMMANDS.push(...ACTIONS.map(([label, ic, run]) => [label, ic, run, t("ação")]));
+    for (const [entry, ic, pages, sec] of NAV) {
+      for (const [id, label] of pages) COMMANDS.push([label, ic, `#/${id}`, `${SECTIONS[sec][0]} · ${t(SECTIONS[sec][1])}${label !== entry ? ` › ${t(entry)}` : ""}`]);
+    }
+    COMMANDS.push(...PLACES.map(([label, ic, href]) => [label, ic, href, (navOf(href.split("/")[1]) || { section: ["", ""] }).section.join(" · ")]));
+  }
+  return COMMANDS;
+}
 const RESULT_ICON = { person: "users", task: "tasks", project: "folder", company: "building", memory: "layers", approval: "check", activity: "history", code: "code" };
 const RESULT_LABEL = { person: "Pessoa", task: "Tarefa", project: "Projeto", company: "Empresa", memory: "Memória", approval: "Aprovação", activity: "Atividade", code: "Código" };
 let palItems = [], palIndex = 0, palTimer = null, palQuery = 0;
 
 function drawPalette(results = []) {
   const q = $("pal-q").value.trim().toLowerCase();
-  const commands = COMMANDS.filter(([label]) => !q || t(label).toLowerCase().includes(q)).map(([label, ic, run]) => ({ label: t(label), ic, run, hint: typeof run === "string" ? "" : t("ação") }));
+  const commands = allCommands().filter(([label, , , hint]) => !q || `${t(label)} ${hint}`.toLowerCase().includes(q)).map(([label, ic, run, hint]) => ({ label: t(label), ic, run, hint }));
   const found = results.map((r) => ({ label: r.title, ic: RESULT_ICON[r.type] || "doc", run: r.href, hint: `${t(RESULT_LABEL[r.type] || r.type)}${r.detail && r.detail !== RESULT_LABEL[r.type] ? " · " + r.detail : ""}` }));
   palItems = [...found, ...commands];
   palIndex = Math.min(palIndex, Math.max(0, palItems.length - 1));

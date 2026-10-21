@@ -856,6 +856,9 @@ html.is-mini body { background: #030407; }
 .tpop-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .tpop-acts .btn { height: 38px; gap: 7px; border-radius: 11px; font-size: 13px; }
 .tpop-acts .btn .i { width: 13px; height: 13px; }
+.tpop-from .av + .av { margin-left: -14px; box-shadow: 0 0 0 2px #10131a; }
+.kpop-list { margin: -6px 0 14px; color: #8b95a1; font: 500 12.5px/1.5 var(--ui); overflow-wrap: anywhere; }
+.kpop-list em { font-style: normal; color: #dfe5ec; }
 html.is-phone .tpop { top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px) + 8px); }
 html.is-phone .tpop-acts .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
 

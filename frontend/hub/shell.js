@@ -17,6 +17,7 @@ async function hubNews() {
   lastNotification = newest;
   if (!$("notif-panel").hidden) drawNotifications(inbox);
   taskNews(inbox);
+  kitNudge().catch(() => {});
   return inbox;
 }
 /* A task somebody sent me: the Tarefas of the sidebar (and of the phone's tabs) says how many are new, lit, and the
@@ -64,6 +65,57 @@ function drawTaskPop(show) {
       } catch (err) { flash(err.message); office.disabled = false; }
     }
   };
+}
+/* The same Claude on the three PCs (Marco, 21 Oct: «os plugins têm que ser iguais... o widget tem que conectar tudo»).
+   The kit (kit.js, claude_kit.py) stays off until the PC's own person turns it on, so on a PC where it is off a card asks
+   that person, on any page: who has the plugins this PC lacks, and one touch turns the kit on here. «Agora não» puts it
+   away for three days. Asked at most every 30 min, never on the phone or in the mini window, never over the task card. */
+let kitAsked = 0;
+async function kitNudge() {
+  const root = document.documentElement;
+  if (Date.now() - kitAsked < 30 * 60e3 || root.classList.contains("is-phone") || root.classList.contains("is-mini")) return;
+  kitAsked = Date.now();
+  try { if (Date.now() < Number(localStorage.getItem("kpop.later") || 0)) return; } catch { /* private window: ask */ }
+  const k = await request("/api/kit"), h = k.here;
+  if (!h || h.on || !h.can || !h.claude) return;
+  const mine = new Set(h.plugins), missing = {};
+  for (const p of k.peers) for (const key of p.plugins || []) if (!mine.has(key) && !k.fora[key]) (missing[key] ||= []).push(p.who);
+  const keys = Object.keys(missing).sort();
+  if (keys.length && !$("tpop") && !$("kpop") && !document.querySelector(".nt") && $("modal").hidden) drawKitPop(keys, missing);
+}
+function drawKitPop(keys, missing) {
+  const who = [...new Set(keys.flatMap((key) => missing[key]))];
+  const firsts = who.map((u) => String(nameOf(u) || u).split(" ")[0]);
+  const names = firsts.length > 1 ? `${firsts.slice(0, -1).join(", ")} ${t("e")} ${firsts.at(-1)}` : firsts[0];
+  const plain = keys.map((key) => key.split("@")[0]);
+  const el = Object.assign(document.createElement("div"), { id: "kpop", className: "tpop" });
+  el.setAttribute("role", "dialog");
+  el.innerHTML = `<i class="tpop-light" aria-hidden="true"></i>
+    <header><i class="tpop-dot"></i><b>${esc(t("O mesmo Claude nos 3 PCs"))}</b>
+      <button type="button" class="tpop-x" data-kpop-later aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
+    <div class="tpop-from">${who.map((u) => ui.avatar(nameOf(u) || u, "sm")).join("")}<span>${esc(t("Liga o kit e este PC fica com os plugins dos outros, e eles com os teus."))}</span></div>
+    <h3>${esc(t(who.length > 1 ? "{w} têm {n} plugins que este PC não tem" : "{w} tem {n} plugins que este PC não tem", { w: names, n: keys.length }))}</h3>
+    <p class="kpop-list">${esc(plain.slice(0, 8).join(" · "))}${plain.length > 8 ? ` <em>+${plain.length - 8}</em>` : ""}</p>
+    <div class="tpop-acts"><button type="button" class="btn primary" data-kpop-on>${icon("bolt")}${esc(t("Ligar o kit neste PC"))}</button>
+      <button type="button" class="btn" data-kpop-see>${esc(t("Ver o kit"))}</button>
+      <button type="button" class="btn quiet" data-kpop-later>${esc(t("Agora não"))}</button></div>`;
+  el.onclick = async (e) => {
+    if (e.target.closest("[data-kpop-later]")) {
+      try { localStorage.setItem("kpop.later", String(Date.now() + 3 * 864e5)); } catch { /* private window: it asks again next time */ }
+      el.remove();
+    } else if (e.target.closest("[data-kpop-see]")) {
+      el.remove(); location.hash = "#/kit";
+    } else if (e.target.closest("[data-kpop-on]")) {
+      const btn = e.target.closest("[data-kpop-on]");
+      btn.disabled = true;
+      try {
+        await api("/api/kit", { method: "POST", body: { on: true } });
+        flash(t("Kit ligado: os plugins que faltam instalam-se nos próximos minutos."));
+        el.remove();
+      } catch (err) { flash(err.message); btn.disabled = false; }
+    }
+  };
+  document.body.append(el);
 }
 /* The list of notifications, the same on the computer's bell and on the phone's Avisos: by day, each with what kind of thing
    it is written out, unread ones lit. «Escolher» turns on ticks to pick which ones to delete; the × deletes one at once. */

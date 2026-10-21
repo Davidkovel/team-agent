@@ -81,6 +81,13 @@ SOBRE = {  # what each plugin is for, in a line the team reads (the page); one n
     "claude-mem": "Memória entre sessões: o que o Claude fez fica guardado e volta na sessão seguinte",
     "task-observer": "Aprende como trabalhas e propõe skills novas ou melhores",
     "security-sweep": "Segurança: procura chaves expostas e falhas no código (/security-sweep)",
+    "frontend-design": "Sites: interfaces com design a sério, nada de cara de template (Anthropic)",
+    "ui-ux-pro-max": "Sites: base de estilos, paletas, fontes e regras de UX para escolher o design certo",
+    "playwright": "Browser a sério: abrir sites, clicar, preencher, tirar prints e testar (Microsoft)",
+    "context7": "Documentação sempre atual de qualquer biblioteca enquanto programa",
+    "feature-dev": "Construir uma funcionalidade nova com agentes: explorar, desenhar, fazer e rever (/feature-dev)",
+    "code-review": "Revisão do código por vários agentes antes de enviar (/code-review)",
+    "ralph-loop": "O Claude continua a trabalhar sozinho em ciclo até a tarefa estar acabada (/ralph-loop)",
 }
 _wake: asyncio.Event | None = None   # set by the button: a round now instead of in 30 min
 _busy = False

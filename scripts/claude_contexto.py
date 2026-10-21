@@ -26,13 +26,15 @@ AREAS = [
     ("Sites", r"\bsites?\b|website|webpage|p[aá]ginas? (web|de entrada|inicial)|landing|homepage|portef[oó]lio|portfolio|"
               r"front-?end|\bhtml\b|\bcss\b|next\.?js|react|tailwind|web ?app|infinite ?scroll|scroll infinito|"
               r"parallax|scrollytelling|awwwards|сайт|лендинг|скролл",
-     ["site-scroll-infinito", "premium-site-rebuild", "site-empresa-local", "site-estudio-ia", "realtor-landing", "frontend-design",
+     ["site-scroll-infinito", "premium-site-rebuild", "site-empresa-local", "site-estudio-ia", "realtor-landing", "impeccable",
+      "frontend-design",
       "senior-frontend", "web-artifacts-builder", "webapp-testing"]),
     ("Clientes e vendas", r"angaria[rç]|prospe[cç]|prospect|dossi[eê]s?|propostas?\b|proposal|cold ?e-?mail|outreach|"
                           r"clientes? novos|novos clientes|vendas por apanhar|\bsales\b|lead ?gen|\bcrm\b|\bdeals?\b|"
                           r"opportunit|oportunidades? de neg|fechar (o )?neg[oó]cio|obje[cç](ão|ões)|objections?|"
-                          r"account plan|\bquota\b|\brfp\b|клиент|продаж",
-     ["dossie-crescimento"]),
+                          r"account plan|\bquota\b|\brfp\b|ofertas?\b|pre[cç]os?\b|pricing|quanto cobrar|"
+                          r"pacotes? de servi[cç]os?|клиент|продаж",
+     ["dossie-crescimento", "offers", "pricing", "prospecting", "cold-email"]),
     ("SEO", r"\bseo\b|google (maps|search|business)|aparecer no google|posicionamento|ranking|sitemap|\bschema\b|"
             r"keywords?|palavras?-chave|backlinks?",
      ["seo", "seo-audit", "seo-local", "seo-technical", "seo-page", "seo-content", "seo-schema", "seo-plan"]),
@@ -43,11 +45,12 @@ AREAS = [
      ["motion-reel-codigo", "ads-creative", "algorithmic-art"]),
     ("Redes sociais e conteúdo", r"instagram|linkedin|facebook|tiktok|\bposts?\b|carross[eé]is|carross[eé]l|carousel|"
                                  r"redes sociais|social media|conte[uú]dos?|\bcontent\b|newsletter|e-?mails?\b|\bblog|"
-                                 r"инстаграм|контент|пост",
-     ["social-content", "content-creation", "draft-content", "email-sequence", "campaign-plan", "brand-review"]),
+                                 r"n[aã]o pare[cç]a (ia|ai)|parecer (escrito por )?(uma )?(ia|ai|pessoa|humano)|humaniz|"
+                                 r"soar (humano|natural)|инстаграм|контент|пост",
+     ["social-content", "humanizer", "content-creation", "draft-content", "email-sequence", "campaign-plan", "brand-review"]),
     ("Print-on-demand", r"\betsy\b|printify|printful|print[- ]on[- ]demand|\bpod\b|estampas?|t-?shirts?|sweatshirts?|canecas?|"
                         r"fiverr|farmar dinheiro|ganhar dinheiro|fazer dinheiro|renda passiva|passive income",
-     ["pod-etsy"]),
+     ["pod-etsy", "humanizer"]),
     ("Loja Shopify", r"shopify|loja online|e-?commerce|\bliquid\b|checkout|online store|магазин",
      ["shopify-liquid", "shopify-admin", "shopify-dev", "shopify-custom-data", "shopify-use-shopify-cli", "seo-ecommerce"]),
     ("Marca e design", r"\bmarcas?\b|log[oó]tipo|\blogo\b|identidade visual|branding|\bbrand\b|cartaz|poster|flyer|"
@@ -55,8 +58,9 @@ AREAS = [
      ["canvas-design", "theme-factory", "brand-review", "frontend-design", "algorithmic-art"]),
     ("Marketing", r"marketing|campanhas?\b|lan[cç]amento|\blaunch|concorr[eê]ncia|concorrentes|competitors?|"
                   r"p[uú]blico-alvo|personas?\b|funil|funnel|\bleads?\b|positioning|messaging|message house|\bicp\b|"
-                  r"ideal customer|proof points?|proposta de valor|value prop|go-to-market|маркетинг",
-     ["campaign-plan", "competitive-brief", "performance-report", "content-creation", "email-sequence"]),
+                  r"ideal customer|proof points?|proposta de valor|value prop|go-to-market|convers[aã]o|\bcro\b|"
+                  r"converter mais|vender mais|маркетинг",
+     ["cro", "marketing-plan", "campaign-plan", "competitive-brief", "performance-report", "content-creation", "email-sequence"]),
     ("Documentos", r"\bpdfs?\b|\bdocx\b|\bword\b|excel|\bxlsx\b|folhas? de c[aá]lculo|spreadsheet|\bpptx\b|powerpoint|"
                    r"apresenta[cç](ão|ões)|\bslides?\b|\bdeck\b|документ",
      ["pdf", "docx", "xlsx", "pptx", "doc-coauthoring"]),

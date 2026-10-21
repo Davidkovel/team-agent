@@ -42,5 +42,79 @@
  "task-observer": [
   "lucius",
   "alfred"
+ ],
+ "humanizer": [
+  "joker"
+ ],
+ "prompt-master": [
+  "catwoman",
+  "lucius"
+ ],
+ "impeccable": [
+  "catwoman"
+ ],
+ "cold-email": [
+  "joker",
+  "riddler"
+ ],
+ "prospecting": [
+  "riddler",
+  "joker"
+ ],
+ "copywriting": [
+  "joker"
+ ],
+ "copy-editing": [
+  "joker",
+  "alfred"
+ ],
+ "cro": [
+  "joker",
+  "catwoman"
+ ],
+ "offers": [
+  "joker",
+  "gordon"
+ ],
+ "pricing": [
+  "gordon",
+  "joker"
+ ],
+ "lead-magnets": [
+  "joker"
+ ],
+ "launch": [
+  "joker",
+  "gordon"
+ ],
+ "referrals": [
+  "joker"
+ ],
+ "marketing-psychology": [
+  "joker"
+ ],
+ "customer-research": [
+  "riddler"
+ ],
+ "site-architecture": [
+  "catwoman",
+  "riddler"
+ ],
+ "marketing-plan": [
+  "gordon",
+  "joker"
+ ],
+ "competitor-profiling": [
+  "riddler"
+ ],
+ "ad-creative": [
+  "joker",
+  "catwoman"
+ ],
+ "content-strategy": [
+  "joker"
+ ],
+ "marketing-ideas": [
+  "joker"
  ]
 }

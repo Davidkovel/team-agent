@@ -38,6 +38,16 @@ def test_what_gets_installed_and_what_the_person_removed_stays_removed():
     assert kit.to_install(wanted, state, have={"a@m"}, now=now) == ["d@m"]   # c failed a minute ago, d long ago
 
 
+def test_caveman_comes_switched_off_but_a_config_the_person_has_is_kept(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    kit.caveman_off()
+    config = tmp_path / "caveman" / "config.json"
+    assert json.loads(config.read_text(encoding="utf-8")) == {"defaultMode": "manual"}
+    config.write_text('{"defaultMode": "ultracave"}', encoding="utf-8")
+    kit.caveman_off()
+    assert json.loads(config.read_text(encoding="utf-8")) == {"defaultMode": "ultracave"}
+
+
 def test_a_personal_skill_packs_and_unpacks_into_place(tmp_path):
     src = tmp_path / "src"
     (src / "scripts").mkdir(parents=True)

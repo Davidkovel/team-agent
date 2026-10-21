@@ -75,6 +75,12 @@ SOBRE = {  # what each plugin is for, in a line the team reads (the page); one n
     "operations": "Operações: processos, fornecedores e relatórios",
     "productivity": "Produtividade: tarefas, o plano do dia e a memória do trabalho",
     "activecampaign": "ActiveCampaign: contactos, campanhas e e-mail marketing",
+    "caveman": "Respostas curtas do Claude: desligado até escreveres /caveman",
+    "context-mode": "Poupa contexto: os resultados grandes das ferramentas ficam fora da conversa",
+    "watch": "Vídeo: o Claude vê um vídeo do YouTube ou do PC (imagens e legendas)",
+    "claude-mem": "Memória entre sessões: o que o Claude fez fica guardado e volta na sessão seguinte",
+    "task-observer": "Aprende como trabalhas e propõe skills novas ou melhores",
+    "security-sweep": "Segurança: procura chaves expostas e falhas no código (/security-sweep)",
 }
 _wake: asyncio.Event | None = None   # set by the button: a round now instead of in 30 min
 _busy = False
@@ -202,12 +208,29 @@ def claude_exe() -> str | None:
     return None
 
 
+def caveman_off() -> None:
+    """Caveman starts on in every window by itself (short answers, also in the Etsy listings); on the team's PCs it waits
+    for /caveman, like on Marco's (21 Oct). A config the person already has is left as it is."""
+    if os.environ.get("XDG_CONFIG_HOME"):
+        folder = Path(os.environ["XDG_CONFIG_HOME"]) / "caveman"
+    elif sys.platform == "win32":
+        folder = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "caveman"
+    else:
+        folder = Path.home() / ".config" / "caveman"
+    if not (folder / "config.json").exists():
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "config.json").write_text('{\n  "defaultMode": "manual"\n}\n', encoding="utf-8")
+
+
 def run_install(exe: str, key: str, repo: str, known: bool) -> tuple[bool, str]:
     plugin, _, _ = key.partition("@")
     args = [exe, "plugin", "install", key if known else plugin, "--scope", "user", "--json"]
     if not known:
         args += ["--marketplace", repo]   # adds the marketplace in the user's settings first
     env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "CLAUDECODE")}
+    env.setdefault("CLAUDE_CODE_PLUGIN_GIT_TIMEOUT_MS", "600000")   # claude-mem's repository takes more than the 2 min default
+    if plugin == "caveman":
+        caveman_off()
     try:
         r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900, env=env,
                            stdin=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))

@@ -565,6 +565,22 @@ ficam com o seu stop/TP («Stop e fechar reforços» fecha-os). VWAP de sessão 
 Respeita a guarda da prop do Escritório. Corre só no PC com a conta MT5 (o do Marco): noutro PC a página manda abrir o Hub dele.
 Estado em `~/.team-agent/trading-room/reforco.json`. Pesquisa por trás: memória «news-reaction» (VWAP após notícias).
 
+### Sinal na notícia (21 out, pedido do David)
+
+`#/sinal`, 2.º separador da Sala de Trading (`frontend/hub/sinal.js` + `.css`), `/api/sinal` (`backend/app/routers/sinal.py`), motor
+`backend/app/tradingroom/sinal.py`, testes `tests/test_sinal.py`. «Durante a notícia quero ver logo BUY ou SELL com o número que saiu,
+sem atualizar o Forex Factory.» O Hub de cada PC vigia as notícias dos EUA de impacto alto e médio (semana atual e seguinte das
+páginas do Forex Factory, `WATCH`) e, a partir de 2 s antes do minuto, lê o calendário da TradingView ~5 vezes por segundo (uma
+ligação mantida, ~130 ms) e a página do dia do Forex Factory a cada segundo; ganha a primeira que tiver o número (~2 s depois do
+minuto). Compara sempre com a **previsão do Forex Factory** (a TradingView às vezes tem outra) e acerta a escala K/M da TradingView
+pelo valor anterior. A direção é o que o ativo fez nos primeiros 5 min nas saídas passadas com o mesmo resultado (`reaction_data/`);
+menos de 60% = NO TRADE; sem histórico, a regra do dólar. Página: o palco (contagem, radar azul enquanto lê, BUY verde / SELL
+vermelho em grande, o número, o histórico, os outros ativos e as outras cifras da mesma hora), Próximas e Diário (o ouro 5 min
+depois, certo/errado). Ouro, EUR/USD, GER40 ou GBP/USD, som e «Aviso em todo o Hub» ficam no browser (`localStorage`). O aviso
+grande por cima de qualquer página (`sinal-alert.js`, sempre carregado, evento live `sinal`) só para impacto alto. **Ensaio**:
+repete o último CPI core com o relógio deslocado (sai 10 s depois do botão, o número escondido até 1,5 s), o mesmo código contra
+as páginas verdadeiras desse dia. Diário em `~/.team-agent/trading-room/sinal.json`, nada vai por sync.
+
 ### Testar uma mudança no Hub
 
 1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".

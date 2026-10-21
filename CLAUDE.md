@@ -570,6 +570,32 @@ EURUSD, GBPUSD, GER40), **não futuros**: a Lucid Trading (futuros, Tradovate) f
 - **Testar sem dinheiro**: um adaptador falso em `LINKS` (snapshot/place/cancel/close) e `OFFICE.sync_account` com
   `TRADING_ROOM_DIR` numa pasta de teste; nunca ligar uma conta real para testar.
 
+### Painel FundedNext (21 out, pedido do Marco)
+
+`#/fundednext`, separador da Sala de Trading (`frontend/hub/fundednext.js` + `.css`), `/api/fundednext`
+(`backend/app/routers/fundednext.py`), cálculo em `backend/app/tradingroom/fundednext.py`, testes `tests/test_fundednext.py`.
+«Como o dashboard da FundedNext, só que muito mais organizado, o máximo de funcionalidade.» A conta é a do Escritório de
+Robôs (`robots.OFFICE`), lida pela API do MT5 deste PC.
+
+- **Sem password no Hub** (`mt5._attach`, `mt5.detect`): uma conta MT5 sem password guardada (`attach`) usa a conta em que o
+  terminal está (a pessoa entrou no MT5 com «Guardar password»); o Hub só confere o número. «Apanhar a conta do MT5»
+  (`POST /detect`) cria a conta sozinha se o servidor for da FundedNext. Nunca escrever a password de ninguém por ele.
+- **Fases** (`PHASES` no `robots.py`, `phase_of`): Fase 1/Fase 2/Financiada por programa, com o objetivo e os dias mínimos.
+  O tamanho da conta vem do 1.º depósito (`size_set` quando a pessoa o escreve). O stop e a meta do dia da pessoa
+  (`my_stop`, `my_goal`, % do tamanho) entram no `guard()`: os robôs também param.
+- **Histórico** (`mt5.history`): todos os deals desde o início, com o stop de cada posição (das ordens) e o fuso do servidor
+  (`server_offset`: tick fresco, senão Nova Iorque + 7 h). O dia de trading é o dia do servidor (meia-noite = 17:00 NY).
+  Lido no máximo de 30 em 30 s. A equity fica guardada de 5 em 5 min em `robots.json` (`eq`).
+- **Ticket** (`mt5.order`, magic 7701): mercado/limite/stop, sempre com stop, lote pelo risco % ou à mão; o Hub recusa a
+  ordem cujo stop passe o que ainda se pode perder hoje. Posições: fechar, metade (`close` com volume), stop na entrada
+  (`mt5.modify`); ordens: cancelar; «Fechar tudo» fecha tudo da conta (dele e dos robôs) e volta a Observar. Tudo isto só
+  do próprio PC ou do telemóvel dele (`_here`).
+- **Página** no padrão do `docs/hub-paginas.md`: números em cima, objetivos da fase, saldo/equity com os chãos, posições,
+  ticket, «Quanto queres arriscar?», dia a dia (calendário), estatística, diário, robôs da conta, notícias vermelhas,
+  recompensa (financiada) e regras. Num ecrã estreito as duas colunas viram uma, com posições, ticket e plano primeiro (`--o`).
+- **Testar sem conta**: um Hub de teste que troca as funções do `mt5` por falsas antes de importar `app.main` (como em
+  `tests/test_fundednext.py`); nunca ligar uma conta real para testar.
+
 ### Reforço na notícia (18 out, pedido do Kovel)
 
 `#/reforco`, 3.º separador da Sala de Trading (`frontend/hub/reforco.js` + `.css`), `/api/reforco` (`backend/app/routers/newsadd.py`),

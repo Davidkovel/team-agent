@@ -347,3 +347,25 @@ def dash(aid: str, risk_pct: float = 0.5, fresh: bool = False) -> dict:
 def overview() -> dict:
     """The page's first call: the accounts, and whether the MT5 is here."""
     return {"accounts": [OFFICE.public(a) for a in OFFICE.state["accounts"]], "mt5": mt5.installed(), "focus": FOCUS}
+
+
+def summary() -> dict:
+    """The widget's card: the first account in a few numbers, from what the robots' loop last read (no MT5 call here). With
+    no account it only says whether this PC has the MT5, so the card can invite to link it where that makes sense."""
+    accs = OFFICE.state["accounts"]
+    if not accs:
+        return {"accounts": 0, "mt5": bool(mt5.terminal())}
+    acc = accs[0]
+    snap = OFFICE.snaps.get(acc["id"]) or {}
+    out = {"accounts": len(accs), "id": acc["id"], "name": acc.get("name"), "mode": acc.get("mode"), "ok": bool(snap.get("ok")),
+           "error": snap.get("error") or ("" if snap.get("ok") else "À espera da primeira leitura da conta.")}
+    if not snap.get("ok"):
+        return out
+    g = OFFICE.guard(acc)
+    h = (_HIST.get(acc["id"]) or {}).get("data") or {}
+    days = days_of(h["deals"], acc.get("size")) if h.get("ok") else []
+    o = objectives(acc, snap, g, len([d for d in days if d["trades"]]), 0.5)
+    out.update(phase=o["phase"]["name"], currency=snap.get("currency"), equity=snap["equity"], balance=snap["balance"],
+               open_pnl=snap.get("open_pnl"), positions=len(snap.get("positions", [])), day_pnl=g.get("day_pnl"), left_today=o.get("left_today"),
+               why=g.get("why") or "", items=[{k: i.get(k) for k in ("id", "name", "pct", "left", "state", "have", "need")} for i in o.get("items", [])])
+    return out

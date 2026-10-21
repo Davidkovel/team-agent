@@ -593,6 +593,9 @@ Robôs (`robots.OFFICE`), lida pela API do MT5 deste PC.
 - **Página** no padrão do `docs/hub-paginas.md`: números em cima, objetivos da fase, saldo/equity com os chãos, posições,
   ticket, «Quanto queres arriscar?», dia a dia (calendário), estatística, diário, robôs da conta, notícias vermelhas,
   recompensa (financiada) e regras. Num ecrã estreito as duas colunas viram uma, com posições, ticket e plano primeiro (`--o`).
+- **No widget** (21 out, «em cima»): um cartão FundedNext logo por baixo do relógio (`_render_fn` no `ui/window.py`, de 12 em
+  12 s de `GET /api/fundednext/widget`, `fundednext.summary()`, sem chamar o MT5): equity, hoje, quanto ainda se pode
+  perder hoje e o objetivo; clicar abre `#/fundednext`. Sem conta só aparece no PC que tem o MT5, a dizer como ligar.
 - **Testar sem conta**: um Hub de teste que troca as funções do `mt5` por falsas antes de importar `app.main` (como em
   `tests/test_fundednext.py`); nunca ligar uma conta real para testar.
 

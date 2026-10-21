@@ -13,6 +13,7 @@ from ..tradingroom import fundednext as fn
 from ..tradingroom import mt5
 from ..tradingroom.robots import OFFICE
 from ..tradingroom.room import publish
+from .local import local_or_team_key
 from .robots import _here
 from .tradingroom import viewer
 
@@ -56,6 +57,13 @@ async def _view(aid: str | None, risk: float = 0.5, fresh: bool = False) -> dict
 @router.get("")
 async def view(acc: str = "", risk: float = 0.5, fresh: bool = False, user: User = Depends(viewer)):
     return await _view(acc or None, max(.05, min(5.0, risk)), fresh)
+
+
+@router.get("/widget")
+def widget(request: Request):
+    """The widget's FundedNext card (the widget has no sign-in: this PC, or a widget that knows the team key)."""
+    local_or_team_key(request)
+    return fn.summary()
 
 
 @router.post("/detect")

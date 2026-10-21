@@ -78,3 +78,22 @@ def test_reward_only_on_a_funded_account():
     r = fn.reward(acc, {"ok": True, "balance": 103_000.0}, None, [])
     assert r["reward"] == 2400.0 and r["next"] > 0
     assert fn.reward({**acc, "phase": "f1"}, {"ok": True, "balance": 103_000.0}, None, []) is None
+
+
+def test_widget_summary(monkeypatch):
+    from app.tradingroom import robots
+    office = robots.Office.__new__(robots.Office)
+    office.state = {"accounts": [], "robots": [], "days": {}, "log": [], "sent": {}}
+    office.secrets, office.snaps = {}, {}
+    monkeypatch.setattr(fn, "OFFICE", office)
+    monkeypatch.setattr(fn.mt5, "terminal", lambda path="": "C:/MT5/terminal64.exe")
+    assert fn.summary() == {"accounts": 0, "mt5": True}
+    acc = {"id": "a", "name": "FundedNext", "preset": "fn-stellar-2", "phase": "f1", "size": 100_000, "daily": 5.0, "max": 10.0,
+           "target": 8.0, "min_days": 5, "stop_at": 70, "panic_at": 90, "mode": "observar"}
+    office.state["accounts"].append(acc)
+    assert fn.summary()["ok"] is False
+    office.snaps["a"] = {"ok": True, "balance": 101_000.0, "equity": 100_800.0, "positions": [], "orders": [], "trade_allowed": True}
+    office.state["days"]["a"] = {"start": 101_000.0}
+    s = fn.summary()
+    assert s["phase"] == "Fase 1" and s["day_pnl"] == -200.0 and s["left_today"] == 4800.0
+    assert [i["id"] for i in s["items"]] == ["target", "daily", "max", "days"]

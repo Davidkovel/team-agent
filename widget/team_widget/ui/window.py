@@ -57,6 +57,7 @@ NOTES_IN_WIDGET = False     # the list of notifications inside the widget: off s
 CLOCK_PILL = 74             # width of the Parar / Retomar button in your own row
 COMMITS_EVERY = 8           # Hub polls (4 s each) between two looks at the last commits: every half minute
 ACCOUNT_EVERY = 75          # Hub polls (4 s each) between two looks at the Claude account's usage: every 5 minutes
+FN_EVERY = 3                # Hub polls (4 s each) between two looks at the FundedNext card: every 12 s
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 LOGO = ASSETS / "logo.png"
 UI, MONO = ("Segoe UI Variable Text", "Segoe UI"), ("Cascadia Mono", "Consolas")
@@ -133,6 +134,14 @@ def until(epoch: float | None) -> str:
 
 def meter_color(pct):
     return COLORS["ERROR"] if pct >= 85 else COLORS["WAITING"] if pct >= 60 else WHITE
+
+
+def usd(v) -> str:
+    """Money the Portuguese way: $100 696,50 (a minus sign, not a hyphen)."""
+    if v is None:
+        return "—"
+    text = f"{abs(v):,.2f}".replace(",", " ").replace(".", ",")
+    return f"{'−' if v < 0 else ''}${text}"
 
 
 def clip(text: str, n: int) -> str:
@@ -800,10 +809,10 @@ class Line(QWidget):
         self._glide = Glide(self, 900)
         self._f_title, self._f_value, self._f_note = font(8.5, QFont.DemiBold, UI), font(10.5, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI)
 
-    def set(self, pct, value: str, note=""):
-        if (pct, value, note) == (self._pct, self._value, self._note):
+    def set(self, pct, value: str, note="", colour=None):
+        if (pct, value, note, colour) == (self._pct, self._value, self._note, getattr(self, "_colour", None)):
             return   # asked again every few seconds with nothing new: no repaint
-        self._pct, self._value, self._note = pct, value, note
+        self._pct, self._value, self._note, self._colour = pct, value, note, colour
         self._glide.to(max(0, min(100, pct or 0)) / 100)
         self.update()
 
@@ -819,13 +828,14 @@ class Line(QWidget):
         p.drawText(QRectF(0, 2, w, 18), Qt.AlignRight | Qt.AlignVCenter, self._value)
         p.setPen(QColor(FAINT))
         p.setFont(self._f_note)
-        p.drawText(QRectF(0, 2, w - 44, 18), Qt.AlignRight | Qt.AlignVCenter, self._note)
+        room = max(44, QFontMetricsF(self._f_value).horizontalAdvance(self._value) + 10)   # a wide figure ($1 759,50) pushes the note left
+        p.drawText(QRectF(0, 2, w - room, 18), Qt.AlignRight | Qt.AlignVCenter, self._note)
         bar = QRectF(0, 25, w, 3)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 255, 255, 18))
         p.drawRoundedRect(bar, 1.5, 1.5)
         if self._glide.value > 0.002:
-            p.setBrush(QColor(meter_color(self._pct or 0)))
+            p.setBrush(QColor(getattr(self, "_colour", None) or meter_color(self._pct or 0)))
             p.drawRoundedRect(QRectF(0, bar.top(), max(3, w * self._glide.value), 3), 1.5, 1.5)
 
 
@@ -1292,6 +1302,7 @@ class WidgetWindow(QWidget):
         self._opening_hub = False
         self._expander = None
         self._week, self._week_seen = None, None  # what is being touched right now, from the Hub on this computer
+        self._fn, self._fn_seen = None, None      # the FundedNext card (the Hub's /api/fundednext/widget)
         self._team, self._team_seen = [], False   # who is online, from the Hub on this computer (None = Hub not answering)
         self._last_team = []
         self._waiting = None  # approvals waiting for this person at the last look (None: not looked yet)
@@ -1357,6 +1368,27 @@ class WidgetWindow(QWidget):
 
         self.hero = Hero()
         col.addWidget(self.hero)
+
+        # the FundedNext account (the Hub's #/fundednext in a few numbers); only on a PC with the account or the MT5
+        self.fn = Platter("FundedNext")
+        figures = QHBoxLayout()
+        figures.setContentsMargins(0, 2, 0, 2)
+        self.fn_equity = label("", 15, TEXT, QFont.DemiBold, DISPLAY)
+        figures.addWidget(self.fn_equity)
+        figures.addStretch(1)
+        self.fn_day = label("", 9, MUTED, QFont.DemiBold)
+        figures.addWidget(self.fn_day, 0, Qt.AlignBottom)
+        self.fn.box.addLayout(figures)
+        self.fn_left, self.fn_target = Line("Podes perder hoje"), Line("Objetivo")
+        self.fn.box.addWidget(self.fn_left)
+        self.fn.box.addWidget(self.fn_target)
+        self.fn_hint = label("", 8.5, MUTED, wrap=True)
+        self.fn.box.addWidget(self.fn_hint)
+        self.fn.setCursor(Qt.PointingHandCursor)
+        self.fn.setToolTip("Abrir o painel FundedNext no Hub")
+        self.fn.mousePressEvent = lambda e: self._open_notice("#/fundednext")
+        self.fn.hide()
+        col.addWidget(self.fn)
 
         self.tile_session, self.tile_week, self.tile_higgs = Line("Sessão 5 h"), Line("Semana"), Line("Créditos")
         for title, lines in (("Claude", (self.tile_session, self.tile_week)), ("Higgsfield", (self.tile_higgs,))):
@@ -1675,6 +1707,11 @@ class WidgetWindow(QWidget):
                     self._commits = hub.get_json(url + "/api/local/commits")
                 except (OSError, ValueError, urllib.error.URLError):
                     pass   # an older Hub, or it is busy: the last list stays
+            if tick % FN_EVERY == 0 and self._team is not None:
+                try:
+                    self._fn = hub.get_json(url + "/api/fundednext/widget")
+                except (OSError, ValueError, urllib.error.URLError):
+                    pass   # an older Hub has no such door, or it is busy: the last card stays
             if tick % ACCOUNT_EVERY == 0:
                 refresh_from_account()  # the Claude usage figures straight from the account, here and never on the UI thread
             tick += 1
@@ -1844,6 +1881,42 @@ class WidgetWindow(QWidget):
         if shown:
             self.show()  # changing a window flag hides the window
         prefs.save(on_top=on)
+
+    def _render_fn(self, f: dict):
+        """The FundedNext card: equity and today, what can still be lost today and the phase target. With no account it is
+        there only on the PC with the MT5, to say how to link it."""
+        if not f.get("accounts"):
+            self.fn.setVisible(bool(f.get("mt5")))
+            self.fn.note.setText("sem conta")
+            self.fn_equity.hide(); self.fn_day.hide(); self.fn_left.hide(); self.fn_target.hide()
+            self.fn_hint.setText("Entra na conta no MT5 (com «Guardar password») e carrega em «Apanhar a conta do MT5» no painel.")
+            self.fn_hint.show()
+            return
+        self.fn.show()
+        auto = " · robôs em automático" if f.get("mode") == "auto" else ""
+        if not f.get("ok"):
+            self.fn.note.setText("sem ligação")
+            self.fn_equity.hide(); self.fn_day.hide(); self.fn_left.hide(); self.fn_target.hide()
+            self.fn_hint.setText(f.get("error") or "Sem ligação à conta.")
+            self.fn_hint.show()
+            return
+        self.fn.note.setText(f"{f.get('phase', '')}{auto}")
+        self.fn_equity.setText(usd(f["equity"]))
+        day = f.get("day_pnl") or 0
+        self.fn_day.setText(f"hoje {'+' if day > 0 else ''}{usd(day)}")
+        recolour(self.fn_day, COLORS["ONLINE"] if day > 0 else RED if day < 0 else MUTED)
+        items = {i["id"]: i for i in f.get("items", [])}
+        daily = items.get("daily") or {}
+        self.fn_left.set(daily.get("pct"), usd(f.get("left_today")), f"{round(daily.get('pct') or 0)}% do limite usado")
+        target = items.get("target")
+        if target:
+            self.fn_target.set(target.get("pct"), f"{round(target.get('pct') or 0)}%", f"falta {usd(target.get('left'))}", COLORS["ONLINE"])
+            self.fn_target.show()
+        else:
+            self.fn_target.hide()
+        self.fn_equity.show(); self.fn_day.show(); self.fn_left.show()
+        self.fn_hint.setText(f.get("why") or "")
+        self.fn_hint.setVisible(bool(f.get("why")))
 
     def _render_week(self, w: dict):
         self._clear(self.pending)
@@ -2092,6 +2165,10 @@ class WidgetWindow(QWidget):
             if (self._week_seen or {}).get("pending") != week.get("pending"):
                 self._render_week(week)
             self._week_seen = week
+        if self._fn is not None and self._fn is not self._fn_seen:
+            if self._fn != self._fn_seen:
+                self._render_fn(self._fn)
+            self._fn_seen = self._fn
         if time.time() - self._usage_at > 10:
             self._usage_at = time.time()
             self._render_usage()

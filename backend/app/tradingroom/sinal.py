@@ -700,12 +700,33 @@ class Desk:
 DESK = Desk()
 
 
+async def tell(title: str, body: str):
+    """The phones: web push where a phone subscribed on this Hub, and the ntfy app of this PC's person (high priority: it
+    rings). Only this PC's person on ntfy, since every PC's Hub watches the same minute and the topics travel by sync."""
+    from sqlalchemy import select
+
+    from .. import services, sync
+    from ..db import SessionLocal
+    from ..models import User
+    from .room import phones
+    await phones(title, body)
+    try:
+        me = sync.whoami()
+        if not me:
+            return
+        async with SessionLocal() as db:
+            ids = [u.id for u in (await db.execute(select(User).where(User.username == me[1]))).scalars()]
+            if ids:
+                await services.notify(db, ids, "sinal", "high", title, body, href="#/sinal")
+    except Exception:
+        log.exception("sinal: phone")
+
+
 async def loop():
     """Every 5 s at rest, every second in the last minute, without a break while a figure is due."""
     import asyncio
 
     from ..realtime import rt
-    from .room import phones
     await asyncio.sleep(8)
     while True:
         try:
@@ -714,7 +735,7 @@ async def loop():
                 DESK.news = False
                 await rt.publish("sinal", 0, "team")
             while DESK.pushes:
-                await phones(*DESK.pushes.pop(0))
+                await tell(*DESK.pushes.pop(0))
             await asyncio.sleep(wait)
         except asyncio.CancelledError:
             raise

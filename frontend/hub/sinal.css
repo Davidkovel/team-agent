@@ -123,6 +123,30 @@
 .sn-mv { grid-column: 3; grid-row: 2; display: flex; gap: 6px; justify-content: end; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 .sn-mv i { font-style: normal; font-weight: 600; } .sn-mv .ok { color: var(--up); } .sn-mv .bad { color: var(--down); }
 
+/* ---- currencies: a code chip, and one column per currency when a minute brings several */
+.sn-cur { display: inline-block; padding: 2px 7px; border-radius: 6px; font: 700 .62em/1.3 var(--ui); letter-spacing: .08em; vertical-align: .18em;
+  color: var(--text); background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12); }
+.sn-list .sn-cur { font-size: 10px; vertical-align: 0; }
+.sn-dot { font-style: normal; color: var(--faint); margin: 0 4px; }
+.sn-lbl { font-size: 11.5px; color: var(--faint); }
+.sn-for { margin: 0; font-size: 11.5px; color: var(--faint); letter-spacing: .04em; }
+.sn-stage.is-multi { border-color: rgba(255, 255, 255, .16); }
+.sn-parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 12px; width: 100%; }
+.sn-part { position: relative; display: grid; justify-items: center; align-content: start; gap: 8px; padding: 16px 14px; border-radius: 16px; min-width: 0;
+  background: rgba(255, 255, 255, .025); border: 1px solid rgba(255, 255, 255, .08); overflow: hidden; isolation: isolate; }
+.sn-part::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity .5s var(--ease); }
+.sn-part.is-buy { border-color: rgba(var(--up-rgb), .5); } .sn-part.is-buy::before { opacity: 1; background: radial-gradient(80% 60% at 50% 30%, rgba(var(--up-rgb), .24), transparent 72%); }
+.sn-part.is-sell { border-color: rgba(var(--down-rgb), .5); } .sn-part.is-sell::before { opacity: 1; background: radial-gradient(80% 60% at 50% 30%, rgba(var(--down-rgb), .24), transparent 72%); }
+.sn-part.is-poll { border-color: rgba(143, 180, 255, .3); }
+.sn-ph { margin: 0; font: 600 17px/1.2 var(--display); }
+.sn-part .sn-word { font-size: clamp(64px, 8vw, 120px); }
+.is-buy > .sn-word, .sn-part.is-buy .sn-word { color: var(--up); text-shadow: 0 0 60px rgba(var(--up-rgb), .5); }
+.is-sell > .sn-word, .sn-part.is-sell .sn-word { color: var(--down); text-shadow: 0 0 60px rgba(var(--down-rgb), .5); }
+.sn-part.is-buy .sn-what { color: #b6f7da; } .sn-part.is-sell .sn-what { color: #ffc2cd; }
+.sn-part .sn-scen { grid-template-columns: 1fr; }
+.sn-scan.sm { width: 92px; margin: 2px 0; }
+.sn-scan.sm .sn-scan-in span { font-size: 10.5px; }
+
 /* ---- the alert over any page */
 .sn-ov { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; padding: 16px; background: rgba(4, 5, 7, .74);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: sn-in .25s var(--ease); font-variant-numeric: tabular-nums; }

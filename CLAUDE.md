@@ -569,17 +569,21 @@ Estado em `~/.team-agent/trading-room/reforco.json`. Pesquisa por trás: memóri
 
 `#/sinal`, 2.º separador da Sala de Trading (`frontend/hub/sinal.js` + `.css`), `/api/sinal` (`backend/app/routers/sinal.py`), motor
 `backend/app/tradingroom/sinal.py`, testes `tests/test_sinal.py`. «Durante a notícia quero ver logo BUY ou SELL com o número que saiu,
-sem atualizar o Forex Factory.» O Hub de cada PC vigia as notícias dos EUA de impacto alto e médio (semana atual e seguinte das
-páginas do Forex Factory, `WATCH`) e, a partir de 2 s antes do minuto, lê o calendário da TradingView ~5 vezes por segundo (uma
-ligação mantida, ~130 ms) e a página do dia do Forex Factory a cada segundo; ganha a primeira que tiver o número (~2 s depois do
-minuto). Compara sempre com a **previsão do Forex Factory** (a TradingView às vezes tem outra) e acerta a escala K/M da TradingView
-pelo valor anterior. A direção é o que o ativo fez nos primeiros 5 min nas saídas passadas com o mesmo resultado (`reaction_data/`);
-menos de 60% = NO TRADE; sem histórico, a regra do dólar. Página: o palco (contagem, radar azul enquanto lê, BUY verde / SELL
-vermelho em grande, o número, o histórico, os outros ativos e as outras cifras da mesma hora), Próximas e Diário (o ouro 5 min
-depois, certo/errado). Ouro, EUR/USD, GER40 ou GBP/USD, som e «Aviso em todo o Hub» ficam no browser (`localStorage`). O aviso
-grande por cima de qualquer página (`sinal-alert.js`, sempre carregado, evento live `sinal`) só para impacto alto. **Ensaio**:
-repete o último CPI core com o relógio deslocado (sai 10 s depois do botão, o número escondido até 1,5 s), o mesmo código contra
-as páginas verdadeiras desse dia. Diário em `~/.team-agent/trading-room/sinal.json`, nada vai por sync.
+sem atualizar o Forex Factory.» **Todas as notícias vermelhas (impacto alto) de qualquer moeda** (USD, EUR, GBP, JPY, AUD, NZD, CAD,
+CHF, CNY) das páginas da semana atual e seguinte do Forex Factory; discursos e conferências ficam de fora (não têm número).
+**Velocidade**: a partir de 2 s antes do minuto, 4 ligações mantidas à TradingView e 5 à página do dia do Forex Factory com pedidos
+ao mesmo tempo (`Pool`/`pump`: `select` sobre os sockets, sem threads), ~15 respostas por segundo no total. É o máximo: medido a
+21 out, acima de ~10/s a TradingView responde 429 e o Forex Factory não dá mais de ~8/s; num 429 esse site pára 2 s e abranda.
+As ligações abrem-se a −32, −22 e −12 s (`warm`). A página do dia do Forex Factory segue o fuso de quem a pede: o `warm` procura
+o dia certo. Uma linha da TradingView só conta para uma cifra do Forex Factory com o mesmo país, minuto, valor anterior e previsão
+(`match`); sem certeza, só o Forex Factory. Compara sempre com a **previsão do Forex Factory**. Um minuto pode trazer várias moedas
+(NFP e o emprego do Canadá): cada uma é uma parte com o seu par e o seu BUY/SELL (`parts`). Direção: notícias dos EUA com
+histórico (`reaction_data/`) = o que o ativo fez nos primeiros 5 min nas saídas iguais, e também nas com surpresa deste tamanho
+ou maior (`big`); menos de 60% = NO TRADE. O resto = a regra da moeda (acima = a moeda sobe; desemprego e pedidos de subsídio ao
+contrário) no par contra o dólar (`PAIR`: USD/JPY, USD/CAD e USD/CHF ao contrário). Nas dos EUA a pessoa escolhe Ouro, EUR/USD,
+GER40 ou GBP/USD (`localStorage`). Aviso grande em qualquer página (`sinal-alert.js`, evento live `sinal`), som, e **push para o
+telemóvel** (`room.phones`). **Ensaio**: o último CPI core com o relógio deslocado (sai 15 s depois do botão). Diário em
+`~/.team-agent/trading-room/sinal.json`, nada vai por sync.
 
 ### Testar uma mudança no Hub
 

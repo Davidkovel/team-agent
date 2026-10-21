@@ -15,10 +15,16 @@ The repository is public, so a skill from this PC comes with its licence: one wh
 (proprietary, all rights reserved: Anthropic's docx/pdf/pptx/xlsx) stays out, and the licence file of an open one (MIT,
 Apache) travels with it when it lives in the plugin's folder. `library/skills/origens.json` says where each came from.
 Every Claude window on every PC is shown the library by scripts/claude_contexto.py (hooks put in by claude_hooks.py).
+
+Every skill has a theme (Sites, Angariar clientes, Print-on-demand...), asked for by Marco on 21 Oct: «organizado por
+tema, para saber o que serve para cada; sempre que metemos uma skill, fica lá». The themes and the way a skill's theme is
+found are the areas of scripts/claude_contexto.py, so the page and the Claude windows sort the library the same way: a new
+skill lands in its theme by itself, and a theme chosen by hand on the page goes to library/skills/temas.json.
 """
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import re
 import shutil
@@ -41,6 +47,8 @@ REPO = Path(__file__).resolve().parents[3]
 LIB = REPO / "library" / "skills"
 OWNERS = LIB / "agentes.json"
 ORIGINS = LIB / "origens.json"
+THEMES = LIB / "temas.json"
+CONTEXT = REPO / "scripts" / "claude_contexto.py"
 PLUGINS = Path.home() / ".claude" / "plugins"
 CREW = ["batman", "lucius", "riddler", "catwoman", "joker", "alfred", "robin", "gordon", "penguin", "twoface"]
 MAX_FILES, MAX_BYTES, MAX_SKILLS = 60, 3_000_000, 80   # per skill and per import: never a whole repository of binaries
@@ -75,6 +83,29 @@ def _origins() -> dict[str, dict]:
 def _save_origins(data: dict) -> None:
     LIB.mkdir(parents=True, exist_ok=True)
     ORIGINS.write_text(json.dumps(dict(sorted(data.items())), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+
+_areas: tuple[int, object] = (0, None)
+
+
+def _ctx():
+    """scripts/claude_contexto.py, the themes' one source: read again when it changes (a pull can bring new themes)."""
+    global _areas
+    stamp = CONTEXT.stat().st_mtime_ns
+    if _areas[0] != stamp:
+        spec = importlib.util.spec_from_file_location("amg_claude_contexto", CONTEXT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _areas = (stamp, mod)
+    return _areas[1]
+
+
+def _save_themes(data: dict) -> None:
+    LIB.mkdir(parents=True, exist_ok=True)
+    if data:
+        THEMES.write_text(json.dumps(dict(sorted(data.items())), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    elif THEMES.exists():
+        THEMES.unlink()
 
 
 LICENCE_FILES = ("LICENSE", "LICENSE.txt", "LICENSE.md", "LICENCE", "license.txt")
@@ -209,10 +240,13 @@ def _push_later(message: str) -> None:
 @router.get("")
 async def list_skills(user: User = Depends(viewer)):
     lib, local = await asyncio.to_thread(_library), await asyncio.to_thread(_local_skills)
-    owners = _owners()
-    skills = [{"name": n, "about": s["about"], "files": s["files"], "crew": owners.get(n, []), "kind": "lib"} for n, s in lib.items()]
-    skills += [{"name": n, "about": s["about"], "where": s["where"], "kind": s["kind"]} for n, s in sorted(local.items()) if n not in lib]
-    return {"skills": skills, "crew": CREW}
+    owners, ctx = _owners(), _ctx()
+    by_hand = ctx.chosen()
+    skills = [{"name": n, "about": s["about"], "files": s["files"], "crew": owners.get(n, []), "kind": "lib",
+               "tema": ctx.area_of(n, ctx.about(LIB / n / "SKILL.md"), by_hand)} for n, s in lib.items()]
+    skills += [{"name": n, "about": s["about"], "where": s["where"], "kind": s["kind"], "tema": ctx.area_of(n, s["about"])}
+               for n, s in sorted(local.items()) if n not in lib]
+    return {"skills": skills, "crew": CREW, "temas": [{"name": a, "para": ctx.PARA.get(a, "")} for a in ctx.NAMES]}
 
 
 @router.get("/{name}")
@@ -242,6 +276,28 @@ async def set_crew(name: str, body: Crew, user: User = Depends(viewer)):
     return {"ok": True, "crew": owners[name]}
 
 
+class Theme(BaseModel):
+    tema: str
+
+
+@router.put("/{name}/tema")
+async def set_theme(name: str, body: Theme, user: User = Depends(viewer)):
+    """Move a library skill to another theme; back to the one found by itself, it leaves temas.json."""
+    md = LIB / name / "SKILL.md"
+    ctx = _ctx()
+    if not GOOD.match(name) or not md.is_file():
+        raise HTTPException(404, "Essa skill não está na biblioteca.")
+    if body.tema not in ctx.NAMES:
+        raise HTTPException(400, "Esse tema não existe.")
+    chosen = ctx.chosen()
+    chosen.pop(name, None)
+    if ctx.area_of(name, ctx.about(md)) != body.tema:
+        chosen[name] = body.tema
+    _save_themes(chosen)
+    _push_later(f"Skills: {name} passa para o tema {body.tema} ({user.display_name})")
+    return {"ok": True, "tema": body.tema}
+
+
 @router.delete("/{name}")
 async def remove_skill(name: str, user: User = Depends(viewer)):
     folder = LIB / name
@@ -251,6 +307,9 @@ async def remove_skill(name: str, user: User = Depends(viewer)):
     owners = _owners()
     owners.pop(name, None)
     _save_owners(owners)
+    chosen = _ctx().chosen()
+    if chosen.pop(name, None):
+        _save_themes(chosen)
     _push_later(f"Skills: tirada {name} ({user.display_name})")
     return {"ok": True}
 

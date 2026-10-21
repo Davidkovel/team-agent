@@ -1,5 +1,6 @@
 /* Skills (skills.js): the company's skills library. AMG finish like the command centre: black lacquer, graphite panels with
-   a chrome edge; colour only for the agents (each lane and each face in the agent's own). */
+   a chrome edge; colour only for the agents (each lane and each face in the agent's own). A theme's section has the chrome
+   edge and a chrome icon tile; the row of themes on top is chrome chips. */
 
 .sk-get { display: flex; gap: 8px; width: min(520px, 100%); }
 .sk-get label { flex: 1; display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 13px; border-radius: 12px; background: #06080b;
@@ -15,19 +16,29 @@
   background: linear-gradient(180deg, var(--bg) 70%, transparent); }
 .sk-seg { display: grid; grid-auto-flow: column; gap: 2px; padding: 3px; border-radius: 12px; background: #06080b; border: 1px solid rgba(255, 255, 255, .08); }
 .sk-seg button { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 16px; border: 0; border-radius: 9px; background: none; color: #8b95a1;
-  font: 600 13px var(--ui); cursor: pointer; }
+  font: 600 13px var(--ui); cursor: pointer; white-space: nowrap; }
 .sk-seg button:hover { color: #fff; }
 .sk-seg button.on { background: var(--chrome); color: #0b0c0e; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
 .sk-seg b { min-width: 20px; padding: 1px 6px; border-radius: 6px; background: rgba(255, 255, 255, .08); font: 700 11px var(--ui); text-align: center; }
 .sk-seg b:empty { display: none; }
 .sk-seg .on b { background: rgba(0, 0, 0, .12); }
-.sk-q { display: flex; align-items: center; gap: 8px; width: min(320px, 100%); height: 40px; margin-left: auto; padding: 0 12px; border-radius: 11px;
+.sk-by button { padding: 0 13px; }
+.sk-q { display: flex; flex: 1 1 160px; align-items: center; gap: 8px; max-width: 320px; height: 40px; margin-left: auto; padding: 0 12px; border-radius: 11px;
   background: #06080b; border: 1px solid rgba(255, 255, 255, .08); color: #6b7380; }
 .sk-q:focus-within { border-color: rgba(255, 255, 255, .28); }
 .sk-q .i { width: 14px; height: 14px; flex: none; }
 .sk-q input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; color: #eceef1; font: 500 13.5px var(--ui); }
 
-/* a lane: an agent (or where the skills come from) and their skills */
+/* the row of themes: a chip per theme with how many skills it has, a touch goes to its section */
+.sk-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; }
+.sk-nav:empty { display: none; }
+.sk-nav button { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 6px 0 11px; border-radius: 999px; cursor: pointer;
+  background: #06080b; border: 1px solid rgba(255, 255, 255, .09); color: #c3c9d2; font: 600 12.5px var(--ui); transition: border-color .15s, color .15s; }
+.sk-nav button:hover { border-color: rgba(255, 255, 255, .3); color: #fff; }
+.sk-nav .i { width: 13px; height: 13px; flex: none; color: #8b95a1; }
+.sk-nav b { min-width: 20px; padding: 2px 6px; border-radius: 999px; background: rgba(255, 255, 255, .08); color: #fff; font: 700 11px var(--ui); text-align: center; }
+
+/* a lane: a theme, an agent (or where the skills come from) and their skills */
 .sk-body { display: grid; gap: 14px; padding-bottom: 30px; }
 .sk-lane { position: relative; padding: 14px; border-radius: 18px; background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, .008)), #0a0c10;
   border: 1px solid rgba(255, 255, 255, .07); box-shadow: inset 0 2px 0 var(--p, rgba(255, 255, 255, .14)); }
@@ -42,14 +53,36 @@
   color: color-mix(in srgb, var(--p) 75%, #fff); font: 700 11px var(--ui); font-style: normal; white-space: nowrap; }
 .sk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
 
+/* a theme: the chrome tile with its icon, the name and what it is for */
+.sk-lane.sk-theme { --p: rgba(223, 232, 242, .5); scroll-margin-top: 64px; }
+.sk-theme > header { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.sk-theme > header .sk-fig.none { width: 40px; height: 40px; border-radius: 12px; background: var(--chrome); color: #0b0c0e; box-shadow: 0 6px 16px rgba(0, 0, 0, .45); }
+.sk-theme > header .sk-fig.none .i { width: 19px; height: 19px; }
+.sk-lane > header span.sk-para { margin-top: 4px; color: #8b95a1; font: 500 13px/1.4 var(--ui); letter-spacing: 0; text-transform: none; }
+.sk-theme > header em { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .14); color: #dfe8f2; }
+
+/* the themes still empty: a chip each, with how many skills this PC and the Loja have for it */
+.sk-lane.sk-shelf { --p: rgba(255, 255, 255, .08); background: #08090c; }
+.sk-wait { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.sk-wait button { display: grid; grid-template-columns: 16px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 9px; align-items: center; padding: 9px 11px;
+  border-radius: 12px; cursor: pointer; text-align: left; background: #06080b; border: 1px dashed rgba(255, 255, 255, .12); color: #c3c9d2; font: inherit; transition: border-color .15s; }
+.sk-wait button:hover:not(:disabled) { border-color: rgba(255, 255, 255, .35); border-style: solid; }
+.sk-wait button:disabled { cursor: default; opacity: .45; }
+.sk-wait .i { grid-row: span 2; width: 15px; height: 15px; color: #8b95a1; }
+.sk-wait b { font: 600 13px var(--ui); color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk-wait small { color: #6b7380; font: 600 11px var(--ui); }
+
 /* a skill */
-.sk-card { display: grid; grid-template-rows: auto 1fr auto; gap: 6px; min-width: 0; padding: 12px 13px; border-radius: 14px; cursor: pointer; text-align: left;
+.sk-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 12px 13px; border-radius: 14px; cursor: pointer; text-align: left;
   background: #06080b; border: 1px solid rgba(255, 255, 255, .07); transition: border-color .15s, transform .15s; }
 .sk-card:hover { border-color: rgba(255, 255, 255, .26); }
 .sk-card:focus-visible { outline: 2px solid #dfe8f2; outline-offset: 2px; }
 .sk-card > b { font: 700 13.5px/1.3 var(--mono); color: #fff; overflow-wrap: anywhere; }
 .sk-card > p { margin: 0; color: #8b95a1; font-size: 12.5px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.sk-card > footer { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 4px; }
+.sk-card > footer { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: auto; padding-top: 4px; }
+.sk-tag { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; max-width: 100%; padding: 2px 8px 2px 6px; border-radius: 999px;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); color: #aeb5bf; font: 600 10.5px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-tag .i { width: 11px; height: 11px; flex: none; }
 .sk-card > footer small { min-width: 0; color: #6b7380; font: 600 11px var(--ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sk-faces { display: inline-flex; flex: none; }
 .sk-faces img { width: 20px; height: 20px; object-fit: cover; object-position: top; border-radius: 6px; background: #14171b; border: 1px solid #06080b; }
@@ -88,6 +121,12 @@
 .sk-who img { grid-row: span 2; width: 22px; height: 31px; object-fit: cover; object-position: top; }
 .sk-who b { font: 700 13px var(--display); color: #fff; }
 .sk-who span { color: #7d8794; font: 600 10px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.sk-themes { display: flex; flex-wrap: wrap; gap: 6px; }
+.sk-themes button { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 10px; border-radius: 999px; cursor: pointer;
+  background: #06080b; border: 1px solid rgba(255, 255, 255, .09); color: #8b95a1; font: 600 12.5px var(--ui); transition: border-color .15s, color .15s; }
+.sk-themes button:hover { color: #fff; border-color: rgba(255, 255, 255, .28); }
+.sk-themes button.on { background: var(--chrome); color: #0b0c0e; border-color: transparent; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
+.sk-themes .i { width: 13px; height: 13px; flex: none; }
 .sk-md { max-height: 46vh; overflow-y: auto; padding: 14px 16px; border-radius: 12px; background: #06080b; border: 1px solid rgba(255, 255, 255, .06);
   color: #c3c9d2; font: 500 13px/1.6 var(--ui); white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; }
 .sk-md b { color: #fff; }
@@ -101,7 +140,12 @@
 @media (max-width: 760px) {
   .sk-bar { flex-wrap: wrap; }
   .sk-seg { width: 100%; grid-auto-columns: 1fr; }
-  .sk-q { width: 100%; margin-left: 0; }
+  .sk-seg.sk-by { width: auto; }
+  .sk-nav { flex-wrap: nowrap; overflow-x: auto; margin-right: -16px; padding-right: 16px; scrollbar-width: none; }
+  .sk-nav button { flex: none; }
+  .sk-theme > header { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .sk-theme > header .sk-take { grid-column: 1 / -1; justify-self: start; }
+  .sk-q { flex: 1 1 0; width: auto; min-width: 0; max-width: none; margin-left: 0; }
   .sk-grid { grid-template-columns: minmax(0, 1fr); }
   .sk-get { width: 100%; }
 }

@@ -1,4 +1,14 @@
 {
+ "dossie-crescimento": [
+  "riddler",
+  "joker"
+ ],
+ "pod-etsy": [
+  "riddler",
+  "catwoman",
+  "joker",
+  "alfred"
+ ],
  "premium-site-rebuild": [
   "catwoman",
   "riddler"
@@ -17,11 +27,5 @@
  "site-scroll-infinito": [
   "catwoman",
   "batman"
- ],
- "pod-etsy": [
-  "riddler",
-  "catwoman",
-  "joker",
-  "alfred"
  ]
 }

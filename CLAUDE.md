@@ -248,6 +248,13 @@ cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/ap
   `~/.claude/plugins/installed_plugins.json`, as do claude.ai em `plugins/synced`, e as `.claude/skills` dos repositórios da
   equipa) e Loja (os catálogos dos marketplaces em `~/.claude/plugins/marketplaces`). «Trazer» copia para a biblioteca e dá-lhe o
   agente do setor pelas palavras (`_guess_crew`); ficam de fora ficheiros acima de 1,5 MB e o que passe de 3 MB por skill.
+- **Arrumadas por tema** (21 out, Marco: «organizado por tema, para saber o que serve para cada; sempre que metemos uma skill,
+  fica lá»): as três metades abrem por Tema (uma secção por tema com o «para quê», uma fila de temas no topo para saltar, e na
+  Biblioteca os temas ainda vazios com quantas há neste PC e na Loja); o botão ao lado troca para Agente (Biblioteca) ou Origem.
+  **Os temas são as áreas de `scripts/claude_contexto.py`** (`AREAS`, `PARA`, `area_of`), as mesmas que as janelas do Claude
+  veem: o backend carrega esse ficheiro (`_ctx()`), por isso uma skill nova cai sozinha no tema certo, venha da página, do
+  GitHub ou de um commit à mão. Um tema escolhido à mão na skill aberta fica em `library/skills/temas.json`. Tema novo = uma
+  linha em `AREAS` + uma em `PARA` + o ícone em `THEME_ICON` (`skills.js`).
 - **Do GitHub**: colar o link de um repositório, pasta ou SKILL.md traz todas as skills que lá houver (API de árvores do GitHub +
   raw, sem chave; máximo 80 skills e 60 ficheiros por skill).
 - **Os agentes usam-nas** (`agent/team_agent/tools/skills_tool.py`): a ferramenta `skills` lista (com `query` filtra), lê uma

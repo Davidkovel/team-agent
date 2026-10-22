@@ -169,7 +169,8 @@ async def close(aid: str, body: dict, request: Request, user: User = Depends(vie
     res = await _run(acc, f, OFFICE.full(acc), ticket, vol) if vol else await _run(acc, f, OFFICE.full(acc), ticket)
     if not res.get("ok"):
         raise HTTPException(400, res.get("error") or "Não fechou.")
-    OFFICE.note(f"Painel: fechei {'metade de ' if vol else ''}{ticket}{f' ({pos['symbol']})' if pos else ''}.", "trade", aid)
+    sym = f" ({pos['symbol']})" if pos else ''
+    OFFICE.note(f"Painel: fechei {'metade de ' if vol else ''}{ticket}{sym}.", "trade", aid)
     await publish()
     return await _view(aid, fresh=True)
 

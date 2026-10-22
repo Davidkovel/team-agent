@@ -1,4 +1,4 @@
-# Team Agent — instala e arranca tudo nesta máquina.
+﻿# Team Agent — instala e arranca tudo nesta máquina.
 # Abre-se com o ARRANCAR.bat (duplo clique). Pode correr-se as vezes que forem precisas.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -19,8 +19,8 @@ Write-Host "A instalar as dependências (pode demorar um pouco na primeira vez).
 
 # 3. Servidor + painel (SQLite, sem Docker)
 # O backend lê o .env da pasta onde corre (backend\), não o da raiz: por isso copia-se para lá.
-Copy-Item .env backend\.env -Force
-$jwt = ((Get-Content .env | Where-Object { $_ -like 'JWT_SECRET=*' }) -split '=', 2)[1]
+if (Test-Path .env) { Copy-Item .env backend\.env -Force }
+$jwt = ((Get-Content backend\.env | Where-Object { $_ -like 'JWT_SECRET=*' }) -split '=', 2)[1]
 $env:DATABASE_URL = "sqlite+aiosqlite:///./dev.db"
 $env:REDIS_URL = ""
 $env:JWT_SECRET = $jwt

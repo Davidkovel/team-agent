@@ -99,6 +99,10 @@
   "licenca": "aberta",
   "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
  },
+ "migration": {
+  "de": "Plugin caveman",
+  "licenca": "aberta"
+ },
  "offers": {
   "de": "github.com/coreyhaines31/marketingskills/skills/offers",
   "autor": "Corey Haines, MIT",

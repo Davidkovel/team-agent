@@ -1576,15 +1576,16 @@ class TitleBar(QWidget):
 
 
 class Orb(QWidget):
-    """The widget at its smallest (23 Oct, Marco: «para não estar com muito espaço»): the chrome Mercedes star with the
-    time on a glass capsule under it, and an iOS-style red count when something waits for this person (messages,
-    approvals). Click to open the central de comando; drag to move.
+    """The widget at its smallest (23 Oct, Marco: «para não estar com muito espaço», «só com o símbolo da Mercedes»): the
+    chrome Mercedes star alone, a soft light behind it in the colour of how things are, and an iOS-style red count when
+    something waits for this person (messages, approvals). The time and the views chosen in the central are pills beside
+    it (WidgetWindow._layout_orb). Click to open the central de comando; drag to move.
 
     It paints a cached face and only repaints when the minute, the state or the count changes, or while the finger is on it."""
-    D, M = 84, 22                    # the clock's diameter, and the room round it for the ambient light and the count
-    CAP_W, CAP_H = 70, 24            # the glass capsule with the time, over the bezel's lower edge
-    W, H = D + 2 * M, D + CAP_H - 8 + 2 * M
-    FACE = QRect(M, M, D, D)        # the clock, inside the widget (what grows into the central de comando)
+    D, M = 70, 16                    # the star's diameter, and the room round it for its light and the count
+    CAP_H = 0                        # nothing under the star any more (the time is a pill)
+    W, H = D + 2 * M, D + 2 * M
+    FACE = QRect(M, M, D, D)        # the star, inside the widget (what grows into the central de comando)
 
     def __init__(self, on_click):
         super().__init__()
@@ -1678,150 +1679,15 @@ class Orb(QWidget):
         return QColor(AMBIENT_REST) if self._rest else self._colour
 
     def paint_halo(self, p: QPainter, face: QRectF, strength: float):
-        """The ambient light: a soft glow behind the bezel and the thin light guide on its edge."""
+        """The ambient light: a soft glow behind the star, like a car's cabin at night."""
         c, r = face.center(), face.width() / 2
-        light = self.ambient().name()
-        glow_disc(p, c, r * 1.36, r * 1.36, light, 0.46 * strength, soft=0.6)
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(rgba(light, min(1.0, 0.75 * strength + 0.15)), 1.3))
-        p.drawEllipse(c, r + 0.8, r + 0.8)
+        glow_disc(p, c, r * 1.2, r * 1.2, self.ambient().name(), 0.3 * strength, soft=0.45)
 
     def paint_face(self, p: QPainter, face: QRectF, hhmm_now: str, shadow=True):
-        """The dashboard clock of an S-Class or an AMG GT, the one IWC makes for Mercedes: black brushed dial, chrome bezel
-        with fine knurling, chrome batons, two lumed hands turning on a hub cap that is the star, and the time in digits on
-        a glass capsule under it (23 Oct, Marco: «quero mandar isto à Mercedes e eles ficarem: vamos meter isso na nossa
-        aplicação»). Drawn at its own size and scaled to `face`, which the window also uses while it grows into the
-        central de comando. Painted once a minute."""
-        p.save()
-        p.translate(face.topLeft())
-        k = face.width() / self.D
-        p.scale(k, k)
-        d = self.D
-        R = d / 2
-        c = QPointF(R, R)
-        if shadow:
-            glow_disc(p, QPointF(R, R + 3), R * 1.08, R * 1.08, "#000000", 0.55, soft=0.7)
-        # the bezel: polished chrome, lit from the top left, knurled
-        bezel = QConicalGradient(c, 130)
-        for at, v in ((0, 246), (0.1, 150), (0.25, 70), (0.42, 210), (0.55, 110), (0.72, 45), (0.88, 170), (1, 246)):
-            bezel.setColorAt(at, QColor(v, v + 2, v + 5))
-        p.setPen(Qt.NoPen)
-        p.setBrush(bezel)
-        p.drawEllipse(c, R, R)
-        p.setPen(QPen(QColor(0, 0, 0, 55), 0.6))
-        for i in range(90):
-            a = math.radians(i * 4)
-            p.drawLine(QPointF(R + math.cos(a) * (R - 0.6), R + math.sin(a) * (R - 0.6)),
-                       QPointF(R + math.cos(a) * (R - 3.2), R + math.sin(a) * (R - 3.2)))
-        r = R - 4.6
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(0, 0, 0))
-        p.drawEllipse(c, r + 0.7, r + 0.7)
-        # the dial: black, brushed in a sunburst from the centre
-        burst = QConicalGradient(c, 90)
-        for i in range(25):
-            v = 24 if i % 2 else 15
-            burst.setColorAt(i / 24, QColor(v, v + 1, v + 3))
-        p.setBrush(burst)
-        p.drawEllipse(c, r, r)
-        edge = QRadialGradient(c, r)
-        edge.setColorAt(0.55, QColor(0, 0, 0, 0))
-        edge.setColorAt(1, QColor(0, 0, 0, 190))
-        p.setBrush(edge)
-        p.drawEllipse(c, r, r)
-        # the minute track and the chrome batons
-        for i in range(60):
-            a = math.radians(i * 6 - 90)
-            out = r - 1.6
-            if i % 5:
-                p.setPen(QPen(QColor(255, 255, 255, 95), 0.6))
-                p.drawLine(QPointF(R + math.cos(a) * out, R + math.sin(a) * out),
-                           QPointF(R + math.cos(a) * (out - 2.2), R + math.sin(a) * (out - 2.2)))
-                continue
-            long = 7.5 if i % 15 == 0 else 5.6
-            p.save()
-            p.translate(c)
-            p.rotate(i * 6)
-            baton = QRectF(-1.15 if i % 15 == 0 else -0.85, -out, 2.3 if i % 15 == 0 else 1.7, long)
-            metal = QLinearGradient(baton.left(), 0, baton.right(), 0)
-            metal.setColorAt(0, QColor(250, 251, 253))
-            metal.setColorAt(1, QColor(120, 124, 130))
-            p.setPen(Qt.NoPen)
-            p.setBrush(metal)
-            p.drawRoundedRect(baton, 0.6, 0.6)
-            p.restore()
-        # AMG on the dial, above six
-        bh = d * 0.07
-        badge.paint(p, R - badge.width(bh) / 2, R + r * 0.36, bh, alpha=0.9)
-        # the hands, with a shadow on the dial and lume down their middle
-        now = datetime.now()
-        hour, minute = (now.hour % 12 + now.minute / 60) * 30, now.minute * 6
-        for angle, length, width in ((hour, r * 0.52, 3.0), (minute, r * 0.8, 2.2)):
-            hand = QPainterPath()
-            hand.moveTo(-width / 2, 4)
-            hand.lineTo(-width * 0.38, -length + width)
-            hand.lineTo(0, -length)
-            hand.lineTo(width * 0.38, -length + width)
-            hand.lineTo(width / 2, 4)
-            hand.closeSubpath()
-            for shade, dx, dy in ((QColor(0, 0, 0, 120), 0.9, 1.4), (None, 0, 0)):
-                p.save()
-                p.translate(R + dx, R + dy)
-                p.rotate(angle)
-                p.setPen(Qt.NoPen)
-                if shade is not None:
-                    p.setBrush(shade)
-                    p.drawPath(hand)
-                else:
-                    steel = QLinearGradient(-width / 2, 0, width / 2, 0)
-                    steel.setColorAt(0, QColor(250, 251, 253))
-                    steel.setColorAt(0.5, QColor(196, 200, 206))
-                    steel.setColorAt(1, QColor(110, 114, 120))
-                    p.setBrush(steel)
-                    p.drawPath(hand)
-                    p.setPen(pen(QColor(236, 248, 240, 230), max(0.7, width * 0.32)))
-                    p.drawLine(QPointF(0, -length * 0.42), QPointF(0, -length + width + 1))
-                p.restore()
-        # the hub cap: the star, as on the centre of a wheel
-        cap = r * 0.25
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(0, 0, 0, 200))
-        p.drawEllipse(QPointF(R + 0.6, R + 1), cap + 0.4, cap + 0.4)
-        paint_star(p, QRectF(R - cap, R - cap, 2 * cap, 2 * cap))
-        # the glass catches the light on its top left
-        glare = QPainterPath()
-        glare.addEllipse(c, r, r)
-        p.save()
-        p.setClipPath(glare)
-        sheen = QLinearGradient(R - r, R - r, R, R)
-        sheen.setColorAt(0, QColor(255, 255, 255, 34))
-        sheen.setColorAt(1, QColor(255, 255, 255, 0))
-        p.setBrush(sheen)
-        p.drawEllipse(QPointF(R - r * 0.35, R - r * 0.55), r * 0.95, r * 0.55)
-        p.restore()
-        # the digits, on a glass capsule over the bezel's lower edge
-        cap_r = QRectF((d - self.CAP_W) / 2, d - 8, self.CAP_W, self.CAP_H)
-        if shadow:
-            glow_disc(p, QPointF(cap_r.center().x(), cap_r.center().y() + 3), cap_r.width() * 0.6, cap_r.height() * 0.9, "#000000", 0.5)
-        glass = QLinearGradient(0, cap_r.top(), 0, cap_r.bottom())
-        glass.setColorAt(0, QColor(44, 46, 52, 250))
-        glass.setColorAt(0.5, QColor(16, 17, 20, 250))
-        glass.setColorAt(1, QColor(6, 6, 8, 250))
-        rim = QLinearGradient(cap_r.left(), cap_r.top(), cap_r.right(), cap_r.bottom())
-        rim.setColorAt(0, QColor(255, 255, 255, 170))
-        rim.setColorAt(0.5, QColor(255, 255, 255, 40))
-        rim.setColorAt(1, QColor(255, 255, 255, 110))
-        p.setPen(QPen(rim, 1))
-        p.setBrush(glass)
-        p.drawRoundedRect(cap_r, cap_r.height() / 2, cap_r.height() / 2)
-        light = self.ambient()
-        p.setPen(Qt.NoPen)
-        p.setBrush(light)
-        p.drawEllipse(QPointF(cap_r.left() + 10, cap_r.center().y()), 2.2, 2.2)
-        p.setPen(QColor(TEXT))
-        p.setFont(self._f_time)
-        p.drawText(cap_r.adjusted(14, -1, -4, 0), Qt.AlignCenter, hhmm_now)
-        p.restore()
+        """Only the chrome Mercedes star, on nothing: the desktop shows round it (23 Oct, Marco: «mais transparente, só
+        com o símbolo da Mercedes»). The time and the rest are pills beside it. Scaled to `face`, which the window also
+        uses while the star grows into the central de comando."""
+        paint_star(p, face, shadow=shadow)
 
     def _build_face(self, hhmm_now: str) -> QPixmap:
         dpr = self.devicePixelRatioF()
@@ -1941,6 +1807,12 @@ class WidgetWindow(QWidget):
         stack.setSpacing(8)
         stack.setSpacing(5)
         self.glances = {key: Pill() for key, _ in TOGGLES}
+        self.time_pill = Pill()   # the time: always the first pill beside the star
+        self.time_pill.clicked.connect(self.expand)
+        stack.addWidget(self.time_pill)
+        self._clock_tick = QTimer(self)   # once a minute, on the minute
+        self._clock_tick.setSingleShot(True)
+        self._clock_tick.timeout.connect(self._tick_time)
         self._side = prefs.load().get("side", "right")   # the screen edge the clock is docked to
         for key, card in self.glances.items():   # a click opens the cockpit; the cameras open the cave live
             card.clicked.connect(self._open_cave if key == "camaras" else self.expand)
@@ -1963,6 +1835,7 @@ class WidgetWindow(QWidget):
         clock().frame.connect(self._morph_frame)
         self._fade = animate(self, 220, self.setWindowOpacity)
         self._fade.finished.connect(self._fade_done)
+        self._tick_time()
         self._place()
         self._render_people(self._team)
         self._render_week({})
@@ -2221,11 +2094,11 @@ class WidgetWindow(QWidget):
         where it is now. The window takes the size of what is pinned."""
         if face is None:
             face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
-        shown = [k for k, card in self.glances.items() if self.pins[k].on and card.text]
+        shown = [k for k, card in self.glances.items() if self.pins[k].on and card.text] + ["hora"]
         for k, card in self.glances.items():
             card.setVisible(k in shown)
         self.glance.adjustSize()
-        gw, gh = (self.glance.width(), self.glance.height()) if shown else (0, 0)
+        gw, gh = self.glance.width(), self.glance.height()
         tuck = Orb.M - 6   # the pills sit in the clock's shadow margin, close to the bezel
         w = Orb.W + (gw - tuck if shown else 0)
         h = max(Orb.H, gh)
@@ -2238,6 +2111,11 @@ class WidgetWindow(QWidget):
         self.glance.setVisible(bool(shown) and self.mode == "orb")
         self.setFixedSize(w, h)
         self.move(face - self.orb.pos() - Orb.FACE.topLeft())
+
+    def _tick_time(self):
+        """The time pill: the hours, and a dot in the colour of how things are."""
+        self.time_pill.set(datetime.now().strftime("%H:%M"), self.orb.ambient().name(), not self.orb._rest)
+        self._clock_tick.start(int((60 - time.time() % 60) * 1000) + 20)
 
     def layout_pills(self, right: bool):
         """The pills line up against the clock: to the right edge of their column when the clock is on the right."""
@@ -3046,6 +2924,7 @@ class WidgetWindow(QWidget):
                                      f"{waiting} à espera de resposta" if waiting else "") if n) or ("Nenhum Claude a correr" if people else "")
         self.hero.set_status(text, colour, pulse, note)
         self.orb.set(self._load, colour, pulse)
+        self._tick_time()   # the time pill's dot follows the state
 
     def _render(self, state: dict):
         status = state.get("status", "OFFLINE")

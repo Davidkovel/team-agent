@@ -1176,6 +1176,69 @@ class AppIcon(Hover):
         p.drawText(QRectF(0, icon.bottom() + 5, self.width(), 14), Qt.AlignHCenter | Qt.AlignTop, self.name)
 
 
+class ClaudeRow(Hover):
+    """One of this person's Claude windows that is working or waiting: a dot in the state's colour, what it is about, and
+    what it is doing right now (or what it waits for), with how long it has been like that. A click opens the Escritório.
+    Not a stream: it changes when the Hub's reading changes (every 8 s), and draws nothing in between."""
+    H = 44
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(self.H)
+        self.window_ = None
+        self.setToolTip("Abrir no Escritório")
+        self._f_topic, self._f_action, self._f_time = font(9, QFont.DemiBold, UI), font(8, QFont.Normal, UI), font(7.5, QFont.Normal, UI)
+
+    def show_window(self, w: dict):
+        if w != self.window_:
+            self.window_ = w
+            self.update()
+
+    def paintEvent(self, _):
+        w = self.window_
+        if not w:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0, 1, 0, -1)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, int(8 + 14 * self.hover)))
+        p.drawRoundedRect(r, 11, 11)
+        shape = QPainterPath()
+        shape.addRoundedRect(r, 11, 11)
+        self.paint_wave(p, shape)
+        asks = w.get("wait") in ("permission", "answer")
+        colour = COLORS["WORKING"] if w.get("state") == "working" else COLORS["WAITING"] if asks else MUTED
+        dot = QPointF(14, r.center().y())
+        glow_disc(p, dot, 8, 8, colour, 0.35)
+        p.setBrush(QColor(colour))
+        p.drawEllipse(dot, 3.4, 3.4)
+        since = ago_iso(w.get("since"))
+        p.setFont(self._f_time)
+        tw = QFontMetricsF(self._f_time).horizontalAdvance(since) + 4
+        p.setPen(QColor(FAINT))
+        p.drawText(QRectF(r.right() - tw - 10, r.top() + 5, tw, 16), Qt.AlignRight | Qt.AlignVCenter, since)
+        topic = w.get("topic") or w.get("project") or "Janela do Claude"
+        p.setPen(QColor(TEXT))
+        p.setFont(self._f_topic)
+        p.drawText(QRectF(28, r.top() + 5, r.width() - 40 - tw, 16), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetricsF(self._f_topic).elidedText(topic, Qt.ElideRight, r.width() - 42 - tw))
+        if w.get("state") == "working":
+            what = w.get("action") or "a trabalhar"
+        elif w.get("wait") == "permission":
+            what = "Precisa da tua autorização"
+        elif w.get("wait") == "answer":
+            what = "Fez-te uma pergunta"
+        else:
+            what = "Acabou, à espera do próximo pedido"
+        if w.get("project"):
+            what = f"{w['project']} · {what}"
+        p.setPen(QColor(COLORS["WAITING"] if asks else MUTED))
+        p.setFont(self._f_action)
+        p.drawText(QRectF(28, r.top() + 21, r.width() - 38, 16), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetricsF(self._f_action).elidedText(what[0].upper() + what[1:], Qt.ElideRight, r.width() - 40))
+
+
 class Ring(QWidget):
     """A limit as a small ring (the Claude session, the week, Higgsfield): fills clockwise from the top, the number
     inside, the name and a note under it."""
@@ -1556,6 +1619,17 @@ class WidgetWindow(QWidget):
 
         self.hero = Hero()
         col.addWidget(self.hero)
+
+        # «Claude agora»: this person's Claude windows working or waiting, what each is doing (only when there are some)
+        self.claude_now = Platter("Claude agora")
+        self.claude_now.box.setSpacing(4)
+        self.claude_rows = [ClaudeRow() for _ in range(3)]   # never more: the rest is in the Escritório
+        for row in self.claude_rows:
+            row.clicked.connect(lambda: self._open_notice("#/escritorio"))
+            self.claude_now.box.addWidget(row)
+        self.claude_now.box.addSpacing(4)
+        self.claude_now.hide()
+        col.addWidget(self.claude_now)
 
         # the apps: the Hub's pages one click away, as on the iPhone's home screen
         apps = QWidget()
@@ -2017,6 +2091,16 @@ class WidgetWindow(QWidget):
         self.apps["tarefas"].set_count(mine_live.get("tasks") or 0, "#5b5f66")
         self.apps["escritorio"].set_count(sum((p.get("live") or {}).get("working") or 0 for p in shown), "#2f9e57")
         self.orb.set_count((mine_live.get("messages") or 0) + (mine.get("approvals") or 0))
+        rank = {"permission": 0, "answer": 0}   # the ones waiting for this person first, then the ones working
+        windows = sorted(mine_live.get("windows") or [], key=lambda w: rank.get(w.get("wait"), 1 if w.get("state") == "working" else 2))
+        for row, w in zip(self.claude_rows, windows + [None] * len(self.claude_rows)):
+            row.setVisible(w is not None)
+            if w:
+                row.show_window(w)
+        asking = sum(1 for w in windows if w.get("wait") in ("permission", "answer"))
+        self.claude_now.note.setText(f"{asking} à tua espera" if asking else f"{len(windows)} ativas" if len(windows) > 1 else "")
+        recolour(self.claude_now.note, COLORS["WAITING"] if asking else MUTED)
+        self.claude_now.setVisible(bool(windows))
         self.hub_note.setVisible(team is None)
         self._render_doing(team or [], me)
         self._render_state()
@@ -2174,7 +2258,7 @@ class WidgetWindow(QWidget):
             row.addWidget(label(f"{p['count']} fich  +{p['added']} −{p['deleted']}", 8.5, MUTED, families=MONO))
             row.addWidget(label(when, 8.5, FAINT))
             self.pending.addLayout(row)
-        self.ledger.setVisible(bool(w.get("pending")))
+        self.ledger.setVisible(False)   # off since 23 Oct: the cockpit had to fit the screen with «Claude agora»; it is in the Hub
 
     # ------------------------------------------------------------ actions
 

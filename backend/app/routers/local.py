@@ -119,7 +119,11 @@ async def local_live(request: Request, db: AsyncSession = Depends(get_db)):
                        "state": state, "wait": _wait(latest, state) if latest else "",
                        "action": latest.action if latest and state == "working" else "",
                        "at": iso(latest.updated_at) if latest else None,
-                       "tasks": open_tasks.get(u.id, 0), "messages": messages.get(u.id, 0)})
+                       "tasks": open_tasks.get(u.id, 0), "messages": messages.get(u.id, 0),
+                       # each window working or waiting, for the widget's «Claude agora» (Marco: «quero ter controlo... não
+                       # quero uma stream, mas quando estás a mexer no widget quero saber»)
+                       "windows": [{"topic": _topic(r), "project": r.project, "state": s, "wait": _wait(r, s),
+                                    "action": r.action if s == "working" else "", "since": iso(r.since)} for r, s in live[:4]]})
     return {"people": people, "done_today": done_today}
 
 

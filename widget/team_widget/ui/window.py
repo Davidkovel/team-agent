@@ -1465,9 +1465,13 @@ class Pill(QAbstractButton):
         self._f = font(8, QFont.DemiBold, UI)
         self.setFixedSize(60, self.H)
 
+    on_change = None   # the window's InfoColumn repaints when a line changes
+
     def set(self, text: str, dot: str, glow=False):
         if (text, dot, glow) != (self.text, self.dot, self.glow):
             self.text, self.dot, self.glow = text, dot, glow
+            if self.on_change:
+                self.on_change()
             self.setToolTip(text)
             self.setFixedWidth(int(min(self.MAX_W, QFontMetricsF(self._f).horizontalAdvance(text) + 34)))
             self.update()
@@ -1496,6 +1500,174 @@ class Pill(QAbstractButton):
         p.setFont(self._f)
         p.drawText(QRectF(23, 0, r.width() - 31, r.height()), Qt.AlignLeft | Qt.AlignVCenter,
                    QFontMetricsF(self._f).elidedText(self.text, Qt.ElideRight, r.width() - 31))
+
+
+class InfoColumn(QWidget):
+    """What sits beside the minimized star (23 Oct, Marco: the pills were «feias»; «as horas ao lado do símbolo», and
+    «um ícone e, quando passo o rato por cima, aparecem as informações»): the time written large next to the star, and
+    under it a row of small round icons, one per view switched on in the central, each with a dot in the colour of how
+    it is. The mouse over an icon opens it into a capsule with the line it stands for; leaving closes it.
+
+    The pills (Pill) still hold the text and the colour; they are never shown, this paints them. The column keeps room
+    for one open icon: the empty part is fully transparent, so Windows lets the clicks through to the desktop."""
+    W, TIME_H, ICON, GAP = 320, 34, 26, 6
+    H = TIME_H + 4 + ICON
+    clicked = Signal(str)   # "hora" or the view's key
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedSize(self.W, self.H)
+        self.setMouseTracking(True)
+        self.items: list[tuple[str, "Pill"]] = []
+        self.time_text, self.right = "", False   # right: the column is on the star's left, everything hugs its right edge
+        self.open: dict[str, float] = {}
+        self._anims: dict[str, QVariantAnimation] = {}
+        self._hovered = None
+        self._f_time = font(21, QFont.DemiBold, DISPLAY)
+        self._f_text = font(8, QFont.DemiBold, UI)
+
+    def set_items(self, items):
+        self.items = items
+        self.update()
+
+    def set_time(self, text: str):
+        if text != self.time_text:
+            self.time_text = text
+            self.update()
+
+    # ---- geometry
+    def _width_of(self, key, pill) -> float:
+        k = self.open.get(key, 0.0)
+        full = QFontMetricsF(self._f_text).horizontalAdvance(pill.text) + self.ICON + 14
+        room = self.W - 6 - (len(self.items) - 1) * (self.ICON + self.GAP)   # the others stay closed beside it
+        return self.ICON + (min(room, full) - self.ICON) * k
+
+    def _rects(self) -> list[tuple[str, "Pill", QRectF]]:
+        out, x = [], 2.0
+        widths = [(key, pill, self._width_of(key, pill)) for key, pill in self.items]
+        total = sum(w for _, _, w in widths) + self.GAP * max(0, len(widths) - 1)
+        if self.right:
+            x = self.W - 2 - total
+        y = self.TIME_H + 4
+        for key, pill, w in widths:
+            out.append((key, pill, QRectF(x, y, w, self.ICON)))
+            x += w + self.GAP
+        return out
+
+    def _time_rect(self) -> QRectF:
+        return QRectF(2, 0, self.W - 4, self.TIME_H)
+
+    # ---- the mouse
+    def _hover(self, key):
+        if key == self._hovered:
+            return
+        for k in {self._hovered, key} - {None}:
+            target = 1.0 if k == key else 0.0
+            anim = self._anims.get(k)
+            if anim is None:
+                anim = self._anims[k] = animate(self, 240, lambda v, k=k: self._set_open(k, v), curve=QEasingCurve.OutCubic)
+            anim.stop()
+            anim.setStartValue(self.open.get(k, 0.0))
+            anim.setEndValue(target)
+            anim.start()
+        self._hovered = key
+        self.setCursor(Qt.PointingHandCursor if key else Qt.ArrowCursor)
+
+    def _set_open(self, key, v):
+        self.open[key] = v
+        self.update()
+
+    def _hit(self, pos: QPointF):
+        for key, _, r in self._rects():
+            if r.adjusted(-2, -3, 2, 3).contains(pos):
+                return key
+        tw = QFontMetricsF(self._f_time).horizontalAdvance(self.time_text)
+        t = self._time_rect()
+        time_box = QRectF(t.right() - tw if self.right else t.left(), t.top(), tw, t.height())
+        return "hora" if time_box.contains(pos) else None
+
+    def mouseMoveEvent(self, e):
+        hit = self._hit(e.position())
+        self._hover(hit if hit != "hora" else None)
+        self.setCursor(Qt.PointingHandCursor if hit else Qt.ArrowCursor)
+
+    def leaveEvent(self, e):
+        self._hover(None)
+        super().leaveEvent(e)
+
+    def mousePressEvent(self, e):
+        hit = self._hit(e.position())
+        if hit and e.button() == Qt.LeftButton:
+            self.clicked.emit(hit)
+        else:
+            e.ignore()
+
+    # ---- painting
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        # the time, white with a soft dark halo so it reads on any wallpaper
+        if self.time_text:
+            path = QPainterPath()
+            fm = QFontMetricsF(self._f_time)
+            tw = fm.horizontalAdvance(self.time_text)
+            x = self.W - 3 - tw if self.right else 3
+            path.addText(QPointF(x, self.TIME_H - 7), self._f_time, self.time_text)
+            p.setPen(pen(QColor(0, 0, 0, 90), 3.4))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(path)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(TEXT))
+            p.drawPath(path)
+        dpr = self.devicePixelRatioF()
+        for key, pill, r in self._rects():
+            k = self.open.get(key, 0.0)
+            body = QLinearGradient(0, r.top(), 0, r.bottom())
+            body.setColorAt(0, QColor(40, 42, 47, 235))
+            body.setColorAt(1, QColor(10, 10, 12, 235))
+            rim = QLinearGradient(r.left(), r.top(), r.right(), r.bottom())
+            rim.setColorAt(0, QColor(255, 255, 255, 120))
+            rim.setColorAt(0.5, QColor(255, 255, 255, 25))
+            rim.setColorAt(1, QColor(255, 255, 255, 70))
+            p.setPen(QPen(rim, 1))
+            p.setBrush(body)
+            p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
+            glyph = QRectF(r.left() + (self.ICON - 15) / 2, r.top() + (self.ICON - 15) / 2, 15, 15)
+            p.drawPixmap(glyph.topLeft(), info_glyph(key, 15, dpr))
+            dot = QPointF(r.left() + self.ICON - 5, r.top() + 5)   # how it is, on the icon's shoulder
+            if pill.glow:
+                glow_disc(p, dot, 6, 6, pill.dot, 0.45)
+            p.setPen(QPen(QColor(10, 10, 12), 1.4))
+            p.setBrush(QColor(pill.dot))
+            p.drawEllipse(dot, 3.2, 3.2)
+            if k > 0.02:   # open: the line it stands for, fading in as it widens
+                p.setOpacity(min(1.0, k * 1.4))
+                p.setPen(QColor(TEXT))
+                p.setFont(self._f_text)
+                room = r.width() - self.ICON - 10
+                p.drawText(QRectF(r.left() + self.ICON + 2, r.top(), room, r.height()), Qt.AlignLeft | Qt.AlignVCenter,
+                           QFontMetricsF(self._f_text).elidedText(pill.text, Qt.ElideRight, room))
+                p.setOpacity(1.0)
+
+
+_info_glyphs: dict[tuple, QPixmap] = {}
+
+
+def info_glyph(key: str, size: int, dpr: float) -> QPixmap:
+    """A view's glyph in white, for the icons beside the star; drawn once per size and screen density."""
+    k = (key, size, round(dpr, 2))
+    if k not in _info_glyphs:
+        pix = QPixmap(round(size * dpr), round(size * dpr))
+        pix.setDevicePixelRatio(dpr)
+        pix.fill(Qt.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing)
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#f2f4f7" stroke-width="2" '
+               f'stroke-linecap="round" stroke-linejoin="round">{TOGGLE_GLYPHS.get(key, "")}</svg>')
+        QSvgRenderer(QByteArray(svg.encode())).render(p, QRectF(0, 0, size, size))
+        p.end()
+        _info_glyphs[k] = pix
+    return _info_glyphs[k]
 
 
 class Ring(QWidget):
@@ -1803,23 +1975,16 @@ class WidgetWindow(QWidget):
         self.orb = Orb(self.expand)
         self.orb.setParent(self)
         # the pinned views in small, under the clock while the cockpit is minimized
-        self.glance = QWidget(self)
-        stack = QVBoxLayout(self.glance)
-        stack.setSizeConstraint(QLayout.SetFixedSize)
-        stack.setContentsMargins(0, 0, 0, 0)
-        stack.setSpacing(8)
-        stack.setSpacing(5)
-        self.glances = {key: Pill() for key, _ in TOGGLES}
-        self.time_pill = Pill()   # the time: always the first pill beside the star
-        self.time_pill.clicked.connect(self.expand)
-        stack.addWidget(self.time_pill)
+        self.glance = InfoColumn()   # the time and the icons beside the star
+        self.glance.setParent(self)
+        self.glance.clicked.connect(lambda key: self._open_cave() if key == "camaras" else self.expand())
+        self.glances = {key: Pill() for key, _ in TOGGLES}   # the lines and colours the icons show (never shown themselves)
+        for card in self.glances.values():
+            card.on_change = self._info_changed
         self._clock_tick = QTimer(self)   # once a minute, on the minute
         self._clock_tick.setSingleShot(True)
         self._clock_tick.timeout.connect(self._tick_time)
-        self._side = prefs.load().get("side", "right")   # the screen edge the clock is docked to
-        for key, card in self.glances.items():   # a click opens the cockpit; the cameras open the cave live
-            card.clicked.connect(self._open_cave if key == "camaras" else self.expand)
-            stack.addWidget(card)
+        self._side = "right"
         self.panel = Panel(self)
         self.panel.setFixedWidth(WIDTH)
         self.panel.move(SHADOW, SHADOW)
@@ -2091,40 +2256,37 @@ class WidgetWindow(QWidget):
         on the star but slid up or down so they never leave the screen. The window takes the size of what shows."""
         if face is None:
             face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
-        shown = [k for k, card in self.glances.items() if self.pins[k].on and card.text] + ["hora"]
-        for k, card in self.glances.items():
-            card.setVisible(k in shown)
-        self.glance.adjustSize()
+        self.glance.set_items([(k, card) for k, card in self.glances.items() if self.pins[k].on and card.text])
         gw, gh = self.glance.width(), self.glance.height()
         centre = face + QPoint(Orb.D // 2, Orb.D // 2)
         screen = (QGuiApplication.screenAt(centre) or self.screen()).availableGeometry()
-        tuck = Orb.M - 6   # the pills sit in the star's margin, close to it
+        tuck = Orb.M - 4   # the time and the icons sit in the star's margin, close to it
         room_right = screen.right() - (face.x() + Orb.D + Orb.M - tuck)
         right = room_right < gw + self.EDGE and face.x() - screen.left() > room_right   # star on the right, pills on its left
         self._side = "right" if right else "left"
         orb_top = face.y() - Orb.FACE.top()
-        glance_top = centre.y() - gh // 2
+        glance_top = centre.y() - gh // 2 + 2
         glance_top = max(screen.top() + self.EDGE, min(glance_top, screen.bottom() - self.EDGE - gh))
         top = min(orb_top, glance_top)
         h = max(orb_top + Orb.H, glance_top + gh) - top
         w = Orb.W + gw - tuck
         self.orb.move(w - Orb.W if right else 0, orb_top - top)
         self.glance.move(0 if right else Orb.W - tuck, glance_top - top)
-        self.layout_pills(right)
+        self.glance.right = right
+        self.glance.update()
         self.glance.setVisible(self.mode == "orb")
         self.setFixedSize(w, h)
         self.move(face - self.orb.pos() - Orb.FACE.topLeft())
 
     def _tick_time(self):
         """The time pill: the hours, and a dot in the colour of how things are."""
-        self.time_pill.set(datetime.now().strftime("%H:%M"), self.orb.ambient().name(), not self.orb._rest)
+        self.glance.set_time(datetime.now().strftime("%H:%M"))
         self._clock_tick.start(int((60 - time.time() % 60) * 1000) + 20)
 
-    def layout_pills(self, right: bool):
-        """The pills line up against the clock: to the right edge of their column when the clock is on the right."""
-        stack = self.glance.layout()
-        for i in range(stack.count()):
-            stack.setAlignment(stack.itemAt(i).widget(), Qt.AlignRight if right else Qt.AlignLeft)
+    def _info_changed(self):
+        """A line beside the star changed: an icon may come or go."""
+        if self.mode == "orb" and hasattr(self, "pins"):
+            self._layout_orb()
 
     def _toggle_pin(self, key: str):
         self.pins[key].toggle()

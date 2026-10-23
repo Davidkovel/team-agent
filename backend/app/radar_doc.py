@@ -27,7 +27,7 @@ def _page(scan: dict, n: dict) -> str:
     probs = n.get("problemas") or []
     if not n.get("site"):
         num1 = ("Sem site", "quem procura no Google não o encontra")
-        num3 = (f"{len(com)} de {len(negs)}", f"concorrentes {('em ' + zona) if zona else 'da zona'} já têm site")
+        num3 = (f"{len(com)} de {len(negs)}", f"concorrentes {('em ' + zona) if zona and scan.get('raio') else 'da zona'} já têm site")
     else:
         num1 = (f"{n['nota_site']}/100", "nota do site, de 0 a 100")
         num3 = (f"{melhores} de {len(com)}", "sites da zona com nota melhor do que o seu")
@@ -116,7 +116,7 @@ td.s {{ color: #2f6b3c; width: 44%; }}
   <div class="met"><b>Como chegámos a estes números.</b> Tudo o que está neste documento foi visto no site público e no mapa no dia {data},
   sem acesso a nada interno. {medido} A nota do site soma pontos por cada coisa que funciona (telemóvel, cadeado, velocidade,
   contacto direto, inscrição, Google, opiniões, preços, redes, medição). A comparação usa {len(negs)} {quem} que encontrámos
-  num raio de {scan.get('raio', '')} km{(' de ' + e(scan['local'])) if scan['local'] else ''}.</div>
+  {('num raio de ' + str(scan['raio']) + ' km' + ((' de ' + e(scan['local'])) if scan['local'] else '')) if scan.get('raio') else ('no distrito de ' + e(scan.get('distrito') or scan['local']))}.</div>
 </section>
 </body></html>"""
 

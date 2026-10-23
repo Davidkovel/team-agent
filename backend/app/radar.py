@@ -24,7 +24,7 @@ import httpx
 DIR = Path.home() / ".team-agent" / "radar"
 UA_BOT = "team-agent-hub/1.0 (radar de prospecao)"
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.1"
-MAX = 200
+MAX = 300
 
 # ramo -> (nome, filtros OSM, pesquisa no Google)
 RAMOS = {
@@ -161,7 +161,8 @@ class Radar:
         local = (local or "").strip()[:80]
         if not local and not lista.strip():
             raise ValueError("diz a zona (ex.: Leiria) ou cola uma lista")
-        raio = max(2, min(int(raio or 15), 60))
+        raio = int(raio if raio not in (None, "") else 15)
+        raio = 0 if raio == 0 and ramo == "escolas" else max(2, min(raio or 50, 60))  # 0 = o distrito inteiro (pelo diretório)
         sid = uuid.uuid4().hex[:12]
         scan = {"id": sid, "ramo": ramo, "ramo_nome": RAMOS[ramo][0], "local": local, "raio": raio, "at": time.time(), "fim": None,
                 "owner": owner, "fontes": [], "negocios": [], "mercado": {}, "resumo": {}, "erro": ""}
@@ -180,12 +181,22 @@ class Radar:
                 if scan["local"]:
                     geo = await self._geocode(c, scan["local"])
                     scan["geo"] = geo
-                    job["fase"] = "a procurar no mapa"
-                    try:
-                        found += await self._osm(c, scan["ramo"], geo, scan["raio"])
-                    except RuntimeError:  # o Overpass vive cheio: o Nominatim e o Photon leem o mesmo mapa
-                        found += await self._osm_lite(c, scan["ramo"], geo, scan["raio"])
-                    scan["fontes"].append("OpenStreetMap")
+                    if scan["raio"]:
+                        job["fase"] = "a procurar no mapa"
+                        try:
+                            found += await self._osm(c, scan["ramo"], geo, scan["raio"])
+                        except RuntimeError:  # o Overpass vive cheio: o Nominatim e o Photon leem o mesmo mapa
+                            found += await self._osm_lite(c, scan["ramo"], geo, scan["raio"])
+                        scan["fontes"].append("OpenStreetMap")
+                    else:  # o distrito inteiro: o mapa num raio largo, só o que é desse distrito
+                        scan["distrito"] = geo.get("distrito", "")
+                        job["fase"] = "a procurar no mapa"
+                        try:
+                            got = await self._osm_lite(c, scan["ramo"], geo, 60)
+                            found += [x for x in got if _norm(x.get("distrito", "")) == _norm(scan["distrito"])]
+                            scan["fontes"].append("OpenStreetMap")
+                        except RuntimeError:
+                            pass
                     if scan["ramo"] == "escolas":
                         job["fase"] = "a ler o diretório das escolas"
                         try:
@@ -214,10 +225,14 @@ class Radar:
                 scan["negocios"] = negs
                 job.update(fase="a procurar os sites", total=len(negs))
                 self._save(scan)
-                for n in negs:  # o mapa quase nunca tem o site: procura-se pelo nome, um de cada vez
-                    if not n.get("site"):
-                        await self._find_site(n, scan["local"])
-                    job["feitos"] += 1
+                look = asyncio.Semaphore(2)  # o mapa quase nunca tem o site: procura-se pelo nome, dois de cada vez
+
+                async def find(n: dict):
+                    async with look:
+                        if not n.get("site"):
+                            await self._find_site(n, n["morada"] if n.get("fonte") == "escolasconducao.com" and n.get("morada") else scan["local"])
+                        job["feitos"] += 1
+                await asyncio.gather(*(find(n) for n in negs))
                 job.update(fase="a abrir os sites", feitos=0)
                 self._save(scan)
             sem = asyncio.Semaphore(6)
@@ -271,7 +286,7 @@ class Radar:
         ficam dentro do raio (pela localidade de cada uma) com o telefone, o email e o site da ficha."""
         lat, lon, d = geo["lat"], geo["lon"], raio / 111
         dists = {geo.get("distrito", "")}
-        for dy, dx in ((d, 0), (-d, 0), (0, d * 1.3), (0, -d * 1.3)):  # os distritos vizinhos que o círculo toca
+        for dy, dx in () if not raio else ((d, 0), (-d, 0), (0, d * 1.3), (0, -d * 1.3)):  # os distritos vizinhos que o círculo toca
             await asyncio.sleep(1)
             r = await c.get("https://nominatim.openstreetmap.org/reverse", params={"lat": lat + dy, "lon": lon + dx, "format": "json", "zoom": 8})
             if r.status_code == 200:
@@ -289,9 +304,9 @@ class Radar:
                 await asyncio.sleep(0.5)
         out = []
         for nome, cid, url, dist in cards:
-            job["fase"] = f"a situar as escolas ({cid.title()})"
-            pt = await self._where(c, f"{cid}, {dist}, Portugal")
-            if not pt or ((pt[0] - lat) ** 2 + ((pt[1] - lon) * 0.77) ** 2) ** 0.5 * 111 > raio:
+            job["fase"] = f"a ler as fichas ({cid.title()})"
+            pt = await self._where(c, f"{cid}, {dist}, Portugal") if raio else None
+            if raio and not pt or raio and ((pt[0] - lat) ** 2 + ((pt[1] - lon) * 0.77) ** 2) ** 0.5 * 111 > raio:
                 continue
             n = {"nome": re.sub(r",?\s*(unipessoal\s*)?,?\s*lda\.?$", "", nome, flags=re.I).strip(" -,")[:90], "morada": cid.title(), "fonte": "escolasconducao.com", "ficha": url}
             try:
@@ -346,7 +361,7 @@ class Radar:
                     out.append({"nome": (x.get("name") or "")[:90], "site": et.get("website") or et.get("contact:website") or "",
                                 "telefone": et.get("phone") or et.get("contact:phone") or "", "email": et.get("email") or "",
                                 "morada": " ".join(filter(None, (ad.get("road"), ad.get("house_number"), ad.get("city") or ad.get("town") or ad.get("village")))),
-                                "fonte": "OpenStreetMap", "lat": float(x["lat"]), "lon": float(x["lon"])})
+                                "fonte": "OpenStreetMap", "lat": float(x["lat"]), "lon": float(x["lon"]), "distrito": ad.get("county", "")})
                 await asyncio.sleep(1)  # a regra do Nominatim: um pedido por segundo
                 r = await c.get("https://photon.komoot.io/api/", params={"q": RAMOS[ramo][2], "osm_tag": f"{k}:{v}", "lat": lat, "lon": lon, "limit": 80})
                 for f in r.json().get("features", []) if r.status_code == 200 else []:
@@ -354,7 +369,7 @@ class Radar:
                     if ((x_lat - lat) ** 2 + ((x_lon - lon) * 0.77) ** 2) ** 0.5 * 111 > raio:
                         continue
                     out.append({"nome": (p.get("name") or "")[:90], "morada": " ".join(filter(None, (p.get("street"), p.get("housenumber"), p.get("city")))),
-                                "fonte": "OpenStreetMap", "lat": x_lat, "lon": x_lon})
+                                "fonte": "OpenStreetMap", "lat": x_lat, "lon": x_lon, "distrito": p.get("county", "")})
             except (httpx.HTTPError, ValueError):
                 continue
         if not out:
@@ -508,7 +523,7 @@ class Radar:
         # quem fez o site: o crédito no rodapé, lido no texto visível (sem scripts nem estilos)
         txt = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", " ", s, flags=re.S | re.I)
         txt = html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", txt)))
-        m = re.search(r"(?:desenvolvido|criado|concebido|design|webdesign|powered|made|feito)\s+(?:por|by|pela|pelo)\s*:?\s*([A-Za-zÀ-ÿ0-9][\w À-ÿ&.\-]{1,30})", txt[-3000:], re.I)
+        m = re.search(r"(?:desenvolvido|criado|concebido|design|webdesign|powered|made|feito)\s+(?:pelos|pelas|pela|pelo|por|by)\b\s*:?\s*([A-Za-zÀ-ÿ0-9][\w À-ÿ&.\-]{1,30})", txt[-3000:], re.I)
         ag = m.group(1).strip(" .:-|") if m else ""
         ag = re.split(r"\s{2,}| [|©]| Todos| All| Política| Termos", ag)[0].strip()
         o["agencia"] = "" if not ag or re.match(r"(wix|wordpress|shopify|squarespace|google|jimdo|site123|wpbakery|elementor|divi|godaddy|webflow)\b", ag, re.I) else ag

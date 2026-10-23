@@ -79,11 +79,14 @@
     paint($("rd-form"), `<form class="rd-f" id="rd-f">
       <label class="field"><span>${esc(t("Ramo"))}</span><select name="ramo">${ramos}</select></label>
       <label class="field rd-zona"><span>${esc(t("Zona"))}</span><input name="local" placeholder="${esc(t("Ex.: Leiria, Rio Maior, Lisboa"))}" autocomplete="off"></label>
-      <label class="field"><span>${esc(t("Raio"))}</span><select name="raio">${[5, 10, 20, 30, 50].map((r) => `<option value="${r}" ${r === 20 ? "selected" : ""}>${r} km</option>`).join("")}</select></label>
+      <label class="field"><span>${esc(t("Raio"))}</span><select name="raio">${[5, 10, 20, 30, 50].map((r) => `<option value="${r}" ${r === 20 ? "selected" : ""}>${r} km</option>`).join("")}<option value="0">${esc(t("Distrito inteiro"))}</option></select></label>
       <button class="btn primary rd-go" type="submit">${icon("search")}${esc(t("Varrer a zona"))}</button>
       <details class="rd-lista"><summary>${esc(t("Ou colar uma lista (nome | site, uma por linha)"))}</summary>
         <label class="field"><textarea name="lista" placeholder="Gato Preto | \nVia Dinâmica | https://…"></textarea></label></details>
     </form>`);
+    const f0 = $("rd-f"), dist = f0.raio.querySelector('[value="0"]');
+    f0.ramo.onchange = () => { dist.hidden = f0.ramo.value !== "escolas"; if (dist.hidden && f0.raio.value === "0") f0.raio.value = "20"; };
+    f0.ramo.onchange();
     $("rd-f").onsubmit = async (e) => {
       e.preventDefault();
       const f = new FormData(e.target);
@@ -98,7 +101,7 @@
 
   function paintScan(sc) {
     const r = sc.resumo || {}, job = sc.job, negs = sc.negocios || [];
-    const where = `${sc.ramo_nome} · ${sc.local || t("lista colada")}${sc.local ? ` · ${sc.raio} km` : ""}`;
+    const where = `${sc.ramo_nome} · ${sc.local || t("lista colada")}${sc.local ? ` · ${sc.raio ? `${sc.raio} km` : t("distrito de {d}", { d: sc.distrito || sc.local })}` : ""}`;
     const kpi = (l, v, sub = "") => `<div class="panel bd-kpi"><span class="bd-l">${esc(t(l))}</span>${ui.num(v)}${sub ? `<small class="faint">${esc(sub)}</small>` : ""}</div>`;
     const done = !job && r.total != null;
     let html = ui.sec(where, `<small class="rd-sr">${esc((sc.fontes || []).join(" · "))}</small>`);

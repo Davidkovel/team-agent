@@ -103,6 +103,8 @@ async def local_live(request: Request, db: AsyncSession = Depends(get_db)):
         Notification.kind == "message", Notification.read_at.is_(None)).group_by(Notification.user_id))).all())
     midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     done_today = (await db.execute(select(func.count(Task.id)).where(Task.completed_at >= midnight))).scalar() or 0
+    from .. import limits
+    plan = await limits.team(db)   # each one's Claude 5 h and week, as their own PC last wrote them
     people = []
     for u in (await db.execute(select(User).order_by(User.id))).scalars():
         rows = windows.get(u.id, [])
@@ -119,7 +121,7 @@ async def local_live(request: Request, db: AsyncSession = Depends(get_db)):
                        "state": state, "wait": _wait(latest, state) if latest else "",
                        "action": latest.action if latest and state == "working" else "",
                        "at": iso(latest.updated_at) if latest else None,
-                       "tasks": open_tasks.get(u.id, 0), "messages": messages.get(u.id, 0),
+                       "tasks": open_tasks.get(u.id, 0), "messages": messages.get(u.id, 0), "limits": plan.get(u.username),
                        # each window working or waiting, for the widget's «Claude agora» (Marco: «quero ter controlo... não
                        # quero uma stream, mas quando estás a mexer no widget quero saber»)
                        "windows": [{"topic": _topic(r), "project": r.project, "state": s, "wait": _wait(r, s),

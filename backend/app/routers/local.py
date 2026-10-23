@@ -83,6 +83,46 @@ async def local_team(request: Request, db: AsyncSession = Depends(get_db)):
     return out
 
 
+@router.get("/live")
+async def local_live(request: Request, db: AsyncSession = Depends(get_db)):
+    """What each partner is doing, for the widget's central de comando (23 Oct, Marco: «só diz Kovel, David e Marco, nem
+    sequer diz nada»): their Claude windows of the last day (how many work or wait, and the latest one's subject), the tasks
+    still open for them, the unread messages, and the tasks the team finished today."""
+    local_or_team_key(request)
+    from .office import SHOWN, _state, _topic, _wait   # the Escritório's own reading of a window
+    from ..models import ClaudeSession
+    now = datetime.now(timezone.utc)
+    cut = datetime.fromtimestamp(now.timestamp() - SHOWN, timezone.utc)
+    windows: dict[int, list] = {}
+    for r in (await db.execute(select(ClaudeSession).where(ClaudeSession.updated_at >= cut)
+                               .order_by(ClaudeSession.updated_at.desc()))).scalars():
+        windows.setdefault(r.user_id, []).append(r)
+    open_tasks = dict((await db.execute(select(Task.assignee_id, func.count(Task.id)).where(
+        Task.status.not_in(("COMPLETED", "CANCELLED")), Task.trashed_at.is_(None)).group_by(Task.assignee_id))).all())
+    messages = dict((await db.execute(select(Notification.user_id, func.count(Notification.id)).where(
+        Notification.kind == "message", Notification.read_at.is_(None)).group_by(Notification.user_id))).all())
+    midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    done_today = (await db.execute(select(func.count(Task.id)).where(Task.completed_at >= midnight))).scalar() or 0
+    people = []
+    for u in (await db.execute(select(User).order_by(User.id))).scalars():
+        rows = windows.get(u.id, [])
+        states = [_state(r) for r in rows]
+        live = [(r, s) for r, s in zip(rows, states) if s in ("working", "waiting")]
+        latest, state = live[0] if live else (rows[0], states[0]) if rows else (None, "")
+        if latest is None:   # nothing in the last day: their last window, so the row still says what they last did
+            latest = (await db.execute(select(ClaudeSession).where(ClaudeSession.user_id == u.id)
+                                       .order_by(ClaudeSession.updated_at.desc()).limit(1))).scalars().first()
+            state = "ended" if latest else ""
+        people.append({"user": u.username, "name": u.display_name,
+                       "working": states.count("working"), "waiting": states.count("waiting"),
+                       "topic": _topic(latest) if latest else "", "project": latest.project if latest else "",
+                       "state": state, "wait": _wait(latest, state) if latest else "",
+                       "action": latest.action if latest and state == "working" else "",
+                       "at": iso(latest.updated_at) if latest else None,
+                       "tasks": open_tasks.get(u.id, 0), "messages": messages.get(u.id, 0)})
+    return {"people": people, "done_today": done_today}
+
+
 CAPTION = {"message": "MENSAGEM PARA TI"}   # the widget card's small capitals; a task keeps its own
 
 

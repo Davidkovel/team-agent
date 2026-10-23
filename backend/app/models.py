@@ -403,3 +403,23 @@ class PaperTrade(Base):
     currency: Mapped[str] = mapped_column(String(10), default="USD")
     note: Mapped[str] = mapped_column(String(200), default="")
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Plan(Base):
+    """Planos (23 Oct, David: «faço um plano para os meus agentes fazerem; acabo os tokens, entra um parceiro e continua»):
+    a job written down as steps, so whoever comes next, on any PC, sees what is done and carries on. Each step is
+    {text, done, by, at, note}; `notes` are the hand-overs {by, at, text}; `worker` is who is on it now. Sync carries it."""
+    __tablename__ = "plans"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    goal: Mapped[str] = mapped_column(Text, default="")
+    project: Mapped[str] = mapped_column(String(200), default="")  # the folder the work is in
+    repo: Mapped[str] = mapped_column(String(300), default="")  # its git remote, so another PC can get it
+    steps: Mapped[list] = mapped_column(JSON, default=list)
+    notes: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open | done
+    worker: Mapped[str] = mapped_column(String(100), default="")
+    worker_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

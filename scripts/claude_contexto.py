@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import urllib.request
 from pathlib import Path
 
 LIB = Path(__file__).resolve().parents[1] / "library" / "skills"
@@ -76,7 +77,9 @@ AREAS = [
                     r"new hire|novos? colaborador",
      []),
     ("Hub e widget", r"\bhub\b|widget|dashboard|central de comando|escrit[oó]rio|empresa amg|agente amg|barra (do )?lado|"
-                     r"sidebar|ctrl\+?k|separador(es)?|p[aá]ginas? do hub|виджет|хаб",
+                     r"sidebar|ctrl\+?k|separador(es)?|p[aá]ginas? do hub|виджет|хаб|"
+                     r"plano (para|dos?|da) (os )?(meus )?(agentes|parceiros?|s[oó]cios?|equipa)|continua(r)? o plano|"
+                     r"acab\w* (os )?(meus )?tokens|passagem de turno",
      ["hub-pagina"]),
     ("Código", r"\bbugs?\b|\berros?\b|debug|n[aã]o funciona|partiu|crash|\btestes?\b|\btests?\b|refactor|implementa|"
                r"\bfeature|c[oó]digo|\bcode\b|pull request|\bcommit|\bmerge\b|deploy|cloudflare|wrangler|\bworkers?\b|"
@@ -242,6 +245,20 @@ def offer_text(names: list[str], skills: dict) -> str:
             "segue-o; se já estiver instalada aqui como skill, usa-a pelo Skill):\n" + "\n".join(rows))
 
 
+def plans_text() -> str:
+    """The team's open plans (routers/plans.py), so a new window knows there is work to carry on. Never waits long."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8000/api/local/plans", timeout=1.5) as r:
+            plans = json.loads(r.read() or b"[]")
+    except Exception:
+        return ""
+    if not plans:
+        return ""
+    rows = "\n".join(f"- #{p['id']} {p['title']} ({p['done']}/{p['total']}, {('com ' + p['worker']) if p['worker'] else 'parado'})" for p in plans[:6])
+    return ("\n\nPlanos abertos da equipa (Escritório > Missões > Planos). Se o pedido é continuar um deles, corre primeiro "
+            "`python scripts/plano.py ver <n>` no team-agent e segue a skill plano-partilhado:\n" + rows)
+
+
 def context(event: dict) -> str:
     if os.environ.get("AMG_SKILLS") == "0" or not LIB.is_dir():
         return ""
@@ -250,7 +267,7 @@ def context(event: dict) -> str:
         if event.get("source") == "resume":   # the window already has it from when it started
             return ""
         skills = index()
-        return start_text(skills) if skills else ""
+        return (start_text(skills) if skills else "") + plans_text()
     if name == "UserPromptSubmit":
         prompt = str(event.get("prompt") or "")
         if len(prompt.strip()) < 12:

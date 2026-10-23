@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QEasingCurve, QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
-from PySide6.QtGui import (QColor, QConicalGradient, QFont, QFontMetricsF, QIcon, QImage, QLinearGradient, QPainter, QPainterPath,
+from PySide6.QtGui import (QColor, QGuiApplication, QConicalGradient, QFont, QFontMetricsF, QIcon, QImage, QLinearGradient, QPainter, QPainterPath,
                            QPen, QPixmap, QPolygonF, QRadialGradient, QRegion)
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (QAbstractButton, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
@@ -1651,7 +1651,7 @@ class Orb(QWidget):
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
             self._press_at = e.globalPosition().toPoint()
-            self._grab = self._press_at - self.window().pos()
+            self._grab = self._press_at - self.mapToGlobal(self.FACE.topLeft())   # the mouse, from the star's corner
             self._dragged = False
             self._to(self._down_anim, self._down, 1)
 
@@ -1663,14 +1663,17 @@ class Orb(QWidget):
             self._dragged = True
             self._to(self._down_anim, self._down, 0)
         if self._dragged:
-            self.window().move(at - self._grab)
+            if hasattr(self.window(), "follow"):
+                self.window().follow(at - self._grab)   # the pills rearrange as it nears an edge
+            else:
+                self.window().move(at - self._grab - self.pos() - self.FACE.topLeft())
 
     def mouseReleaseEvent(self, e):
         self._to(self._down_anim, self._down, 0)
         if self._press_at is not None and not self._dragged and e.button() == Qt.LeftButton:
             self._on_click()
         elif self._dragged and hasattr(self.window(), "dock"):
-            self.window().dock()   # let go: it docks to the nearest side of the screen
+            self.window().dock()   # let go: the place is kept for next time
         self._press_at = None
 
     def ambient(self) -> QColor:
@@ -2063,35 +2066,29 @@ class WidgetWindow(QWidget):
 
     # ------------------------------------------------------------ size and place
 
-    DOCK = 10   # px between the clock's bezel and the edge of the screen it is docked to
+    EDGE = 6   # px the pills keep from the edges of the screen
 
     def _place(self):
-        """Starts as the clock docked to the side of the screen it was left on (the right by default), at its height."""
+        """Starts where the star was left last time (the top right of the screen the first time)."""
         screen = self.screen().availableGeometry()
-        y = prefs.load().get("dock_y", screen.top() + 40)
-        self._layout_orb(self._docked(QPoint(0, y)))
+        saved = prefs.load()
+        face = QPoint(saved.get("star_x", screen.right() - Orb.D - 24), saved.get("star_y", screen.top() + 40))
+        self._layout_orb(face)
 
-    def _docked(self, face: QPoint) -> QPoint:
-        """Where the clock's face goes, docked to the edge of its side (left or right) and kept inside the screen."""
-        screen = self.screen().availableGeometry()
-        x = screen.right() - Orb.D - self.DOCK + 1 if self._side == "right" else screen.left() + self.DOCK
-        y = max(screen.top() + self.DOCK, min(face.y(), screen.bottom() - Orb.D - Orb.CAP_H - self.DOCK))
-        return QPoint(x, y)
+    def follow(self, face: QPoint):
+        """The star is being dragged: it goes where the mouse takes it, and the pills rearrange round it as it nears an
+        edge (23 Oct, Marco: «posso mexer... as coisas que aparecem por fora vão-se ajustando às bordas»)."""
+        self._layout_orb(face)
 
     def dock(self):
-        """The clock was dragged and let go: it goes to the nearest side of the screen, at the height it was left, and
-        stays there (23 Oct, Marco: «tem que estar no canto do monitor, tem que acompanhar»)."""
-        screen = self.screen().availableGeometry()
+        """The star was let go where it is: that place is kept for next time. Nothing snaps."""
         face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
-        self._side = "right" if face.x() + Orb.D / 2 > screen.center().x() else "left"
-        target = self._docked(face)
-        prefs.save(side=self._side, dock_y=target.y())
-        self._layout_orb(target)
+        prefs.save(star_x=face.x(), star_y=face.y())
 
     def _layout_orb(self, face: QPoint | None = None):
-        """The minimized widget: the clock, and the pinned views as one-line pills beside it, on the inner side of the
-        screen, centred on the clock. `face` is where the clock's face must stay on the screen (its top left); by default
-        where it is now. The window takes the size of what is pinned."""
+        """The minimized widget: the star where `face` says (its top left on the screen; by default where it is now), and
+        the pills beside it on the side with room (left of the star near the right edge, right of it otherwise), centred
+        on the star but slid up or down so they never leave the screen. The window takes the size of what shows."""
         if face is None:
             face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
         shown = [k for k, card in self.glances.items() if self.pins[k].on and card.text] + ["hora"]
@@ -2099,16 +2096,22 @@ class WidgetWindow(QWidget):
             card.setVisible(k in shown)
         self.glance.adjustSize()
         gw, gh = self.glance.width(), self.glance.height()
-        tuck = Orb.M - 6   # the pills sit in the clock's shadow margin, close to the bezel
-        w = Orb.W + (gw - tuck if shown else 0)
-        h = max(Orb.H, gh)
-        right = self._side == "right"
-        self.orb.move(w - Orb.W if right else 0, 0)
-        mid = Orb.M + Orb.D // 2
-        gy = max(0, min(h - gh, mid - gh // 2))
-        self.glance.move(0 if right else Orb.W - tuck, gy)
+        centre = face + QPoint(Orb.D // 2, Orb.D // 2)
+        screen = (QGuiApplication.screenAt(centre) or self.screen()).availableGeometry()
+        tuck = Orb.M - 6   # the pills sit in the star's margin, close to it
+        room_right = screen.right() - (face.x() + Orb.D + Orb.M - tuck)
+        right = room_right < gw + self.EDGE and face.x() - screen.left() > room_right   # star on the right, pills on its left
+        self._side = "right" if right else "left"
+        orb_top = face.y() - Orb.FACE.top()
+        glance_top = centre.y() - gh // 2
+        glance_top = max(screen.top() + self.EDGE, min(glance_top, screen.bottom() - self.EDGE - gh))
+        top = min(orb_top, glance_top)
+        h = max(orb_top + Orb.H, glance_top + gh) - top
+        w = Orb.W + gw - tuck
+        self.orb.move(w - Orb.W if right else 0, orb_top - top)
+        self.glance.move(0 if right else Orb.W - tuck, glance_top - top)
         self.layout_pills(right)
-        self.glance.setVisible(bool(shown) and self.mode == "orb")
+        self.glance.setVisible(self.mode == "orb")
         self.setFixedSize(w, h)
         self.move(face - self.orb.pos() - Orb.FACE.topLeft())
 

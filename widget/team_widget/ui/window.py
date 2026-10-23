@@ -1756,6 +1756,52 @@ def glance_tokens(mine: int, windows: list, tracker):
     return paint
 
 
+class Pill(QAbstractButton):
+    """A pinned view at its smallest, beside the minimized clock: one line on a dark glass capsule, like an iPhone's
+    Live Activity (23 Oct, Marco: the cards «ocupam boé espaço... tem que ser justo, no canto do monitor»). A click
+    opens the cockpit on that view."""
+    H, MAX_W = 26, 214
+
+    def __init__(self):
+        super().__init__()
+        self.text, self.dot, self.glow = "", MUTED, False
+        self.setCursor(Qt.PointingHandCursor)
+        self._f = font(8, QFont.DemiBold, UI)
+        self.setFixedSize(60, self.H)
+
+    def set(self, text: str, dot: str, glow=False):
+        if (text, dot, glow) != (self.text, self.dot, self.glow):
+            self.text, self.dot, self.glow = text, dot, glow
+            self.setToolTip(text)
+            self.setFixedWidth(int(min(self.MAX_W, QFontMetricsF(self._f).horizontalAdvance(text) + 34)))
+            self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        body = QLinearGradient(0, 0, 0, r.height())
+        body.setColorAt(0, QColor(30, 31, 35, 240))
+        body.setColorAt(1, QColor(8, 8, 10, 240))
+        rim = QLinearGradient(0, 0, r.width(), r.height())
+        rim.setColorAt(0, QColor(255, 255, 255, 80))
+        rim.setColorAt(0.5, QColor(255, 255, 255, 16))
+        rim.setColorAt(1, QColor(255, 255, 255, 46))
+        p.setPen(QPen(rim, 1))
+        p.setBrush(body)
+        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
+        dot = QPointF(13, r.center().y())
+        if self.glow:
+            glow_disc(p, dot, 8, 8, self.dot, 0.4)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(self.dot))
+        p.drawEllipse(dot, 3.2, 3.2)
+        p.setPen(QColor(TEXT))
+        p.setFont(self._f)
+        p.drawText(QRectF(23, 0, r.width() - 31, r.height()), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetricsF(self._f).elidedText(self.text, Qt.ElideRight, r.width() - 31))
+
+
 class Ring(QWidget):
     """A limit as a small ring (the Claude session, the week, Higgsfield): fills clockwise from the top, the number
     inside, the name and a note under it."""
@@ -1928,6 +1974,8 @@ class Orb(QWidget):
         self._to(self._down_anim, self._down, 0)
         if self._press_at is not None and not self._dragged and e.button() == Qt.LeftButton:
             self._on_click()
+        elif self._dragged and hasattr(self.window(), "dock"):
+            self.window().dock()   # let go: it docks to the nearest side of the screen
         self._press_at = None
 
     def ambient(self) -> QColor:
@@ -2197,11 +2245,9 @@ class WidgetWindow(QWidget):
         stack.setSizeConstraint(QLayout.SetFixedSize)
         stack.setContentsMargins(0, 0, 0, 0)
         stack.setSpacing(8)
-        self.glances = {"janelas": Glance("Claude agora"), "tokens": Glance("Tokens", height=64), "camaras": Glance("Câmaras", height=100)}
-        self.glance_cams = CamerasView()
-        self.glance_cams.TILE = 66
-        self.glance_cams.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.glances["camaras"].box.addWidget(self.glance_cams)
+        stack.setSpacing(5)
+        self.glances = {"janelas": Pill(), "tokens": Pill(), "camaras": Pill()}
+        self._side = prefs.load().get("side", "right")   # the screen edge the clock is docked to
         for i, (key, card) in enumerate(self.glances.items()):
             card.clicked.connect(lambda i=i: self._open_on(i))
             stack.addWidget(card)
@@ -2454,31 +2500,66 @@ class WidgetWindow(QWidget):
 
     # ------------------------------------------------------------ size and place
 
+    DOCK = 10   # px between the clock's bezel and the edge of the screen it is docked to
+
     def _place(self):
-        """Starts as the button, near the top-right corner of the screen."""
+        """Starts as the clock docked to the side of the screen it was left on (the right by default), at its height."""
         screen = self.screen().availableGeometry()
-        self._layout_orb(QPoint(screen.right() - Orb.W - 30, screen.top() + 50) + Orb.FACE.topLeft())
+        y = prefs.load().get("dock_y", screen.top() + 40)
+        self._layout_orb(self._docked(QPoint(0, y)))
+
+    def _docked(self, face: QPoint) -> QPoint:
+        """Where the clock's face goes, docked to the edge of its side (left or right) and kept inside the screen."""
+        screen = self.screen().availableGeometry()
+        x = screen.right() - Orb.D - self.DOCK + 1 if self._side == "right" else screen.left() + self.DOCK
+        y = max(screen.top() + self.DOCK, min(face.y(), screen.bottom() - Orb.D - Orb.CAP_H - self.DOCK))
+        return QPoint(x, y)
+
+    def dock(self):
+        """The clock was dragged and let go: it goes to the nearest side of the screen, at the height it was left, and
+        stays there (23 Oct, Marco: «tem que estar no canto do monitor, tem que acompanhar»)."""
+        screen = self.screen().availableGeometry()
+        face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
+        self._side = "right" if face.x() + Orb.D / 2 > screen.center().x() else "left"
+        target = self._docked(face)
+        prefs.save(side=self._side, dock_y=target.y())
+        self._layout_orb(target)
 
     def _layout_orb(self, face: QPoint | None = None):
-        """The minimized widget: the clock, and the pinned views under it. `face` is where the clock's face must stay on
-        the screen (its top left); by default where it is now. The window takes the size of what is pinned."""
+        """The minimized widget: the clock, and the pinned views as one-line pills beside it, on the inner side of the
+        screen, centred on the clock. `face` is where the clock's face must stay on the screen (its top left); by default
+        where it is now. The window takes the size of what is pinned."""
         if face is None:
             face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
-        shown = [k for k, card in self.glances.items() if self.pins[k].on]
+        shown = [k for k, card in self.glances.items() if self.pins[k].on and card.text]
         for k, card in self.glances.items():
             card.setVisible(k in shown)
         self.glance.adjustSize()
-        w = max(Orb.W, Glance.W + 2 * 10) if shown else Orb.W
-        h = Orb.H + (self.glance.height() - 6 if shown else 0)
-        self.orb.move((w - Orb.W) // 2, 0)
-        self.glance.move((w - Glance.W) // 2, Orb.H - 10)
+        gw, gh = (self.glance.width(), self.glance.height()) if shown else (0, 0)
+        tuck = Orb.M - 6   # the pills sit in the clock's shadow margin, close to the bezel
+        w = Orb.W + (gw - tuck if shown else 0)
+        h = max(Orb.H, gh)
+        right = self._side == "right"
+        self.orb.move(w - Orb.W if right else 0, 0)
+        mid = Orb.M + Orb.D // 2
+        gy = max(0, min(h - gh, mid - gh // 2))
+        self.glance.move(0 if right else Orb.W - tuck, gy)
+        self.layout_pills(right)
         self.glance.setVisible(bool(shown) and self.mode == "orb")
         self.setFixedSize(w, h)
         self.move(face - self.orb.pos() - Orb.FACE.topLeft())
 
+    def layout_pills(self, right: bool):
+        """The pills line up against the clock: to the right edge of their column when the clock is on the right."""
+        stack = self.glance.layout()
+        for i in range(stack.count()):
+            stack.setAlignment(stack.itemAt(i).widget(), Qt.AlignRight if right else Qt.AlignLeft)
+
     def _toggle_pin(self, key: str):
         self.pins[key].toggle()
         prefs.save(pins=[k for k, pin in self.pins.items() if pin.on])
+        if self.mode == "orb":
+            self._layout_orb()
 
     def _open_on(self, tab: int):
         """A card under the clock clicked: the cockpit opens on that view."""
@@ -2486,18 +2567,24 @@ class WidgetWindow(QWidget):
         self.expand()
 
     def _render_glances(self, windows: list, mine_live: dict, cams: list):
-        """The pinned views in small. Only redrawn on a look at the Hub; the window grows or shrinks round the clock."""
-        card = self.glances["janelas"]
-        card.body = glance_windows(windows)
-        asking = sum(1 for w in windows if w.get("wait") in ("permission", "answer"))
-        card.note, card.note_colour = (f"{asking} à tua espera", COLORS["WAITING"]) if asking else (f"{len(windows)}" if windows else "", MUTED)
-        card.setFixedHeight(36 + 22 * max(1, min(3, len(windows))))
-        tokens = self.glances["tokens"]
-        tokens.body = glance_tokens(mine_live.get("tokens") or 0, mine_live.get("token_windows") or [], self.tracker)
-        self.glance_cams.set(cams[:2])
-        self.glances["camaras"].setFixedHeight(38 + self.glance_cams.height())
-        for c in self.glances.values():
-            c.update()
+        """The pinned views as one line each. Only redrawn on a look at the Hub; the window keeps the clock where it is."""
+        asking = [w for w in windows if w.get("wait") in ("permission", "answer")]
+        working = sum(1 for w in windows if w.get("state") == "working")
+        if asking:   # what waits for you says what it is
+            text, dot = f"Espera por ti · {asking[0].get('topic') or asking[0].get('project') or 'Claude'}", COLORS["WAITING"]
+        elif working:
+            text, dot = f"{working} Claude a trabalhar", COLORS["WORKING"]
+        else:
+            text, dot = "Claude parado", MUTED
+        self.glances["janelas"].set(text, dot, bool(asking or working))
+        token_windows = mine_live.get("token_windows") or []
+        speed = sum(self.tracker.rate(w.get("key")) for w in token_windows)
+        mine = tokens_text(mine_live.get("tokens") or 0)
+        self.glances["tokens"].set(f"{mine} · {tokens_text(speed)}/min" if speed >= 1 else f"{mine} tokens · 24 h",
+                                   COLORS["WORKING"] if speed >= 1 else MUTED, speed >= 1)
+        live = sum(1 for c in cams if c.get("state") == "working")
+        self.glances["camaras"].set(f"REC · {len(cams)} câmaras" + (f" · {live} a trabalhar" if live else "") if cams else "Câmaras · ninguém",
+                                    "#ff3b30" if cams else MUTED)
         if self.mode == "orb":
             self._layout_orb()
 

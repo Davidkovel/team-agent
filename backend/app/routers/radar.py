@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import radar_doc
@@ -28,6 +31,32 @@ def lead(sid: str, nid: str, body: dict, user: User = Depends(viewer)):
         return RADAR.set_lead(sid, nid, str(body.get("estado") or ""), body.get("nota"), user.display_name or user.username)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@router.get("/{sid}/csv")
+async def export(sid: str, token: str = Query(...), db: AsyncSession = Depends(get_db)):
+    """A varredura numa folha (Excel abre-a direto: ponto e vírgula e BOM), com o seguimento de cada um."""
+    if not await user_from_jwt(token, db):
+        raise HTTPException(401, "Invalid token")
+    await db.commit()
+    try:
+        sc = RADAR.get(sid)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    out = io.StringIO()
+    w = csv.writer(out, delimiter=";")
+    w.writerow(["Posição", "Nome", "Localidade", "Telefone", "Email", "Site", "Facebook", "Plataforma", "Quem fez o site", "Nota do site",
+                "Oportunidade", "Nível", "Gasto estimado €/mês", "Anúncios", "Principal problema", "O que fazemos", "Seguimento", "Notas"])
+    for i, n in enumerate(sc["negocios"], 1):
+        a, g, p, ld = n.get("audit") or {}, n.get("gasto") or {}, (n.get("problemas") or [{}])[0], n.get("lead") or {}
+        w.writerow([i, n["nome"], n.get("morada", ""), n.get("telefone", ""), n.get("email") or ", ".join(a.get("emails") or []),
+                    n.get("site", ""), n.get("facebook", ""), a.get("plataforma", ""), a.get("agencia", ""), n.get("nota_site"),
+                    n.get("oportunidade"), n.get("nivel", ""), f"{g.get('min', 0)}-{g.get('max', 0)}" if g.get("max") else "",
+                    "sim" if g.get("anuncios") else "", p.get("problema", ""), p.get("solucao", ""),
+                    ESTADOS.get(ld.get("estado", ""), ""), ld.get("nota", "")])
+    nome = re.sub(r"[^a-z0-9]+", "-", f"radar-{sc['ramo']}-{sc['local'] or 'lista'}".lower()).strip("-")
+    return Response("﻿" + out.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})
 
 
 @router.get("/{sid}/{nid}/pdf")

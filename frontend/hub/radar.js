@@ -3,7 +3,7 @@
 // tudo por oportunidade, cada problema com a solução que vendemos (backend/app/radar.py). As peças por fazer estão à vista
 // em «A máquina». A página segue docs/hub-paginas.md; classes rd-.
 (function () {
-  let S = null, cur = null, open = "", timer = 0;
+  let S = null, SC = null, cur = null, open = "", timer = 0;
   const KEY = "radar.cur";
   const eur = (v) => `${Number(v).toLocaleString("pt-PT")} €`;
   const day = (ts) => new Date(ts * 1000).toLocaleDateString("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -54,6 +54,7 @@
   async function loadScan() {
     if (!cur) { paintCtl(null); paint($("rd-scan"), ""); return; }
     const sc = await api(`/api/radar/${cur}`);
+    SC = sc;
     paintCtl(sc); paintScan(sc);
     clearTimeout(timer);
     if (sc.job) timer = setTimeout(() => { if ($("rd") && !document.hidden) loadScan().catch(() => {}); else if ($("rd")) timer = setTimeout(loadScan, 3000); }, 2500);
@@ -101,7 +102,7 @@
 
   function paintScan(sc) {
     const r = sc.resumo || {}, job = sc.job, negs = sc.negocios || [];
-    const where = `${sc.ramo_nome} · ${sc.local || t("lista colada")}${sc.local ? ` · ${sc.raio ? `${sc.raio} km` : t("distrito de {d}", { d: sc.distrito || sc.local })}` : ""}`;
+    const where = `${sc.ramo_nome} · ${!sc.local ? t("lista colada") : sc.raio ? `${sc.local} · ${sc.raio} km` : t("Distrito de {d}", { d: sc.distrito || sc.local })}`;
     const kpi = (l, v, sub = "") => `<div class="panel bd-kpi"><span class="bd-l">${esc(t(l))}</span>${ui.num(v)}${sub ? `<small class="faint">${esc(sub)}</small>` : ""}</div>`;
     const done = !job && r.total != null;
     let html = ui.sec(where, `<small class="rd-sr">${esc((sc.fontes || []).join(" · "))}</small>`);
@@ -137,7 +138,7 @@
   }
 
   function ranking(negs) {
-    return `${ui.sec("Por oportunidade", `<small class="rd-sr">${esc(t("site fraco + já gasta + boa reputação = cliente"))}</small>`)}
+    return `${ui.sec("Por oportunidade", `<a class="btn quiet sm" href="/api/radar/${cur}/csv?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">${esc(t("Exportar para Excel"))}</a>`)}
       <section class="panel rd-list">${negs.map((n, i) => row(n, i)).join("")}</section>
       <p class="rd-note">${esc(t("Como chegámos a isto: só o que o site público mostra hoje. O gasto é uma estimativa a preços de mercado pelo que se vê (plataforma, crédito de agência, tags de anúncios), não a fatura deles."))}</p>`;
   }
@@ -164,7 +165,7 @@
     const a = n.audit || {}, g = n.gasto || {};
     const probs = (n.problemas || []).map((p) => `<li><p>${esc(p.problema)}</p><span>${icon("tick")}${esc(p.solucao)}</span></li>`).join("");
     const contact = [
-      n.telefone && `<a class="btn sm" href="tel:${esc(n.telefone.replace(/\s/g, ""))}">${esc(n.telefone)}</a>`,
+      ...String(n.telefone || "").split(/[;,/]/).map((x) => x.trim()).filter(Boolean).map((x) => `<a class="btn sm" href="tel:${esc(x.replace(/\s/g, ""))}">${esc(x)}</a>`),
       ...(a.emails || (n.email ? [n.email] : [])).map((e) => `<a class="btn sm" href="mailto:${esc(e)}">${esc(e)}</a>`),
       n.site && `<a class="btn sm" href="${esc(a.final || n.site)}" target="_blank" rel="noopener">${icon("link")}${esc(t("Site"))}</a>`,
       n.facebook && `<a class="btn sm" href="${esc(n.facebook)}" target="_blank" rel="noopener">Facebook</a>`,
@@ -186,7 +187,8 @@
         <h4 class="rd-h">${esc(t("Contacto"))}</h4>
         <div class="rd-contact">${contact || `<span class="rd-none">${esc(t("Sem contacto no mapa nem no site."))}</span>`}</div>
         <div class="rd-acts">
-          <button type="button" class="btn primary" data-copy="${n.id}">${icon("doc")}${esc(t("Copiar mensagem"))}</button>
+          ${wa(n) ? `<a class="btn primary" href="${wa(n)}" target="_blank" rel="noopener" data-wa="${n.id}">${icon("chat")}${esc(t("Mandar no WhatsApp"))}</a>` : ""}
+          <button type="button" class="btn ${wa(n) ? "" : "primary"}" data-copy="${n.id}">${icon("doc")}${esc(t("Copiar mensagem"))}</button>
           <a class="btn" href="/api/radar/${cur}/${n.id}/pdf?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">${icon("doc")}${esc(t("Diagnóstico em PDF"))}</a>
         </div>
         <h4 class="rd-h">${esc(t("Seguimento"))}</h4>
@@ -198,14 +200,26 @@
   }
 
   // a primeira mensagem: tratamento por «você», sem travessões, só o que se viu (regras do Fábio)
+  // o WhatsApp só existe nos telemóveis (9x); abre a conversa com a mensagem já escrita, quem envia é a pessoa
+  function wa(n) {
+    const d = String(n.telefone || "").split(/[;,/]|\s{2,}/).map((x) => x.replace(/\D/g, "").replace(/^(00)?351/, "")).find((x) => /^9\d{8}$/.test(x));
+    return d ? `https://wa.me/351${d}?text=${encodeURIComponent(message(n))}` : "";
+  }
+
   function message(n) {
     const top = (n.problemas || []).slice(0, 2);
     const what = n.site ? "Estive a ver o vosso site e reparei em duas coisas que estão a afastar clientes:" : "Procurei a vossa escola no Google e reparei numa coisa que está a afastar clientes:";
     const lines = top.map((p) => `• ${p.problema}`).join("\n");
-    return `Olá, boa tarde.\n\n${what}\n${lines}\n\nTrabalhamos só com ${S.ramos[n.__ramo] ? S.ramos[n.__ramo].toLowerCase() : "negócios locais"} e resolvemos isto em poucos dias: ${top.map((p) => p.solucao.charAt(0).toLowerCase() + p.solucao.slice(1).replace(/\.$/, "")).join(" e ")}.\n\nPosso mostrar-lhe em 15 minutos como ficaria? Sem compromisso.`;
+    return `Olá, boa tarde.\n\n${what}\n${lines}\n\nTrabalhamos só com ${S.ramos[SC?.ramo] ? S.ramos[SC.ramo].toLowerCase() : "negócios locais"} e resolvemos isto em poucos dias: ${top.map((p) => p.solucao.charAt(0).toLowerCase() + p.solucao.slice(1).replace(/\.$/, "")).join(" e ")}.\n\nPosso mostrar-lhe em 15 minutos como ficaria? Sem compromisso.`;
   }
 
   async function click(e) {
+    const w = e.target.closest("[data-wa]");
+    if (w) {  // abrir a conversa conta como contactado (volta-se atrás no seguimento se não foi enviada)
+      const n = SC?.negocios.find((x) => x.id === w.dataset.wa);
+      if (n && (!n.lead || n.lead.estado === "por_contactar")) setTimeout(() => saveLead(n.id, "contactado"), 300);
+      return;
+    }
     const b = e.target.closest("[data-act],[data-row],[data-copy],[data-scan],[data-del],[data-retry],[data-lead],[data-seg]");
     if (!b) return;
     if (b.dataset.retry != null) return load().catch(() => {});

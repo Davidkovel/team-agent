@@ -122,6 +122,12 @@ async def local_live(request: Request, db: AsyncSession = Depends(get_db)):
                        "action": latest.action if latest and state == "working" else "",
                        "at": iso(latest.updated_at) if latest else None,
                        "tasks": open_tasks.get(u.id, 0), "messages": messages.get(u.id, 0), "limits": plan.get(u.username),
+                       # the tokens of each window of the last day, the biggest first (Marco: «quero ter sempre o controlo dos
+                       # tokens que tu gastares»)
+                       "tokens": sum(r.tokens or 0 for r in rows),
+                       "token_windows": [{"key": r.key, "topic": _topic(r), "project": r.project, "tokens": r.tokens or 0, "state": st,
+                                          "model": r.model or "", "action": r.action if st == "working" else ""}
+                                         for r, st in sorted(zip(rows, states), key=lambda rs: -(rs[0].tokens or 0))[:8]],
                        # each window working or waiting, for the widget's «Claude agora» (Marco: «quero ter controlo... não
                        # quero uma stream, mas quando estás a mexer no widget quero saber»)
                        "windows": [{"topic": _topic(r), "project": r.project, "state": s, "wait": _wait(r, s),

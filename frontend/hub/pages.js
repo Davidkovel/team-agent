@@ -609,14 +609,9 @@ async function loadAgentsPage() {
 HUB_VIEWS.agentes = async function (r) {
   await pagesCss();
   if (r.company) return viewAgent(r.company);
-  // the departments (crew.js, window.AMGDepts) as a row of monograms: the same names the Escritório and Empresa AMG use
-  await Promise.all([lazyFile("hub/crew.js"), lazyFile("hub/crew.css").catch(() => {})]).catch(() => {});
-  const depts = window.AMGDepts ? window.AMGDepts.list : [];
   page(`${ui.head("Equipa", t("Agentes"), t("O agente automático de cada pessoa, as janelas do Claude abertas e os subagentes que lançaram."),
       ui.btn("Pedir tarefa", "data-office-task", "primary", "plus"))}
     <div id="agents-grid"></div>
-    ${depts.length ? `${ui.sec("Departamentos", `<a class="vw-link" href="#/empresa">${t("Empresa AMG")}${icon("chevron")}</a>`)}
-    <div class="panel vw-depts">${depts.map((d) => `<a href="#/empresa/${d.id}" title="${esc(t(d.what))}">${window.AMGDepts.mono(d, "sm")}<span><b>${esc(d.name)}</b><small>${d.n}</small></span></a>`).join("")}</div>` : ""}
     ${ui.sec("Subagentes que o agente pode lançar")}
     <div class="vw-roles">${SUBAGENT_ROLES.map(([, name, what]) => `<div class="panel pad"><b>${icon("bot")}${t(name)}</b><p>${t(what)}</p></div>`).join("")}</div>
     <p class="vw-note">${t("Um subagente só existe dentro de uma sessão: é o agente principal que decide lançá-lo. Usa as mesmas ferramentas e a mesma política de permissões.")}</p>`);

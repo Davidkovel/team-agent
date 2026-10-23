@@ -31,7 +31,7 @@ arrumado. Esta skill serve para cada página nova continuar assim. **As regras c
   23 out): títulos e números em `--display` com tracking negativo, botões e abas em sentence case, maiúsculas pequenas só
   nas etiquetas de grupo. Sem serifa. Texto em português de Portugal, curto.
 - Os agentes são **departamentos** (Desenvolvimento DEV, Engenharia ENG, Pesquisa PES, Design DSG, Marketing MKT, Revisão
-  REV, Testes QA, Operações OPS, Macro MAC, Análise técnica TEC), mostrados com um monograma; nunca personagens nem bonecos.
+  REV, Testes QA, Operações OPS, Macro MAC, Análise técnica TEC), escritos por cima dos bonecos da cave (que ficam: o Marco gosta do ar de jogo, quer é que se perceba o que cada um faz).
 - No telemóvel tem de caber em 393 px sem nada cortado. As regras ficam no CSS da página, debaixo de `html.is-phone`.
 - Peso: nada anima sem estar a acontecer alguma coisa. Widget e Hub parados ficam abaixo de 1% de CPU, a central
   abaixo de 3%.

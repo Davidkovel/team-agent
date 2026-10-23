@@ -85,7 +85,8 @@
 .sk-tag .i { width: 11px; height: 11px; flex: none; }
 .sk-card > footer small { min-width: 0; color: #6b7380; font: 600 11px var(--ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sk-faces { display: inline-flex; flex: none; }
-.sk-faces .dm + .dm { margin-left: 3px; }
+.sk-faces img { width: 20px; height: 20px; object-fit: cover; object-position: top; border-radius: 6px; background: #14171b; border: 1px solid #06080b; }
+.sk-faces img + img { margin-left: -5px; }
 .sk-take { flex: none; height: 28px; margin-left: auto; padding: 0 11px; gap: 5px; border-radius: 9px; font-size: 12px; }
 .sk-take .i { width: 12px; height: 12px; }
 .sk-lane > header .sk-take { height: 34px; padding: 0 14px; font-size: 12.5px; }
@@ -113,11 +114,11 @@
 .sk-read > section { display: grid; gap: 10px; padding: 16px 22px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
 .sk-k { color: #6b7380; font: 700 10px var(--ui); letter-spacing: .18em; text-transform: uppercase; }
 .sk-who { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
-.sk-who button { display: grid; grid-template-columns: 30px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 9px; align-items: center; padding: 7px 10px; border-radius: 11px;
+.sk-who button { display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 9px; align-items: center; padding: 7px 10px; border-radius: 11px;
   cursor: pointer; text-align: left; background: #06080b; border: 1px solid rgba(255, 255, 255, .08); color: inherit; font: inherit; opacity: .62; transition: opacity .15s, border-color .15s; }
 .sk-who button:hover { opacity: 1; }
 .sk-who button.on { opacity: 1; border-color: var(--p); background: color-mix(in srgb, var(--p) 12%, #06080b); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p) 40%, transparent); }
-.sk-who .dm { grid-row: span 2; }
+.sk-who img { grid-row: span 2; width: 22px; height: 31px; object-fit: cover; object-position: top; }
 .sk-who b { font: 700 13px var(--display); color: #fff; }
 .sk-who span { color: #7d8794; font: 600 10px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .sk-themes { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -151,21 +152,3 @@
 html.is-phone .sk-bar { top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px)); }
 html.is-phone .sk-card > b { font-size: 15px; }
 html.is-phone .sk-card > p { font-size: 14px; }
-
-/* a lane per department (sorted by Departamento): its monogram, number, name and what it does (crew.js, 23 Oct) */
-.sk-lane.sk-dept { --p: rgba(223, 232, 242, .35); }
-.sk-dept > header b small { margin-right: 8px; color: #6f7782; font: 600 12px var(--ui); font-variant-numeric: tabular-nums; }
-.sk-who button.on { border-color: rgba(95, 207, 140, .5); background: rgba(95, 207, 140, .08); box-shadow: none; }
-/* the phone: the GitHub line and the search each take a whole row, nothing runs off the side */
-.ph-actions:has(> .sk-get) { min-width: 0; }
-.sk-get, .sk-get label { min-width: 0; }
-@media (max-width: 760px) {
-  .ph-actions:has(> .sk-get) { flex: 1 1 100%; }
-  .sk-get .btn { flex: none; }
-  .sk-q { flex-basis: 100%; }
-  .sk-seg.sk-by { flex: 1 1 auto; }
-}
-/* the monogram keeps its own look inside the lanes and the reader (their generic `span` rules would shrink it) */
-.sk-lane > header span.dm, .sk-who span.dm, .sk-faces span.dm { display: inline-grid; margin: 0; color: #cdd2d9; text-transform: none; letter-spacing: .03em; font: 700 calc(var(--s) * .3)/1 var(--display); }
-.sk-faces span.dm.xs { font-size: 7.5px; }
-.sk-who { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }

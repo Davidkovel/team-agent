@@ -1285,93 +1285,25 @@ class TokenTracker:
         return list(self.seen.get(key) or ())
 
 
-class Segmented(QWidget):
-    """iOS's segmented control: the choices on a dark track, a lighter pill sliding under the chosen one."""
-    changed = Signal(int)
-    H = 30
-
-    def __init__(self, names, chosen=0):
-        super().__init__()
-        self.names, self.chosen = list(names), chosen
-        self.setFixedHeight(self.H)
-        self.setCursor(Qt.PointingHandCursor)
-        self._at = float(chosen)
-        self._slide = animate(self, 260, self._move, curve=QEasingCurve.OutCubic)
-        self._f = font(8.5, QFont.DemiBold, UI)
-        self._counts = [0] * len(self.names)
-
-    def _move(self, v):
-        self._at = v
-        self.update()
-
-    def set_count(self, i: int, n: int):
-        if self._counts[i] != n:
-            self._counts[i] = n
-            self.update()
-
-    def choose(self, i: int):
-        if i == self.chosen:
-            return
-        self.chosen = i
-        self._slide.stop()
-        self._slide.setStartValue(self._at)
-        self._slide.setEndValue(float(i))
-        self._slide.start()
-        self.changed.emit(i)
-
-    def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton:
-            self.choose(min(len(self.names) - 1, int(e.position().x() / (self.width() / len(self.names)))))
-
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect())
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, 16))
-        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
-        seg = r.width() / len(self.names)
-        pill = QRectF(r.left() + 2 + seg * self._at, r.top() + 2, seg - 4, r.height() - 4)
-        shine = QLinearGradient(0, pill.top(), 0, pill.bottom())
-        shine.setColorAt(0, QColor(92, 95, 102))
-        shine.setColorAt(1, QColor(58, 60, 65))
-        p.setBrush(shine)
-        p.setPen(QPen(QColor(255, 255, 255, 40), 1))
-        p.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2)
-        p.setFont(self._f)
-        fm = QFontMetricsF(self._f)
-        for i, name in enumerate(self.names):
-            cell = QRectF(r.left() + seg * i, r.top(), seg, r.height())
-            near = max(0.0, 1 - abs(self._at - i))
-            v = int(141 + (242 - 141) * near)
-            p.setPen(QColor(v, v + 2, v + 4))
-            text = name + (f"  {self._counts[i]}" if self._counts[i] else "")
-            p.drawText(cell, Qt.AlignCenter, text)
-
-
-TOKEN_SHADES = ("#f2f3f5", "#b9bdc4", "#8d9198", "#64686f", "#45484d")
-
-
-class TokensView(QWidget):
-    """The tokens of the last 24 h, live: this person's total (it counts up when it grows) and how fast they spend now, a
-    bar split by window with each window underneath (what it just spent, its speed, its total), and the three partners
-    side by side. A click opens the token central (tokens.py)."""
+class UsageView(QWidget):
+    """«Hoje»: what this person spent and what they can still use (23 Oct, Marco: «quero mais saber o uso diário, o que
+    estou a gastar, o que posso utilizar»). The tokens of the last 24 h, counting up when they grow, with the speed now;
+    then the Claude plan as two bars, the 5 h session and the week, each with what is left and when it renews. A click
+    opens the token central (tokens.py), where every window is."""
     opened = Signal()
+    BAR = 34
 
     def __init__(self, tracker):
         super().__init__()
         self.tracker = tracker
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip("Abrir a central de tokens")
-        self._mine, self._windows, self._team = 0, [], []
-        self._shown = 0.0
+        self._mine, self._windows, self._shown = 0, [], 0.0
+        self._limits = [("Claude 5 h", None, "sem dados"), ("Semana", None, "sem dados")]
         self._count = animate(self, 700, self._count_to)
         self._f_big, self._f_unit = font(20, QFont.DemiBold, DISPLAY), font(8, QFont.Normal, UI)
-        self._f_row, self._f_num, self._f_small = font(8.5, QFont.Normal, UI), font(8.5, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI)
-        self._fit()
-
-    def _fit(self):
-        self.setFixedHeight(48 + 20 + 22 * max(1, len(self._windows)) + 10 + 20 * max(1, len(self._team)) + 4)
+        self._f_name, self._f_num, self._f_note = font(8.5, QFont.DemiBold, UI), font(8.5, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI)
+        self.setFixedHeight(44 + 2 * self.BAR)
 
     def _count_to(self, v):
         self._shown = v
@@ -1381,16 +1313,21 @@ class TokensView(QWidget):
         if e.button() == Qt.LeftButton:
             self.opened.emit()
 
-    def set(self, mine: int, windows: list, team: list):
-        """team: [(name, tokens, is_me)]. Repainted at every look at the Hub: the speeds change with time."""
+    def set_tokens(self, mine: int, windows: list):
+        """Repainted at every look at the Hub: the speed changes with time."""
         if mine != self._mine:
             self._count.stop()
             self._count.setStartValue(float(self._shown or mine))
             self._count.setEndValue(float(mine))
-            self._count.start()   # the total counts up to its new value, then rests
-        self._mine, self._windows, self._team = mine, windows, team
-        self._fit()
+            self._count.start()
+        self._mine, self._windows = mine, windows
         self.update()
+
+    def set_limits(self, limits: list):
+        """[(name, percent used or None, note)] for the 5 h session and the week."""
+        if limits != self._limits:
+            self._limits = limits
+            self.update()
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -1400,12 +1337,11 @@ class TokensView(QWidget):
         p.setFont(self._f_big)
         big = tokens_text(self._shown or self._mine)
         p.drawText(QRectF(0, 2, w, 32), Qt.AlignLeft | Qt.AlignVCenter, big)
-        speed = sum(self.tracker.rate(win.get("key")) for win in self._windows)
         x = QFontMetricsF(self._f_big).horizontalAdvance(big) + 10
+        speed = sum(self.tracker.rate(win.get("key")) for win in self._windows)
         if speed >= 1:   # spending right now: a green chip with the speed
-            chip_text = f"{tokens_text(speed)}/min"
-            cw = QFontMetricsF(self._f_num).horizontalAdvance(chip_text) + 24
-            chip = QRectF(x, 9, cw, 20)
+            text = f"{tokens_text(speed)}/min"
+            chip = QRectF(x, 9, QFontMetricsF(self._f_num).horizontalAdvance(text) + 24, 20)
             p.setPen(Qt.NoPen)
             p.setBrush(rgba(COLORS["WORKING"], 0.16))
             p.drawRoundedRect(chip, 10, 10)
@@ -1413,347 +1349,107 @@ class TokensView(QWidget):
             p.drawEllipse(QPointF(chip.left() + 10, chip.center().y()), 3, 3)
             p.setPen(QColor(COLORS["WORKING"]))
             p.setFont(self._f_num)
-            p.drawText(chip.adjusted(16, 0, -6, 0), Qt.AlignCenter, chip_text)
+            p.drawText(chip.adjusted(16, 0, -6, 0), Qt.AlignCenter, text)
         else:
             p.setPen(QColor(MUTED))
             p.setFont(self._f_unit)
-            p.drawText(QRectF(x, 10, w - x, 22), Qt.AlignLeft | Qt.AlignVCenter, "tokens teus nas últimas 24 h")
-        # the bar: one stretch per window, in silver shades, the biggest first
-        bar = QRectF(0, 44, w, 8)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, 16))
-        p.drawRoundedRect(bar, 4, 4)
-        total = sum(win.get("tokens") or 0 for win in self._windows) or 1
-        clip = QPainterPath()
-        clip.addRoundedRect(bar, 4, 4)
-        p.save()
-        p.setClipPath(clip)
-        at = bar.left()
-        for i, win in enumerate(self._windows):
-            part = bar.width() * (win.get("tokens") or 0) / total
-            p.setBrush(QColor(TOKEN_SHADES[i % len(TOKEN_SHADES)]))
-            p.drawRect(QRectF(at, bar.top(), max(0.0, part - 1.5), bar.height()))
-            at += part
-        p.restore()
-        y = bar.bottom() + 10
-        if not self._windows:
-            p.setPen(QColor(FAINT))
-            p.setFont(self._f_row)
-            p.drawText(QRectF(0, y, w, 22), Qt.AlignLeft | Qt.AlignVCenter, "Nenhuma janela do Claude nas últimas 24 h")
-            y += 22
-        for i, win in enumerate(self._windows):
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(TOKEN_SHADES[i % len(TOKEN_SHADES)]))
-            p.drawRoundedRect(QRectF(0, y + 7, 8, 8), 2.5, 2.5)
-            num = tokens_text(win.get("tokens"))
-            p.setFont(self._f_num)
+            p.drawText(QRectF(x, 10, w - x, 22), Qt.AlignLeft | Qt.AlignVCenter, "tokens nas últimas 24 h")
+        y = 44.0
+        for name, pct, note in self._limits:
+            p.setFont(self._f_name)
             p.setPen(QColor(TEXT))
-            nw = QFontMetricsF(self._f_num).horizontalAdvance(num) + 2
-            p.drawText(QRectF(w - nw, y, nw, 22), Qt.AlignRight | Qt.AlignVCenter, num)
-            jump, rate = self.tracker.jump(win.get("key")), self.tracker.rate(win.get("key"))
-            live = f"+{tokens_text(jump)}" if jump else f"{tokens_text(rate)}/min" if rate >= 1 else ""
-            if live:   # what it just spent, else how fast it spends
-                p.setFont(self._f_small)
-                p.setPen(QColor(COLORS["WORKING"]))
-                lw = QFontMetricsF(self._f_small).horizontalAdvance(live) + 8
-                p.drawText(QRectF(w - nw - lw - 4, y, lw, 22), Qt.AlignRight | Qt.AlignVCenter, live)
-                nw += lw + 4
-            live = win.get("state") in ("working", "waiting")
-            topic = win.get("topic") or win.get("project") or "Janela do Claude"
-            p.setFont(self._f_row)
-            p.setPen(QColor(TEXT) if live else QColor(MUTED))
-            p.drawText(QRectF(16, y, w - nw - 24, 22), Qt.AlignLeft | Qt.AlignVCenter,
-                       QFontMetricsF(self._f_row).elidedText(topic, Qt.ElideRight, w - nw - 26))
-            y += 22
-        # the partners side by side: who spent how much
-        y += 10
-        p.setPen(QPen(QColor(255, 255, 255, 16), 1))
-        p.drawLine(QPointF(0, y - 5), QPointF(w, y - 5))
-        top = max([t for _, t, _ in self._team] + [1])
-        for name, tokens, me in self._team:
-            p.setFont(self._f_small)
-            p.setPen(QColor(TEXT) if me else QColor(MUTED))
-            p.drawText(QRectF(0, y, 54, 20), Qt.AlignLeft | Qt.AlignVCenter, name)
-            num = tokens_text(tokens)
-            p.drawText(QRectF(w - 56, y, 56, 20), Qt.AlignRight | Qt.AlignVCenter, num)
-            track = QRectF(58, y + 8, w - 58 - 62, 4)
+            p.drawText(QRectF(0, y, w / 2, 16), Qt.AlignLeft | Qt.AlignVCenter, name)
+            left = "—" if pct is None else f"restam {max(0, round(100 - pct))}%"
+            p.setFont(self._f_num)
+            p.setPen(QColor(TEXT) if pct is not None else QColor(FAINT))
+            lw = QFontMetricsF(self._f_num).horizontalAdvance(left) + 2
+            p.drawText(QRectF(w - lw, y, lw, 16), Qt.AlignRight | Qt.AlignVCenter, left)
+            p.setFont(self._f_note)
+            p.setPen(QColor(FAINT))
+            p.drawText(QRectF(w / 2 - 40, y, w / 2 + 40 - lw - 8, 16), Qt.AlignRight | Qt.AlignVCenter,
+                       QFontMetricsF(self._f_note).elidedText(note, Qt.ElideRight, w / 2 + 40 - lw - 8))
+            track = QRectF(0, y + 20, w, 5)
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(255, 255, 255, 16))
-            p.drawRoundedRect(track, 2, 2)
-            if tokens:
-                p.setBrush(QColor(TEXT if me else "#8d9198"))
-                p.drawRoundedRect(QRectF(track.left(), track.top(), max(4.0, track.width() * tokens / top), 4), 2, 2)
-            y += 20
+            p.drawRoundedRect(track, 2.5, 2.5)
+            if pct:
+                p.setBrush(QColor(meter_color(pct)))
+                p.drawRoundedRect(QRectF(0, track.top(), max(5.0, w * min(pct, 100) / 100), 5), 2.5, 2.5)
+            y += self.BAR
 
 
-_cctv: dict[tuple, QPixmap] = {}
+TOGGLE_GLYPHS = {   # what can sit beside the minimized clock (24-unit strokes, like the apps)
+    "janelas": '<rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/>',
+    "tokens": '<path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z"/>',
+    "limites": '<path d="M4.5 16.5a7.5 7.5 0 1115 0"/><path d="M12 16.5l4-5"/><path d="M8 19.5h8"/>',
+    "camaras": '<rect x="3" y="6.5" width="13" height="11" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3z"/>',
+}
+TOGGLES = (("janelas", "Claude"), ("tokens", "Tokens"), ("limites", "Limites"), ("camaras", "Câmaras"))
+_toggle_icons: dict[tuple, QPixmap] = {}
 
 
-def cctv_backdrop(w: int, h: int, dpr: float) -> QPixmap:
-    """A security camera's picture of an empty desk at night: dark green-grey, scanlines, a vignette. Drawn once per size."""
-    key = (w, h, round(dpr, 2))
-    if key not in _cctv:
-        pix = QPixmap(round(w * dpr), round(h * dpr))
+def toggle_icon(glyph: str, on: bool, dpr: float) -> QPixmap:
+    key = (glyph, on, round(dpr, 2))
+    if key not in _toggle_icons:
+        pix = QPixmap(round(18 * dpr), round(18 * dpr))
         pix.setDevicePixelRatio(dpr)
         pix.fill(Qt.transparent)
         p = QPainter(pix)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(0, 0, w, h)
-        shape = QPainterPath()
-        shape.addRoundedRect(r, 10, 10)
-        p.setClipPath(shape)
-        floor = QLinearGradient(0, 0, 0, h)
-        floor.setColorAt(0, QColor(24, 28, 27))
-        floor.setColorAt(0.62, QColor(14, 17, 16))
-        floor.setColorAt(0.63, QColor(30, 33, 32))   # the desk's edge
-        floor.setColorAt(1, QColor(12, 13, 13))
-        p.fillRect(r, floor)
-        p.setPen(QColor(255, 255, 255, 9))
-        for y in range(0, h, 3):
-            p.drawLine(QPointF(0, y + 0.5), QPointF(w, y + 0.5))
-        vignette = QRadialGradient(r.center(), max(w, h) * 0.7)
-        vignette.setColorAt(0.5, QColor(0, 0, 0, 0))
-        vignette.setColorAt(1, QColor(0, 0, 0, 170))
-        p.fillRect(r, vignette)
+        ink = "#0b0b0d" if on else "#8d9198"
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{ink}" stroke-width="1.9" '
+               f'stroke-linecap="round" stroke-linejoin="round">{TOGGLE_GLYPHS[glyph]}</svg>')
+        QSvgRenderer(QByteArray(svg.encode())).render(p, QRectF(0, 0, 18, 18))
         p.end()
-        _cctv[key] = pix
-    return _cctv[key]
+        _toggle_icons[key] = pix
+    return _toggle_icons[key]
 
 
-class CamerasView(QWidget):
-    """The company's security cameras: one monitor per Claude window at work in the team (up to four), each a desk at
-    night with the screen lit in the colour of what it does, the camera's number, REC, whose it is and what it is about.
-    Painted once per change, nothing moves; a click opens the cave live in its mini window."""
-    opened = Signal()
-    TILE = 84
+class Toggle(Hover):
+    """One choice of «Ao lado do relógio»: an icon over its name in a rounded tile. On, the tile is polished chrome with
+    a dark icon, like an iOS Control Centre button; off, dark glass. It slides between the two."""
+    changed = Signal()
 
-    def __init__(self):
+    def __init__(self, glyph: str, name: str, on: bool):
         super().__init__()
-        self._cams = []
-        self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Entrar na Empresa AMG ao vivo (mini janela)")
-        self._f_cam, self._f_who, self._f_topic = font(6.5, QFont.Bold, MONO), font(7.5, QFont.DemiBold, UI), font(7, QFont.Normal, UI)
-        self._fit()
-
-    def _fit(self):
-        rows = max(1, (len(self._cams) + 1) // 2)
-        self.setFixedHeight(rows * self.TILE + (rows - 1) * 6)
-
-    def set(self, cams: list):
-        """cams: [{"who", "topic", "project", "state", "wait"}]."""
-        if cams != self._cams:
-            self._cams = cams
-            self._fit()
-            self.update()
-
-    def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton:
-            self.opened.emit()
-
-    def _tile(self, p: QPainter, r: QRectF, n: int, cam: dict | None):
-        p.drawPixmap(r.topLeft(), cctv_backdrop(int(r.width()), int(r.height()), self.devicePixelRatioF()))
-        working = cam and cam.get("state") == "working"
-        asks = cam and cam.get("wait") in ("permission", "answer")
-        colour = COLORS["WORKING"] if working else COLORS["WAITING"] if asks else "#8d9198"
-        # the desk: a monitor glowing in the state's colour, the agent in front of it as a silhouette
-        mon = QRectF(r.center().x() - 20, r.top() + r.height() * 0.24, 40, 26)
-        if cam:
-            glow_disc(p, mon.center(), 46, 30, colour, 0.22 if working or asks else 0.08)
-        p.setPen(QPen(QColor(255, 255, 255, 30), 1))
-        p.setBrush(rgba(colour, 0.5 if cam and (working or asks) else 0.12))
-        p.drawRoundedRect(mon, 3, 3)
-        if cam and working:   # lines of code on the screen
-            p.setPen(QPen(QColor(255, 255, 255, 120), 1.2))
-            for i, length in enumerate((24, 16, 28, 12)):
-                p.drawLine(QPointF(mon.left() + 5, mon.top() + 6 + i * 5), QPointF(mon.left() + 5 + length, mon.top() + 6 + i * 5))
-        if cam:
-            body = QPainterPath()
-            cx, base = r.center().x() + 2, r.top() + r.height() * 0.66
-            body.addEllipse(QPointF(cx, base - 22), 7, 7.5)
-            body.moveTo(cx - 16, base + 2)
-            body.cubicTo(cx - 15, base - 13, cx + 15, base - 13, cx + 16, base + 2)
-            body.closeSubpath()
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(4, 5, 5, 235))
-            p.drawPath(body)
-        # the camera's own writing
-        p.setFont(self._f_cam)
-        p.setPen(QColor(220, 230, 225, 190))
-        p.drawText(QRectF(r.left() + 7, r.top() + 5, 60, 12), Qt.AlignLeft | Qt.AlignVCenter, f"CAM {n:02d}")
-        if cam:
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#ff3b30"))
-            p.drawEllipse(QPointF(r.right() - 30, r.top() + 11), 2.6, 2.6)
-            p.setPen(QColor(220, 230, 225, 190))
-            p.drawText(QRectF(r.right() - 26, r.top() + 5, 22, 12), Qt.AlignLeft | Qt.AlignVCenter, "REC")
-        shade = QLinearGradient(0, r.bottom() - 30, 0, r.bottom())
-        shade.setColorAt(0, QColor(0, 0, 0, 0))
-        shade.setColorAt(1, QColor(0, 0, 0, 200))
-        p.fillRect(QRectF(r.left(), r.bottom() - 30, r.width(), 30), shade)
-        p.setFont(self._f_who)
-        p.setPen(QColor(TEXT))
-        who = (cam or {}).get("who") or "Empresa AMG"
-        p.drawText(QRectF(r.left() + 7, r.bottom() - 27, r.width() - 14, 12), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(self._f_who).elidedText(who, Qt.ElideRight, r.width() - 14))
-        p.setFont(self._f_topic)
-        p.setPen(QColor(colour) if cam else QColor(MUTED))
-        topic = (cam or {}).get("topic") or ((cam or {}).get("project") if cam else "Ninguém a trabalhar · entrar")
-        p.drawText(QRectF(r.left() + 7, r.bottom() - 15, r.width() - 14, 12), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(self._f_topic).elidedText(topic or "", Qt.ElideRight, r.width() - 14))
-        p.setPen(QPen(QColor(255, 255, 255, 22), 1))
-        p.setBrush(Qt.NoBrush)
-        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), 10, 10)
-
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        w = self.width()
-        if not self._cams:
-            self._tile(p, QRectF(0, 0, w, self.TILE), 1, None)
-            return
-        tw = (w - 6) / 2
-        for i, cam in enumerate(self._cams[:4]):
-            alone = i == len(self._cams) - 1 and len(self._cams) % 2 == 1   # an odd last camera takes the whole row
-            r = QRectF(0 if alone else (i % 2) * (tw + 6), (i // 2) * (self.TILE + 6), w if alone else tw, self.TILE)
-            self._tile(p, r, i + 1, cam)
-
-
-class PinButton(Hover):
-    """The pin on a view's title: pinned, the view also shows under the clock when the cockpit is minimized."""
-
-    def __init__(self, on: bool):
-        super().__init__()
-        self.on = on
-        self.setFixedSize(24, 24)
+        self.glyph, self.name, self.on = glyph, name, on
+        self._lit = 1.0 if on else 0.0
+        self._fade = animate(self, 220, lambda v: self._set("_lit", v), curve=QEasingCurve.OutCubic)
+        self.setFixedHeight(54)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._f = font(7.5, QFont.DemiBold, UI)
         self._tip()
 
     def _tip(self):
-        self.setToolTip("Tirar de baixo do relógio" if self.on else "Mostrar por baixo do relógio quando minimizas")
+        self.setToolTip(f"Tirar «{self.name}» do lado do relógio" if self.on else f"Mostrar «{self.name}» ao lado do relógio quando minimizas")
 
     def toggle(self):
         self.on = not self.on
         self._tip()
-        self.update()
-
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, int((40 if self.on else 0) + 16 * self.hover + 12 * self.press)))
-        p.drawEllipse(QRectF(1, 1, 22, 22))
-        v = 245 if self.on else int(130 + 90 * self.hover)
-        ink = QColor(v, v + 2, v + 6) if not self.on else QColor(255, 255, 255)
-        p.save()
-        p.translate(12, 12)
-        p.rotate(40)
-        head = QPainterPath()
-        head.addRoundedRect(QRectF(-3.6, -7, 7.2, 6), 1.5, 1.5)
-        p.setPen(pen(ink, 1.3))
-        p.setBrush(ink if self.on else Qt.NoBrush)
-        p.drawPath(head)
-        p.drawLine(QPointF(-5, -1), QPointF(5, -1))
-        p.drawLine(QPointF(0, -1), QPointF(0, 6.5))
-        p.restore()
-
-
-class Glance(QAbstractButton):
-    """A pinned view in small, under the minimized clock: dark glass with a chrome rim, its title, then its content
-    (painted by `body`, or a widget inside it). A click opens the cockpit on that view."""
-    W = 236
-
-    def __init__(self, title: str, body=None, height=60):
-        super().__init__()
-        self.title, self.body, self.note = title, body, ""
-        self.setCursor(Qt.PointingHandCursor)
-        self.setFixedSize(self.W, height)
-        self._f_title, self._f_note = font(7, QFont.Bold, UI, spacing=1.0), font(7.5, QFont.Normal, UI)
-        self.box = QVBoxLayout(self)
-        self.box.setContentsMargins(12, 26, 12, 10)
+        self._to(self._fade, self._lit, 1 if self.on else 0)
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        body = QLinearGradient(0, 0, 0, r.height())
-        body.setColorAt(0, QColor(26, 27, 31, 238))
-        body.setColorAt(1, QColor(9, 9, 11, 238))
-        rim = QLinearGradient(0, 0, r.width(), r.height())
-        rim.setColorAt(0, QColor(255, 255, 255, 70))
-        rim.setColorAt(0.5, QColor(255, 255, 255, 14))
-        rim.setColorAt(1, QColor(255, 255, 255, 40))
-        p.setPen(QPen(rim, 1))
+        r = r.adjusted(self.press, self.press, -self.press, -self.press)
+        lit = self._lit
+        body = QLinearGradient(0, r.top(), 0, r.bottom())
+        top, bottom = QColor(232, 234, 238), QColor(168, 172, 180)
+        dark_top, dark_bottom = QColor(44, 46, 51), QColor(22, 23, 26)
+        mix = lambda a, b: QColor(int(a.red() + (b.red() - a.red()) * lit), int(a.green() + (b.green() - a.green()) * lit),
+                                  int(a.blue() + (b.blue() - a.blue()) * lit))
+        body.setColorAt(0, mix(dark_top, top))
+        body.setColorAt(1, mix(dark_bottom, bottom))
+        p.setPen(QPen(QColor(255, 255, 255, int(30 + 50 * lit + 30 * self.hover)), 1))
         p.setBrush(body)
-        p.drawRoundedRect(r, 16, 16)
-        p.setPen(QColor(MUTED))
-        p.setFont(self._f_title)
-        p.drawText(QRectF(12, 7, r.width() - 24, 14), Qt.AlignLeft | Qt.AlignVCenter, self.title.upper())
-        if self.note:
-            p.setFont(self._f_note)
-            p.setPen(QColor(self.note_colour if hasattr(self, "note_colour") else MUTED))
-            p.drawText(QRectF(12, 7, r.width() - 24, 14), Qt.AlignRight | Qt.AlignVCenter, self.note)
-        if self.body:
-            self.body(p, QRectF(12, 26, r.width() - 24, r.height() - 34))
-
-
-def glance_windows(windows: list):
-    """The pinned «Janelas»: one line per Claude window of this person, the ones waiting for them first."""
-    f_topic, f_state = font(8.5, QFont.DemiBold, UI), font(7.5, QFont.Normal, UI)
-
-    def paint(p: QPainter, r: QRectF):
-        if not windows:
-            p.setPen(QColor(FAINT))
-            p.setFont(f_state)
-            p.drawText(QRectF(r.left(), r.top(), r.width(), 18), Qt.AlignLeft | Qt.AlignVCenter, "Nenhuma janela a trabalhar")
-            return
-        for i, w in enumerate(windows[:3]):
-            y = r.top() + i * 22
-            asks = w.get("wait") in ("permission", "answer")
-            working = w.get("state") == "working"
-            colour = COLORS["WORKING"] if working else COLORS["WAITING"] if asks else MUTED
-            p.setPen(Qt.NoPen)
-            if working or asks:
-                glow_disc(p, QPointF(r.left() + 4, y + 9), 7, 7, colour, 0.35)
-            p.setBrush(QColor(colour))
-            p.drawEllipse(QPointF(r.left() + 4, y + 9), 3, 3)
-            state = "espera por ti" if asks else "a trabalhar" if working else "acabou"
-            p.setFont(f_state)
-            sw = QFontMetricsF(f_state).horizontalAdvance(state) + 4
-            p.setPen(QColor(colour))
-            p.drawText(QRectF(r.right() - sw, y, sw, 18), Qt.AlignRight | Qt.AlignVCenter, state)
-            p.setFont(f_topic)
-            p.setPen(QColor(TEXT))
-            topic = w.get("topic") or w.get("project") or "Janela do Claude"
-            p.drawText(QRectF(r.left() + 14, y, r.width() - sw - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
-                       QFontMetricsF(f_topic).elidedText(topic, Qt.ElideRight, r.width() - sw - 22))
-    return paint
-
-
-def glance_tokens(mine: int, windows: list, tracker):
-    """The pinned «Tokens»: the total of the last 24 h, the speed now, and the window that spends the most right now."""
-    f_big, f_small, f_chip = font(15, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI), font(8, QFont.DemiBold, DISPLAY)
-
-    def paint(p: QPainter, r: QRectF):
-        big = tokens_text(mine)
-        p.setPen(QColor(TEXT))
-        p.setFont(f_big)
-        p.drawText(QRectF(r.left(), r.top() - 2, r.width(), 24), Qt.AlignLeft | Qt.AlignVCenter, big)
-        speed = sum(tracker.rate(w.get("key")) for w in windows)
-        x = r.left() + QFontMetricsF(f_big).horizontalAdvance(big) + 8
-        text = f"{tokens_text(speed)}/min" if speed >= 1 else "parado"
-        colour = COLORS["WORKING"] if speed >= 1 else FAINT
-        p.setFont(f_chip)
-        p.setPen(QColor(colour))
-        p.drawText(QRectF(x, r.top() - 2, r.right() - x, 24), Qt.AlignLeft | Qt.AlignVCenter, text)
-        top = max(windows, key=lambda w: tracker.rate(w.get("key")), default=None)
-        if top and tracker.rate(top.get("key")) >= 1:
-            line = f"{top.get('topic') or top.get('project')} · {tokens_text(tracker.rate(top.get('key')))}/min"
-        else:
-            line = "tokens teus nas últimas 24 h"
-        p.setFont(f_small)
-        p.setPen(QColor(MUTED))
-        p.drawText(QRectF(r.left(), r.top() + 22, r.width(), 14), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(f_small).elidedText(line, Qt.ElideRight, r.width()))
-    return paint
+        p.drawRoundedRect(r, 14, 14)
+        icon = toggle_icon(self.glyph, lit > 0.5, self.devicePixelRatioF())
+        p.drawPixmap(QPointF(r.center().x() - 9, r.top() + 9), icon)
+        v = int(170 + (11 - 170) * lit)
+        p.setPen(QColor(v, v, v + 2))
+        p.setFont(self._f)
+        p.drawText(QRectF(r.left(), r.top() + 30, r.width(), 16), Qt.AlignHCenter | Qt.AlignVCenter, self.name)
 
 
 class Pill(QAbstractButton):
@@ -1849,13 +1545,11 @@ def activity(person: dict) -> tuple[str, str]:
     """What a partner is doing, in one line, and its colour: their Claude windows (the Hub's /api/local/live), else the task
     they said they are doing, else whether they are here."""
     live = person.get("live") or {}
-    n = (live.get("working") or 0) + (live.get("waiting") or 0)
-    windows = f"{n} janelas · " if n > 1 else ""
     topic = live.get("topic") or ""
     if live.get("working"):
-        return f"{windows}Claude a trabalhar · {topic}" if topic else f"{windows}Claude a trabalhar", COLORS["WORKING"]
+        return f"Claude a trabalhar · {topic}" if topic else "Claude a trabalhar", COLORS["WORKING"]
     if live.get("waiting") and live.get("wait") in ("permission", "answer"):
-        return f"{windows}O Claude espera por {'ti' if person.get('_me') else 'ele'} · {topic}", COLORS["WAITING"]
+        return f"O Claude espera por {'ti' if person.get('_me') else 'ele'} · {topic}", COLORS["WAITING"]
     if person.get("doing"):
         return f"Na tarefa · {person['doing'].get('title', '')}", TEXT
     if live.get("waiting") and topic:
@@ -2246,10 +1940,10 @@ class WidgetWindow(QWidget):
         stack.setContentsMargins(0, 0, 0, 0)
         stack.setSpacing(8)
         stack.setSpacing(5)
-        self.glances = {"janelas": Pill(), "tokens": Pill(), "camaras": Pill()}
+        self.glances = {key: Pill() for key, _ in TOGGLES}
         self._side = prefs.load().get("side", "right")   # the screen edge the clock is docked to
-        for i, (key, card) in enumerate(self.glances.items()):
-            card.clicked.connect(lambda i=i: self._open_on(i))
+        for key, card in self.glances.items():   # a click opens the cockpit; the cameras open the cave live
+            card.clicked.connect(self._open_cave if key == "camaras" else self.expand)
             stack.addWidget(card)
         self.panel = Panel(self)
         self.panel.setFixedWidth(WIDTH)
@@ -2300,23 +1994,15 @@ class WidgetWindow(QWidget):
         self.hero = Hero()
         col.addWidget(self.hero)
 
-        # three views under the time, chosen like on the iPhone: the Claude windows, the tokens, the company's cameras
-        self.tabs = Segmented(("Janelas", "Tokens", "Câmaras"), int(prefs.load().get("tab", 0)) % 3)
-        self.tabs.changed.connect(self._show_tab)
-        col.addWidget(self.tabs)
-        self.tokens = Platter("Tokens", "abrir ›")
+        # «Hoje» under the time: what this person spends and what is left of the plan (23 Oct, Marco: the windows count,
+        # the per-window list and the cameras were «demasiada informação»; the tabs went with them)
+        self.tokens = Platter("Hoje", "tokens ›")
         self.tracker = TokenTracker()
-        self.tokens_view = TokensView(self.tracker)
-        self.tokens_view.opened.connect(self._open_tokens)
-        self.tokens.box.addWidget(self.tokens_view)
+        self.usage = UsageView(self.tracker)
+        self.usage.opened.connect(self._open_tokens)
+        self.tokens.box.addWidget(self.usage)
         self.tokens.box.addSpacing(6)
         col.addWidget(self.tokens)
-        self.cams = Platter("Câmaras · Empresa AMG", "ao vivo ›")
-        self.cams_view = CamerasView()
-        self.cams_view.opened.connect(self._open_cave)
-        self.cams.box.addWidget(self.cams_view)
-        self.cams.box.addSpacing(6)
-        col.addWidget(self.cams)
 
         # «Claude agora»: this person's Claude windows working or waiting, what each is doing
         self.claude_now = Platter("Claude agora")
@@ -2328,19 +2014,7 @@ class WidgetWindow(QWidget):
         self.claude_none = label("Nenhuma janela tua a trabalhar agora.", 8.5, FAINT)
         self.claude_now.box.addWidget(self.claude_none)
         self.claude_now.box.addSpacing(4)
-        col.insertWidget(col.indexOf(self.tokens), self.claude_now)
-        self._show_tab(self.tabs.chosen)
-
-        # the pins: a pinned view also shows, in small, under the minimized clock (23 Oct, Marco: «para não estar sempre
-        # com uma janela enorme... estar ali no meu ambiente de trabalho com os Claudes a funcionar»)
-        pinned = set(prefs.load().get("pins", ["janelas"]))
-        self.pins = {}
-        for key, page in (("janelas", self.claude_now), ("tokens", self.tokens), ("camaras", self.cams)):
-            pin = PinButton(key in pinned)
-            pin.clicked.connect(lambda key=key: self._toggle_pin(key))
-            page.head.addSpacing(4)
-            page.head.addWidget(pin)
-            self.pins[key] = pin
+        col.addWidget(self.claude_now)
 
         # the apps: the Hub's pages one click away, as on the iPhone's home screen
         apps = QWidget()
@@ -2498,6 +2172,22 @@ class WidgetWindow(QWidget):
         self.ledger.hide()
         col.addWidget(self.ledger)
 
+        # «Ao lado do relógio»: what shows as a pill beside the minimized clock, chosen here at the bottom (23 Oct, Marco:
+        # «quero que seja uma coisa em que eu selecione logo ali embaixo: quero ativar os tokens, quero ativar as câmaras»)
+        side = Platter("Ao lado do relógio", "quando minimizas")
+        tiles = QHBoxLayout()
+        tiles.setContentsMargins(0, 4, 0, 4)
+        tiles.setSpacing(6)
+        pinned = set(prefs.load().get("pins", ["janelas"]))
+        self.pins = {}
+        for key, name in TOGGLES:
+            tile = Toggle(key, name, key in pinned)
+            tile.clicked.connect(lambda key=key: self._toggle_pin(key))
+            tiles.addWidget(tile)
+            self.pins[key] = tile
+        side.box.addLayout(tiles)
+        col.addWidget(side)
+
     # ------------------------------------------------------------ size and place
 
     DOCK = 10   # px between the clock's bezel and the edge of the screen it is docked to
@@ -2561,11 +2251,6 @@ class WidgetWindow(QWidget):
         if self.mode == "orb":
             self._layout_orb()
 
-    def _open_on(self, tab: int):
-        """A card under the clock clicked: the cockpit opens on that view."""
-        self.tabs.choose(tab)
-        self.expand()
-
     def _render_glances(self, windows: list, mine_live: dict, cams: list):
         """The pinned views as one line each. Only redrawn on a look at the Hub; the window keeps the clock where it is."""
         asking = [w for w in windows if w.get("wait") in ("permission", "answer")]
@@ -2583,8 +2268,8 @@ class WidgetWindow(QWidget):
         self.glances["tokens"].set(f"{mine} · {tokens_text(speed)}/min" if speed >= 1 else f"{mine} tokens · 24 h",
                                    COLORS["WORKING"] if speed >= 1 else MUTED, speed >= 1)
         live = sum(1 for c in cams if c.get("state") == "working")
-        self.glances["camaras"].set(f"REC · {len(cams)} câmaras" + (f" · {live} a trabalhar" if live else "") if cams else "Câmaras · ninguém",
-                                    "#ff3b30" if cams else MUTED)
+        self.glances["camaras"].set(f"Empresa AMG · {live} a trabalhar" if live else "Empresa AMG · ao vivo",
+                                    "#ff3b30" if live else MUTED, bool(live))
         if self.mode == "orb":
             self._layout_orb()
 
@@ -2665,13 +2350,6 @@ class WidgetWindow(QWidget):
             self._layout_orb(face)
             self.orb.show()
         self.update()
-
-    def _show_tab(self, i: int):
-        """Only the chosen view is in the cockpit (Janelas, Tokens or Câmaras); the choice is kept for next time."""
-        for n, page in enumerate((self.claude_now, self.tokens, self.cams)):
-            page.setVisible(n == i)
-        if prefs.load().get("tab") != i:
-            prefs.save(tab=i)
 
     def _open_cave(self):
         """The cameras clicked: the cave of Empresa AMG live, in its mini window over everything (mini.py), signed in."""
@@ -2921,19 +2599,12 @@ class WidgetWindow(QWidget):
             if w:
                 row.show_window(w)
         asking = sum(1 for w in windows if w.get("wait") in ("permission", "answer"))
-        self.claude_now.note.setText(f"{asking} à tua espera" if asking else f"{len(windows)} ativas" if len(windows) > 1 else "")
+        self.claude_now.note.setText(f"{asking} à tua espera" if asking else "")
         recolour(self.claude_now.note, COLORS["WAITING"] if asking else MUTED)
         self.claude_none.setVisible(not windows)
-        self.tabs.set_count(0, len(windows))
-        self.tokens_view.set(mine_live.get("tokens") or 0, mine_live.get("token_windows") or [],
-                             [(p["name"], (p.get("live") or {}).get("tokens") or 0, p["user"] == me) for p in shown])
-        cams = [{**w, "who": p["name"] + (f" · {w['project']}" if w.get("project") else "")}
-                for p in shown for w in (p.get("live") or {}).get("windows") or []]
-        cams.sort(key=lambda c: 0 if c.get("state") == "working" else 1)
-        self.cams_view.set(cams[:4])
+        self.usage.set_tokens(mine_live.get("tokens") or 0, mine_live.get("token_windows") or [])
+        cams = [w for p in shown for w in (p.get("live") or {}).get("windows") or []]
         self._render_glances(windows, mine_live, cams)
-        self.tabs.set_count(2, len(cams))
-        self._show_tab(self.tabs.chosen)
         self.hub_note.setVisible(team is None)
         self._render_doing(team or [], me)
         self._render_state()
@@ -3332,7 +3003,7 @@ class WidgetWindow(QWidget):
                 self._token_center.show_data(self._live, self.tracker)
             self._live_seen = self._live
         # look at the Hub every 4 s while the tokens are on the screen, every 8 s otherwise
-        self._fast = (self.mode == "panel" and self.tabs.chosen == 1) or bool(self._token_center and self._token_center.isVisible())
+        self._fast = self.mode == "panel" or bool(self._token_center and self._token_center.isVisible())
         if self._fn is not None and self._fn is not self._fn_seen:
             if self._fn != self._fn_seen:
                 self._render_fn(self._fn)
@@ -3440,6 +3111,16 @@ class WidgetWindow(QWidget):
             self.tile_week.set(self._load, "—" if self._load is None else f"{round(self._load)}%",
                                f"${spent:.2f} de ${mine.get('week_budget_usd', 0):.0f}" if mine else "sem dados")
             self.tile_session.set(None, "—", "sem dados")
+        five, week = self.tile_session._pct, self.tile_week._pct
+        self.usage.set_limits([("Claude 5 h", five, self.tile_session._note), ("Semana", week, self.tile_week._note)])
+        known = [v for v in (five, week) if v is not None]
+        if known:
+            parts = ([f"5 h · restam {max(0, round(100 - five))}%"] if five is not None else []) +                     ([f"semana {max(0, round(100 - week))}%"] if week is not None else [])
+            pill = self.glances["limites"]
+            fresh = not pill.text
+            pill.set(" · ".join(parts), meter_color(max(known)) if max(known) >= 60 else COLORS["WORKING"])
+            if fresh and self.mode == "orb":
+                self._layout_orb()
         used = mine.get("higgsfield_pct")
         self.tile_higgs.set(used, "—" if used is None else f"{round(used)}%", "por definir no Hub" if used is None else "créditos gastos")
         self._render_state()

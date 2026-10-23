@@ -1,12 +1,12 @@
 """Fábrica Etsy (#/etsy): a loja de print-on-demand feita pelos agentes da cave, a partir de um reel (20 out, pedido do
 David). Um lote é três passos, cada um um Claude sem sessão (o mesmo `ask_claude` da Sala de Trading):
 
-- **Riddler** pesquisa na web o que está a vender na Etsy agora (a Etsy recusa pedidos de fora, 403) e devolve ideias;
-- **Catwoman** desenha cada uma em SVG (tipografia e formas simples, fundo transparente), que o Chrome passa a PNG
+- **Pesquisa** procura na web o que está a vender na Etsy agora (a Etsy recusa pedidos de fora, 403) e devolve ideias;
+- **Design** desenha cada uma em SVG (tipografia e formas simples, fundo transparente), que o Chrome passa a PNG
   4500 x 5400 (o tamanho da frente de uma t-shirt na Printify);
-- **Joker** escreve o anúncio: título, 13 tags, descrição e preço.
+- **Marketing** escreve o anúncio: título, 13 tags, descrição e preço.
 
-O **Alfred** é código: recusa marcas de terceiros, que são a forma mais rápida de a Etsy fechar a loja. Nada é publicado
+A **Revisão** é código: recusa marcas de terceiros, que são a forma mais rápida de a Etsy fechar a loja. Nada é publicado
 sozinho: a pessoa aprova na página e põe na Etsy à mão até a loja estar ligada pela API. As vendas são as que a pessoa
 regista (nunca números inventados). Tudo fica em ~/.team-agent/etsy/ deste PC; o interruptor gasta o plano Claude dele.
 """
@@ -32,7 +32,7 @@ FILE = DIR / "state.json"
 W, H = 4500, 5400
 DEFAULTS = {"on": False, "hour": 9, "per_run": 4, "model": "sonnet", "owner": ""}  # owner: quem recebe os avisos
 
-# Marcas e personagens que não se vendem (Alfred). Em minúsculas; procura-se a palavra inteira.
+# Marcas e personagens que não se vendem (a Revisão). Em minúsculas; procura-se a palavra inteira.
 BLOCKED = ["disney", "marvel", "pixar", "star wars", "harry potter", "hogwarts", "taylor swift", "swiftie", "eras tour",
            "stanley", "nike", "adidas", "grinch", "peanuts", "snoopy", "hello kitty", "sanrio", "pokemon", "pokémon",
            "barbie", "friends tv", "starbucks", "coca-cola", "nfl", "nba", "mlb", "nhl", "super bowl", "olympic",
@@ -40,13 +40,13 @@ BLOCKED = ["disney", "marvel", "pixar", "star wars", "harry potter", "hogwarts",
            "stranger things", "beatles", "rolling stones", "metallica", "nirvana", "lululemon", "chanel", "gucci",
            "louis vuitton", "jeep", "harley", "john deere", "carhartt", "trump", "biden", "kamala"]
 
-RIDDLER = """És o Riddler, o pesquisador da Empresa AMG. Encontras o que está a vender AGORA na Etsy em print-on-demand
+RIDDLER = """És o departamento de Pesquisa da Empresa AMG. Encontras o que está a vender AGORA na Etsy em print-on-demand
 (t-shirts, sweatshirts, canecas, sacos) para o público dos EUA e da Europa. Pesquisas na web: listas de best-sellers,
 tendências da Etsy, eRank/EverBee/Marmalead, Pinterest, temporadas e datas próximas. Copiar desenhos de outros é proibido:
 tiras o TEMA, a FRASE-TIPO e o PÚBLICO que vendem, nunca um desenho. Nada de marcas, personagens, celebridades, equipas,
 filmes, séries ou letras de músicas. Respondes só com JSON."""
 
-CATWOMAN = """És a Catwoman, a designer da Empresa AMG. Desenhas estampas para print-on-demand em SVG puro: tipografia
+CATWOMAN = """És o departamento de Design da Empresa AMG. Desenhas estampas para print-on-demand em SVG puro: tipografia
 bonita e algumas formas simples (flores, estrelas, folhas, ondas, molduras) feitas com path/circle/rect. Regras do ficheiro:
 - <svg xmlns="http://www.w3.org/2000/svg" width="4500" height="5400" viewBox="0 0 4500 5400">, fundo TRANSPARENTE
   (nada a cobrir a tela toda);
@@ -57,7 +57,7 @@ bonita e algumas formas simples (flores, estrelas, folhas, ondas, molduras) feit
 - texto em inglês, sem erros, sem marcas nem personagens.
 Respondes só com o SVG, do <svg ao </svg>."""
 
-JOKER = """És o Joker, o marketing da Empresa AMG. Escreves anúncios da Etsy que vendem, que a pesquisa da Etsy encontra e
+JOKER = """És o departamento de Marketing da Empresa AMG. Escreves anúncios da Etsy que vendem, que a pesquisa da Etsy encontra e
 que soam a uma pessoa a sério que tem uma loja pequena, nunca a uma IA:
 - título até 140 caracteres, as palavras que as pessoas procuram primeiro, separadas por vírgulas, sem palavras vazias;
 - exactamente 13 tags de até 20 caracteres (frases de 2-3 palavras, sem repetir o título palavra a palavra);
@@ -132,7 +132,7 @@ class Factory:
         self.save()
 
     def start_rewrite(self, ids: list[str]) -> bool:
-        """O Joker volta a escrever o anúncio destes desenhos (o tom mudou, ou o primeiro não ficou bom)."""
+        """O Marketing volta a escrever o anúncio destes desenhos (o tom mudou, ou o primeiro não ficou bom)."""
         if self.running:
             return False
         self.task = asyncio.create_task(self.rewrite(ids))
@@ -211,7 +211,7 @@ class Factory:
             self.save()
         if run["made"]:
             await tell(f"Fábrica Etsy: {run['made']} desenhos novos para aprovar",
-                       "O Riddler pesquisou, a Catwoman desenhou e o Joker escreveu os anúncios. Abre a Fábrica Etsy no Hub.")
+                       "A Pesquisa encontrou as ideias, o Design desenhou e o Marketing escreveu os anúncios. Abre a Fábrica Etsy no Hub.")
 
     async def research(self, n: int, model: str, work: Path) -> tuple[list[dict], float]:
         today = datetime.now().strftime("%d %b %Y")
@@ -233,7 +233,7 @@ class Factory:
                               ("nicho", "frase", "publico", "porque", "produto", "cor_peca", "estilo", "fontes")})
                 ideas[-1]["fontes"] = [str(u) for u in (i.get("fontes") or []) if str(u).startswith("http")][:4]
         if not ideas:
-            raise RuntimeError("o Riddler não trouxe ideias: " + text[:200])
+            raise RuntimeError("a Pesquisa não trouxe ideias: " + text[:200])
         return ideas, cost
 
     @staticmethod
@@ -266,7 +266,7 @@ def chrome() -> str | None:
 def clean_svg(text: str) -> str:
     m = re.search(r"<svg\b.*</svg>", text, re.S | re.I)
     if not m:
-        raise RuntimeError("a Catwoman não devolveu um SVG")
+        raise RuntimeError("o Design não devolveu um SVG")
     svg = m.group(0)
     if re.search(r"<script|<foreignObject|<image\b|(?:href|src)\s*=\s*[\"']\s*(?:https?:|data:|javascript:)", svg, re.I):
         raise RuntimeError("SVG com conteúdo proibido")

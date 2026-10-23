@@ -11,7 +11,7 @@
   const TFS = ["M5", "M15", "H1", "H4", "D1"];
   const TF_SEC = { M5: 300, M15: 900, H1: 3600, H4: 14400, D1: 86400 };
   const LAYERS = [["fvg", "FVG"], ["ob", "OB"], ["liq", "Liquidez"], ["bos", "BOS/CHoCH"], ["kz", "Killzones"], ["pd", "Premium/desconto"], ["vwap", "VWAP"], ["ema", "EMA 9/21/50"], ["setup", "Setup"]];
-  const PEOPLE = { penguin: { name: "Pinguim", what: "Macro e notícias" }, twoface: { name: "Duas-Caras", what: "Gráfico (SMC)" } };
+  const PEOPLE = { penguin: { name: "Macro", what: "Macro e notícias" }, twoface: { name: "Análise técnica", what: "Gráfico (SMC)" } };
   const STATE_PT = { intact: "intacto", swept: "varrido", taken: "rompido", testing: "a testar" };
   const STATUS_PT = { armed: "à espera do preço", active: "preço na zona", won: "alvo atingido" };
   const KIND_LABEL = { smc: "SMC", vwap: "VWAP + EMA", ib: "Inside bar D1", ema: "EMA 125/200" };
@@ -57,7 +57,7 @@
       <button type="button" class="btn quiet" id="tr-test" title="${esc(t("Mostra o aviso grande com o que a sala vê agora (só neste ecrã)"))}">${icon("bell")}${esc(t("Ver o aviso"))}</button>
       <button type="button" class="btn primary" id="tr-meet">${icon("users")}${esc(t("Convocar reunião"))}</button>`;
     page(`<div class="tr" id="tr">
-      ${ui.head("Trading", t("Sala de Trading"), t("A mesa da AMG Capital: o Pinguim lê as notícias, o Duas-Caras lê o gráfico e reúnem-se para decidir as trades."), actions)}
+      ${ui.head("Trading", t("Sala de Trading"), t("A mesa da AMG Capital: o Macro lê as notícias, a Análise técnica lê o gráfico e os dois reúnem-se para decidir as trades."), actions)}
       <section class="bd-stats tr-clock" id="tr-clocks"></section>
       ${sec("Mercados", esc(t("toca num para o abrir no gráfico")))}
       <section class="tr-radar" id="tr-radar"></section>
@@ -175,7 +175,7 @@
       </div>
       <div class="tr-bt-g">${table("Instrumento", s.by_symbol)}${table("Nota", r.by_grade)}${table("Gráfico", r.by_tf)}${table("Lado", r.by_dir, { buy: "Compra", sell: "Venda" })}</div>
       <p class="tr-bt-n">${r.setups} ${esc(t("setups A/A+"))}: ${s.n} ${esc(t("entraram"))}, ${c.missed || 0} ${esc(t("fugiram sem entrar"))}, ${c.expired || 0} ${esc(t("expiraram"))}, ${c.refused || 0} ${esc(t("recusados pelas regras da conta"))}.
-        ${esc(t("Só o modelo: o Pinguim e o Duas-Caras leem notícias e não dá para os repetir no passado. Testado a"))} ${dt(r.at)}.</p>`);
+        ${esc(t("Só o modelo: o Macro e a Análise técnica leem notícias e não dá para os repetir no passado. Testado a"))} ${dt(r.at)}.</p>`);
   }
 
   // ================================================================ reaction to the US number in play (history from news-reaction)
@@ -364,7 +364,7 @@
   // ================================================================ the scoreboard: each one's own account
   let bookRows = [];
   // every account of the book (book.AGENTS): the two traders, the model, and one per strategy (19 out)
-  const NAMES = { penguin: "Pinguim", twoface: "Duas-Caras", model: "Modelo", ema: "EMA 125/200", vwap: "VWAP + EMA", combo: "Combinado" };
+  const NAMES = { penguin: "Macro", twoface: "Análise técnica", model: "Modelo", ema: "EMA 125/200", vwap: "VWAP + EMA", combo: "Combinado" };
   const ROLES = { penguin: "Macro e notícias", twoface: "Gráfico (SMC)", model: "Referência: os setups A e A+ do motor",
     ema: "Tendência nas EMA 125 e 200", vwap: "Pullback ao VWAP a favor da tendência", combo: "Só quando as três leituras concordam" };
   const side = (dir) => ui.tag(t(dir === "buy" ? "Compra" : "Venda"), dir === "buy" ? "ok" : "bad");
@@ -867,7 +867,7 @@
         <div class="tr-alert-duo">${(a.turns || []).slice(-2).map((x) => `<figure class="${x.who}"><img src="${portrait(x.who)}" alt=""><figcaption><b>${esc(t(PEOPLE[x.who] ? PEOPLE[x.who].name : x.who))}</b><span>${esc(clip(x.text, 190))}</span></figcaption></figure>`).join("")}</div>
         ${(a.attention || []).length ? `<ul class="tr-alert-att">${a.attention.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
         <div class="tr-alert-acts"><button type="button" class="btn primary" data-a="open">${icon("trend")}${esc(t("Abrir a Sala de Trading"))}</button><button type="button" class="btn" data-a="ok">${esc(t("Visto"))}</button>
-          <small>${esc(a.mode === "claude" ? t("Reunião do Pinguim e do Duas-Caras (Claude)") : t("Leitura automática da sala"))} · ${hm(a.at)}${a.test ? " · " + esc(t("ensaio")) : ""}</small></div>
+          <small>${esc(a.mode === "claude" ? t("Reunião do Macro e da Análise técnica (Claude)") : t("Leitura automática da sala"))} · ${hm(a.at)}${a.test ? " · " + esc(t("ensaio")) : ""}</small></div>
       </div>
       <div class="tr-alert-led bottom"><div>${(tape || "").repeat(4)}</div></div>`;
     document.body.append(alertEl);

@@ -15,7 +15,7 @@
 .kt-pc > header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
 .kt-pc > header .av { width: 36px; height: 36px; font-size: 15px; }
 .kt-pc > header b { display: block; overflow: hidden; color: #f4f6f8; font: 500 23px/1.05 var(--serif); white-space: nowrap; text-overflow: ellipsis; }
-.kt-pc > header div > span { display: block; margin-top: 3px; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.kt-pc > header div > span { display: block; margin-top: 3px; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .kt-facts { display: flex; flex-wrap: wrap; gap: 6px; }
 .kt-facts span { padding: 4px 9px; border-radius: 4px; border: 1px solid var(--line); background: rgba(255, 255, 255, .03); color: #cfd5dc; font-size: 12px; }
 .kt-facts b { color: #fff; font: 600 12px var(--mono); }
@@ -34,7 +34,7 @@
 .kt-row:not(.kt-head):hover { background: rgba(255, 255, 255, .025); }
 .kt-row.out { opacity: .5; }
 .kt-head { min-height: 52px; background: rgba(255, 255, 255, .02); }
-.kt-col { color: var(--faint); font: 600 10px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.kt-col { color: var(--faint); font: 600 10px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .kt-who { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .kt-who em { color: var(--muted); font: 600 9.5px var(--ui); font-style: normal; letter-spacing: .12em; text-transform: uppercase; }
 .kt-who.dim { opacity: .5; }

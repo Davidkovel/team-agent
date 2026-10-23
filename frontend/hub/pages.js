@@ -87,58 +87,6 @@ const isFresh = (x) => x.stage !== "done" && Date.now() - new Date(x.created_at)
 // A task for everybody counts as being done while any one of them is on their part.
 const doingOf = (x) => (x.group ? x.group.find((y) => y.doing_since && y.stage !== "done") : x.doing_since && x.stage !== "done" ? x : null);
 const doingBadge = (y, size = "sm") => `<span class="doer-live" style="${whoVar(y.assignee)}" title="${esc(t("{n} está a fazer isto", { n: nameOf(y.assignee) }))}"><span class="dl-ring">${ui.avatar(nameOf(y.assignee), size)}</span><em><b>${esc(y.assignee === me.username ? t("Tu") : nameOf(y.assignee))}</b><s> · </s><span>${t("a fazer")}</span></em></span>`;
-function taskCard(x) {
-  const late = x.deadline && x.stage !== "done" && new Date(x.deadline) < new Date();
-  const mineOf = x.group && x.group.find((y) => y.assignee === me.username);
-  const doer = doingOf(x);
-  const stack = doer ? doingBadge(doer) : x.group ? allPlate(x.group) : whoPlate(x.assignee);
-  const top = [x.priority === "urgent" ? ui.tag(t("Urgente"), "bad") : x.priority === "high" ? ui.tag(t("Alta"), "warn") : "", x.group ? ui.tag(groupLabel(x.group), "ai") : "", isFresh(x) ? ui.tag(t("Nova"), "ok") : ""].join("");
-  return `<article class="tk ${x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : ""} ${isFresh(x) ? "fresh" : ""} ${doer ? "doing" : ""} ${x.group ? "for-all" : isMe(x.assignee) ? "mine" : ""}"
-    style="${x.group ? "" : whoVar(x.assignee)}" draggable="${x.group ? "false" : "true"}" data-id="${(mineOf || x).id}">
-    ${trashBtn(x.group ? null : x, "tk-del")}${top ? `<div class="tk-top">${top}</div>` : ""}
-    <b>${esc(x.title)}</b>
-    ${x.stage === "in_progress" || (x.progress > 0 && x.stage !== "done") ? ui.progress(x.progress, "ai") : ""}
-    ${x.group ? `<span class="tk-who">${esc(whoLeft(x.group))}</span>` : ""}
-    <div class="tk-foot">${stack}<span class="grow ell">${esc(x.project_name || x.project || "")}</span>
-      ${x.crew_name ? ui.tag(x.crew_name, "ai") : x.agent_role ? ui.tag("IA", "ai") : ""}${x.priority === "low" ? ui.tag(t(PRIORITY[x.priority]), x.priority) : ""}
-      ${x.deadline ? ui.tag(fmt.date(x.deadline), late ? "bad" : "") : ""}</div></article>`;
-}
-
-// What is finished takes little room: one short line each, only today's, and the older ones behind a button.
-let showOlderDone = false;
-const doneAt = (x) => new Date(x.completed_at || x.updated_at || x.created_at);
-const doneCard = (x) => `<article class="tk tk-done" style="${x.group ? "" : whoVar(x.completed_by || x.assignee)}" draggable="${x.group ? "false" : "true"}" data-id="${((x.group && x.group.find((y) => y.assignee === me.username)) || x).id}"
-  title="${esc(x.group ? whoLeft(x.group) : doneBy(x))}"><span class="tk-tick">${icon("check")}</span><span class="tk-dt"><b>${esc(x.title)}</b>
-  ${x.group ? `<i>${t("Todos fizeram")}</i>` : x.completed_by ? `<i class="${x.completed_by !== x.assignee ? "other" : ""}">${esc(doneBy(x))}</i>` : ""}</span>
-  ${x.group ? whoFaces(x.group) : ui.avatar(nameOf(x.completed_by || x.assignee), "sm")}</article>`;
-function doneColumn(list, label) {
-  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
-  const sorted = [...list].sort((a, b) => doneAt(b) - doneAt(a));
-  const today = sorted.filter((x) => doneAt(x) >= midnight), older = sorted.filter((x) => doneAt(x) < midnight);
-  return `<section class="col col-done" data-stage="done"><div class="col-head"><span>${t(label)}</span><i>${list.length}</i></div>
-    ${today.length ? today.map(doneCard).join("") : `<p class="faint" style="margin:6px 2px;font-size:12px">${t("Nada concluído hoje")}</p>`}
-    ${older.length ? `<button class="done-older" data-older-done>${t(showOlderDone ? "Esconder as anteriores" : "Ver as anteriores ({n})", { n: older.length })}</button>
-      ${showOlderDone ? older.slice(0, 20).map(doneCard).join("") : ""}` : ""}</section>`;
-}
-
-/* ---------- Tarefas as lists, like the phone: Hoje, Próximas and Feitas side by side, each in blocks ---------- */
-let taskView = (() => { try { return localStorage.getItem("hub.taskView") || "pessoas"; } catch { return "pessoas"; } })();
-let taskCoFilter = "";
-const tlDay = (iso) => {
-  const d = new Date(iso), now = new Date();
-  return Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
-};
-const tlLate = (x) => (x.deadline ? tlDay(x.deadline) : null);
-const tlOrder = (a, b) => importance(a) - importance(b) || String(a.deadline || "9").localeCompare(String(b.deadline || "9")) || b.id - a.id;
-function tlWhen(x) {
-  const n = tlLate(x);
-  if (n === null) return "";
-  if (n > 0) return `<em class="late">${t(n === 1 ? "Atrasada há 1 dia" : "Atrasada há {n} dias", { n })}</em>`;
-  if (n === 0) return `<em class="today">${t("Hoje")} ${fmt.hhmm(x.deadline)}</em>`;
-  return n === -1 ? `${t("Amanhã")} ${fmt.hhmm(x.deadline)}` : `${fmt.date(x.deadline)}`;
-}
-// A row wears the colour of whose it is (of who did it, once done) and ends in their plate. Inside a person's own column
-// (inCol, the "Por pessoa" view) the column already says whose it is: no plate, only who is on it now.
 /* The red bin: on every row and card of Tarefas and in the window of a task. The task goes to the Lixo, where it can be
    recovered for some hours, and «Desfazer» brings it straight back. Not on a task an agent is running (stop it first) nor
    on a task for everybody (each has their own copy; it is deleted from inside it). */
@@ -164,190 +112,11 @@ async function trashTaskUndo(id, title, reason = "mistake") {
   return true;
 }
 
-function tlRow(x, inCol = false) {
-  const own = inCol ? x : x.group ? x.group.find((y) => y.assignee === me.username) : x;
-  const done = x.stage === "done", tone = done ? "done" : x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
-  const co = companies.find((c) => c.id === x.company)?.name;
-  const who = done && x.completed_by ? x.completed_by : x.assignee, doer = !done && doingOf(x);
-  const side = inCol ? (doer ? doingBadge(doer) : x.group ? whoFaces(x.group) : "")
-    : doer ? doingBadge(doer) : x.group ? allPlate(x.group) : whoPlate(who);
-  const meta = [co ? `<span class="tl-co">${esc(co)}</span>` : "", inCol && x.group ? `<span class="tl-all">${esc(groupLabel(x.group))}</span>` : "", x.project_name ? esc(x.project_name) : "",
-    x.group ? `<span class="all">${esc(whoLeft(x.group))}</span>` : done && x.completed_by && x.completed_by !== x.assignee ? `<span class="other">${esc(doneBy(x))}</span>` : "",
-    !done && x.crew_name ? `<em class="ai">${esc(x.crew_name)}</em>` : "",
-    done ? (x.completed_at ? `${fmt.day(x.completed_at)} ${fmt.hhmm(x.completed_at)}` : "") : tlWhen(x),
-    x.stage === "in_progress" ? `<em class="ai">${t("Em curso")}</em>` : x.stage === "blocked" ? `<em class="late">${t("Bloqueada")}</em>` : "",
-    // a task still with a person goes to the office with one touch: the agent of its sector takes it (Marco, 9 out)
-    !done && !x.group && own && own.status === "TODO" ? `<button type="button" class="tl-office" data-office="${own.id}" title="${t("O escritório escolhe o agente certo e ele começa sozinho")}">${icon("bot")}${t("Mandar para o escritório")}</button>` : ""].filter(Boolean);
-  const check = done ? `<span class="tl-check">${icon("tick")}</span>`
-    : own && own.stage !== "done" && !heldByAgent(own) ? `<button class="tl-check" data-done="${own.id}" title="${t("Concluir")}"></button>`
-    : `<span class="tl-check ${own && own.stage === "done" ? "part" : "held"}">${own && own.stage === "done" ? icon("tick") : ""}</span>`;
-  return `<div class="tl-row ${tone} ${x.group && !inCol ? "for-all" : isMe(inCol ? x.assignee : who) ? "mine" : ""}" style="${x.group && !inCol ? "" : whoVar(inCol ? x.assignee : who)}" data-id="${(own || x).id}">${check}
-    <div class="tl-t"><b>${tone === "urgent" ? '<i class="bang">!!</i>' : tone === "high" ? '<i class="bang high">!</i>' : ""}${esc(x.title)}</b>${meta.length ? `<span>${meta.join(" · ")}</span>` : ""}</div>
-    ${side}${x.group && !inCol ? "" : trashBtn(own, "tl-del")}</div>`;
-}
-// A block with many tasks of several people is not one long list: it is one short list per person, the first few of each
-// showing and the rest one click away. Fourteen tasks of one person used to bury everybody else's.
-const TL_MANY = 6, TL_FEW = 3;
-const tlOpen = new Set(); // "block|person" unfolded
-function tlBlock(title, list, tone = "", sort = true) {
-  if (!list.length) return "";
-  const rows = sort ? [...list].sort(tlOrder) : list;
-  const head = `<h4 class="${tone}"><i></i>${t(title)}<span>${list.length}</span></h4>`;
-  const owner = (x) => (x.group ? "" : x.stage === "done" && x.completed_by ? x.completed_by : x.assignee);
-  const owners = [...new Set(rows.map(owner))];
-  if (rows.length <= TL_MANY || taskFilter || !sort) return `<div class="tl-block">${head}<div class="tl-list">${rows.map((x) => tlRow(x)).join("")}</div></div>`;
-  return `<div class="tl-block">${head}${owners.map((u) => {
-    const mine = rows.filter((x) => owner(x) === u), key = `${title}|${u}`, open = tlOpen.has(key) || mine.length <= TL_FEW + 1;
-    return `<div class="tl-who" style="${u ? whoVar(u) : ""}">${u ? ui.avatar(nameOf(u), "sm") : icon("users")}<b>${esc(u ? (isMe(u) ? t("Tu") : nameOf(u)) : t("Para todos"))}</b><span>${mine.length}</span></div>
-      <div class="tl-list">${(open ? mine : mine.slice(0, TL_FEW)).map((x) => tlRow(x)).join("")}</div>
-      ${mine.length > TL_FEW + 1 ? `<button class="tl-more" data-tl-open="${esc(key)}">${open ? t("Mostrar menos") : t("Ver mais {n} de {quem}", { n: mine.length - TL_FEW, quem: u ? nameOf(u) : t("todos") })}</button>` : ""}`;
-  }).join("")}</div>`;
-}
-let showOlderFeitas = false;
-
-/* The people strip, on top of every view: a card per partner in their colour, with what they have open, what is urgent, late
-   or for today, what they finished today and what they are doing right now. A press shows only theirs; pressing it again, or
-   "Equipa", shows everybody's. It is also the legend of the colours. */
-const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
-const teamLogins = (all) => peopleOrder([...Object.keys(teamNames), ...all.map((x) => x.assignee)]);
-const many = (n, one, more) => `${n} ${t(n === 1 ? one : more)}`;
-function drawPeople(all) {
-  const box = $("task-people");
-  if (!box) return;
-  const open = all.filter((x) => x.stage !== "done"), midnight = startOfToday(), people = teamLogins(all);
-  const facts = (list, did) => {
-    const urgent = list.filter((x) => x.priority === "urgent").length, late = list.filter((x) => tlLate(x) > 0).length, today = list.filter((x) => tlLate(x) === 0).length;
-    return [urgent ? `<em class="late">${many(urgent, "urgente", "urgentes")}</em>` : "", late ? `<em class="late">${many(late, "atrasada", "atrasadas")}</em>` : "",
-      today ? `<em class="today">${many(today, "para hoje", "para hoje")}</em>` : "", did ? `<em class="ok">${many(did, "feita hoje", "feitas hoje")}</em>` : ""].filter(Boolean).join("")
-      || `<em class="calm">${t(list.length ? "Tudo dentro do prazo" : "Nada por fazer")}</em>`;
-  };
-  const card = (u) => {
-    const mine = open.filter((x) => x.assignee === u), now = mine.find((x) => x.doing_since) || mine.find((x) => x.stage === "in_progress");
-    const did = all.filter((x) => x.stage === "done" && x.assignee === u && doneAt(x) >= midnight).length;
-    return `<button class="pcard ${u === taskFilter ? "on" : ""} ${isMe(u) ? "me" : ""}" data-u="${esc(u)}" style="${whoVar(u)}" aria-pressed="${u === taskFilter}">
-      <span class="pc-av">${ui.avatar(nameOf(u))}</span>
-      <span class="pc-id"><b>${esc(nameOf(u))}</b>${isMe(u) ? `<small>${t("Tu")}</small>` : ""}</span>
-      <span class="pc-n"><b>${mine.length}</b><small>${t(mine.length === 1 ? "aberta" : "abertas")}</small></span>
-      <span class="pc-facts">${facts(mine, did)}</span>
-      ${now ? `<span class="pc-now"><i></i><span>${t("A fazer")}: <b>${esc(now.title)}</b></span></span>` : ""}</button>`;
-  };
-  const team = asOne(open);
-  paint(box, `<button class="pcard team ${taskFilter ? "" : "on"}" data-u="" aria-pressed="${!taskFilter}"><span class="pc-av">${icon("users")}</span>
-      <span class="pc-id"><b>${t("Equipa")}</b></span><span class="pc-n"><b>${team.length}</b><small>${t(team.length === 1 ? "aberta" : "abertas")}</small></span>
-      <span class="pc-facts">${facts(team, all.filter((x) => x.stage === "done" && doneAt(x) >= midnight).length)}</span></button>${people.map(card).join("")}`);
-  box.style.setProperty("--n", people.length + 1);   // the people and the team card, all the same width
-}
-const coChips = (withCo) => (withCo.length ? [["", "Todas as empresas"], ...withCo.map((c) => [c.id, c.name]), ["none", "Sem empresa"]]
-  .map(([id, label]) => `<button class="chp ${id === taskCoFilter ? "on" : ""}" data-co="${esc(id)}">${esc(t(label))}</button>`).join("") : "");
-
-/* "Por pessoa": one column per partner, you first, in their colour. Each says what they are doing now, then what is urgent,
-   late, for today, coming and undated, and what they finished today. A task for everybody is in every column, as that
-   person's part of it. */
-const pcBlock = (title, list, tone = "") => (list.length ? `<div class="tl-block"><h4 class="${tone}"><i></i>${t(title)}<span>${list.length}</span></h4>
-  <div class="tl-list">${list.map((x) => tlRow(x, true)).join("")}</div></div>` : "");
-function personCols(all) {
-  const groups = new Map();
-  for (const g of groupAll(all)) if (g.group) for (const y of g.group) groups.set(y.id, g.group);
-  const people = taskFilter ? [taskFilter] : teamLogins(all), midnight = startOfToday();
-  const col = (u) => {
-    const mine = all.filter((x) => x.assignee === u).map((x) => (groups.has(x.id) ? { ...x, group: groups.get(x.id) } : x));
-    const open = mine.filter((x) => x.stage !== "done").sort(tlOrder);
-    const now = open.filter((x) => x.doing_since || x.stage === "in_progress"), rest = open.filter((x) => !now.includes(x)), calm = rest.filter((x) => x.priority !== "urgent");
-    const late = calm.filter((x) => tlLate(x) > 0), did = mine.filter((x) => x.stage === "done" && doneAt(x) >= midnight).sort((a, b) => doneAt(b) - doneAt(a));
-    const sub = [now.length ? t("a fazer agora") : "", late.length ? many(late.length, "atrasada", "atrasadas") : "", did.length ? many(did.length, "feita hoje", "feitas hoje") : ""].filter(Boolean).join(" · ");
-    const body = pcBlock("A fazer agora", now, "now") + pcBlock("Urgentes", rest.filter((x) => x.priority === "urgent"), "late") + pcBlock("Atrasadas", late, "late")
-      + pcBlock("Para hoje", calm.filter((x) => tlLate(x) === 0), "today") + pcBlock("Próximas", calm.filter((x) => tlLate(x) !== null && tlLate(x) < 0))
-      + pcBlock("Sem prazo", calm.filter((x) => tlLate(x) === null));
-    return `<section class="tl-col pcol ${isMe(u) ? "me" : ""}" style="${whoVar(u)}">
-      <header><span class="pc-av">${ui.avatar(nameOf(u))}</span><div><b>${esc(nameOf(u))}${isMe(u) ? `<small>${t("Tu")}</small>` : ""}</b><span>${esc(sub || t(open.length ? "tudo dentro do prazo" : "sem nada por fazer"))}</span></div>
-        <i>${open.length}</i></header>
-      ${body || `<p class="tl-empty">${t(isMe(u) ? "Não tens nada por fazer." : "Nada por fazer.")}</p>`}${pcBlock("Feitas hoje", did, "ok")}</section>`;
-  };
-  return `<div class="tl-cols pcols" style="--n:${Math.min(people.length, 4)}">${people.map(col).join("")}</div>`;
-}
-
-async function loadLists(board) {
-  await mount(board, async () => {
-    const [list, approvals] = await Promise.all([api("/api/tasks"), api("/api/approvals").catch(() => [])]);
-    const all = list.filter((x) => !x.trashed_at);
-    const withCo = companies.filter((c) => all.some((x) => x.company === c.id));
-    if (taskCoFilter && taskCoFilter !== "none" && !withCo.some((c) => c.id === taskCoFilter)) taskCoFilter = "";
-    const inCo = (x) => !taskCoFilter || (taskCoFilter === "none" ? !x.company : x.company === taskCoFilter);
-    drawPeople(all.filter(inCo));
-    paint($("task-filter"), coChips(withCo));
-    const mine = all.filter((x) => (!taskFilter || x.assignee === taskFilter) && (!taskCoFilter || (taskCoFilter === "none" ? !x.company : x.company === taskCoFilter)));
-    // filtered by a person, a task for everybody stands for that person's copy; otherwise it is one card for all
-    const cards = taskFilter ? groupAll(all).filter((g) => g.group ? g.group.some((y) => y.assignee === taskFilter) : g.assignee === taskFilter)
-      .map((g) => (g.group ? { ...g.group.find((y) => y.assignee === taskFilter), group: g.group } : g))
-      .filter((x) => !taskCoFilter || (taskCoFilter === "none" ? !x.company : x.company === taskCoFilter)) : asOne(mine);
-    const open = cards.filter((x) => x.stage !== "done"), rest = open.filter((x) => x.priority !== "urgent");
-    const later = rest.filter((x) => tlLate(x) !== null && tlLate(x) < 0);
-    const done = cards.filter((x) => x.stage === "done").sort((a, b) => String(b.completed_at || "").localeCompare(String(a.completed_at || "")));
-    const doneOn = (x) => tlDay(x.completed_at || x.updated_at || x.created_at);
-    const hoje = [["Urgentes", open.filter((x) => x.priority === "urgent"), "late"], ["Atrasadas", rest.filter((x) => tlLate(x) > 0), "late"],
-      ["Para hoje", rest.filter((x) => tlLate(x) === 0), "today"], ["Sem prazo", rest.filter((x) => tlLate(x) === null), ""]];
-    const prox = [["Amanhã", later.filter((x) => tlLate(x) === -1)], ["Esta semana", later.filter((x) => tlLate(x) < -1 && tlLate(x) >= -7)], ["Mais tarde", later.filter((x) => tlLate(x) < -7)]];
-    const older = done.filter((x) => doneOn(x) > 1);
-    const count = (blocks) => blocks.reduce((k, b) => k + b[1].length, 0);
-    const col = (title, sub, n, body, empty, tone = "") => `<section class="tl-col ${tone}"><header><b>${t(title)}</b><span>${esc(sub)}</span><i>${n}</i></header>
-      ${body || `<p class="tl-empty">${t(empty)}</p>`}</section>`;
-    const waiting = approvals.filter((a) => a.status === "PENDING").length;
-    if (!all.length) return ui.empty("tasks", "Sem tarefas", "Cria a primeira tarefa: fica contigo ou vai direta para um agente.", `<button class="btn sm primary" data-new-task>${t("Nova tarefa")}</button>`);
-    const approve = waiting ? `<a class="tl-approve" href="#/aprovacoes">${icon("alert")}<span>${t(waiting === 1 ? "1 aprovação à espera" : "{n} aprovações à espera", { n: waiting })}</span>${icon("chevron")}</a>` : "";
-    if (taskView === "pessoas") return approve + personCols(all.filter(inCo));
-    return `${approve}
-      <div class="tl-cols">
-      ${col("Hoje", t("o que é para fazer já"), count(hoje), hoje.map(([title, l, tone]) => tlBlock(title, l, tone)).join(""), "Tudo feito por hoje.", count(hoje) && hoje[0][1].length ? "hot" : "")}
-      ${col("Próximas", t("com prazo nos próximos dias"), count(prox), prox.map(([title, l]) => tlBlock(title, l)).join(""), "Nada marcado para os próximos dias.")}
-      ${col("Feitas", t("as mais recentes primeiro"), done.length, tlBlock("Hoje", done.filter((x) => doneOn(x) <= 0), "ok", false) + tlBlock("Ontem", done.filter((x) => doneOn(x) === 1), "ok", false)
-        + (older.length ? `<button class="tl-more" data-older-feitas>${t(showOlderFeitas ? "Esconder as anteriores" : "Ver as anteriores ({n})", { n: older.length })}</button>${showOlderFeitas ? tlBlock("Mais antigas", older.slice(0, 40), "ok", false) : ""}` : ""),
-        "Ainda nada concluído.")}
-      </div>`;
-  }, 6);
-}
-
-async function loadBoard() {
-  const board = $("board");
-  if (!board) return;
-  board.classList.toggle("is-lists", taskView !== "quadro");
-  if (taskView !== "quadro") { $("bin")?.setAttribute("hidden", ""); return loadLists(board); }
-  $("bin")?.removeAttribute("hidden");
-  await mount(board, async () => {
-    const all = (await api("/api/tasks")).filter((x) => !x.trashed_at); // what went into the bin as finished stays in the numbers, not on the board
-    drawPeople(all);
-    paint($("task-filter"), "");
-    const tasks = taskFilter ? all.filter((x) => x.assignee === taskFilter) : all;
-    if (!all.length) return `<div style="grid-column:1/-1">${ui.empty("tasks", "Sem tarefas", "Cria a primeira tarefa: fica contigo ou vai direta para um agente.",
-      `<button class="btn sm primary" data-new-task>${t("Nova tarefa")}</button>`)}</div>`;
-    const cards = asOne(tasks); // "Para todos" is one card, in "Concluída" only once everybody has done it
-    return STAGES.map(([stage, label]) => {
-      const mine = cards.filter((x) => x.stage === stage).sort((a, b) => importance(a) - importance(b)); // urgent first, then as before
-      if (stage === "done") return doneColumn(mine, label);
-      return `<section class="col" data-stage="${stage}"><div class="col-head"><span>${t(label)}</span><i>${mine.length}</i></div>
-        ${mine.map(taskCard).join("") || `<p class="faint" style="margin:6px 2px;font-size:12px">${t("Vazio")}</p>`}</section>`;
-    }).join("");
-  }, 5);
-  loadBin();
-}
-
-/* The bin: a small widget on the board. While a card is being dragged it opens into two drops (finished / mistake);
-   otherwise it shows how many tasks are inside and opens the list, where they can be recovered until the Hub deletes them. */
-async function loadBin() {
-  const bin = $("bin");
-  if (!bin) return;
-  try {
-    const n = (await api("/api/tasks/trash")).length;
-    paint(bin, `<button class="bin-main" data-bin-open title="${t("Abrir o lixo")}">${icon("trash")}<b>${t("Lixo")}</b><i>${n}</i></button>
-      <div class="bin-drops"><div class="bin-drop ok" data-reason="done">${icon("check")}<span>${t("Concluída")}</span></div>
-        <div class="bin-drop bad" data-reason="mistake">${icon("x")}<span>${t("Engano")}</span></div></div>`);
-  } catch (e) { /* the board already says when the Hub does not answer */ }
-}
-
-async function trashTask(id, reason) {
-  const r = await api(`/api/tasks/${id}/trash`, { method: "POST", body: { reason } });
-  flash(t("Foi para o Lixo. Tens {n} h para a recuperar.", { n: Math.round((new Date(r.purge_at) - new Date(r.trashed_at)) / 36e5) }));
-  loadBoard();
-}
+// Tarefas, Aprovações, Semana and «Nova tarefa» live in hub/tarefas.js + .css, fetched the first time one of them opens.
+const tqLoad = () => Promise.all([lazyFile("hub/tarefas.js"), lazyFile("hub/tarefas.css").catch(() => {})]);
+// What changed a task (a window, a button, the live feed) asks the page on screen to show it again: Tarefas, the phone's
+// Tarefas or Semana. Nothing is fetched when none of them is open.
+function loadBoard() { return typeof tqRefresh === "function" ? tqRefresh() : Promise.resolve(); }
 
 const binRow = (x) => `<div class="rw"><div class="rw-main"><b>${esc(x.title)}</b>
     <span>${esc(nameOf(x.assignee))} · ${t("apaga daqui a {tempo}", { tempo: fmt.span(new Date().toISOString(), x.purge_at) })}</span></div>
@@ -477,67 +246,11 @@ function routeWatch(form, ask) {
 }
 const cmpHead = (ic, title) => `<header class="cmp-head"><span>${icon(ic)}${esc(t(title))}</span><button type="button" class="btn quiet sm" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>`;
 
+// «Nova tarefa» from anywhere in the Hub (Ctrl+K, Início, a project, the Escritório): the composer as a sheet (tarefas.js).
+// preset: { for_ai (true or an old kind of agent), crew, assignee, project_id, company, priority, title, description }
 async function newTask(preset = {}) {
-  const [users, projects, crew] = await Promise.all([api("/api/users"), api("/api/projects"), loadCrew()]);
-  let kept = "";
-  try { kept = localStorage.getItem("hub.taskMode") || ""; } catch { /* private window: it starts on "Pessoa" */ }
-  const mode = preset.for_ai || preset.crew ? "office" : preset.assignee ? "person" : kept === "person" ? "person" : "office";
-  const pick = (name, value, label, on) => `<label class="who-opt"><input type="radio" name="${name}" value="${esc(value)}" ${on ? "checked" : ""}><span>${esc(label)}</span></label>`;
-  openModal(`<form class="cmp" id="cmp" autocomplete="off" data-mode="${mode}">
-    ${cmpHead("plus", "Nova tarefa")}
-    <input class="cmp-title" name="title" maxlength="200" placeholder="${esc(t("O que é preciso fazer?"))}" value="${esc(preset.title || "")}" aria-label="${esc(t("Título"))}">
-    <textarea class="cmp-desc" name="description" rows="2" placeholder="${esc(t("Pormenores, links, o que tem de ficar feito (opcional)"))}" aria-label="${esc(t("Descrição"))}">${esc(preset.description || "")}</textarea>
-    <section class="cmp-sec"><h4>${t("Quem faz")}</h4>
-      <div class="cmp-mode" role="radiogroup" aria-label="${esc(t("Quem faz"))}">
-        <label><input type="radio" name="mode" value="office" ${mode === "office" ? "checked" : ""}><span><i>${icon("bot")}</i><b>${t("Escritório")}</b><em>${t("Os agentes fazem sozinhos, já")}</em></span></label>
-        <label><input type="radio" name="mode" value="person" ${mode === "person" ? "checked" : ""}><span><i>${icon("users")}</i><b>${t("Pessoa")}</b><em>${t("Fica em «Por fazer» até alguém a fazer")}</em></span></label></div>
-      <div class="cmp-pane" data-pane="office">${crewPicker(crew, preset.crew || "")}
-        ${me.lead && users.length > 1 ? `<div class="cmp-line"><span>${t("No computador de")}</span><div class="who">${users.map((u) => pick("pc", u.username, u.display_name, u.username === me.username)).join("")}</div></div>` : ""}</div>
-      <div class="cmp-pane" data-pane="person">${whoPicker(users, preset.assignee || me.username)}${me.lead ? "" : `<p class="cmp-note">${t("Fica contigo, em «Por fazer».")}</p>`}</div>
-    </section>
-    <section class="cmp-sec cmp-two">${duePicker()}
-      <div class="field"><span>${t("Prioridade")}</span><div class="who">${Object.entries(PRIORITY).map(([k, v]) => pick("priority", k, t(v), k === (preset.priority || "normal"))).join("")}</div></div>
-    </section>
-    <details class="cmp-more" ${preset.project_id || preset.company ? "open" : ""}><summary>${icon("sliders")}${t("Projeto, empresa e branch")}</summary><div class="form-grid">
-      ${field("Projeto", `<select name="project_id">${options([["", t("Sem projeto")], ...projects.map((p) => [p.id, p.name])], preset.project_id)}</select>`)}
-      ${field("Empresa", `<select name="company">${options([["", t("Sem empresa")], ...companies.map((c) => [c.id, c.name])], preset.company)}</select>`)}
-      ${field("Branch de git", `<input name="git_branch" placeholder="ex: checkout-fix">`, true)}</div></details>
-    <p class="error" id="cmp-error"></p>
-    <footer class="cmp-foot"><span class="cmp-key">${t("Ctrl + Enter envia")}</span><button type="button" class="btn quiet" data-close>${t("Cancelar")}</button><button class="btn primary" id="cmp-go"></button></footer></form>`);
-  const form = $("cmp"), go = $("cmp-go"), fail = $("cmp-error");
-  $("modal-box").classList.add("cmp-box");
-  const read = () => Object.fromEntries(new FormData(form).entries());
-  const watch = routeWatch(form, () => { const v = read(); return { title: v.title.trim(), description: v.description, crew: v.crew || "", assignee: v.pc || me.username }; });
-  const sync = (now) => {
-    const v = read();
-    form.dataset.mode = v.mode;
-    go.innerHTML = v.mode === "office" ? `${esc(t("Mandar para o escritório"))}${icon("arrow")}` : `${icon("plus")}${esc(t("Criar tarefa"))}`;
-    if (v.mode === "office") watch(now === true);
-  };
-  form.addEventListener("input", sync);
-  form.elements.title.onkeydown = (e) => { if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); form.elements.description.focus(); } };
-  form.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); } };
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    const v = read(), office = v.mode === "office";
-    fail.textContent = "";
-    try {
-      if (!v.title.trim()) { form.elements.title.focus(); throw new Error(t("Escreve o que é preciso fazer.")); }
-      if (!office && !v.assignee) throw new Error(t("Escolhe pelo menos uma pessoa."));
-      if (!office && !v.due_pick) throw new Error(t("Diz para quando é a tarefa (ou escolhe «Sem prazo»)."));
-      if (v.due_pick === "data" && !v.deadline) throw new Error(t("Escolhe a data do prazo."));
-      go.disabled = true;
-      const assignee = office ? v.pc || me.username : v.assignee;
-      const made = await api("/api/tasks", { method: "POST", body: { ...taskBody({ ...v, assignee }), for_ai: office, crew: office ? v.crew || "" : "" } });
-      try { localStorage.setItem("hub.taskMode", v.mode); } catch { /* private window: it just is not remembered */ }
-      flash(office ? t("Mandada para o escritório: {n} · {s}.", { n: made.crew_name, s: t(made.crew_what) })
-        : assignee === "all" ? t("Tarefa enviada a todos.") : assignee.includes(",") ? t("Tarefa enviada a {n} pessoas.", { n: assignee.split(",").length }) : t("Tarefa criada."));
-      closeModal();
-      loadBoard();
-    } catch (err) { fail.textContent = err.message; go.disabled = false; }
-  };
-  sync(true);
-  form.elements.title.focus();
+  try { await tqLoad(); } catch (err) { flash(err.message); return; }
+  return tqNewTask(preset);
 }
 
 // A task that exists, sent to the office with one touch: the Hub chooses the agent by the task's words (crew.sector_of)
@@ -760,109 +473,13 @@ async function openTaskModal(id) {
 }
 
 HUB_VIEWS.tarefas = async function (r) {
-  page(`${ui.head("Comando", t("Tarefas"), t("Cada sócio tem a sua cor, e as tuas dizem TU. Carrega numa pessoa para ver só as dela."),
-    `<div class="segx" id="task-view">${[["pessoas", "Por pessoa"], ["lista", "Por prazo"], ["quadro", "Quadro"]].map(([v, l]) => `<button data-view="${v}" class="${v === taskView ? "on" : ""}">${t(l)}</button>`).join("")}</div>
-    ${ui.btn("Nova tarefa", "data-new-task", "primary", "plus")}`)}
-    <div class="pstrip" id="task-people"></div><div class="chipbar" id="task-filter"></div><div class="board" id="board"></div><div class="bin" id="bin"></div>`);
-  const view = $("view");
-  view.onclick = (e) => {
-    if (e.target.closest("[data-new-task]")) return newTask();
-    if (e.target.closest("[data-bin-open]")) return openBin();
-    const chip = e.target.closest("#task-people [data-u]");
-    if (chip) { taskFilter = chip.dataset.u === taskFilter ? "" : chip.dataset.u; $("board")._html = null; $("task-people")._html = null; return loadBoard(); }
-    const coChip = e.target.closest("#task-filter [data-co]");
-    if (coChip) { taskCoFilter = coChip.dataset.co; $("board")._html = null; return loadBoard(); }
-    const viewBtn = e.target.closest("[data-view]");
-    if (viewBtn) {
-      taskView = viewBtn.dataset.view;
-      try { localStorage.setItem("hub.taskView", taskView); } catch { /* private window: it just is not remembered */ }
-      $("task-view").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === viewBtn));
-      $("board")._html = null;
-      return loadBoard();
-    }
-    if (e.target.closest("[data-older-feitas]")) { showOlderFeitas = !showOlderFeitas; return loadBoard(); }
-    const fold = e.target.closest("[data-tl-open]");
-    if (fold) { tlOpen.has(fold.dataset.tlOpen) ? tlOpen.delete(fold.dataset.tlOpen) : tlOpen.add(fold.dataset.tlOpen); $("board")._html = null; return loadBoard(); }
-    const office = e.target.closest(".tl-row [data-office]");
-    if (office) {
-      office.disabled = true;
-      api(`/api/tasks/${office.dataset.office}/assign-ai`, { method: "POST", body: { crew: "" } })
-        .then((given) => flash(t("Mandada para o escritório: {n} · {s}.", { n: given.crew_name, s: t(given.crew_what) })), (err) => flash(err.message)).finally(loadBoard);
-      return;
-    }
-    const del = e.target.closest("[data-trash]");
-    if (del) {
-      del.disabled = true; del.closest(".tl-row, .tk")?.classList.add("finishing");
-      return trashTaskUndo(Number(del.dataset.trash), del.dataset.title, del.dataset.reason);
-    }
-    const tick = e.target.closest(".tl-row [data-done]");
-    if (tick) {
-      tick.disabled = true; tick.closest(".tl-row").classList.add("finishing");
-      api(`/api/tasks/${tick.dataset.done}`, { method: "PATCH", body: { status: "COMPLETED" } }).then(() => flash(t("Tarefa concluída.")), (err) => flash(err.message)).finally(loadBoard);
-      return;
-    }
-    const line = e.target.closest(".tl-row");
-    if (line) return openTaskModal(Number(line.dataset.id));
-    if (e.target.closest("[data-older-done]")) { showOlderDone = !showOlderDone; return loadBoard(); }
-    const card = e.target.closest(".tk");
-    if (card) openTaskModal(Number(card.dataset.id));
-  };
-  let dragged = null;
-  const board = $("board"); // the listeners live on the board, so they go away with the page
-  const bin = $("bin");
-  board.addEventListener("dragstart", (e) => { dragged = e.target.closest(".tk"); dragged?.classList.add("dragging"); if (dragged) bin.classList.add("armed"); });
-  board.addEventListener("dragend", () => {
-    dragged?.classList.remove("dragging");
-    bin.classList.remove("armed");
-    view.querySelectorAll(".col.over, .bin-drop.over").forEach((c) => c.classList.remove("over"));
-  });
-  bin.addEventListener("dragover", (e) => {
-    const drop = e.target.closest(".bin-drop");
-    if (!dragged || !drop) return;
-    e.preventDefault();
-    bin.querySelectorAll(".bin-drop.over").forEach((d) => d !== drop && d.classList.remove("over"));
-    drop.classList.add("over");
-  });
-  bin.addEventListener("dragleave", (e) => e.target.closest(".bin-drop")?.classList.remove("over"));
-  bin.addEventListener("drop", async (e) => {
-    const drop = e.target.closest(".bin-drop");
-    if (!dragged || !drop) return;
-    e.preventDefault();
-    try { await trashTask(dragged.dataset.id, drop.dataset.reason); } catch (err) { flash(err.message); }
-  });
-  board.addEventListener("dragover", (e) => {
-    const col = e.target.closest(".col");
-    if (!dragged || !col) return;
-    e.preventDefault();
-    view.querySelectorAll(".col.over").forEach((c) => c !== col && c.classList.remove("over"));
-    col.classList.add("over");
-  });
-  board.addEventListener("drop", async (e) => {
-    const col = e.target.closest(".col");
-    if (!dragged || !col) return;
-    e.preventDefault();
-    const status = HUMAN_STATUS[col.dataset.stage];
-    if (!status) return flash(t("Em curso e Aprovação são estados do agente: entrega a tarefa à IA para ela lá chegar."));
-    try { await api(`/api/tasks/${dragged.dataset.id}`, { method: "PATCH", body: { status } }); } catch (err) { flash(err.message); }
-    loadBoard();
-  });
-  await loadBoard();
-  const linked = Number(r.company) || openTask;
-  if (linked) { openTask = null; openTaskModal(linked); }
+  await tqLoad();
+  return tqDesktop(r);
 };
 onLive(["task", "tick"], loadBoard);
 
 /* ================================================================ approvals */
-// What the agent may do alone, what waits for a person, what is never allowed. This is the policy in
-// agent/team_agent/permissions/policy.py, said in plain words.
-const RULES = [["Ler ficheiros do workspace", "auto"], ["Escrever ficheiros do workspace", "auto"], ["Correr testes e lint", "auto"],
-  ["git status, diff, add, commit, branch", "auto"], ["Apagar ficheiros", "ask"], ["Alterar configuração de produção ou segredos", "ask"],
-  ["git push e ações remotas", "ask"], ["Deploy, publicar, release, migrações", "ask"], ["Instalar pacotes", "ask"],
-  ["Qualquer outro comando", "ask"], ["Gastar dinheiro, publicar, mensagens externas", "ask"],
-  ["Ler segredos, sair do workspace, comandos destrutivos", "never"]];
-const RULE_LABEL = { auto: ["ok", "Automático"], ask: ["warn", "Aprovação"], never: ["bad", "Bloqueado"] };
-const RISK = { low: "baixo", medium: "médio", high: "alto" };
-
+// The policy the agent follows (agent/team_agent/permissions/policy.py) is said in plain words on the page (tarefas.js, TQ_RULES).
 function diffHtml(diff) {
   return `<pre class="diff">${diff.split("\n").map((line) => {
     const cls = line.startsWith("@@") ? "hunk" : line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : "";
@@ -870,57 +487,10 @@ function diffHtml(diff) {
   }).join("")}</pre>`;
 }
 
-async function loadApprovalsPage() {
-  if (!$("appr-pending")) return;
-  let all = [];
-  await mount($("appr-pending"), async () => {
-    all = await api("/api/approvals");
-    const pending = all.filter((a) => a.status === "PENDING");
-    const month = all.filter((a) => a.status !== "PENDING" && a.decided_at && Date.now() - new Date(a.decided_at) < 30 * 864e5);
-    if ($("appr-kpis")) paint($("appr-kpis"), kpiRow([kpi("À espera", pending.length, { sub: t(pending.length ? (me.lead ? "decide já: o agente está parado à espera" : "à espera do owner") : "nada por decidir") }),
-      kpi("Aprovadas", month.filter((a) => a.status === "APPROVED").length, { sub: t("últimos 30 dias · o agente seguiu") }),
-      kpi("Recusadas", month.filter((a) => a.status === "REJECTED").length, { sub: t("últimos 30 dias · o agente não o fez") })]));
-    if (!pending.length) return `<div class="panel" style="grid-column:1/-1">${ui.empty("check", "Nada à espera de ti", "Quando um agente quiser fazer algo sensível (um push, apagar ficheiros, publicar), pára e o pedido aparece aqui e no sino.",
-      `<a class="btn sm" href="#/agentes">${t("Ver os agentes")}</a>`)}</div>`;
-    return pending.map((a) => `<article class="panel appr">
-      <div class="rowx">${ui.avatar(a.user_name, "ai")}<div class="grow"><b>Claude / ${esc(a.user_name)}</b><div class="faint">${fmt.ago(a.created_at)}</div></div>
-        ${a.risk ? ui.tag(`${t("Risco")} ${t(RISK[a.risk])}`, a.risk) : ui.tag(t("Risco não indicado"))}</div>
-      <div><div class="ph-eyebrow">${t("Quer")}</div><h3>${esc(a.action)}</h3>${a.detail ? `<p class="dim" style="margin:4px 0 0">${esc(a.detail)}</p>` : ""}</div>
-      ${a.files.length ? `<div class="files">${a.files.map((f) => `<code>${esc(f)}</code>`).join("")}</div>` : ""}
-      <div class="rowx" style="flex-wrap:wrap">${a.diff ? `<button class="btn sm" data-diff="${a.id}">${t("Ver diff")}</button>` : ""}
-        ${a.task_id ? `<a class="btn sm quiet" href="#/tarefas/${a.task_id}">${t("Ver tarefa")}</a>` : ""}<span class="grow"></span>
-        ${me.lead ? `<button class="btn sm danger" data-decide="${a.id}" data-approve="0">${t("Recusar")}</button><button class="btn sm ok" data-decide="${a.id}" data-approve="1">${t("Aprovar")}</button>`
-          : `<span class="faint">${t("Só o owner decide")}</span>`}</div></article>`).join("");
-  }, 4);
-  const decided = all.filter((a) => a.status !== "PENDING").slice(0, 25);
-  if (!$("appr-done")) return;
-  paint($("appr-done"), decided.length ? `<div class="panel rows">${decided.map((a) => `<div class="rw"><span class="st ${a.status === "APPROVED" ? "ok" : "bad"}"><i></i></span>
-    <div class="rw-main"><b>${esc(a.action)}</b><span>Claude / ${esc(a.user_name)} · ${t(a.status === "APPROVED" ? "aprovado" : "recusado")} ${fmt.ago(a.decided_at)}</span></div>
-    ${a.risk ? ui.tag(t(RISK[a.risk]), a.risk) : ""}</div>`).join("")}</div>` : `<p class="vw-none">${t("Ainda nada foi decidido.")}</p>`);
-  if (!$("appr-pending")) return; // the person moved to another page while this was loading
-  $("appr-pending").onclick = async (e) => {
-    const diff = e.target.closest("[data-diff]"), decide = e.target.closest("[data-decide]");
-    if (diff) {
-      const a = all.find((x) => x.id === Number(diff.dataset.diff));
-      openModal(`<h3>${esc(a.action)}</h3>${diffHtml(a.diff)}<div class="form-foot"><button class="btn primary" data-close>${t("Fechar")}</button></div>`);
-      $("modal-box").classList.add("wide");
-    } else if (decide) {
-      decide.disabled = true;
-      try { await api(`/api/approvals/${decide.dataset.decide}/decide`, { method: "POST", body: { approve: decide.dataset.approve === "1" } }); }
-      catch (err) { flash(err.message); }
-      loadApprovalsPage();
-    }
-  };
-}
+function loadApprovalsPage() { return typeof tqPaintApprovals === "function" ? tqPaintApprovals() : Promise.resolve(); }
 HUB_VIEWS.aprovacoes = async function () {
-  await pagesCss();
-  page(`${ui.head("Comando", t("Aprovações"), t("O que os agentes pedem para fazer antes de o fazerem. Só o owner decide."))}
-    <div id="appr-kpis"></div>${ui.sec("Pedidos à espera")}
-    <div class="cards vw-appr" id="appr-pending"></div>
-    ${ui.sec("Regras de permissão", `<span class="faint vw-secnote">${t("o que o agente faz sozinho e o que tem de pedir")}</span>`)}
-    <div class="panel pad"><div class="rules">${RULES.map(([what, rule]) => `<div><span>${t(what)}</span>${ui.tag(t(RULE_LABEL[rule][1]), RULE_LABEL[rule][0])}</div>`).join("")}</div></div>
-    ${ui.sec("Decididas")}<div id="appr-done"></div>`);
-  await loadApprovalsPage();
+  await tqLoad();
+  return tqApprovals();
 };
 onLive(["approval", "tick"], loadApprovalsPage);
 
@@ -1033,15 +603,20 @@ async function loadAgentsPage() {
       + ui.sec("Sessões recentes do agente", `<a class="vw-link" href="#/uso">${t("Uso de IA")}${icon("chevron")}</a>`)
       + (sessions.length ? `<div class="panel rows">${sessions.map(sessionRow).join("")}</div>`
         : `<div class="panel">${ui.empty("bot", "O agente ainda não correu", "Manda uma tarefa ao escritório: o agente automático de quem a recebe corre-a, e cada sessão aparece aqui com os tokens e o custo.",
-          `<button class="btn sm" data-office-task>${t("Mandar tarefa ao escritório")}</button>`)}</div>`);
+          `<button class="btn sm" data-office-task>${t("Pedir tarefa")}</button>`)}</div>`);
   }, 6);
 }
 HUB_VIEWS.agentes = async function (r) {
   await pagesCss();
   if (r.company) return viewAgent(r.company);
+  // the departments (crew.js, window.AMGDepts) as a row of monograms: the same names the Escritório and Empresa AMG use
+  await Promise.all([lazyFile("hub/crew.js"), lazyFile("hub/crew.css").catch(() => {})]).catch(() => {});
+  const depts = window.AMGDepts ? window.AMGDepts.list : [];
   page(`${ui.head("Equipa", t("Agentes"), t("O agente automático de cada pessoa, as janelas do Claude abertas e os subagentes que lançaram."),
-      ui.btn("Mandar tarefa ao escritório", "data-office-task", "primary", "bot"))}
+      ui.btn("Pedir tarefa", "data-office-task", "primary", "plus"))}
     <div id="agents-grid"></div>
+    ${depts.length ? `${ui.sec("Departamentos", `<a class="vw-link" href="#/empresa">${t("Empresa AMG")}${icon("chevron")}</a>`)}
+    <div class="panel vw-depts">${depts.map((d) => `<a href="#/empresa/${d.id}" title="${esc(t(d.what))}">${window.AMGDepts.mono(d, "sm")}<span><b>${esc(d.name)}</b><small>${d.n}</small></span></a>`).join("")}</div>` : ""}
     ${ui.sec("Subagentes que o agente pode lançar")}
     <div class="vw-roles">${SUBAGENT_ROLES.map(([, name, what]) => `<div class="panel pad"><b>${icon("bot")}${t(name)}</b><p>${t(what)}</p></div>`).join("")}</div>
     <p class="vw-note">${t("Um subagente só existe dentro de uma sessão: é o agente principal que decide lançá-lo. Usa as mesmas ferramentas e a mesma política de permissões.")}</p>`);
@@ -1787,37 +1362,8 @@ HUB_VIEWS.memoria = async function () {
 
 /* ================================================================ week, code, companies: the older pages, extended */
 HUB_VIEWS.semana = async function () {
-  await pagesCss();
-  page(`${ui.head("Comando", t("Semana"), t("O que ficou feito, o que está preso e o que vem a seguir."), ui.btn("Gerar relatório semanal", "id=week-report", "primary", "spark"))}
-    <div id="week-ai"></div><div class="cards vw-week" id="week-blocks"></div>
-    ${ui.sec("Dia a dia")}<div id="week"></div>`);
-  const showReport = (r) => {
-    if (!r) return;
-    $("week-ai").innerHTML = `${ui.sec("Relatório semanal", `<span class="faint">${["PENDING", "RUNNING"].includes(r.status) ? "" : fmt.day(r.created_at) + " " + fmt.hhmm(r.created_at)}</span>`)}<div class="panel pad vw-report">
-      ${["PENDING", "RUNNING"].includes(r.status) ? `<p class="msg think" style="margin:0">${t("O teu agente está a escrever o relatório a partir dos dados do Hub")}</p>`
-        : r.status === "DONE" ? `<p style="margin:0;white-space:pre-wrap">${md(r.answer)}</p>` : `<p class="msg note" style="margin:0">${esc(aiError(r.error))}</p>`}</div>`;
-  };
-  $("week-report").onclick = async () => {
-    $("week-report").disabled = true;
-    showReport({ status: "PENDING" });
-    try { showReport(await askAI("", "weekly_report")); } catch (e) { flash(e.message); }
-    $("week-report").disabled = false;
-  };
-  api("/api/ai/requests?kind=weekly_report&limit=1").then((list) => showReport(list[0])).catch(() => {});
-  mount($("week-blocks"), async () => {
-    const tasks = await api("/api/tasks");
-    const monday = new Date(); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-    const rank = { urgent: 0, high: 1, normal: 2, low: 3 };
-    const block = (title, tone, list, emptyText) => `<div class="vw-wblock">${ui.sec(title, `<span class="faint">${list.length}</span>`)}<div class="panel">
-      ${list.length ? `<div class="rows">${list.slice(0, 7).map((x) => `<a class="rw" href="#/tarefas/${x.id}"><span class="st ${tone}"><i></i></span>
-        <div class="rw-main"><b>${esc(x.title)}</b><span>${esc(nameOf(x.assignee))}${x.blocked_reason ? " · " + esc(x.blocked_reason) : ""}</span></div></a>`).join("")}</div>
-        ${list.length > 7 ? `<a class="vw-more" href="#/tarefas">${t("Mais {n} em Tarefas", { n: list.length - 7 })}</a>` : ""}`
-        : `<p class="vw-none pad">${t(emptyText)}</p>`}</div></div>`;
-    return block("Concluídas esta semana", "ok", tasks.filter((x) => x.status === "COMPLETED" && x.completed_at && new Date(x.completed_at) >= monday), "Nada concluído esta semana.")
-      + block("Bloqueadas", "bad", tasks.filter((x) => x.stage === "blocked"), "Nada bloqueado.")
-      + block("A seguir", "off", tasks.filter((x) => x.stage === "todo").sort((a, b) => rank[a.priority] - rank[b.priority]), "Nada por fazer.");
-  });
-  await loadWeek();
+  await tqLoad();
+  return tqWeek();
 };
 
 HUB_VIEWS.codigo = async function () {

@@ -1,7 +1,7 @@
 # Como se faz uma página do Hub
 
 Regras para qualquer página nova ou mexida no Hub (o que o widget mostra na janela grande, no PC e no telemóvel).
-Escritas a 21 out 2026, quando o Marco pediu o Hub «como uma obra de arte, muito organizado, funcional a sério», antes de
+Escritas a 21 out 2026 (letra atualizada a 23 out), quando o Marco pediu o Hub «como uma obra de arte, muito organizado, funcional a sério», antes de
 pôr muitos agentes a trabalhar nele. Todas as páginas seguem isto, para a app parecer uma só e não um monte de páginas
 feitas por pessoas diferentes.
 
@@ -39,7 +39,12 @@ for um mundo à parte. A procura (Ctrl+K) e o «Mais» do telemóvel leem a mesm
 
 - Preto AMG: laca preta, painéis grafite com aresta fina, cromado só no que é principal. **Monocromático**: verde, âmbar e
   vermelho só para estado (bom, atenção, mau/atrasado). Nada de azul-marinho, índigo, vidro colorido ou cores novas.
-- Letra: títulos em serifa (`--serif`), números em serifa (`.num`), etiquetas em maiúsculas espaçadas, texto em Inter.
+- Letra (desde 23 out 2026, «mais bonito e moderno, estilo iOS»): a do iPhone. `--ui` e `--display` são SF Pro nos
+  aparelhos Apple e Inter (com tamanhos óticos) no resto; `--serif` ficou como nome e aponta para o display: **a serifa e o
+  Space Grotesk saíram**. Títulos em display, peso 650-700, tracking negativo (-0.02 a -0.03em); números em display com
+  `tabular-nums`; botões, abas e filtros em sentence case, nunca maiúsculas espaçadas; maiúsculas pequenas (tracking ≤ .1em)
+  só nas etiquetas de grupo, como os cabeçalhos das listas do iOS. Nada de fontes novas numa página: só os tokens.
+  O acabamento iOS do telemóvel e do PC está em `hub/ios-type.css`, carregado por último.
 - Botões: os da casa (`.btn`, `.btn.primary`, `.btn.quiet`, `.btn.sm`). Não inventar botões.
 - Classes de cada página com prefixo próprio (`ey-`, `gp-`, `rb-`...): o `design.css` tem classes genéricas.
 - Texto para o Marco: curto, português de Portugal, sem jargão. Uma frase completa é melhor do que três palavras soltas.

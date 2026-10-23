@@ -1,4 +1,4 @@
-"""Fábrica Etsy (#/etsy): os lotes do Riddler, da Catwoman e do Joker (app/etsy.py). Só neste PC: nada vai por sync."""
+"""Fábrica Etsy (#/etsy): os lotes da Pesquisa, do Design e do Marketing (app/etsy.py). Só neste PC: nada vai por sync."""
 from __future__ import annotations
 
 import re

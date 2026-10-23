@@ -27,8 +27,11 @@ arrumado. Esta skill serve para cada página nova continuar assim. **As regras c
   sozinho. Nas ações há no máximo uma `btn primary` cromada, e o estado (ligado/desligado) aparece como chip ao lado.
 - Por baixo vem uma fila de números (`.panel.pad` + `.num`), depois secções `ui.sec("…")` com `.panel`/`.cards`, os
   vazios com `ui.empty(…, ação)` e o «a carregar» e os erros com `mount()`.
-- Aspeto preto AMG e monocromático: verde, âmbar e vermelho só para o estado. Serifa nos títulos e nos números,
-  maiúsculas espaçadas nas etiquetas, texto em português de Portugal, curto.
+- Aspeto preto AMG e monocromático: verde, âmbar e vermelho só para o estado. Letra do iPhone (SF Pro / Inter, desde
+  23 out): títulos e números em `--display` com tracking negativo, botões e abas em sentence case, maiúsculas pequenas só
+  nas etiquetas de grupo. Sem serifa. Texto em português de Portugal, curto.
+- Os agentes são **departamentos** (Desenvolvimento DEV, Engenharia ENG, Pesquisa PES, Design DSG, Marketing MKT, Revisão
+  REV, Testes QA, Operações OPS, Macro MAC, Análise técnica TEC), mostrados com um monograma; nunca personagens nem bonecos.
 - No telemóvel tem de caber em 393 px sem nada cortado. As regras ficam no CSS da página, debaixo de `html.is-phone`.
 - Peso: nada anima sem estar a acontecer alguma coisa. Widget e Hub parados ficam abaixo de 1% de CPU, a central
   abaixo de 3%.

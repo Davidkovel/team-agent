@@ -1,18 +1,19 @@
 // Skills (#/skills): the company's skills library, the Empresa AMG's space for them. Asked for by Marco on 14 Oct: bring
 // every skill in, have the agents master them, and keep them easy for each agent to use. Three halves:
-// - Biblioteca: the skills the company has (library/skills in git, backend/app/routers/skills.py), one lane per agent with
-//   the skills that agent masters. The automatic agent reads them with its `skills` tool, and the briefing tells each
-//   crew member their own (agent/team_agent/tools/skills_tool.py).
+// - Biblioteca: the skills the company has (library/skills in git, backend/app/routers/skills.py), by theme or by the
+//   department that uses them (the departments are crew.js's, window.AMGDepts: a monogram, a name, a sentence; since 23
+//   Oct no characters). The automatic agent reads them with its `skills` tool, and the briefing tells each department its
+//   own (agent/team_agent/tools/skills_tool.py).
 // - Neste PC: the skills installed here (the person's own, the plugins', claude.ai's) that are not in the library yet.
 // - Loja: those in the catalogs of the plugin marketplaces this Claude Code knows.
 // A GitHub link (a repository, a folder or a SKILL.md) brings in every skill it has. A click on a skill opens it: what it
-// says, its theme, who masters it (a touch per agent) and the way in or out of the library.
+// says, its theme, which departments use it (a touch each) and the way in or out of the library.
 // Every half is sorted by theme first (Marco, 21 Oct: «organizado por tema, para saber o que serve para cada; sempre que
 // metemos uma skill, fica lá»): a section per theme with what the theme is for, a row of themes on top to jump to one,
 // and the themes the library still lacks at the end with how many skills this PC and the Loja have for each. The theme of
 // a skill comes from the server (scripts/claude_contexto.py finds it, the same the Claude windows see), so a skill that
 // comes in lands in its theme by itself; a theme chosen by hand in the open skill stays (library/skills/temas.json).
-// «Agente» / «Origem» is the other way of sorting: by who masters it, or by where it comes from.
+// «Departamento» / «Origem» is the other way of sorting: by the department that uses it, or by where it comes from.
 (function () {
   let S = null, cast = [], tab = sessionStorage.getItem("sk.tab") || "lib", by = sessionStorage.getItem("sk.by") || "tema", q = "", reading = null;
   const HALVES = [["lib", "Biblioteca"], ["pc", "Neste PC"], ["loja", "Loja"]];
@@ -34,20 +35,15 @@
       .filter((g) => g.list.length);
   }
 
-  function faces() {
-    const P = window.CrewPeople;
-    cast = (window.CrewCast || []).map((c) => {
-      const look = c.look || (P && P.LOOKS[c.id]);
-      return { id: c.id, name: c.name, what: c.what, color: c.color, face: P && look ? P.portrait(look, c.id) : "", figure: P && look ? P.portrait(look, c.id, true) : "" };
-    });
-  }
+  // the departments (crew.js): who uses each skill is shown by their monogram and name
+  function faces() { cast = (window.AMGDepts && window.AMGDepts.list) || []; }
+  const mono = (c, cls = "") => (window.AMGDepts ? window.AMGDepts.mono(c, cls) : "");
 
   // ---------------------------------------------------------------- pieces
-  const face = (c, cls = "") => (c && c.face ? `<img class="cr-px ${cls}" src="${c.face}" alt="" title="${esc(c.name)}">` : "");
   function card(k) {
     const owners = (k.crew || []).map(castOf).filter(Boolean);
     const foot = k.kind === "lib"
-      ? `<span class="sk-faces">${owners.map((c) => face(c)).join("")}</span><small>${esc(owners.length ? owners.map((c) => c.name).join(", ") : t("Sem agente"))}</small>`
+      ? `<span class="sk-faces">${owners.map((c) => mono(c, "xs")).join("")}</span><small>${esc(owners.length ? t("Usada por {d}", { d: owners.map((c) => c.name).join(", ") }) : t("Ainda sem departamento"))}</small>`
       : `<small>${esc(k.where || "")}</small><button type="button" class="btn sk-take" data-take="${esc(k.name)}">${icon("plus")}${esc(t("Trazer"))}</button>`;
     const tag = by === "tema" ? "" : `<span class="sk-tag">${themeIcon(k.tema)}${esc(t(k.tema || "Outras"))}</span>`;
     return `<div class="sk-card" data-skill="${esc(k.name)}" role="button" tabindex="0">${tag}<b>${esc(k.name)}</b><p>${esc(k.about || t("Sem descrição."))}</p><footer>${foot}</footer></div>`;
@@ -93,9 +89,9 @@
     if (!shown.length) return `<p class="sk-none">${esc(t("Nenhuma skill da biblioteca com «{q}».", { q }))}</p>`;
     if (by === "tema") return byTheme(shown).map((g) => themeLane(g, "lib")).join("") + (q ? "" : emptyThemes(all));
     const lanes = [...cast.map((c) => ({ c, list: shown.filter((k) => (k.crew || [])[0] === c.id) })), { c: null, list: shown.filter((k) => !castOf((k.crew || [])[0])) }];
-    return lanes.filter((l) => l.list.length).map(({ c, list }) => `<section class="sk-lane" style="--p:${c ? c.color : "#8b95a1"}">
-        <header>${c && c.figure ? `<img class="cr-px sk-fig" src="${c.figure}" alt="">` : `<span class="sk-fig none">${icon("layers")}</span>`}
-          <div><b>${esc(c ? c.name : t("Sem agente"))}</b><span>${esc(c ? t(c.what) : t("Ninguém a domina ainda: abre-a e escolhe quem"))}</span></div>
+    return lanes.filter((l) => l.list.length).map(({ c, list }) => `<section class="sk-lane sk-dept">
+        <header>${c ? mono(c, "md") : `<span class="sk-fig none">${icon("layers")}</span>`}
+          <div><b>${c ? `<small>${c.n}</small>` : ""}${esc(c ? c.name : t("Sem departamento"))}</b><span class="sk-para">${esc(c ? t(c.what) : t("Ninguém a usa ainda: abre-a e escolhe o departamento."))}</span></div>
           <em>${esc(t(list.length === 1 ? "1 skill" : "{n} skills", { n: list.length }))}</em></header>
         <div class="sk-grid">${list.map(card).join("")}</div></section>`).join("");
   }
@@ -114,14 +110,15 @@
   function draw() {
     if (!$("sk-body")) return;
     paint($("sk-seg"), HALVES.map(([id, label]) => `<button type="button" data-half="${id}" class="${tab === id ? "on" : ""}">${esc(t(label))}<b>${S ? of(id).length : ""}</b></button>`).join(""));
-    paint($("sk-by"), [["tema", "Tema"], ["dono", tab === "lib" ? "Agente" : "Origem"]].map(([id, label]) => `<button type="button" data-by="${id}" class="${by === id ? "on" : ""}">${esc(t(label))}</button>`).join(""));
-    paint($("sk-sum"), S ? esc(summary()) : "");
+    paint($("sk-by"), [["tema", "Tema"], ["dono", tab === "lib" ? "Departamento" : "Origem"]].map(([id, label]) => `<button type="button" data-by="${id}" class="${by === id ? "on" : ""}">${esc(t(label))}</button>`).join(""));
+    const sum = document.querySelector(".ph p");
+    if (S && sum) sum.textContent = summary();
     paint($("sk-nav"), S ? themeNav(current()) : "");
     paint($("sk-body"), !S ? ui.skeleton(5) : tab === "lib" ? libPane() : morePane(tab));
   }
   function summary() {
     const lib = of("lib"), themes = new Set(lib.map((k) => k.tema));
-    return lib.length ? t("{n} skills na biblioteca, arrumadas em {th} temas. Cada skill que entra vai sozinha para o tema dela, e os agentes lêem-nas antes de trabalhar.", { n: lib.length, th: themes.size })
+    return lib.length ? t("{n} skills na biblioteca, em {th} temas. Uma skill é um método escrito: o departamento que a usa lê-a antes de fazer esse trabalho.", { n: lib.length, th: themes.size })
       : t("Ainda nenhuma skill na biblioteca.");
   }
   function jump(name) {
@@ -149,7 +146,7 @@
       <header><div><small>${esc(`${t(k.tema || "Outras")} · ${k.kind === "lib" ? t("Biblioteca da Empresa AMG") : k.where || ""}`)}</small><h2>${esc(k.name)}</h2>${k.about ? `<p>${esc(k.about)}</p>` : ""}</div>
         <button type="button" class="sk-x" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
       ${k.kind === "lib" ? `<section><small class="sk-k">${esc(t("Tema"))}</small><div class="sk-themes" id="sk-themes">${(S.temas || []).map((th) => `<button type="button" data-tema="${esc(th.name)}" class="${(k.tema || "Outras") === th.name ? "on" : ""}" title="${esc(t(th.para))}">${themeIcon(th.name)}${esc(t(th.name))}</button>`).join("")}</div></section>` : ""}
-      ${k.kind === "lib" ? `<section><small class="sk-k">${esc(t("Quem a domina"))}</small><div class="sk-who" id="sk-who">${cast.map((c) => `<button type="button" data-own="${c.id}" class="${owners.has(c.id) ? "on" : ""}" style="--p:${c.color}">${face(c)}<b>${esc(c.name)}</b><span>${esc(t(c.what))}</span></button>`).join("")}</div></section>` : ""}
+      ${k.kind === "lib" ? `<section><small class="sk-k">${esc(t("Que departamentos a usam"))}</small><div class="sk-who" id="sk-who">${cast.map((c) => `<button type="button" data-own="${c.id}" class="${owners.has(c.id) ? "on" : ""}" aria-pressed="${owners.has(c.id)}">${mono(c, "sm")}<b>${esc(c.name)}</b><span>${c.n}</span></button>`).join("")}</div></section>` : ""}
       <section><small class="sk-k">${esc(t("O que diz"))}</small><div class="sk-md">${md(body)}</div></section>
       ${(doc.files || []).length > 1 ? `<section><small class="sk-k">${esc(t("Ficheiros ({n})", { n: doc.files.length }))}</small><p class="sk-files">${doc.files.map((f) => `<span>${esc(f)}</span>`).join("")}</p></section>` : ""}
       <footer>${k.kind === "lib" ? `<button type="button" class="btn sk-drop" data-drop="${esc(k.name)}">${icon("trash")}${esc(t("Tirar da biblioteca"))}</button>`
@@ -249,10 +246,9 @@
   }
 
   HUB_VIEWS.skills = async function () {
-    await Promise.all([lazyFile("hub/crew.js"), lazyFile("hub/crew-people.js")]);
+    await Promise.all([lazyFile("hub/crew.js"), lazyFile("hub/crew.css").catch(() => {})]);
     faces();
-    page(`${ui.head("Empresa AMG", t("Skills"), "", `<form class="sk-get" id="sk-get" autocomplete="off"><label>${icon("link")}<input id="sk-url" placeholder="${esc(t("Cola um link do GitHub com skills"))}"></label><button class="btn primary" id="sk-go">${esc(t("Trazer"))}</button></form>`)}
-      <p class="sk-sum" id="sk-sum"></p>
+    page(`${ui.head("", t("Skills"), t("Os métodos escritos que os departamentos leem antes de trabalhar, arrumados por tema."), `<form class="sk-get" id="sk-get" autocomplete="off"><label>${icon("link")}<input id="sk-url" placeholder="${esc(t("Cola um link do GitHub com skills"))}"></label><button class="btn primary" id="sk-go">${esc(t("Trazer"))}</button></form>`)}
       <div class="sk-bar"><nav class="sk-seg" id="sk-seg"></nav><nav class="sk-seg sk-by" id="sk-by" aria-label="${esc(t("Arrumar por"))}"></nav><label class="sk-q">${icon("search")}<input id="sk-q" type="search" placeholder="${esc(t("Procurar skills"))}" value="${esc(q)}"></label></div>
       <nav class="sk-nav" id="sk-nav"></nav>
       <div class="sk-body" id="sk-body"></div>`);
@@ -262,5 +258,7 @@
     $("sk-get").onsubmit = fromGithub;
     draw();
     await load();
+    const asked = sessionStorage.getItem("sk.open");   // a department's sheet sent us to one of its skills
+    if (asked) { sessionStorage.removeItem("sk.open"); openSkill(asked); }
   };
 })();

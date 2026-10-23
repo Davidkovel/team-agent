@@ -1,26 +1,23 @@
-// O Escritório: the company's command centre, the page #/escritorio. The cave itself is the page Empresa AMG (crew.js).
-// Since 14 Oct a computer has two views of it (Marco: "bué confuso, fica bué grande... quero saber quem está a trabalhar
-// com quem, o Kovel com o Batman e a prompt"): Equipa, the default, a column per partner with each job as a card that
-// says which agent works with them, on what, what was asked and what is being done now; and Câmaras, the wall below.
-// Asked for by Marco on 8-9 Oct: "o escritório tem de ser uma central de comando mesmo crazy", on one screen and with no
-// long scroll, clean like an app other companies would use. Rearranged on 9 Oct, when he found it a mess and the cameras
-// squeezed: on a computer the wall of cameras takes most of the screen, and whoever is working gets a large monitor with
-// the goal and what is being done written over the picture (the idle ones small and dim in a row under them). On the
-// right, in a few lines each, the real people (Kovel, Marco, David): where they are, how much Claude they have left, what
-// waits for them; under them the missions: send one, the queue, what got done today.
-// It draws what crew.js hands it (host.state()) and only touches the page where what it shows has changed (paint). The
-// cameras are canvases the cave's engine films into (cams(), crew.js camFrame), like security cameras.
-// On the phone the same page is an app with four tabs (Agora · Câmaras · Sócios · Missões), one partner at a time, and an
-// agent's card comes up from the bottom as a sheet (crew-board.css, the last part).
+// O Escritório: the company's command centre, the page #/escritorio (crew.js is the engine and Empresa AMG).
+// What Marco asked of it over time: one screen, clean like an app other companies would use (8-9 Oct); «quero saber quem
+// está a trabalhar com quem, o Kovel com o Batman e a prompt» (14 Oct); and on 23 Oct «acaba com a criançada toda»: the
+// pixel cameras are gone. On a computer:
+// - the head (ui.head) with the day in one sentence, and the two views: Equipa and Departamentos;
+// - a strip with the ten departments, the ones at work lit and wider, with what they are doing;
+// - Equipa: a column per partner, each job a card that says which department works with them, on what, what was asked in
+//   full and what is being done now, with its tokens and how fast they grow;
+// - Departamentos: the ten departments as a live grid, the ones at work first;
+// - on the right the missions: send one, the queue, what got done today.
+// It draws what crew.js hands it (host.state()) and only touches the page where what it shows has changed (paint).
+// Nothing animates. On the phone (and in a narrow window) the same page is an app with four tabs (Agora · Departamentos ·
+// Sócios · Missões), one partner at a time; a department's sheet comes up from the bottom (crew.js openDept).
 window.CrewBoard = (function () {
-  let host = null, root = null, tip = null, tipFor = null, sheet = null;
+  let host = null, root = null;
   const open = new Set(), more = new Set();   // what the person opened: a request, a result, the rest of a list
-  let mtab = sessionStorage.getItem("cb.mtab") || "";   // the missions' half shown on a computer (the queue or what got done); until chosen, the queue when it has something
-  let wallSize = null;   // re-splits the wall when its room changes (the window, the sidebar folded)
-  let view = sessionStorage.getItem("cb.view") === "cams" ? "cams" : "team";   // a computer's view: the partners' columns or the wall of cameras
-  const TABS = [["now", "Agora"], ["cams", "Câmaras"], ["people", "Sócios"], ["queue", "Missões"]];
+  let mtab = sessionStorage.getItem("cb.mtab") || "";   // the missions' half shown on a computer; until chosen, the queue when it has something
+  let view = sessionStorage.getItem("cb.view") === "depts" ? "depts" : "team";   // a computer's view: the partners' columns or the departments
+  const TABS = [["now", "Agora"], ["depts", "Departamentos"], ["people", "Sócios"], ["queue", "Missões"]];
   const SHOW_DONE = 8, DAY = 24 * 3600e3;
-  const GREEN = "#4dff9a", AMBER = "#ffbf3c", RED = "#ff2d4f", GREY = "#8b95a1", COLD = "#dfe8f2";
 
   const ago = (iso) => (iso ? fmt.ago(iso) : "");
   const model = (m) => { const x = String(m || "").match(/opus|sonnet|haiku|fable/i); return x ? x[0][0].toUpperCase() + x[0].slice(1).toLowerCase() : ""; };
@@ -57,43 +54,18 @@ window.CrewBoard = (function () {
   // (Claude Code's own title of the conversation never follows a change of subject); then that title, then the prompt.
   const goalOf = (s) => s.topic || s.title || sentence(asked(s)) || t("Claude em {p}", { p: s.project });
   const jobGoal = (j) => j.goal || sentence(j.title, 90) || j.title || "";
-  const inUse = (j) => ({ skills: j.skills || [], subs: [...(j.subagents || []).filter((x) => x.state === "working").map((x) => x.kind), ...(j.type === "sub" ? [j.kind] : [])] });
-
-  // what each agent does, in a few words, and the sector a skill belongs to (by its name)
-  const CAN = {
-    batman: ["corrigir erros", "implementar", "scripts e automações", "backend e API"],
-    lucius: ["explicar o código", "encontrar onde está cada coisa", "ferramentas da equipa"],
-    riddler: ["pesquisar na web", "preços e concorrência", "fornecedores", "confirmar factos"],
-    catwoman: ["páginas e ecrãs", "cores e estilo", "logótipos e ícones", "HTML e CSS"],
-    joker: ["anúncios", "posts e legendas", "campanhas"],
-    alfred: ["rever antes do push", "riscos e erros", "o que falta"],
-    robin: ["correr os testes", "casos difíceis", "dizer o que falhou"],
-    gordon: ["organizar e planear", "pontas soltas", "reuniões da equipa"],
-    penguin: ["notícias e macro", "reação às notícias", "calendário económico", "COT e juros"],
-    twoface: ["leitura SMC do gráfico", "setups e zonas", "diário de trades"],
-  };
-  const SECTOR_SKILLS = [
-    ["catwoman", /design|front-?end|figma|canva|artifact|dataviz|css|adobe|motion|reel|higgsfield|image|photo|video|font|slides|pptx/i],
-    ["riddler", /research|pesquis|search|explor/i],
-    ["robin", /test|tdd|verif|debug/i],
-    ["alfred", /review|revis|security|simplify|audit/i],
-    ["joker", /marketing|social|campaign|activecampaign|shopify|content|seo|email|deliverab|audience|deals|reporting|digest/i],
-    ["gordon", /plan|brainstorm|schedule|loop|dispatch|executing|finishing|worktree|memory|morning|xlsx|pdf|notion|calendar|docs?$/i],
-    ["lucius", /claude-api|plugin|mcp|skill|keybind|permission|browser|chrome|computer|config|init|setup/i],
-  ];
-  const sectorOfSkill = (name) => (SECTOR_SKILLS.find(([, re]) => re.test(name)) || ["batman"])[0];
   // The automatic agent's heartbeat sets these; ONLINE is only the widget or a page open. Another PC's agent is not seen
   // from here (presence does not travel by sync), so of the others nothing is said unless their agent shows up.
   const AGENT_ON = ["WORKING", "IDLE", "WAITING", "PAUSED", "ERROR"];
   const agentOn = (m) => !!m && AGENT_ON.includes(m.status);
-  const STATE_WORD = { idle: "Livre", work: "A trabalhar", start: "A começar", go: "A caminho do posto", wait: "À espera", help: "Precisa de ajuda",
-    pause: "Em pausa", done: "Acabou agora", fail: "Falhou" };
+  const lit = (a) => { const tone = host.tone(host.stateOf(a)); return a.job ? (tone === "ok" ? "on" : tone) : ""; };
+  const KIND = { task: "Tarefa do Hub", claude: "Janela do Claude Code", sub: "Subagente de um Claude", etsy: "Fábrica Etsy" };
 
   // ---------------------------------------------------------------- what there is to say, partner by partner
   function build(s) {
     const now = Date.now(), mine = host.partnerOf(me.display_name).id;
-    const onJob = (key) => s.agents.find((a) => a.job && a.mode !== "done" && a.job.key === key) || null;
-    const crew = (id) => s.agents.find((a) => a.id === id) || null;
+    const onJob = (key) => s.agents.find((a) => a.job && a.job.key === key) || null;
+    const dept = (id) => s.agents.find((a) => a.id === id) || null;
     return host.partners.map(([id, name, color]) => {
       const m = (s.team || []).find((u) => host.partnerOf(u.display_name).id === id) || null;
       const p = { id, name, color, me: id === mine, m, limits: m && s.limits ? s.limits[m.user] || null : null, working: [], needs: [], done: [], queue: [], idle: 0 };
@@ -107,7 +79,7 @@ window.CrewBoard = (function () {
       }
       for (const x of s.tasks) {
         if (x.trashed_at || host.partnerOf(nameOf(x.assignee)).id !== id) continue;
-        const it = { kind: "task", id: "t" + x.id, x, agent: onJob("t" + x.id) || crew(x.crew), goal: x.title, at: x.started_at || x.created_at, p };
+        const it = { kind: "task", id: "t" + x.id, x, agent: onJob("t" + x.id) || dept(x.crew), goal: x.title, at: x.started_at || x.created_at, p };
         if (x.status === "IN_PROGRESS") p.working.push(it);
         else if (["WAITING_APPROVAL", "NEEDS_HELP", "PAUSED"].includes(x.status)) p.needs.push(it);
         else if (x.status === "ASSIGNED" || (x.status === "TODO" && x.crew)) p.queue.push({ ...it, held: x.status === "TODO", at: x.created_at });
@@ -123,23 +95,23 @@ window.CrewBoard = (function () {
         if (sameDay(x.updated_at)) p.tokens += n;
         if (x.state === "working") p.burn += r;
       }
-      p.queue.sort((a, b) => (a.held ? 1 : 0) - (b.held ? 1 : 0) || String(a.at).localeCompare(String(b.at)));   // those with the agent first, oldest first
+      p.queue.sort((a, b) => (a.held ? 1 : 0) - (b.held ? 1 : 0) || String(a.at).localeCompare(String(b.at)));   // those already given first, oldest first
       return p;
     });
   }
 
   // ---------------------------------------------------------------- pieces
-  // who works with the partner on this job, at the top of its card: the agent (a click opens their post) or, for a Claude
-  // window no agent mirrors, the window itself; then the state and how long it has been going
-  function pair(it, word, c) {
-    const a = it.agent, when = `<em class="cb-st" style="--c:${c}">${esc(word)}</em><time>${esc(ago(it.at))}</time>`;
-    if (!a) return `<div class="cb-pair"><span class="cb-pair-i">${icon("bot")}</span><div><b>Claude</b><span>${esc(t(it.kind === "task" ? "agente automático" : "janela do Claude Code"))}</span></div>${when}</div>`;
-    return `<div class="cb-pair"><button type="button" class="cb-pair-a" data-agent="${a.i}" title="${esc(t("Abrir o posto de {n}", { n: a.name }))}"><img class="cr-px" src="${a.portrait}" alt=""></button>
-      <div><b>${esc(a.name)}</b><span>${esc(t(a.what))}</span></div>${when}</div>`;
+  // which department works with the partner on this job, at the top of its card (a click opens its sheet), or, for a
+  // Claude window no department stands for, the window itself; then the state and how long it has been going
+  function pair(it, word, tone) {
+    const a = it.agent, when = `${word ? `<em class="cb-st ${tone}"><i></i>${esc(word)}</em>` : ""}<time>${esc(ago(it.at))}</time>`;
+    const kind = t(it.kind === "task" ? KIND.task : it.agent && it.agent.job && it.agent.job.type === "sub" ? KIND.sub : KIND.claude);
+    if (!a) return `<div class="cb-pair">${host.mono(null, "sm")}<div><b>Claude</b><span>${esc(kind)}</span></div>${when}</div>`;
+    return `<div class="cb-pair"><button type="button" class="cb-pair-a" data-dept="${a.id}" title="${esc(t("Abrir {n}", { n: a.name }))}">${host.mono(a, `sm ${lit(a) || (it.kind === "task" ? "" : "")}`)}</button>
+      <div><b>${esc(a.name)}</b><span>${esc(kind)}</span></div>${when}</div>`;
   }
-  const camLink = (it) => (it.agent ? `<button type="button" class="cb-link" data-spot="${it.agent.i}">${esc(t("Câmara"))}${icon("chevron")}</button>` : "");
   function chips(skills, subs) {
-    const all = [...(skills || []).map((k) => `<span class="cb-chip" title="/${esc(k)}">/${esc(skill(k))}</span>`), ...(subs || []).map((k) => `<span class="cb-chip sub">${esc(k)}</span>`)];
+    const all = [...(skills || []).map((k) => `<span class="cb-chip" title="/${esc(k)}">${esc(skill(k))}</span>`), ...(subs || []).map((k) => `<span class="cb-chip is-sub">${esc(k)}</span>`)];
     return all.length ? `<div class="cb-chips">${all.join("")}</div>` : "";
   }
   // The request behind a goal, in full sentences (Marco, 14 Oct: "nem completas umas frases"): its first lines on the
@@ -152,37 +124,37 @@ window.CrewBoard = (function () {
     const isOpen = open.has(it.id);
     return `<button type="button" class="cb-ask ${isOpen ? "open" : ""}" data-toggle="${it.id}" title="${esc(t(isOpen ? "Mostrar menos" : "Ver o pedido inteiro"))}"><small>${esc(t("Pediu"))}</small><span>${esc(whole)}</span></button>`;
   }
+  function spent(it) {
+    const n = tokensOf(it.s), r = burn(it.id, n);
+    return n ? `<span class="cb-burn ${r ? "on" : ""}" title="${esc(t("Tokens desta janela do Claude e dos subagentes dela"))}">${esc(tok(n))}${r ? `<i>${esc(perMin(r))}</i>` : ""}</span>` : "";
+  }
   function workCard(it) {
     if (it.kind === "task") {
       const x = it.x;
-      return `<article class="cb-card work">${pair(it, t("Missão"), GREEN)}<h4>${esc(x.title)}</h4>
-        ${x.current_action ? `<p class="cb-doing">${esc(x.current_action)}</p>` : ""}
+      return `<article class="cb-card is-work">${pair(it, "", "ok")}<h4>${esc(x.title)}</h4>
+        ${x.current_action ? `<p class="cb-doing"><small>${esc(t("Agora"))}</small>${esc(x.current_action)}</p>` : ""}
         ${x.progress > 0 ? `<span class="cb-bar"><i style="width:${Math.min(100, x.progress)}%"></i></span>` : ""}
-        <div class="cb-foot"><small>${esc(x.progress > 0 ? t("{n}% feito", { n: Math.min(100, x.progress) }) : "")}</small>${camLink(it)}<button type="button" class="cb-link" data-href="#task-${x.id}">${esc(t("Abrir"))}${icon("chevron")}</button></div></article>`;
+        <div class="cb-foot"><small>${esc(x.progress > 0 ? t("{n}% feito", { n: Math.min(100, x.progress) }) : "")}</small><button type="button" class="cb-link" data-href="#task-${x.id}">${esc(t("Abrir"))}${icon("chevron")}</button></div></article>`;
     }
     const s = it.s, subs = (s.agents || []).filter((x) => x.state === "working").map((x) => x.kind);
-    return `<article class="cb-card work">${pair(it, t("A trabalhar"), GREEN)}<h4>${esc(it.goal)}</h4>
-      ${askLine(it)}${s.action ? `<p class="cb-doing">${esc(s.action)}</p>` : ""}${chips(s.skills, subs)}
-      <div class="cb-foot"><small>${esc([s.project, model(s.model)].filter(Boolean).join(" · "))}</small>${spent(it)}${camLink(it)}</div></article>`;
-  }
-  function spent(it) {
-    const n = tokensOf(it.s), r = burn(it.id, n);
-    return n ? `<span class="cb-burn ${r ? "on" : ""}" title="${esc(t("Tokens desta janela do Claude e dos subagentes dela"))}">${icon("bolt")}${esc(tok(n))}${r ? `<i>${esc(perMin(r))}</i>` : ""}</span>` : "";
+    return `<article class="cb-card is-work">${pair(it, "", "ok")}<h4>${esc(it.goal)}</h4>
+      ${askLine(it)}${s.action ? `<p class="cb-doing"><small>${esc(t("Agora"))}</small>${esc(s.action)}</p>` : ""}${chips(s.skills, subs)}
+      <div class="cb-foot"><small>${esc([s.project, model(s.model)].filter(Boolean).join(" · "))}</small>${spent(it)}</div></article>`;
   }
   function needCard(it, p) {
     if (it.kind === "task") {
-      const x = it.x, c = x.status === "NEEDS_HELP" ? RED : x.status === "PAUSED" ? GREY : AMBER;
+      const x = it.x, tone = x.status === "NEEDS_HELP" ? "bad" : x.status === "PAUSED" ? "idle" : "warn";
       const why = x.status === "WAITING_APPROVAL" ? t("À espera de aprovação") : x.status === "NEEDS_HELP" ? t("Precisa de ajuda") : t("Em pausa");
-      return `<article class="cb-card need" style="--c:${c}">${pair(it, why, c)}
+      return `<article class="cb-card is-need tone-${tone}">${pair(it, why, tone)}
         <h4>${esc(x.title)}</h4>${x.blocked_reason ? `<p class="cb-why">${esc(x.blocked_reason)}</p>` : ""}
         <div class="cb-foot"><small></small><button type="button" class="cb-link" data-href="${x.status === "WAITING_APPROVAL" ? "#/aprovacoes" : `#task-${x.id}`}">${esc(t(x.status === "WAITING_APPROVAL" ? "Aprovar" : "Abrir"))}${icon("chevron")}</button></div></article>`;
     }
     const s = it.s;
     const why = s.wait === "permission" ? (p.me ? t("Precisa da tua autorização para continuar") : t("Precisa da autorização do {n} para continuar", { n: p.name }))
       : (p.me ? t("Fez-te uma pergunta e espera a resposta") : t("Fez uma pergunta ao {n} e espera a resposta", { n: p.name }));
-    return `<article class="cb-card need" style="--c:${AMBER}">${pair(it, t(s.wait === "permission" ? "Autorização" : "Pergunta"), AMBER)}
+    return `<article class="cb-card is-need tone-warn">${pair(it, t(s.wait === "permission" ? "Autorização" : "Pergunta"), "warn")}
       <h4>${esc(it.goal)}</h4><p class="cb-why">${esc(why)}</p>${askLine(it)}
-      <div class="cb-foot"><small>${esc([s.project, model(s.model)].filter(Boolean).join(" · "))}</small>${camLink(it)}</div></article>`;
+      <div class="cb-foot"><small>${esc([s.project, model(s.model)].filter(Boolean).join(" · "))}</small></div></article>`;
   }
   function doneRow(it) {
     const isOpen = open.has(it.id);
@@ -190,20 +162,20 @@ window.CrewBoard = (function () {
     if (it.kind === "task") {
       const x = it.x;
       text = x.result || t(it.bad ? "Parou sem acabar." : "Concluída.");
-      if (isOpen) extra = `<span class="cb-x">${it.agent ? `${esc(it.agent.name)} · ${esc(t(it.agent.what))} · ` : ""}<u data-href="#task-${x.id}">${esc(t("abrir a tarefa"))}</u></span>`;
+      if (isOpen) extra = `<span class="cb-x">${it.agent ? `${esc(it.agent.name)} · ` : ""}<u data-href="#task-${x.id}">${esc(t("abrir a tarefa"))}</u></span>`;
     } else {
       const s = it.s, whole = s.request || asked(s);
       text = s.result || t(it.quiet ? "Parou sem dizer que acabou." : s.state === "ended" ? "Janela fechada." : "Acabou.");
       if (isOpen) extra = `${whole ? `<span class="cb-x"><i>${esc(t("Pediu"))}</i> ${esc(whole)}</span>` : ""}<span class="cb-x">${esc([s.project, model(s.model), tok(s.tokens),
-        (s.agents || []).length ? t((s.agents || []).length === 1 ? "1 subagente" : "{n} subagentes", { n: s.agents.length }) : "", ...(s.skills || []).map((k) => "/" + skill(k))].filter(Boolean).join(" · "))}</span>`;
+        (s.agents || []).length ? t((s.agents || []).length === 1 ? "1 subagente" : "{n} subagentes", { n: s.agents.length }) : "", ...(s.skills || []).map(skill)].filter(Boolean).join(" · "))}</span>`;
     }
-    return `<button type="button" class="cb-done ${isOpen ? "open" : ""} ${it.bad ? "bad" : ""}" data-toggle="${it.id}" style="--p:${it.p.color}"><i class="cb-tick">${icon(it.bad ? "x" : "tick")}</i>
-      <div><b>${esc(it.goal)}</b><p>${esc(text)}</p>${extra}</div><span class="cb-done-r"><em><i></i>${esc(it.p.name)}</em><time>${esc(ago(it.at))}</time>${carryOn(it)}</span></button>`;
+    return `<div class="cb-done ${isOpen ? "open" : ""} ${it.bad ? "bad" : ""}" data-toggle="${it.id}" role="button" tabindex="0"><i class="cb-tick">${icon(it.bad ? "x" : "tick")}</i>
+      <div><b>${esc(it.goal)}</b><p>${esc(text)}</p>${extra}</div><span class="cb-done-r"><em>${esc(it.p.name)}</em><time>${esc(ago(it.at))}</time>${carryOn(it)}</span></div>`;
   }
   // «Continuar» (Marco, 14 Oct: «quando digo continuar a fazer o que estavas a fazer, tu já devias ir ver no widget aquilo
   // que foi feito... uma opção de prompt»): on your own windows, a prompt for a new Claude window that points it at
   // scripts/continuar.py, which reads that window's transcript on this PC and says what was asked, done and left halfway
-  const carryOn = (it) => (it.kind === "claude" && it.p.me && it.s.key ? `<u class="cb-cont" data-continue="${it.s.id}" title="${esc(t("Copia um prompt para uma janela nova do Claude continuar este trabalho sozinha"))}">${icon("play")}${esc(t("Continuar"))}</u>` : "");
+  const carryOn = (it) => (it.kind === "claude" && it.p.me && it.s.key ? `<button type="button" class="cb-cont" data-continue="${it.s.id}" title="${esc(t("Copia um prompt para uma janela nova do Claude continuar este trabalho sozinha"))}">${icon("play")}${esc(t("Continuar"))}</button>` : "");
   function carryPrompt(s) {
     const when = s.updated_at ? new Date(s.updated_at).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
     return `Continua o trabalho da janela do Claude «${goalOf(s)}» (${[s.project, when].filter(Boolean).join(", ")}). `
@@ -223,47 +195,44 @@ window.CrewBoard = (function () {
       : !on && p.me ? t("À espera do teu agente automático, que está desligado")
       : !on ? t("À espera do agente automático do {n}", { n: p.name })
       : x.current_action ? x.current_action : i ? t("À espera de vez") : t("É a seguinte");
-    return `<div class="cb-q ${it.held ? "held" : ""}"><span class="cb-pos">${i + 1}</span>
-      <div><b data-href="#task-${x.id}">${esc(x.title)}</b><small>${a ? `${esc(a.name)} · ${esc(t(a.what))} — ` : ""}${esc(why)}</small></div>
-      ${it.held ? `<button type="button" class="btn cb-go" data-release="${x.id}">${esc(t("Arrancar"))}</button>` : ""}</div>`;
+    return `<div class="cb-q ${it.held ? "held" : ""}"><span class="cb-pos">${i + 1}</span>${a ? host.mono(a, "xs") : ""}
+      <div><b data-href="#task-${x.id}">${esc(x.title)}</b><small>${a ? `${esc(a.name)} · ` : ""}${esc(why)}</small></div>
+      ${it.held ? `<button type="button" class="btn sm" data-release="${x.id}">${esc(t("Arrancar"))}</button>` : ""}</div>`;
   }
-  // a partner: who, where they are and how much Claude they have left (the top of both their card and their row)
-  function personHead(p, short) {
+  // a partner: who, where they are and how much Claude they have left (the top of their column)
+  function personHead(p) {
     const m = p.m || {}, on = m.status && m.status !== "OFFLINE", where = m.where || [];
     const place = !on ? (m.last_seen ? t("offline · visto {q}", { q: ago(m.last_seen) }) : t("offline"))
       : where.includes("phone") && !where.includes("pc") ? t("online no telemóvel") : t("online no computador");
-    const bar = (label, pct) => (pct == null ? "" : `<div class="cx-lim"><span>${esc(t(label))}</span><i><b style="width:${Math.min(100, pct)}%;--c:${pct >= 90 ? RED : pct >= 70 ? AMBER : COLD}"></b></i><em>${Math.round(pct)}%</em></div>`);
-    const lim = p.limits ? bar(short ? "5 h" : "Claude 5 h", p.limits.five) + bar(short ? "Sem." : "Semana", p.limits.week) : "";
+    const bar = (label, pct) => (pct == null ? "" : `<div class="cx-lim"><span>${esc(t(label))}</span><i><b class="${pct >= 90 ? "bad" : pct >= 70 ? "warn" : ""}" style="width:${Math.min(100, pct)}%"></b></i><em>${Math.round(pct)}%</em></div>`);
+    const lim = p.limits ? bar("Claude 5 h", p.limits.five) + bar("Semana", p.limits.week) : "";
     const n = p.working.length, head = n ? t(n === 1 ? "1 a trabalhar" : "{n} a trabalhar", { n }) : p.needs.length ? t(p.me ? "à tua espera" : "à espera dele") : t("nada a correr");
     const spend = p.tokens ? `<div class="cx-spend ${p.burn ? "on" : ""}"><span>${esc(t("Hoje"))}</span><b>${esc(tok(p.tokens))}</b>${p.burn ? `<em>${esc(t("a gastar {r}", { r: perMin(p.burn) }))}</em>` : ""}</div>` : "";
     const who = `<span class="cx-face">${ui.avatar(p.name)}<i class="${on ? "on" : ""}"></i></span><div><b>${esc(p.name)}${p.me ? ` <small>${esc(t("tu"))}</small>` : ""}</b><span>${esc(place)}</span></div>`;
-    // a row: the Claude left in the corner of the line, since the lines under it already say what is running
-    if (short) return `<header>${who}${lim ? `<div class="cx-lims">${lim}</div>` : ""}</header>`;
-    return `<header>${who}<em>${esc(head)}</em></header>${lim || spend ? `<div class="cx-lims">${lim}${spend}</div>` : ""}`;
+    return `<header>${who}${n || p.needs.length ? `<em class="${n ? "on" : ""}">${esc(head)}</em>` : ""}</header>${lim || spend ? `<div class="cx-lims">${lim}${spend}</div>` : ""}`;
   }
   const lastLine = (p) => `<p class="cb-quiet">${p.done[0] ? esc(t("Acabou «{g}» {q}.", { g: p.done[0].goal, q: ago(p.done[0].at) })) : esc(t("Nada a correr agora."))}</p>`;
-  // the phone: a partner's whole card, what their Claudes are doing and what waits for them
   function personCard(p) {
     const live = p.working.map(workCard).join("") + p.needs.map((it) => needCard(it, p)).join("");
     const facts = [p.done.length ? t(p.done.length === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: p.done.length }) : "",
       p.queue.length ? t(p.queue.length === 1 ? "1 na fila" : "{n} na fila", { n: p.queue.length }) : "",
       agentOn(p.m) ? t("agente automático ligado") : p.me ? t("agente automático desligado") : ""].filter(Boolean);
-    return `${personHead(p)}${live || lastLine(p)}
-      ${p.idle ? `<p class="cb-idle">${esc(t(p.idle === 1 ? "1 janela do Claude aberta, sem pedido" : "{n} janelas do Claude abertas, sem pedido", { n: p.idle }))}</p>` : ""}
-      <footer>${facts.map((f) => `<span>${esc(f)}</span>`).join("")}</footer>`;
+    return `${personHead(p)}<div class="cb-col-body">${live || lastLine(p)}
+      ${p.idle ? `<p class="cb-idle">${esc(t(p.idle === 1 ? "1 janela do Claude aberta, sem pedido" : "{n} janelas do Claude abertas, sem pedido", { n: p.idle }))}</p>` : ""}</div>
+      ${facts.length ? `<footer>${facts.map((f) => `<span>${esc(f)}</span>`).join("")}</footer>` : ""}`;
   }
-  // the company in one sentence, and four numbers
+  // the company in one sentence
   function summary(people) {
     const n = (k) => people.reduce((sum, p) => sum + p[k].length, 0), working = people.filter((p) => p.working.length).map((p) => p.name);
-    const lead = working.length ? t(n("working") === 1 ? "1 agente a trabalhar para {a}" : "{n} agentes a trabalhar para {a}", { n: n("working"), a: (working.length === 1 ? "o " : "") + working.join(working.length === 2 ? " e o " : ", ") })
+    const lead = working.length ? t(n("working") === 1 ? "1 trabalho a correr para {a}" : "{n} trabalhos a correr para {a}", { n: n("working"), a: (working.length === 1 ? "o " : "") + working.join(working.length === 2 ? " e o " : ", ") })
       : t("Ninguém a trabalhar agora");
     return [lead, n("needs") ? t(n("needs") === 1 ? "1 à espera de alguém" : "{n} à espera de alguém", { n: n("needs") }) : "",
-      n("queue") ? t("{n} na fila", { n: n("queue") }) : "", t(n("done") === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: n("done") })].filter(Boolean).join(" · ");
+      n("queue") ? t("{n} na fila", { n: n("queue") }) : "", t(n("done") === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: n("done") })].filter(Boolean).join(" · ") + ".";
   }
   function nums(people) {
     const n = (k) => people.reduce((sum, p) => sum + p[k].length, 0);
-    const tile = (num, label, c) => `<div class="cb-num ${num ? "lit" : ""}" style="--c:${c}"><b>${num}</b><span>${esc(t(label))}</span></div>`;
-    return tile(n("working"), "a trabalhar", GREEN) + tile(n("needs"), "à espera", AMBER) + tile(n("queue"), "na fila", COLD) + tile(n("done"), "feitas hoje", GREY);
+    const tile = (num, label, tone) => `<div class="cb-num ${num ? `tone-${tone}` : ""}"><b>${num}</b><span>${esc(t(label))}</span></div>`;
+    return tile(n("working"), "a trabalhar", "ok") + tile(n("needs"), "à espera", "warn") + tile(n("queue"), "na fila", "lit") + tile(n("done"), "feitas hoje", "lit");
   }
   // the day in one line per partner (the phone's first tab)
   function sayList(people) {
@@ -271,16 +240,16 @@ window.CrewBoard = (function () {
       let line;
       if (p.working.length) {
         const w = p.working[0], a = w.agent;
-        line = `${esc(t("está com"))} <q>${esc(w.goal)}</q>${a ? ` <em>${esc(a.name)} · ${esc(t(a.what))}</em>` : ""}${p.working.length > 1 ? ` ${esc(t("e mais {n}", { n: p.working.length - 1 }))}` : ""}`;
+        line = `${esc(t("está com"))} <q>${esc(w.goal)}</q>${a ? ` <em>${esc(a.name)}</em>` : ""}${p.working.length > 1 ? ` ${esc(t("e mais {n}", { n: p.working.length - 1 }))}` : ""}`;
       } else if (p.needs.length) line = `${esc(t("tem"))} <q>${esc(p.needs[0].goal)}</q> ${esc(t(p.me ? "à tua espera" : "à espera dele"))}`;
       else if (p.done.length) line = `${esc(t("acabou"))} <q>${esc(p.done[0].goal)}</q> <em>${esc(ago(p.done[0].at))}</em>`;
       else line = esc(t("sem nada a correr"));
-      return `<li style="--p:${p.color}"><i></i><span><b>${esc(p.name)}</b> ${line}</span></li>`;
+      return `<li>${ui.avatar(p.name)}<span><b>${esc(p.name)}</b> ${line}</span></li>`;
     }).join("");
   }
   function queuePane(people, s) {
-    if (!people.some((p) => p.queue.length)) return `<p class="cb-quiet">${esc(t("Nada na fila. «Pôr na fila» guarda uma missão já com o agente certo, até a mandares arrancar."))}</p>`;
-    return people.filter((p) => p.queue.length).map((p) => `<div class="cb-grp queue" style="--p:${p.color}"><small class="cb-k"><i></i>${esc(p.name)}</small>${p.queue.map((it, i) => queueRow(it, i, p, s)).join("")}</div>`).join("");
+    if (!people.some((p) => p.queue.length)) return `<p class="cb-quiet">${esc(t("Nada na fila. «Pôr na fila» guarda uma tarefa já com o departamento certo, até a mandares arrancar."))}</p>`;
+    return people.filter((p) => p.queue.length).map((p) => `<div class="cb-grp"><small class="cb-k">${esc(p.name)}</small>${p.queue.map((it, i) => queueRow(it, i, p, s)).join("")}</div>`).join("");
   }
   function donePane(people) {
     const all = people.flatMap((p) => p.done).sort((a, b) => String(b.at).localeCompare(String(a.at)));
@@ -288,246 +257,100 @@ window.CrewBoard = (function () {
     const every = more.has("done"), shown = every ? all : all.slice(0, SHOW_DONE);
     return shown.map(doneRow).join("") + (all.length > SHOW_DONE ? `<button type="button" class="cb-more" data-more="done">${esc(every ? t("Mostrar menos") : t("Mais {n}", { n: all.length - SHOW_DONE }))}</button>` : "");
   }
+
+  // ---------------------------------------------------------------- the departments
+  // the strip: the ten in a row (two on a laptop), the ones at work lit and wider, with their goal in one line
+  function strip(s) {
+    return s.agents.map((a) => {
+      const st = host.stateOf(a), j = a.job, wq = host.waitingFor(a).length;
+      const line = j ? jobGoal(j) : wq ? t(wq === 1 ? "1 na fila" : "{n} na fila", { n: wq }) : t("Livre");
+      return `<button type="button" class="cb-dep st-${st} ${j ? "busy" : ""}" data-dept="${a.id}" title="${esc(`${a.n} · ${a.name}: ${t(a.what)}`)}">${host.mono(a, `sm ${lit(a)}`)}
+        <span class="cb-dep-t"><b>${esc(a.name)}</b><span>${esc(line)}</span></span>${j ? `<em>${esc(host.partnerOf(j.who).name || j.who)}</em>` : ""}</button>`;
+    }).join("");
+  }
+  // the grid: every department as a tile, those at work first, with what they do now and for whom
+  function deptGrid(s) {
+    const order = [...s.agents].sort((p, q) => (p.job ? 0 : 1) - (q.job ? 0 : 1) || p.i - q.i);
+    return order.map((a) => {
+      const st = host.stateOf(a), j = a.job, tone = host.tone(st);
+      const head = `<header>${host.mono(a, `md ${lit(a)}`)}<div><b>${esc(a.name)}</b><small>${a.n} · <em class="cb-st ${tone}"><i></i>${esc(t(host.word(st)))}</em></small></div></header>`;
+      if (!j) {
+        const last = host.doneBy(a)[0], wq = host.waitingFor(a).length;
+        return `<article class="cb-tile free" data-dept="${a.id}" role="button" tabindex="0">${head}<p class="cb-tile-what">${esc(t(a.what))}</p>
+          <footer><small>${esc(wq ? t(wq === 1 ? "1 tarefa na fila" : "{n} tarefas na fila", { n: wq }) : last ? t("Última {q}", { q: ago(last.completed_at) }) : t("Pronto para trabalhar"))}</small>
+          <button type="button" class="cb-link" data-ask="${a.id}">${esc(t("Pedir tarefa"))}${icon("chevron")}</button></footer></article>`;
+      }
+      const who = host.partnerOf(j.who);
+      return `<article class="cb-tile tone-${tone}" data-dept="${a.id}" role="button" tabindex="0">${head}<h4>${esc(jobGoal(j))}</h4>
+        <p class="cb-doing"><small>${esc(t("Agora"))}</small>${esc(j.action || t("a pensar…"))}</p>
+        <footer><small>${esc([t(KIND[j.type] || ""), j.project].filter(Boolean).join(" · "))}</small><span class="cb-for">${ui.avatar(who.name || j.who)}${esc([who.name || j.who, j.since ? ago(j.since) : "", j.tokens ? tok(j.tokens) : ""].filter(Boolean).join(" · "))}</span></footer></article>`;
+    }).join("");
+  }
+  // the quiet ways out at the bottom of the missions
   function doors(s) {
-    const gold = s.tasks.filter((x) => x.status === "COMPLETED").length;
-    const door = (attr, ic, title, sub) => `<button type="button" class="cb-door" ${attr} title="${esc(sub)}">${icon(ic)}<div><b>${esc(t(title))}</b><span>${esc(sub)}</span></div></button>`;
-    return door('data-href="#/empresa"', "play", "A cave", t("Os oito agentes ao vivo"))
-      + door('data-panel="memory"', "note", "Memória", s.memory ? t("{n} notas", { n: s.memory.length }) : t("O que os agentes sabem"))
-      + door('data-href="#/skills"', "layers", "Skills", t("A biblioteca da empresa"))
-      + door('data-panel="vault"', "bag", "Cofre", t("{n} missões feitas", { n: gold }))
-      + door("data-meet", "spark", "Reunião", t("O Gordon liga as ideias"))
-      + newsDoor(door);
+    const link = (attr, ic, label) => `<button type="button" class="cb-door" ${attr}>${icon(ic)}<span>${esc(t(label))}</span></button>`;
+    return link('data-href="#/empresa"', "grid", "Empresa AMG") + link('data-href="#/skills"', "layers", "Skills")
+      + link('data-href="#/memoria"', "note", s.memory ? t("Memória · {n}", { n: s.memory.length }) : "Memória") + link("data-meet", "spark", "Reunião");
   }
   // the next US release and how gold reacted to it, from the trading room (one request a minute, only while the office is open)
   let news = null, newsAt = 0;
-  function newsDoor(plain) {
-    const door = (...a) => plain(...a).replace('class="cb-door"', 'class="cb-door cb-news"');
+  function newsLine() {
     if (Date.now() - newsAt > 60000) {
       newsAt = Date.now();
-      api("/api/trading-room/reaction").then((x) => { const had = JSON.stringify(news); news = x; if (JSON.stringify(x) !== had) { const el = $("cb-doors"); if (el) draw(); } }).catch(() => {});
+      api("/api/trading-room/reaction").then((x) => { const had = JSON.stringify(news); news = x; if (JSON.stringify(x) !== had) draw(); }).catch(() => {});
     }
-    if (!news || !news.key) return door('data-href="#/trading"', "calendar", "Notícias", t("Reação do ouro às notícias dos EUA"));
+    if (!news || !news.key) return "";
     const g = (news.table || {}).BELOW && news.table.BELOW.GOLD, d = news.t && new Date(news.t);
     const when = !d ? t("sem data esta semana") : d <= new Date() ? t("já saiu") : d.toLocaleDateString("pt-PT", { weekday: "short" }) + " " + d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
     const short = { cpi: "CPI", nfp: "NFP", ppi: "PPI", retail: "Vendas EUA", pce: "PCE", fomc: "Fed" }[news.key] || news.name;
-    return door('data-href="#/trading"', "calendar", short, `${when}${g ? " · " + t("abaixo: ouro {p}", { p: `${g.avg >= 0 ? "+" : ""}${String(g.avg.toFixed(2)).replace(".", ",")}%` }) : ""}`);
-  }
-
-  // ---------------------------------------------------------------- an agent's card, read at a glance (the pointer on a camera, here and in the cave)
-  function ficha(a) {
-    if (!host) return "";   // the cave asked before the command centre was ever opened
-    const s = host.state(), st = host.stateOf(a), j = a.job, c = host.light(st), use = j ? inUse(j) : { skills: [], subs: [] };
-    const sector = (s.arsenal || []).filter((k) => sectorOfSkill(k.name) === a.id && !use.skills.includes(k.name)), done = host.doneBy(a);
-    const who = j ? host.partnerOf(j.who) : null;
-    const row = (k, v) => (v ? `<div><dt>${esc(t(k))}</dt><dd>${v}</dd></div>` : "");
-    const grp = (label, body) => (body ? `<div class="cf-grp"><b>${esc(t(label))}</b><div class="cf-chips">${body}</div></div>` : "");
-    return `<div class="cf"><header><img class="cr-px" src="${a.figure}" alt=""><div><small>${esc(t("Posto"))} · ${esc(t(a.what))}</small><h3>${esc(a.name)}</h3>
-        <em style="--c:${c}"><i></i>${esc(t(STATE_WORD[st] || st))}</em></div></header>
-      ${j ? `<section><small class="cf-k">${esc(t("O que está a fazer"))}</small><dl>
-          ${row("Pediu", `<i class="cf-p" style="--p:${who.color}"></i>${esc(who.name || j.who)}${j.project ? ` · ${esc(j.project)}` : ""}`)}
-          ${row("Meta", esc(jobGoal(j)))}${row("Agora", esc(j.action || t("a pensar…")))}
-          ${row("Desde", esc([j.since ? ago(j.since) : "", model(j.model), tok(j.tokens)].filter(Boolean).join(" · ")))}</dl></section>`
-        : `<section><small class="cf-k">${esc(t("Quem é"))}</small><p class="cf-bio">${esc(t(a.bio))}</p></section>`}
-      <section><small class="cf-k">${esc(t("Skills"))}</small>
-        ${grp("Em uso agora", [...use.skills.map((k) => `<span class="on">/${esc(skill(k))}</span>`), ...use.subs.map((k) => `<span class="on sub">${esc(k)}</span>`)].join(""))}
-        ${grp("Do setor", sector.slice(0, 8).map((k) => `<span>/${esc(skill(k.name))}${k.uses ? `<i>${k.uses}×</i>` : ""}</span>`).join(""))}
-        ${grp("Sabe fazer", `<span class="plain">${esc((CAN[a.id] || []).map((x) => t(x)).join(" · "))}</span>`)}
-        ${grp("Subagentes do Claude que faz", (a.kinds || []).map((k) => `<span class="sub">${esc(k)}</span>`).join(""))}</section>
-      ${done.length ? `<section><small class="cf-k">${esc(t(done.length === 1 ? "1 missão feita" : "{n} missões feitas", { n: done.length }))}</small>${done.slice(0, 2).map((x) => `<p class="cf-done"><i></i>${esc(x.title)}</p>`).join("")}</section>` : ""}</div>`;
-  }
-  // the whole team in a column: what the cave's side shows while the pointer is on nobody
-  function roster() {
-    const s = host.state();
-    return `<div class="cf-roster"><small class="cf-k">${esc(t("A equipa agora"))}</small>${s.agents.map((a) => {
-      const st = host.stateOf(a), j = a.job;
-      return `<button type="button" class="cf-row" data-agent="${a.i}"><img class="cr-px" src="${a.portrait}" alt=""><div><b>${esc(a.name)}<span>${esc(t(a.what))}</span></b>
-        <p style="--c:${host.light(st)}"><i></i>${esc(j ? jobGoal(j) : t("Livre"))}</p></div></button>`;
-    }).join("")}<p class="cf-hint">${esc(t("Passa o rato por um agente para ver o que está a fazer e as skills dele. Clica para abrir a missão."))}</p></div>`;
-  }
-
-  // ---------------------------------------------------------------- the cameras
-  // A wall of security monitors, one camera per agent, following them. Whoever has a job (working, or waiting for
-  // somebody) gets a large monitor that shares the wall with the others at work, with the goal and what is being done
-  // written over the picture; the free ones are small and dim in a row under them. With nobody at work the eight share
-  // the wall. A click blows a camera up to the whole wall; another click on it, or «Todas», gives the wall back.
-  let spot = null;
-  const camNo = (i) => String(i + 1).padStart(2, "0");
-  const busy = (a) => !!a.job && a.mode !== "done";
-  const WAITING = ["wait", "help", "pause"];
-  const minis = () => !!root && root.classList.contains("desk") && view === "team";   // the Equipa view: the cameras are a row of minis under the partners
-  function wallPlan(s) {
-    const on = s.agents.filter(busy).sort((p, q) => String(p.job.since || "").localeCompare(String(q.job.since || "")));   // oldest first: a new job joins at the end, nobody jumps
-    const off = s.agents.filter((a) => !busy(a));
-    if (minis()) return { on, live: [], strip: [...on, ...off] };
-    if (spot != null && s.agents[spot]) return { on, live: [s.agents[spot]], strip: [...on, ...off].filter((a) => a.i !== spot) };
-    return on.length ? { on, live: on, strip: off } : { on, live: s.agents, strip: [] };
-  }
-  // the wall's columns: the split of its room whose monitors come closest to a landscape picture, few cells left empty
-  function gridFor(n, W, H) {
-    let best = [1, n], score = Infinity;
-    for (let cols = 1; cols <= n; cols++) {
-      const rows = Math.ceil(n / cols), sc = Math.abs(Math.log(W / cols / (H / rows) / 1.35)) + (cols * rows - n) * .12;
-      if (sc < score) { score = sc; best = [cols, rows]; }
-    }
-    return best;
-  }
-  function layoutWall() {
-    const box = $("cc-live");
-    if (!box) return;
-    const tiles = [...box.children], desk = root.classList.contains("desk");
-    const [cols, rows] = desk && tiles.length ? gridFor(tiles.length, box.clientWidth, box.clientHeight) : [1, tiles.length];
-    box.style.gridTemplateColumns = desk ? `repeat(${cols}, minmax(0, 1fr))` : "";
-    box.style.gridTemplateRows = desk ? `repeat(${rows}, minmax(0, 1fr))` : "";
-    const spare = cols * rows - tiles.length;   // cells left empty: the first monitor takes them, wider
-    tiles.forEach((el, k) => { el.style.gridColumn = desk && !k && spare ? `span ${spare + 1}` : ""; });
-  }
-  // what is written over a camera: which one, the agent and their state, and for one at work who asked, the goal, what is
-  // being done right now and how long it has been going (crew-board.css hides lines as the monitor gets smaller)
-  function hud(a) {
-    const st = host.stateOf(a), j = busy(a) ? a.job : null;
-    const top = `<span class="cc-tl"><i></i><span>CAM </span>${camNo(a.i)} · ${esc(t(a.what))}</span>${j ? `<span class="cc-tr"><em>REC</em>${j.since ? `<time>${esc(ago(j.since))}</time>` : ""}</span>` : ""}`;
-    const name = `<div class="cc-name"><img class="cr-px" src="${a.portrait}" alt=""><b>${esc(a.name)}</b><em class="cc-pill"><i></i>${esc(t(STATE_WORD[st] || st))}</em></div>`;
-    const skills = `<button type="button" class="cb-link cc-skills" data-ficha="${a.i}">${esc(t("Skills"))}${icon("chevron")}</button>`;
-    if (!j) return `${top}<div class="cc-cap">${name}<p class="cc-can">${esc((CAN[a.id] || []).map((x) => t(x)).join(" · "))}</p>
-      <div class="cc-meta"><small>${esc(t("Sem missão, à espera de trabalho"))}</small>${skills}<button type="button" class="cb-link" data-open="${a.i}">${esc(t("Dar-lhe uma missão"))}${icon("chevron")}</button></div></div>`;
-    const who = host.partnerOf(j.who), use = inUse(j), goal = jobGoal(j), ask = sentence(j.title, 160);
-    return `${top}<div class="cc-cap">${name}<p class="cc-goal">${esc(goal)}</p><p class="cc-now">${esc(j.action || t("a pensar…"))}</p>
-      ${ask && !same(ask, goal) ? `<p class="cc-ask"><small>${esc(t("Pediu"))}</small>${esc(ask)}</p>` : ""}${chips(use.skills, use.subs)}
-      <div class="cc-meta"><span><i class="cf-p" style="--p:${who.color}"></i>${esc([who.name || j.who, j.project, model(j.model), tok(j.tokens)].filter(Boolean).join(" · "))}</span>${skills}<button type="button" class="cb-link" data-open="${a.i}">${esc(t("Abrir a missão"))}${icon("chevron")}</button></div></div>`;
-  }
-  // The monitors in their places (moved, never made again: a canvas keeps its picture when it moves) and what is written
-  // over each. When a monitor changes place or size it is filmed again at once instead of at the next second.
-  function paintWall(s) {
-    const plan = wallPlan(s), live = $("cc-live"), strip = $("cc-strip");
-    let moved = false;
-    const place = (box, list) => list.forEach((a, k) => { const el = $(`cc-cam-${a.i}`); if (el && box.children[k] !== el) { box.insertBefore(el, box.children[k] || null); moved = true; } });
-    place(live, plan.live); place(strip, plan.strip);
-    for (const el of strip.children) el.style.gridColumn = "";   // a monitor that was the wide one on the wall
-    strip.hidden = !plan.strip.length;
-    for (const a of s.agents) {
-      const el = $(`cc-cam-${a.i}`);
-      el.className = `cc-cam ${busy(a) ? "busy" : "free"}${spot === a.i ? " spot" : ""}`;
-      el.style.setProperty("--c", host.light(host.stateOf(a)));
-      paint($(`cc-h-${a.i}`), hud(a));
-    }
-    const waiting = plan.on.filter((a) => WAITING.includes(host.stateOf(a))).length, working = plan.on.length - waiting;
-    paint($("cc-count"), esc([working ? t(working === 1 ? "1 a trabalhar" : "{n} a trabalhar", { n: working }) : t("Ninguém a trabalhar"),
-      waiting ? t("{n} à espera", { n: waiting }) : "", plan.on.length < s.agents.length ? t("{n} livres", { n: s.agents.length - plan.on.length }) : ""].filter(Boolean).join(" · ")));
-    $("cc-all").hidden = spot == null;
-    if (moved) { layoutWall(); host.film(true); }
-  }
-  // What the cave's engine films: each monitor a canvas the size it is shown at. w: how much of the cave the picture
-  // should take in, more on a larger monitor; the engine rounds it so that each pixel of the cave is a whole number of
-  // pixels on the screen (uneven pixels were what made the cameras look broken). lift: the agent a bit above the middle,
-  // clear of what is written at the bottom of a large monitor. main: an agent at work (or blown up), filmed at every frame
-  // while somebody walks; the others a third as often.
-  function cams() {
-    if (!root || !root.isConnected) return [];
-    const dpr = Math.min(2, window.devicePixelRatio || 1), out = [], over = root.classList.contains("desk");
-    for (const a of host.state().agents) {
-      const c = $(`cc-cv-${a.i}`), cw = c ? c.clientWidth : 0, ch = c ? c.clientHeight : 0;
-      if (!cw || !ch) continue;
-      const w = Math.round(cw * dpr), h = Math.round(ch * dpr), big = !!c.closest("#cc-live");
-      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-      out.push({ el: c, i: a.i, w: Math.max(60, Math.min(240, cw / 5)), main: big && (busy(a) || spot === a.i), lift: big && over ? .16 : 0 });
-    }
-    const clock = $("cc-clock");
-    if (clock) clock.textContent = new Date().toLocaleTimeString("pt-PT");
-    return out;
+    return `<button type="button" class="cb-news" data-href="#/trading">${icon("calendar")}<span><b>${esc(short)}</b> ${esc(when)}${g ? ` · ${esc(t("se sair abaixo, ouro {p}", { p: `${g.avg >= 0 ? "+" : ""}${String(g.avg.toFixed(2)).replace(".", ",")}%` }))}` : ""}</span></button>`;
   }
 
   // ---------------------------------------------------------------- the page
   function draw() {
     if (!root || !root.isConnected) return;
-    const s = host.state(), people = build(s);
-    if (host.ready()) {   // before the Hub has answered there is nothing true to say: the page waits
-      paint($("cx-sum"), esc(summary(people)));
-      paint($("cb-nums"), nums(people));
-      paint($("cb-say"), sayList(people));
-      for (const p of people) paint($(`cb-col-${p.id}`), personCard(p));
-      paint($("cb-queue"), queuePane(people, s));
-      paint($("cb-done"), donePane(people));
-      const waiting = people.reduce((n, p) => n + p.queue.length, 0), done = people.reduce((n, p) => n + p.done.length, 0), seg = root.querySelector('.cb-seg [data-tab="queue"]');
-      if (seg) seg.textContent = waiting ? `${t("Missões")} · ${waiting}` : t("Missões");
-      paint($("cb-nq"), waiting ? String(waiting) : "");
-      paint($("cb-nd"), done ? String(done) : "");
-      $("cb-side").dataset.m = mtab || (waiting ? "queue" : "done");
-      root.querySelectorAll(".cx-mtabs [data-mtab]").forEach((b) => b.classList.toggle("on", b.dataset.mtab === $("cb-side").dataset.m));
-    }
-    paintWall(s);
-    paint($("cb-doors"), doors(s));
-    if (tip && !tip.hidden && tipFor) paint(tip, peek(tipFor));
+    const s = host.state();
+    paint($("cb-strip"), strip(s));
+    paint($("cb-depts"), deptGrid(s));
+    paint($("cb-doors"), doors(s) + newsLine());
+    if (!host.ready()) return;   // before the Hub has answered there is nothing true to say: the page waits
+    const people = build(s);
+    paint($("cx-sum"), esc(summary(people)));
+    paint($("cb-nums"), nums(people));
+    paint($("cb-say"), sayList(people));
+    for (const p of people) paint($(`cb-col-${p.id}`), personCard(p));
+    paint($("cb-queue"), queuePane(people, s));
+    paint($("cb-done"), donePane(people));
+    const waiting = people.reduce((n, p) => n + p.queue.length, 0), done = people.reduce((n, p) => n + p.done.length, 0), seg = root.querySelector('.cb-seg [data-tab="queue"]');
+    if (seg) seg.textContent = waiting ? `${t("Missões")} · ${waiting}` : t("Missões");
+    paint($("cb-nq"), waiting ? String(waiting) : "");
+    paint($("cb-nd"), done ? String(done) : "");
+    $("cb-side").dataset.m = mtab || (waiting ? "queue" : "done");
+    root.querySelectorAll(".cx-mtabs [data-mtab]").forEach((b) => b.classList.toggle("on", b.dataset.mtab === $("cb-side").dataset.m));
   }
   // On a computer the command centre takes exactly the height of the window: no long page, each column scrolls inside.
   function fit() {
     if (!root || !root.isConnected) return;
-    const desk = !document.documentElement.classList.contains("is-phone") && root.clientWidth >= 760, was = root.classList.contains("desk");
+    const desk = !document.documentElement.classList.contains("is-phone") && root.clientWidth >= 760;
     root.classList.toggle("desk", desk);
     root.classList.toggle("tabbed", !desk);   // a narrow window gets the phone's four tabs: one thing at a time instead of everything squeezed
-    root.classList.toggle("wide", desk && root.clientWidth >= 1180);
     const pad = (parseFloat(getComputedStyle($("view")).paddingBottom) || 0) + 6;
-    root.style.height = desk ? `${Math.max(440, window.innerHeight - root.getBoundingClientRect().top - pad)}px` : "";   // the widget's window can be 480 high
-    if (desk !== was) draw();   // the partners are a row each on a computer and a whole card elsewhere
-    layoutWall();
-  }
-  // The pointer on a small camera: a small card, who and what in a few lines. The whole card (skills, what they did) was
-  // nearly a window of its own (Marco, 9 Oct: "não é clean"); it is a click away, in the agent's panel.
-  function peek(a) {
-    const st = host.stateOf(a), j = busy(a) ? a.job : null, who = j ? host.partnerOf(j.who) : null;
-    return `<div class="cb-peek" style="--c:${host.light(st)}"><header><img class="cr-px" src="${a.portrait}" alt=""><b>${esc(a.name)}</b><em><i></i>${esc(t(STATE_WORD[st] || st))}</em></header>
-      ${j ? `<p class="cb-peek-goal">${esc(jobGoal(j))}</p><p class="cb-peek-now">${esc(j.action || t("a pensar…"))}</p>
-        <small><i class="cf-p" style="--p:${who.color}"></i>${esc([t("para {n}", { n: who.name || j.who }), j.since ? ago(j.since) : ""].filter(Boolean).join(" · "))}</small>`
-        : `<p class="cb-peek-now">${esc((CAN[a.id] || []).map((x) => t(x)).join(" · "))}</p>`}
-      <small class="cb-peek-k">${esc(t("Clicar: a câmara em grande"))}</small></div>`;
-  }
-  function hideTip() { if (tip) tip.hidden = true; tipFor = null; }
-  function showTip(a, card) {
-    if (window.matchMedia("(hover: none)").matches) return;
-    if (!tip) { tip = document.createElement("div"); tip.className = "cb-tip"; document.body.append(tip); }
-    tipFor = a; tip.hidden = false; paint(tip, peek(a));
-    const r = card.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
-    // over the camera, centred on it; under it when there is no room above (the row of small cameras is at the bottom)
-    const x = Math.max(8, Math.min(vw - w - 8, r.left + r.width / 2 - w / 2)), y = r.top - h - 10 >= 8 ? r.top - h - 10 : Math.min(vh - h - 8, r.bottom + 10);
-    tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-  }
-  // the phone: an agent's card comes up from the bottom
-  function openSheet(html) {
-    if (!sheet) {
-      sheet = Object.assign(document.createElement("div"), { className: "cb-sheet" });
-      sheet.onclick = (e) => { if (e.target === sheet || e.target.closest("[data-close]")) sheet.hidden = true; };
-      document.body.append(sheet);
-    }
-    sheet.innerHTML = `<div class="cb-sheet-box"><i class="cb-grab"></i><button type="button" class="cb-sheet-x" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button>${html}</div>`;
-    sheet.hidden = false;
+    root.style.height = desk ? `${Math.max(480, window.innerHeight - root.getBoundingClientRect().top - pad)}px` : "";   // the widget's window can be 480 high
   }
   function showTab(id) {
     if (!TABS.some(([k]) => k === id)) id = "now";
     root.dataset.tab = id; sessionStorage.setItem("cb.tab", id);
     root.querySelectorAll(".cb-seg [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === id));
-    host.film();
   }
-  // a computer's two views: the partners' columns (who works with whom) or the wall of cameras
+  // a computer's two views: the partners' columns (who works with whom) or the departments
   function showView(id) {
-    view = id === "cams" ? "cams" : "team";
+    view = id === "depts" ? "depts" : "team";
     root.dataset.view = view; sessionStorage.setItem("cb.view", view);
-    root.querySelectorAll(".cx-view [data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
-    hideTip();
-    draw();   // the cameras move between the wall and the row of minis
-    layoutWall(); host.film(true);
+    root.querySelectorAll(".cx-view [data-view]").forEach((b) => { b.classList.toggle("on", b.dataset.view === view); b.setAttribute("aria-pressed", String(b.dataset.view === view)); });
   }
   function showWho(id) {
     $("cb-cols").dataset.who = id; sessionStorage.setItem("cb.who", id);
     root.querySelectorAll(".cb-who [data-who]").forEach((b) => b.classList.toggle("on", b.dataset.who === id));
-  }
-  // a partner's screen clicked in the cave: their card here, lit for a moment
-  function flashPerson(id) {
-    const col = $(`cb-col-${id}`);
-    if (!col) return;
-    showWho(id);
-    showView("team");
-    if (document.documentElement.classList.contains("is-phone")) showTab("people");
-    col.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    col.classList.remove("flash"); void col.offsetWidth; col.classList.add("flash");
   }
   function click(e) {
     const at = (sel) => e.target.closest(sel);
@@ -535,73 +358,58 @@ window.CrewBoard = (function () {
     if ((b = at(".cb-seg [data-tab]"))) { showTab(b.dataset.tab); window.scrollTo({ top: 0 }); }
     else if ((b = at(".cb-who [data-who]"))) showWho(b.dataset.who);
     else if ((b = at(".cx-view [data-view]"))) showView(b.dataset.view);
-    else if ((b = at("[data-ficha]"))) openSheet(ficha(host.state().agents[Number(b.dataset.ficha)]));
     else if ((b = at("[data-continue]"))) {
+      e.stopPropagation();
       const s = (host.state().office.sessions || []).find((x) => String(x.id) === b.dataset.continue);
       const ok = s && copyText(carryPrompt(s));
       if (typeof flash === "function") flash(t(ok ? "Prompt copiado: abre uma janela nova do Claude e cola (Ctrl+V)." : "Não deu para copiar o prompt."));
     }
     else if ((b = at("[data-release]"))) host.release(Number(b.dataset.release), b);
     else if ((b = at("[data-mini]"))) host.openMini();
+    else if ((b = at("[data-ask]"))) host.ask(b.dataset.ask);
     else if ((b = at("[data-href]"))) location.hash = b.dataset.href;
-    else if ((b = at("[data-open]"))) { hideTip(); host.openAgent(Number(b.dataset.open)); }
-    else if ((b = at("[data-agent]"))) { hideTip(); host.openAgent(Number(b.dataset.agent)); }
-    else if ((b = at("[data-panel]"))) host.openPanel(b.dataset.panel);
     else if ((b = at("[data-meet]"))) host.meet(b);
     else if ((b = at("[data-mtab]"))) { mtab = b.dataset.mtab; sessionStorage.setItem("cb.mtab", mtab); draw(); }
-    else if ((b = at("[data-cam-all]"))) { spot = null; draw(); }
-    else if ((b = at("[data-spot]"))) { spot = Number(b.dataset.spot); hideTip(); showView("cams"); draw(); if (root.classList.contains("tabbed")) showTab("cams"); }
-    else if ((b = at("[data-cam]"))) { const i = Number(b.dataset.cam); hideTip(); if (minis()) { spot = i; showView("cams"); } else { spot = spot === i ? null : i; draw(); } }
     else if ((b = at("[data-more]"))) { flip(more, b.dataset.more); draw(); }
     else if ((b = at("[data-toggle]"))) { flip(open, b.dataset.toggle); draw(); }
+    else if ((b = at("[data-dept]"))) host.openDept(b.dataset.dept);
   }
-  // composer: the line to send a mission (crew.js writes it and binds it): the top of the missions' column
+  // composer: the form to send a task (crew.js writes it and binds it): the top of the missions' column
   function mount(el, h, composer = "") {
     host = h; root = el;
     const mine = host.partnerOf(me.display_name).id || host.partners[0][0];
-    root.innerHTML = `<nav class="cb-seg">${TABS.map(([id, label]) => `<button type="button" data-tab="${id}">${esc(t(label))}</button>`).join("")}</nav>
-      <header class="cx-top" data-pane="now">
-        <div class="cx-id"><small>${esc(t("02 · Agentes · central de comando"))}</small><h1>${esc(t("Escritório"))}</h1><p id="cx-sum">${esc(t("A ler o que a empresa está a fazer…"))}</p></div>
-        <div class="cb-nums" id="cb-nums"></div>
-        <div class="cx-acts"><nav class="cx-view"><button type="button" data-view="team">${icon("users")}${esc(t("Equipa"))}</button><button type="button" data-view="cams">${icon("grid")}${esc(t("Câmaras"))}</button></nav><a class="btn cx-cave" href="#/empresa">${icon("play")}${esc(t("A cave"))}</a><button type="button" class="btn cx-mini" data-mini title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div>
-        <ul class="cb-say" id="cb-say"></ul>
-      </header>
-      <section class="cx-people" data-pane="people"><small class="cx-k">${esc(t("Quem trabalha com quem"))}</small>
-        <nav class="cb-who">${host.partners.map(([id, name, color]) => `<button type="button" data-who="${id}" style="--p:${color}"><i></i>${esc(name)}</button>`).join("")}</nav>
-        <div class="cb-cols" id="cb-cols">${host.partners.map(([id, , color]) => `<section class="cb-col" id="cb-col-${id}" style="--p:${color}">${ui.skeleton(2)}</section>`).join("")}</div></section>
-      <section class="cc" id="cb-cams" data-pane="cams">
-        <div class="cc-bar"><span class="cc-on"><i></i>${esc(t("Ao vivo"))}</span><b id="cc-count"></b>
-          <button type="button" class="cc-all" id="cc-all" data-cam-all hidden>${icon("grid")}${esc(t("Todas"))}</button><time id="cc-clock"></time></div>
-        <div class="cc-wall" id="cc-live"></div>
-        <div class="cc-strip" id="cc-strip">${host.state().agents.map((a) => `<div class="cc-cam" id="cc-cam-${a.i}" data-cam="${a.i}" role="button" tabindex="0" title="${esc(t("Clicar: esta câmara em grande"))}">
-          <span class="cc-feed"><canvas id="cc-cv-${a.i}"></canvas><i class="cc-scan"></i></span><div class="cc-hud" id="cc-h-${a.i}"></div></div>`).join("")}</div>
-      </section>
-      <aside class="cx-side" id="cb-side" data-pane="queue"><small class="cx-k">${esc(t("Missões"))}</small>
+    root.innerHTML = `<nav class="cb-seg" aria-label="${esc(t("Escritório"))}">${TABS.map(([id, label]) => `<button type="button" data-tab="${id}">${esc(t(label))}</button>`).join("")}</nav>
+      <div class="cb-head" data-pane="now">${ui.head("", t("Escritório"), t("A ler o que a empresa está a fazer…"),
+        `<nav class="cx-view" aria-label="${esc(t("Vista"))}"><button type="button" data-view="team">${icon("users")}${esc(t("Equipa"))}</button><button type="button" data-view="depts">${icon("grid")}${esc(t("Departamentos"))}</button></nav>
+         <button type="button" class="btn quiet" data-mini title="${esc(t("A lista dos departamentos numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button>`)}</div>
+      <div class="cb-nums" id="cb-nums" data-pane="now"></div>
+      <ul class="cb-say" id="cb-say" data-pane="now"></ul>
+      <section class="cb-strip" id="cb-strip" data-pane="now" aria-label="${esc(t("Departamentos"))}"></section>
+      <section class="cx-people" data-pane="people">
+        <nav class="cb-who">${host.partners.map(([id, name]) => `<button type="button" data-who="${id}">${esc(name)}</button>`).join("")}</nav>
+        <div class="cb-cols" id="cb-cols">${host.partners.map(([id]) => `<section class="cb-col" id="cb-col-${id}">${ui.skeleton(3)}</section>`).join("")}</div></section>
+      <section class="cb-depts" id="cb-depts" data-pane="depts" aria-label="${esc(t("Departamentos ao vivo"))}"></section>
+      <aside class="cx-side" id="cb-side" data-pane="queue"><h2 class="cx-k">${esc(t("Missões"))}</h2>
         ${composer}
         <nav class="cx-mtabs"><button type="button" data-mtab="queue">${esc(t("Na fila"))}<b id="cb-nq"></b></button><button type="button" data-mtab="done">${esc(t("Feito hoje"))}<b id="cb-nd"></b></button></nav>
         <div class="cx-box" data-m="queue"><small class="cb-k">${esc(t("Na fila"))}</small><div id="cb-queue"></div></div>
         <div class="cx-box" data-m="done"><small class="cb-k">${esc(t("Feito hoje"))}</small><div id="cb-done"></div></div>
-      </aside>
-      <div class="cb-doors" id="cb-doors" data-pane="now"></div>`;
+        <div class="cb-doors" id="cb-doors"></div>
+      </aside>`;
+    const sum = root.querySelector(".cb-head .ph p");
+    if (sum) sum.id = "cx-sum";
     showTab(sessionStorage.getItem("cb.tab") || "now");
     showView(view);
     showWho(sessionStorage.getItem("cb.who") || mine);
     root.onclick = click;
-    root.onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".cc-cam")) { e.preventDefault(); e.target.click(); } };
-    root.ondblclick = (e) => { const b = e.target.closest("[data-cam]"); if (b) { hideTip(); host.openAgent(Number(b.dataset.cam)); } };
-    // the pointer on a small camera brings up the agent's card; a large one already says what it is doing
-    root.onmouseover = (e) => { const card = e.target.closest("#cc-strip .cc-cam"); if (!card) hideTip(); else if (tipFor !== host.state().agents[Number(card.dataset.cam)]) showTip(host.state().agents[Number(card.dataset.cam)], card); };
-    root.onmouseleave = hideTip;
+    root.onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".cb-tile, .cb-done")) { e.preventDefault(); e.target.click(); } };
     draw();
     fit();
-    if (wallSize) wallSize.disconnect();
-    wallSize = new ResizeObserver(() => { layoutWall(); host.film(true); });
-    wallSize.observe($("cc-live"));
-    const flashId = sessionStorage.getItem("cb.flash");
-    if (flashId) { sessionStorage.removeItem("cb.flash"); setTimeout(() => flashPerson(flashId), 400); }
+    if (sized) sized.disconnect();
+    sized = new ResizeObserver(() => fit());   // the sidebar folding changes the room without the window changing
+    sized.observe($("view"));
   }
-  window.addEventListener("hashchange", () => { hideTip(); if (sheet) sheet.hidden = true; });
-  window.addEventListener("scroll", hideTip, true);
+  let sized = null;
   window.addEventListener("resize", fit);
-  return { mount, paint: draw, ficha, roster, hideTip, cams, fit };
+  return { mount, paint: draw, fit };
 })();

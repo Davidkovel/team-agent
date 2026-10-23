@@ -23,7 +23,7 @@
 .ey-step { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-2);
   color: #cfd5dc; font: 600 13px/1 var(--serif); }
 .ey-agent header b { color: #f4f6f8; font: 500 21px/1 var(--serif); }
-.ey-agent header small { margin-left: auto; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.ey-agent header small { margin-left: auto; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .ey-agent p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .ey-agent.live { border-color: rgba(238, 245, 255, .3); box-shadow: 0 0 0 1px rgba(238, 245, 255, .06), 0 18px 40px -24px rgba(238, 245, 255, .3); }
 .ey-agent.live::before { content: ""; position: absolute; left: 14px; right: 14px; top: 0; height: 1px; background: var(--chrome-line); }
@@ -48,7 +48,7 @@
 .ey-shot img { width: 92%; height: 92%; object-fit: contain; }
 .ey-top { grid-area: top; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .ey-rest { grid-area: rest; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
-.ey-kind { color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.ey-kind { color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .ey-top h3 { margin: 0; color: #f4f6f8; font: 500 19px/1.2 var(--serif); overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .ey-rest .ey-note { margin: 0; }
@@ -67,7 +67,7 @@
 .ey-rest details a:hover { color: var(--text); }
 .ey-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
 .ey-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; padding-top: 8px; border-top: 1px solid var(--line); }
-.ey-copy > span { margin-right: 4px; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.ey-copy > span { margin-right: 4px; color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 
 /* vendas e lotes; como começar e o horário: duas colunas da mesma altura */
 .ey-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; align-items: stretch; }

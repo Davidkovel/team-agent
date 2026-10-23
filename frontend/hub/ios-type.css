@@ -1,0 +1,47 @@
+/* =====================================================================
+   The iPhone's type over the AMG finish (23 out 2026, «mudar as fontes, mais bonito e moderno, sempre o estilo iOS»).
+   Loaded last, so it wins over mobile.css and amg.css at the same specificity: the black, the chrome and the layouts stay,
+   only the letters change. Spaced capitals become what iOS uses: sentence case, SF Pro (Inter elsewhere), tight tracking
+   on the big words, small grey capitals only for group headers.
+   ===================================================================== */
+
+/* ---------------------------------------------------------------- computer */
+.subtabs a { letter-spacing: -.005em; }
+.side-link { letter-spacing: -.005em; }
+.modal-box h3 { font-size: 20px; }
+
+/* ---------------------------------------------------------------- phone */
+html.is-phone #m-bar .m-title { font: 600 17px/1.1 var(--m-font); letter-spacing: -.02em; text-transform: none; }
+html.is-phone .m-back { font: 400 17px var(--m-font); letter-spacing: -.02em; text-transform: none; }
+html.is-phone #m-tabs a, html.is-phone #m-tabs button { font: 500 10px/1 var(--m-font); letter-spacing: .01em; text-transform: none; }
+
+html.is-phone .m-large > span { font: 600 13px var(--m-font); letter-spacing: .02em; }
+html.is-phone .m-large > span:first-child::before { display: none; }
+html.is-phone .m-large h1 { font: 700 34px/1.08 var(--m-font); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", var(--ui); letter-spacing: -.03em; }
+html.is-phone .m-large h1 em { font-style: normal; }
+html.is-phone .ph h1 { font: 700 32px/1.08 var(--display); letter-spacing: -.03em; }
+
+/* group headers: the iOS grouped-list header, small grey capitals with a little air */
+html.is-phone .m-sec header b, html.is-phone .m-grp, html.is-phone #m-av .nl-group h4, html.is-phone #m-sheet h3 {
+  font: 600 13px var(--m-font); letter-spacing: .03em; }
+html.is-phone .m-sec header a, html.is-phone .m-online { font: 400 15px var(--m-font); letter-spacing: -.01em; text-transform: none; }
+
+/* segmented controls, filters, buttons, fields: sentence case like the system's own */
+html.is-phone .m-seg button, html.is-phone .m-scope button, html.is-phone .subtabs a, html.is-phone .segx button {
+  font: 600 13px var(--m-font); letter-spacing: -.01em; text-transform: none; text-shadow: none; }
+html.is-phone .m-filter button, html.is-phone .chp { font: 500 14px var(--m-font); letter-spacing: -.01em; text-transform: none; }
+html.is-phone .btn { font: 600 15px var(--m-font); letter-spacing: -.015em; text-transform: none; }
+html.is-phone .btn.primary, html.is-phone .btn.amg { text-shadow: none; }
+html.is-phone .field > span:first-child { font: 500 13px var(--m-font); letter-spacing: 0; text-transform: none; }
+html.is-phone .m-me span { font: 400 13px var(--m-font); letter-spacing: 0; text-transform: none; }
+html.is-phone #m-av .nl-ios button { font: 400 15px var(--m-font); letter-spacing: -.01em; text-transform: none; }
+html.is-phone .m-co-facts span, html.is-phone .m-co-tag { letter-spacing: .02em; }
+
+/* ---------------------------------------------------------------- the chrome of the main controls, smoother: a soft silver
+   fill like an iOS filled button instead of the banded catalogue chrome (the thin chrome lines elsewhere stay) */
+.btn.primary, .btn.primary:hover, html.is-phone .btn.primary, html.is-phone .btn.amg,
+html.is-phone .m-seg button.on, html.is-phone .m-scope button.on, html.is-phone .subtabs a.on, html.is-phone .segx button.on,
+html.is-phone .m-filter button.on, html.is-phone .chp.on, .chp.on {
+  background: linear-gradient(180deg, #fbfcfd 0%, #e4e8ec 100%); }
+html.is-phone .m-filter button.on, html.is-phone .chp.on, html.is-phone .chip.active, html.is-phone .bd-pill.on {
+  background: linear-gradient(180deg, #fbfcfd 0%, #e4e8ec 100%) !important; }

@@ -1,4 +1,4 @@
-// Fábrica Etsy (#/etsy): o Riddler pesquisa o que vende, a Catwoman desenha, o Joker escreve o anúncio e o Alfred barra
+// Fábrica Etsy (#/etsy): a Pesquisa procura o que vende, o Design desenha, o Marketing escreve o anúncio e a Revisão barra
 // as marcas (backend/app/etsy.py). A pessoa aprova, copia para a Etsy e regista as vendas: o dinheiro é só o real.
 // A página segue docs/hub-paginas.md: cabeçalho com o estado e o botão principal, os números, depois uma secção por ideia
 // (a linha de montagem, os desenhos, as vendas e os lotes, como começar e o horário).
@@ -8,12 +8,12 @@
   const when = (ts) => new Date(ts * 1000).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const img = (id, name = "design.png") => `/api/etsy/file/${encodeURIComponent(id)}/${name}?token=${encodeURIComponent(token)}`;
   const CREW = [
-    ["riddler", "Riddler", "Pesquisa", "Procura na web o que está a vender na Etsy e o que vai vender nas próximas semanas."],
-    ["catwoman", "Catwoman", "Design", "Desenha cada ideia em vetor e passa-a a PNG 4500 × 5400, o tamanho da Printify."],
-    ["joker", "Joker", "Anúncio", "Escreve o título, as 13 tags, a descrição e o preço com margem."],
-    ["alfred", "Alfred", "Revisão", "Barra marcas, personagens e anúncios incompletos antes de chegarem a ti."],
+    ["riddler", "Pesquisa", "PES", "Procura na web o que está a vender na Etsy e o que vai vender nas próximas semanas."],
+    ["catwoman", "Design", "DSG", "Desenha cada ideia em vetor e passa-a a PNG 4500 × 5400, o tamanho da Printify."],
+    ["joker", "Marketing", "MKT", "Escreve o título, as 13 tags, a descrição e o preço com margem."],
+    ["alfred", "Revisão", "REV", "Barra marcas, personagens e anúncios incompletos antes de chegarem a ti."],
   ];
-  // a cor da peça por baixo da estampa, para se ver como fica (a 1.ª cor conhecida que o Riddler escreveu)
+  // a cor da peça por baixo da estampa, para se ver como fica (a 1.ª cor conhecida que a Pesquisa escreveu)
   const COLORS = [[/black|pret/i, "#141518"], [/navy|marinho/i, "#1c2541"], [/burgundy|bord|maroon|vinho/i, "#5a1424"],
     [/forest|verde/i, "#23402f"], [/charcoal|antracite|carv/i, "#36393f"], [/heather|grey|gray|cinz/i, "#a3a6ab"],
     [/sand|areia|beige|bege/i, "#dccbaa"], [/cream|creme|natural|ivory/i, "#efe6d2"], [/pink|rosa/i, "#f2c6cf"], [/red|vermelh/i, "#a3162a"],
@@ -26,7 +26,7 @@
     new: "Nada para aprovar. Carrega em «Fazer um lote agora» para mais desenhos.",
     approved: "Nenhum desenho aprovado à espera. Aprova os que gostares em «Para aprovar».",
     published: "Ainda nada na Etsy. Quando puseres um aprovado na loja, marca-o com «Já está na Etsy».",
-    blocked: "O Alfred não barrou nenhum desenho.",
+    blocked: "A Revisão não barrou nenhum desenho.",
     rejected: "Nenhum desenho recusado.",
   };
 
@@ -148,7 +148,7 @@
       html = ui.empty("spark", "Os agentes estão a trabalhar", "Os desenhos aparecem aqui assim que ficarem prontos. Demora uns minutos por desenho.");
     } else if (!S.items.length) {
       // a primeira vez: o que fazer primeiro, num clique
-      html = ui.empty("spark", "Ainda não há desenhos", t("Começa por um lote: o Riddler procura o que está a vender, a Catwoman desenha {n} estampas e o Joker escreve os anúncios. Uns minutos por desenho, e nada vai para a Etsy sem ti.", { n: S.cfg.per_run }),
+      html = ui.empty("spark", "Ainda não há desenhos", t("Começa por um lote: a Pesquisa procura o que está a vender, o Design desenha {n} estampas e o Marketing escreve os anúncios. Uns minutos por desenho, e nada vai para a Etsy sem ti.", { n: S.cfg.per_run }),
         `<button type="button" class="btn" data-act="run" ${!S.installed ? "disabled" : ""}>${esc(t("Fazer o primeiro lote"))}</button>`);
     } else {
       html = ui.empty(filter === "blocked" ? "flag" : "inbox", TABS.find(([k]) => k === filter)[1], NONE[filter]);
@@ -261,11 +261,11 @@
         if (b.classList.contains("ey-kpi")) $("ey-tabs").scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
-      if (b.dataset.act === "run") { b.disabled = true; await post("/api/etsy/run"); flash(t("O Riddler começou a pesquisar. Demora uns minutos por desenho.")); return; }
+      if (b.dataset.act === "run") { b.disabled = true; await post("/api/etsy/run"); flash(t("A Pesquisa começou. Demora uns minutos por desenho.")); return; }
       if (b.dataset.act === "toggle") { await post("/api/etsy/cfg", { on: !S.cfg.on }); return; }
       const id = b.closest("[data-id]") && b.closest("[data-id]").dataset.id;
       const it = S.items.find((i) => i.id === id);
-      if (b.dataset.rewrite && it) { await post("/api/etsy/rewrite", { ids: [id] }); flash(t("O Joker está a reescrever o anúncio.")); return; }
+      if (b.dataset.rewrite && it) { await post("/api/etsy/rewrite", { ids: [id] }); flash(t("O Marketing está a reescrever o anúncio.")); return; }
       if (b.dataset.status && it) { await post(`/api/etsy/item/${encodeURIComponent(id)}`, { status: b.dataset.status }); return; }
       if (b.dataset.copy && it) {
         const v = b.dataset.copy === "tags" ? (it.tags || []).join(", ") : it[b.dataset.copy] || "";

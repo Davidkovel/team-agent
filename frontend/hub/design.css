@@ -14,9 +14,9 @@
   --ok: #5fcf8c; --warn: #e2b55c; --bad: #ef6f5e; --idle: #7b838d;
   --radius: 14px; --r-lg: 14px; --r-md: 10px; --r-sm: 7px;
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
-  --ui: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --display: "Space Grotesk", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-  --mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", "Consolas", monospace;
   --ease: cubic-bezier(.2, .7, .2, 1);
   --pad: 14px;
 }
@@ -24,7 +24,7 @@
 :root[data-density="expanded"] { --pad: 18px; }
 
 html, body { background: var(--bg); }
-body { font: 13px/1.45 var(--ui); color: var(--text); -webkit-font-smoothing: antialiased; }
+body { font: 13px/1.45 var(--ui); color: var(--text); -webkit-font-smoothing: antialiased; font-optical-sizing: auto; letter-spacing: -.003em; }
 ::selection { background: rgba(var(--ai-rgb), .32); }
 * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .14) transparent; }
 
@@ -98,7 +98,7 @@ kbd { padding: 1px 5px; border: 1px solid var(--line-2); border-radius: 5px; col
 
 /* ---------------------------------------------------------------- page head */
 .ph { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-.ph-eyebrow { color: var(--faint); font: 600 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; margin-bottom: 4px; }
+.ph-eyebrow { color: var(--faint); font: 600 10.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
 .ph h1 { margin: 0; font: 600 25px/1.15 var(--display); letter-spacing: -.01em; }
 .ph p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .ph-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -628,7 +628,7 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .tv-text .tread { max-width: none; font-size: 15px; }
 .tv-goal { padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, .02); }
 .tv-goal.ok { border-color: rgba(95, 207, 140, .35); }
-.tv-goal > small, .tv-box > small, .tv-sub { display: block; margin-bottom: 6px; color: var(--faint); font: 600 10px var(--ui); letter-spacing: .16em; text-transform: uppercase; }
+.tv-goal > small, .tv-box > small, .tv-sub { display: block; margin-bottom: 6px; color: var(--faint); font: 600 10px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .tv-sub { margin-top: 16px; }
 .tv-box { padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); }
 .tv-fold { border-top: 1px solid var(--line); padding-top: 12px; }
@@ -654,7 +654,7 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .tv-doing.go:active, .tv-doing.go.press { transform: translateY(4px) scale(.97); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 0 0 #6b727b; filter: brightness(.6); }
 .tv-doing.go svg.i { flex: none; width: 28px; height: 28px; padding: 8px; border-radius: 50%; background: #0b0c0e; color: #fff; stroke-width: 2.6; }
 .tv-doing.go span { display: grid; gap: 1px; }
-.tv-doing.go b { font: 700 11.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.tv-doing.go b { font: 700 11.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .tv-doing.go small { color: #3b4047; font: 500 11.5px var(--ui); }
 .tv-doing.on { border: 1px solid #2c3036; }
 .tv-doing.on > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
@@ -665,7 +665,7 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 .tv-doing.on.popin { animation: doing-pop .45s cubic-bezier(.3, 1.6, .5, 1); }
 /* the card of who is on it: the photo in the ring, "A fazer agora", the name in the serif, since when */
 .tv-doing.on .dl-ring .av { width: 46px; height: 46px; font-size: 18px; }
-.tv-doing.on > div > small { color: #8af0aa; font: 700 9.5px var(--ui); letter-spacing: .22em; text-transform: uppercase; }
+.tv-doing.on > div > small { color: #8af0aa; font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .tv-doing.on > div > b { color: #f4f6f8; font: 500 24px/1.05 var(--serif); }
 .tv-doing.on > div > span { color: #9aa1aa; font-size: 12.5px; }
 .doer-live em b { font: inherit; } .doer-live em s { text-decoration: none; }
@@ -812,7 +812,7 @@ html.is-phone .nv-head { font-size: 16px; }
 /* Início: "A fazer agora", the task window's own doing card (home.js, doingBody) */
 .in-doing:empty { display: none; }
 .in-doing { margin: 0 0 18px; }
-.in-doing-head { display: flex; align-items: center; gap: 8px; margin: 0 4px 10px; color: #8af0aa; font: 700 11px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.in-doing-head { display: flex; align-items: center; gap: 8px; margin: 0 4px 10px; color: #8af0aa; font: 700 11px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .in-doing-head svg.i { width: 14px; height: 14px; }
 .in-doing-head i { font-style: normal; color: #868c95; }
 .in-doing-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
@@ -845,7 +845,7 @@ html.is-mini body { background: #030407; }
 .tpop-light { position: absolute; top: 0; left: -40%; width: 40%; height: 2px; background: linear-gradient(90deg, transparent, #fff, transparent); animation: tpop-run 1.6s ease-out .2s 1 both; }
 @keyframes tpop-run { to { left: 100%; } }
 .tpop header { display: flex; align-items: center; gap: 9px; }
-.tpop header b { font: 700 11px var(--ui); letter-spacing: .18em; text-transform: uppercase; color: #fff; }
+.tpop header b { font: 700 11px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: #fff; }
 .tpop header em { padding: 2px 8px; border-radius: 999px; background: rgba(255, 45, 79, .16); color: #ff8a9c; font: 700 10.5px var(--ui); font-style: normal; }
 .tpop-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff2d4f; box-shadow: 0 0 10px #ff2d4f; animation: tpop-ping 1.8s ease-out infinite; }
 .tpop-x { margin-left: auto; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: #aeb5bf; cursor: pointer; }

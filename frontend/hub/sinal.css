@@ -66,7 +66,7 @@
   box-shadow: inset 0 0 0 2px rgba(var(--up-rgb), .9); animation: sn-flash 1.2s ease-out 3; opacity: 0; }
 .sn-stage.is-sell::after { box-shadow: inset 0 0 0 2px rgba(var(--down-rgb), .9); }
 @keyframes sn-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
-.sn-what { font: 600 clamp(15px, 1.8vw, 20px)/1.2 var(--ui); letter-spacing: .22em; color: var(--text); margin-bottom: 6px; }
+.sn-what { font: 600 clamp(15px, 1.8vw, 20px)/1.2 var(--ui); letter-spacing: .08em; color: var(--text); margin-bottom: 6px; }
 .is-buy .sn-what { color: #b6f7da; } .is-sell .sn-what { color: #ffc2cd; } .is-flat .sn-what { color: var(--muted); }
 
 .sn-figs { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; width: 100%; max-width: 760px; }

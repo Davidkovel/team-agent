@@ -171,7 +171,7 @@
 .mk-nc p { display: -webkit-box; margin: 0; overflow: hidden; color: var(--muted); font-size: 12.5px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .mk-nc footer { margin-top: auto; padding-top: 2px; color: var(--faint); font-size: 11px; }
 .mk-day + .mk-day { margin-top: 22px; }
-.mk-day h4, .mk-cal-d h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--muted); font: 600 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.mk-day h4, .mk-cal-d h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--muted); font: 600 10.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .mk-day h4::first-letter, .mk-cal-d h4::first-letter { text-transform: uppercase; }
 .mk-day h4 i { color: var(--faint); font: 600 10px var(--mono); font-style: normal; }
 
@@ -182,7 +182,7 @@
 .mk-rd-m { margin: 0 0 12px; color: var(--faint); font-size: 12px; }
 .mk-rd-a { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .mk-rd-pts { margin-bottom: 16px; padding: 12px 16px; border: 1px solid var(--line-2); border-left: 3px solid var(--chrome-line, #d8dde3); border-radius: var(--r-md); background: var(--surface-2); }
-.mk-rd-pts b { display: block; margin-bottom: 6px; color: var(--faint); font: 600 10px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.mk-rd-pts b { display: block; margin-bottom: 6px; color: var(--faint); font: 600 10px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .mk-rd-pts ul { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.55; }
 .mk-rd-pts li + li { margin-top: 4px; }
 .mk-rd-text p { margin: 0 0 12px; color: var(--text); font-size: 14.5px; line-height: 1.7; }

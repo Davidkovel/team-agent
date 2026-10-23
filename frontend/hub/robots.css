@@ -23,7 +23,7 @@
 .rb-acc > i { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
 .rb-acc.ok > i { background: var(--ok); }
 .rb-acc b { font: 500 17px var(--serif); } .rb-acc > span { grid-column: 2 / -1; color: var(--muted); } .rb-acc em { font-style: normal; }
-.rb-acc u { grid-row: 1; grid-column: 3; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--line-2); color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .14em; text-decoration: none; }
+.rb-acc u { grid-row: 1; grid-column: 3; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--line-2); color: var(--faint); font: 600 9.5px var(--ui); letter-spacing: .08em; text-decoration: none; }
 .rb-acc.auto u { color: #0b0c0e; background: var(--chrome); border-color: #eef1f4; }
 .rb-gauge { grid-column: 2 / -1; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
 .rb-gauge span { display: block; height: 100%; background: linear-gradient(90deg, #cfd5dc, var(--warn), var(--bad)); }
@@ -56,7 +56,7 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .06); scrollbar-width: thin; }
 .rb-sh { display: flex; align-items: flex-start; gap: 10px; }
 .rb-sh > div { flex: 1; min-width: 0; }
-.rb-sh small { font: 700 10px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.rb-sh small { font: 700 10px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
 .rb-sh h3 { margin: 4px 0 2px; font: 500 27px/1.1 var(--serif); color: #fff; }
 .rb-sh p { margin: 0; font-size: 12px; color: var(--muted); }
 .rb-sh p b { font-weight: 600; }

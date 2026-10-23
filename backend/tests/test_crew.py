@@ -56,13 +56,13 @@ def test_a_task_for_the_office_goes_to_its_sector_by_itself(client):
     assert send("Corrigir o bug do login")["crew"] == "batman"
     assert send("Ver isto", description="Como funciona o sync entre os Hubs?")["crew"] == "lucius"  # the description counts too
     ops = send("Organizar a semana")
-    assert ops["crew"] == "gordon" and ops["crew_name"] == "Gordon" and ops["agent_role"] == "custom" and ops["status"] == "ASSIGNED"
+    assert ops["crew"] == "gordon" and ops["crew_name"] == "Operações" and ops["agent_role"] == "custom" and ops["status"] == "ASSIGNED"
     assert send("Qualquer coisa", agent_role="marketing")["crew"] == "joker"  # no word says the sector: the kind of agent does
     assert send("O decorador novo")["crew"] == "gordon"  # "cor" inside another word is not the word
 
     # asked while it is being written: who would take it and how much that person's agent has before it
     before = ask(title="Testar o checkout")
-    assert before["crew"] == "robin" and before["name"] == "Robin" and before["what"] == "Testes" and before["for"]
+    assert before["crew"] == "robin" and before["name"] == "Testes" and before["what"] == "Testes" and before["for"]
     send("Mais uma")
     assert ask(title="Testar o checkout")["ahead"] == before["ahead"] + 1
     assert ask(title="Testar o checkout", crew="alfred")["crew"] == "alfred"  # named by hand: that one
@@ -88,11 +88,11 @@ def test_the_briefing_says_who_they_are_and_what_the_team_knows(client):
     client.post("/api/memory", headers=owner, json={"scope": "agent", "scope_id": "owner", "category": "REGRAS", "title": "Português", "content": "Tudo em PT-PT"})
     task = client.post("/api/tasks", headers=owner, json={"title": "Página nova", "assignee": "owner", "crew": "catwoman"}).json()
     brief = client.get(f"/api/agent/tasks/{task['id']}/briefing", headers=bot).json()
-    assert brief["crew"]["name"] == "Catwoman" and "designer" in brief["crew"]["persona"]
-    assert len(brief["team"]) == len(crew.CREW) - 1 and all(m["name"] != "Catwoman" for m in brief["team"])
+    assert brief["crew"]["name"] == "Design" and "Design (DSG)" in brief["crew"]["persona"]
+    assert len(brief["team"]) == len(crew.CREW) - 1 and all(m["name"] != "Design" for m in brief["team"])
     assert any(m["title"] == "Português" for m in brief["memory"])
     assert any(p["name"] == "Batcave" for p in brief["projects"])
-    assert any(t["title"] == "Campanha de outono" and t["crew"] == "Joker" for t in brief["open"])
+    assert any(t["title"] == "Campanha de outono" and t["crew"] == "Marketing" for t in brief["open"])
     assert all(t["title"] != "Página nova" for t in brief["open"])  # not the task itself
 
 
@@ -103,14 +103,14 @@ def test_a_finished_task_is_remembered_by_the_whole_crew(client):
     client.post(f"/api/agent/tasks/{task['id']}/update", headers=bot, json={"status": "IN_PROGRESS"})
     client.post(f"/api/agent/tasks/{task['id']}/update", headers=bot, json={"status": "COMPLETED", "result": "O checkout já paga no Shopify."})
     notes = client.get("/api/memory", headers=owner, params={"scope": "team"}).json()
-    note = next(m for m in notes if m["category"] == "TAREFAS" and m["title"] == "Batman: Corrigir o checkout")
+    note = next(m for m in notes if m["category"] == "TAREFAS" and m["title"] == "Desenvolvimento: Corrigir o checkout")
     assert "O checkout já paga no Shopify." in note["content"]
-    # the next task, by anyone, reads it; and Batman's own briefing lists it as his
+    # the next task, by anyone, reads it; and Development's own briefing lists it as its own
     later = client.post("/api/tasks", headers=owner, json={"title": "Seguinte", "assignee": "owner", "crew": "batman"}).json()
     brief = client.get(f"/api/agent/tasks/{later['id']}/briefing", headers=bot).json()
-    assert any(m["title"] == "Batman: Corrigir o checkout" for m in brief["memory"])
+    assert any(m["title"] == "Desenvolvimento: Corrigir o checkout" for m in brief["memory"])
     assert [t["title"] for t in brief["mine"]] == ["Corrigir o checkout"]
-    assert brief["finished"][0]["by"] == "Batman"
+    assert brief["finished"][0]["by"] == "Desenvolvimento"
 
 
 def test_only_the_newest_task_notes_reach_a_prompt(client):
@@ -122,4 +122,4 @@ def test_only_the_newest_task_notes_reach_a_prompt(client):
     task = client.post("/api/tasks", headers=owner, json={"title": "Última", "assignee": "owner"}).json()
     memory = client.get(f"/api/agent/tasks/{task['id']}/memory", headers=bot).json()
     titles = [m["title"] for m in memory if m["category"] == "TAREFAS"]
-    assert len(titles) == crew.MEMORY_KEEP and "Robin: Pequena 00" not in titles and f"Robin: Pequena {crew.MEMORY_KEEP + 3:02d}" in titles
+    assert len(titles) == crew.MEMORY_KEEP and "Testes: Pequena 00" not in titles and f"Testes: Pequena {crew.MEMORY_KEEP + 3:02d}" in titles

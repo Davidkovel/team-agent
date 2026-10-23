@@ -23,7 +23,7 @@ from PySide6.QtCore import QByteArray, QEasingCurve, QEvent, QPoint, QPointF, QR
 from PySide6.QtGui import (QColor, QGuiApplication, QConicalGradient, QFont, QFontMetricsF, QIcon, QImage, QLinearGradient, QPainter, QPainterPath,
                            QPen, QPixmap, QPolygonF, QRadialGradient, QRegion)
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import (QAbstractButton, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QFrame, QGridLayout, QToolTip, QHBoxLayout, QLabel, QLayout, QMessageBox, QSizePolicy,
                                QVBoxLayout, QWidget)
 
 from .. import hub
@@ -1770,31 +1770,36 @@ class TitleBar(QWidget):
 
 
 class Orb(QWidget):
-    """The widget at its smallest (23 Oct, Marco: «para não estar com muito espaço», «só com o símbolo da Mercedes»): the
-    chrome Mercedes star alone, a soft light behind it in the colour of how things are, and an iOS-style red count when
-    something waits for this person (messages, approvals). The time and the views chosen in the central are pills beside
-    it (WidgetWindow._layout_orb). Click to open the central de comando; drag to move.
+    """The widget at its smallest, as an iOS widget on the desktop (23 Oct, Marco: the time loose on the wallpaper could
+    not be read on light backgrounds, flipped colours and dragged badly, «tudo bug»; «estilo iOS, já disse»). One small
+    card of dark glass with the chrome star, the time, the AMG badge and a row of small icons for the views switched on in
+    the central (Claude, Tokens, Limites, Câmaras), each with a dot in the colour of how it is. It reads the same on any
+    wallpaper, so nothing looks at the desktop. The mouse over an icon shows its line; a click opens the central (the
+    Câmaras icon opens the cave live); dragging moves the card and nothing else changes while it moves.
 
-    It paints a cached face and only repaints when the minute, the state or the count changes, or while the finger is on it."""
-    D, M = 64, 14                    # the star's diameter (as on 2 Oct), and the room round it for its shadow and the count
-    CAP_H = 0                        # nothing under the star any more (the time is a pill)
-    W, H = D + 2 * M, D + 2 * M
-    FACE = QRect(M, M, D, D)        # the star, inside the widget (what grows into the central de comando)
+    It paints a cached face and only repaints when the minute, the state, the count or the icons change, or under the finger."""
+    CW, CH, RADIUS, M = 200, 86, 22, 14   # the card, its corners, and the room round it for the shadow and the count
+    W, H = CW + 2 * M, CH + 2 * M
+    FACE = QRect(M, M, CW, CH)            # the card inside the widget (what grows into the central de comando)
+    D = CH
+    STAR, ICON, GAP = 58, 18, 6
+    on_icon = None                        # the window: what a click on an icon opens
 
     def __init__(self, on_click):
         super().__init__()
         self.setFixedSize(self.W, self.H)
         self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Abrir a central de comando")
+        self.setMouseTracking(True)
         self._on_click = on_click
         self.fade = 1.0
         self._hover, self._down = 0.0, 0.0
-        self._hover_anim = animate(self, 220, lambda v: self._set("_hover", v))
-        self._down_anim = animate(self, 120, lambda v: self._set("_down", v))
+        self._hover_anim = animate(self, 200, lambda v: self._set("_hover", v))
+        self._down_anim = animate(self, 110, lambda v: self._set("_down", v))
         self._press_at, self._grab, self._dragged = None, None, False
         self._face, self._face_key = None, None
         self._colour, self._count, self._load, self._rest = QColor(COLORS["ONLINE"]), 0, None, True
-        self._f_time = font(11, QFont.DemiBold, DISPLAY, spacing=0.4)
+        self.items: list = []
+        self._f_time = font(21, QFont.DemiBold, DISPLAY)
         self._f_count = font(7.5, QFont.Bold, UI)
         self._minute = QTimer(self)          # the face only changes when the minute does: one repaint then
         self._minute.setSingleShot(True)
@@ -1824,7 +1829,7 @@ class Orb(QWidget):
         anim.start()
 
     def set(self, load, colour, pulse):
-        """How things are, as the ambient light: blue at rest, the state's colour while a Claude works or waits."""
+        """How things are: the small dot after the time (blue at rest, the state's colour while a Claude works or waits)."""
         colour, rest = QColor(colour), not pulse and QColor(colour) == QColor(COLORS["ONLINE"])
         if colour != self._colour or rest != self._rest or load != self._load:
             self._colour, self._rest, self._load = colour, rest, load
@@ -1836,55 +1841,132 @@ class Orb(QWidget):
             self._count = n
             self.update()
 
+    def set_items(self, items: list):
+        """[(key, Pill)]: the views switched on in the central, as icons on the card."""
+        sig = [(k, pill.text, pill.dot, pill.glow) for k, pill in items]
+        if sig != [(k, pill.text, pill.dot, pill.glow) for k, pill in self.items]:
+            self.items = list(items)
+            self.update()
+
+    def ambient(self) -> QColor:
+        return QColor(AMBIENT_REST) if self._rest else self._colour
+
+    # ---- where things are on the card (card coordinates)
+    def _icon_rects(self) -> list:
+        x0 = 14 + self.STAR + 12
+        return [(key, pill, QRectF(x0 + i * (self.ICON + self.GAP), 58, self.ICON, self.ICON)) for i, (key, pill) in enumerate(self.items)]
+
+    def _icon_at(self, pos: QPointF):
+        local = pos - QPointF(self.FACE.topLeft())
+        for key, pill, r in self._icon_rects():
+            if r.adjusted(-3, -3, 3, 3).contains(local):
+                return key, pill
+        return None, None
+
+    # ---- the mouse
     def enterEvent(self, e):
         self._to(self._hover_anim, self._hover, 1)
 
     def leaveEvent(self, e):
         self._to(self._hover_anim, self._hover, 0)
+        QToolTip.hideText()
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
             self._press_at = e.globalPosition().toPoint()
-            self._grab = self._press_at - self.mapToGlobal(self.FACE.topLeft())   # the mouse, from the star's corner
+            self._grab = self._press_at - self.window().pos()
             self._dragged = False
             self._to(self._down_anim, self._down, 1)
 
     def mouseMoveEvent(self, e):
-        if self._press_at is None:
+        if self._press_at is None:   # only hovering: an icon says what it is
+            key, pill = self._icon_at(e.position())
+            if pill is not None:
+                QToolTip.showText(e.globalPosition().toPoint(), pill.text, self)
+            else:
+                QToolTip.hideText()
+                self.setToolTip("Abrir a central de comando")
             return
         at = e.globalPosition().toPoint()
         if not self._dragged and (at - self._press_at).manhattanLength() > 4:
             self._dragged = True
             self._to(self._down_anim, self._down, 0)
+            QToolTip.hideText()
         if self._dragged:
-            if hasattr(self.window(), "follow"):
-                self.window().follow(at - self._grab)   # the pills rearrange as it nears an edge
-            else:
-                self.window().move(at - self._grab - self.pos() - self.FACE.topLeft())
+            self.window().move(at - self._grab)   # the card goes where the mouse takes it, nothing else changes
 
     def mouseReleaseEvent(self, e):
         self._to(self._down_anim, self._down, 0)
         if self._press_at is not None and not self._dragged and e.button() == Qt.LeftButton:
-            self._on_click()
+            key, _ = self._icon_at(e.position())
+            if key and self.on_icon:
+                self.on_icon(key)
+            else:
+                self._on_click()
         elif self._dragged and hasattr(self.window(), "dock"):
-            self.window().dock()   # let go: the place is kept for next time
+            self.window().dock()   # let go: kept inside the screen, and the place is kept for next time
         self._press_at = None
 
-    def ambient(self) -> QColor:
-        """The light round the bezel, like the cabin's ambient lighting: blue at rest, green while a Claude works, amber
-        when something waits for you, red on an error."""
-        return QColor(AMBIENT_REST) if self._rest else self._colour
-
-    def paint_halo(self, p: QPainter, face: QRectF, strength: float):
-        """The ambient light: a soft glow behind the star, like a car's cabin at night."""
-        c, r = face.center(), face.width() / 2
-        glow_disc(p, c, r * 1.2, r * 1.2, self.ambient().name(), 0.3 * strength, soft=0.45)
-
+    # ---- painting
     def paint_face(self, p: QPainter, face: QRectF, hhmm_now: str, shadow=True):
-        """Only the chrome Mercedes star, on nothing: the desktop shows round it (23 Oct, Marco: «mais transparente, só
-        com o símbolo da Mercedes»). The time and the rest are pills beside it. Scaled to `face`, which the window also
-        uses while the star grows into the central de comando."""
-        paint_star(p, face, shadow=shadow)
+        """The card in `face` (scaled from its own size), which the window also uses while it grows into the central."""
+        p.save()
+        p.translate(face.topLeft())
+        p.scale(face.width() / self.CW, face.height() / self.CH)
+        r = QRectF(0, 0, self.CW, self.CH)
+        shape = QPainterPath()
+        shape.addRoundedRect(r, self.RADIUS, self.RADIUS)
+        body = QLinearGradient(0, 0, 0, self.CH)
+        body.setColorAt(0, QColor(32, 33, 37, 246))
+        body.setColorAt(1, QColor(11, 11, 13, 246))
+        p.setPen(Qt.NoPen)
+        p.setBrush(body)
+        p.drawPath(shape)
+        p.save()
+        p.setClipPath(shape)
+        sheen = QLinearGradient(0, 0, 0, self.CH * 0.5)   # the glass catches the light at the top
+        sheen.setColorAt(0, QColor(255, 255, 255, 22))
+        sheen.setColorAt(1, QColor(255, 255, 255, 0))
+        p.fillRect(QRectF(0, 0, self.CW, self.CH * 0.5), sheen)
+        p.restore()
+        rim = QLinearGradient(0, 0, self.CW, self.CH)
+        rim.setColorAt(0, QColor(255, 255, 255, 90))
+        rim.setColorAt(0.45, QColor(255, 255, 255, 18))
+        rim.setColorAt(1, QColor(255, 255, 255, 50))
+        p.setPen(QPen(rim, 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), self.RADIUS, self.RADIUS)
+        # the star
+        paint_star(p, QRectF(14, (self.CH - self.STAR) / 2, self.STAR, self.STAR), shadow=True)
+        # the time, a dot of how things are, AMG under it
+        x0 = 14 + self.STAR + 12
+        p.setPen(QColor(TEXT))
+        p.setFont(self._f_time)
+        p.drawText(QRectF(x0, 10, self.CW - x0 - 10, 30), Qt.AlignLeft | Qt.AlignVCenter, hhmm_now)
+        tw = QFontMetricsF(self._f_time).horizontalAdvance(hhmm_now)
+        dot = QPointF(x0 + tw + 9, 26)
+        light = self.ambient().name()
+        if not self._rest:
+            glow_disc(p, dot, 7, 7, light, 0.45)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(light))
+        p.drawEllipse(dot, 3, 3)
+        badge.paint(p, x0 + 0.5, 42, 9.0)
+        # the icons of the views switched on in the central
+        dpr = self.devicePixelRatioF()
+        for key, pill, ir in self._icon_rects():
+            p.setPen(QPen(QColor(255, 255, 255, 40), 1))
+            p.setBrush(QColor(255, 255, 255, 18))
+            p.drawEllipse(ir)
+            g = 11
+            p.drawPixmap(QPointF(ir.center().x() - g / 2, ir.center().y() - g / 2), info_glyph(key, g, dpr))
+            d = QPointF(ir.right() - 2, ir.top() + 2)
+            if pill.glow:
+                glow_disc(p, d, 5, 5, pill.dot, 0.5)
+            p.setPen(QPen(QColor(14, 14, 16), 1.2))
+            p.setBrush(QColor(pill.dot))
+            p.drawEllipse(d, 2.6, 2.6)
+        p.restore()
 
     def _build_face(self, hhmm_now: str) -> QPixmap:
         dpr = self.devicePixelRatioF()
@@ -1894,11 +1976,16 @@ class Orb(QWidget):
         p = QPainter(pix)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        self.paint_face(p, QRectF(self.FACE), hhmm_now)
-        if self._count:   # iOS's red count on the bezel's top right
+        face = QRectF(self.FACE)
+        p.setPen(Qt.NoPen)
+        for i in range(self.M, 0, -2):   # a soft shadow under the card
+            p.setBrush(QColor(0, 0, 0, int(34 * (1 - i / self.M) ** 2)))
+            p.drawRoundedRect(face.adjusted(-i, -i + 4, i, i + 4), self.RADIUS + i, self.RADIUS + i)
+        self.paint_face(p, face, hhmm_now)
+        if self._count:   # iOS's red count on the card's top right
             text = str(self._count) if self._count < 100 else "99+"
             w = max(18.0, QFontMetricsF(self._f_count).horizontalAdvance(text) + 10)
-            pill = QRectF(self.FACE.right() - w + 6, self.FACE.top() - 2, w, 18)
+            pill = QRectF(face.right() - w + 6, face.top() - 6, w, 18)
             p.setPen(QPen(QColor(0, 0, 0, 200), 2))
             p.setBrush(QColor("#ff3b30"))
             p.drawRoundedRect(pill, 9, 9)
@@ -1910,20 +1997,19 @@ class Orb(QWidget):
 
     def paintEvent(self, _):
         now = datetime.now().strftime("%H:%M")
-        key = (self.devicePixelRatioF(), now, self.ambient().rgba(), self._count)
+        key = (self.devicePixelRatioF(), now, self.ambient().rgba(), self._rest, self._count,
+               tuple((k, pill.dot, pill.glow) for k, pill in self.items))
         if self._face_key != key:
             self._face, self._face_key = self._build_face(now), key
         p = QPainter(self)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        p.setRenderHint(QPainter.Antialiasing)
         p.setOpacity(self.fade)
         c = QPointF(self.FACE.center())
-        s = 1 + 0.045 * self._hover - 0.07 * self._down     # it gives under the finger, like an iOS icon
+        s = 1 + 0.015 * self._hover - 0.03 * self._down     # it gives a little under the finger, like an iOS widget
         p.translate(c)
         p.scale(s, s)
         p.translate(-c)
         p.drawPixmap(0, 0, self._face)
-
 
 
 class Panel(QWidget):
@@ -1995,6 +2081,11 @@ class WidgetWindow(QWidget):
 
         self.orb = Orb(self.expand)
         self.orb.setParent(self)
+        self.orb.on_icon = lambda key: self._open_cave() if key == "camaras" else self.expand()
+        app = QApplication.instance()   # the icons' lines show in a dark glass tooltip, like the card
+        if app is not None and "QToolTip" not in app.styleSheet():
+            app.setStyleSheet(app.styleSheet() + "QToolTip { background: #141518; color: #f2f3f5; border: 1px solid #34373c;"
+                              " border-radius: 8px; padding: 5px 8px; font-family: 'Segoe UI Variable Text'; font-size: 9pt; }")
         # the pinned views in small, under the clock while the cockpit is minimized
         self.glance = InfoColumn()   # the time and the icons beside the star
         self.glance.setParent(self)
@@ -2004,7 +2095,7 @@ class WidgetWindow(QWidget):
             card.on_change = self._info_changed
         self._looks = QTimer(self)   # a look at the wallpaper behind the time every 20 s, while it is on the screen
         self._looks.timeout.connect(self._sample)
-        self._looks.start(20_000)
+        # not started since 23 Oct: the card reads the same on any wallpaper
         self._clock_tick = QTimer(self)   # once a minute, on the minute
         self._clock_tick.setSingleShot(True)
         self._clock_tick.timeout.connect(self._tick_time)
@@ -2262,47 +2353,29 @@ class WidgetWindow(QWidget):
         """Starts where the star was left last time (the top right of the screen the first time)."""
         screen = self.screen().availableGeometry()
         saved = prefs.load()
-        face = QPoint(saved.get("star_x", screen.right() - Orb.D - 24), saved.get("star_y", screen.top() + 40))
-        self._layout_orb(face)
-
-    def follow(self, face: QPoint):
-        """The star is being dragged: it goes where the mouse takes it, and the pills rearrange round it as it nears an
-        edge (23 Oct, Marco: «posso mexer... as coisas que aparecem por fora vão-se ajustando às bordas»)."""
+        face = QPoint(saved.get("star_x", screen.right() - Orb.CW - 24), saved.get("star_y", screen.top() + 40))
         self._layout_orb(face)
 
     def dock(self):
-        """The star was let go where it is: that place is kept for next time. Nothing snaps."""
+        """The card was let go where it is: brought back inside the screen if it went past an edge, and that place is
+        kept for next time. Nothing snaps to corners."""
+        self._layout_orb()
         face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
         prefs.save(star_x=face.x(), star_y=face.y())
-        QTimer.singleShot(150, self._sample)   # a new spot on the desktop: check the colour behind it
 
     def _layout_orb(self, face: QPoint | None = None):
-        """The minimized widget: the star where `face` says (its top left on the screen; by default where it is now), and
-        the pills beside it on the side with room (left of the star near the right edge, right of it otherwise), centred
-        on the star but slid up or down so they never leave the screen. The window takes the size of what shows."""
+        """The minimized widget: the card where `face` says (its top left on the screen; by default where it is now), kept
+        inside the screen, with the icons of the views switched on in the central."""
         if face is None:
             face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
-        self.glance.set_items([(k, card) for k, card in self.glances.items() if self.pins[k].on and card.text])
-        gw, gh = self.glance.width(), self.glance.height()
-        centre = face + QPoint(Orb.D // 2, Orb.D // 2)
-        screen = (QGuiApplication.screenAt(centre) or self.screen()).availableGeometry()
-        tuck = Orb.M - 4   # the time and the icons sit in the star's margin, close to it
-        room_right = screen.right() - (face.x() + Orb.D + Orb.M - tuck)
-        right = room_right < gw + self.EDGE and face.x() - screen.left() > room_right   # star on the right, pills on its left
-        self._side = "right" if right else "left"
-        orb_top = face.y() - Orb.FACE.top()
-        glance_top = centre.y() - gh // 2 + 2
-        glance_top = max(screen.top() + self.EDGE, min(glance_top, screen.bottom() - self.EDGE - gh))
-        top = min(orb_top, glance_top)
-        h = max(orb_top + Orb.H, glance_top + gh) - top
-        w = Orb.W + gw - tuck
-        self.orb.move(w - Orb.W if right else 0, orb_top - top)
-        self.glance.move(0 if right else Orb.W - tuck, glance_top - top)
-        self.glance.right = right
-        self.glance.update()
-        self.glance.setVisible(self.mode == "orb")
-        self.setFixedSize(w, h)
-        self.move(face - self.orb.pos() - Orb.FACE.topLeft())
+        self.orb.set_items([(k, card) for k, card in self.glances.items() if self.pins[k].on and card.text])
+        self.glance.hide()   # the time and the icons are on the card now
+        screen = (QGuiApplication.screenAt(face + QPoint(Orb.CW // 2, Orb.CH // 2)) or self.screen()).availableGeometry()
+        x = max(screen.left() + self.EDGE, min(face.x(), screen.right() - Orb.CW - self.EDGE))
+        y = max(screen.top() + self.EDGE, min(face.y(), screen.bottom() - Orb.CH - self.EDGE))
+        self.orb.move(0, 0)
+        self.setFixedSize(Orb.W, Orb.H)
+        self.move(QPoint(x, y) - Orb.FACE.topLeft())
 
     def _tick_time(self):
         """The time pill: the hours, and a dot in the colour of how things are."""
@@ -2536,7 +2609,7 @@ class WidgetWindow(QWidget):
             full = self._panel_rect()
             rect = QRectF(orb.left() + (full.left() - orb.left()) * k, orb.top() + (full.top() - orb.top()) * k,
                           orb.width() + (full.width() - orb.width()) * k, orb.height() + (full.height() - orb.height()) * k)
-            small = Orb.FACE.height() / 2
+            small = Orb.RADIUS
             radius = small + (RADIUS - small) * k
             p.setPen(Qt.NoPen)
             for i in (14, 9, 5):   # a soft shadow that grows with it (three passes, cheap)
@@ -2556,8 +2629,8 @@ class WidgetWindow(QWidget):
             p.restore()
             fade = max(0.0, 1 - k / 0.3)
             if fade > 0:   # the watch face, carried up to the corner and fading as the cockpit comes in
-                d = Orb.FACE.width() * (1 + 0.6 * k)
-                face = QRectF(rect.right() - d, rect.top(), d, d)
+                sc = 1 + 0.3 * k
+                face = QRectF(rect.right() - Orb.CW * sc, rect.top(), Orb.CW * sc, Orb.CH * sc)
                 p.setOpacity(fade)
                 self.orb.paint_face(p, face, datetime.now().strftime("%H:%M"), shadow=False)
                 p.setOpacity(1)

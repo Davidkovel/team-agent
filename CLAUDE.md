@@ -81,6 +81,11 @@ Vale para os Claudes do Kovel, do Marco e do David. Responde sempre em portuguê
   cortado a meio e o que ficou por commitar. `continuar.py <início do id>` mostra uma janela em detalhe. Segue sozinho a partir
   daí. No Escritório, cada janela tua acabada tem **«Continuar»**, que copia um prompt pronto a colar numa janela nova.
 
+- **Planos partilhados** (23 out, David: «acabo os tokens, entra um parceiro no escritório e continua»): um trabalho grande
+  vira um plano em passos com `scripts/plano.py` (`novo`, `ver`, `estou`, `feito`, `passo`, `nota`, `fechar`; skill
+  `plano-partilhado`). Tabela `plans` (versão 19, vai por sync), `routers/plans.py`, e no Escritório em **Missões › Planos**
+  (`planCard` no `crew-board.js`): qualquer sócio vê os passos e as notas, marca, acrescenta e carrega «Continuar». Cada
+  janela nova do Claude ouve dos planos abertos ao arrancar (`plans_text` no `claude_contexto.py`, `/api/local/plans`).
 - **O modelo certo para cada trabalho:** Haiku para pesquisar e procurar; Sonnet para rotina (textos, revisões, mudanças simples); Opus para decidir, desenhar e problemas difíceis.
 - **Subagentes só para trabalho grande ou em paralelo:** pesquisas largas, varrer muitos ficheiros, rever antes do push. Cada um começa do zero e gasta do limite do plano (5 h e semana): em paralelo fica mais rápido, não mais barato. Para uma coisa pequena, faz tu. Diz à pessoa quando lanças um e porquê.
 - **Limite do plano quase no fim** (sessão de 5 h acima de ~75%): nada de subagentes em paralelo, os que forem precisos em Haiku ou Sonnet, e acabar e fazer commit do que está a meio.

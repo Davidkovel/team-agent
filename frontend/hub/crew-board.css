@@ -303,7 +303,7 @@
 /* one line and «Mandar» until a mission is being written: then who does it, on whose computer, and «Pôr na fila» */
 .cb.desk .cx-side .cr-send:not(:focus-within):has(#cr-title:placeholder-shown) > :is(label.cr-who, .cr-hold) { display: none; }
 .cx-mtabs { display: none; }
-.cb.desk .cx-mtabs { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-top: 10px; padding: 3px; border-radius: 11px; background: #06080b; border: 1px solid rgba(255, 255, 255, .07); }
+.cb.desk .cx-mtabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; margin-top: 10px; padding: 3px; border-radius: 11px; background: #06080b; border: 1px solid rgba(255, 255, 255, .07); }
 .cx-mtabs button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 30px; border: 0; border-radius: 8px; background: none; color: #8b95a1;
   font: 600 12.5px var(--ui); cursor: pointer; }
 .cx-mtabs button:hover { color: #fff; }
@@ -311,7 +311,8 @@
 .cx-mtabs b { min-width: 18px; padding: 1px 6px; border-radius: 6px; background: rgba(255, 255, 255, .08); font: 700 11px var(--ui); }
 .cx-mtabs b:empty { display: none; }
 .cx-mtabs .on b { background: rgba(0, 0, 0, .12); }
-.cb.desk .cx-side[data-m="queue"] > [data-m="done"], .cb.desk .cx-side[data-m="done"] > [data-m="queue"] { display: none; }
+.cb.desk .cx-side > .cx-box[data-m] { display: none; }
+.cb.desk .cx-side[data-m="queue"] > .cx-box[data-m="queue"], .cb.desk .cx-side[data-m="plans"] > .cx-box[data-m="plans"], .cb.desk .cx-side[data-m="done"] > .cx-box[data-m="done"] { display: block; }
 .cb.desk .cx-side .cx-box { margin-top: 8px; padding: 8px; }
 .cb.desk .cx-side .cx-box > .cb-k { display: none; }   /* the tab says it */
 /* the side panel (the widget's numbers) would only squeeze the cameras and the cave: the partners' Claude and who is here are on this page */
@@ -481,3 +482,46 @@ html.is-phone .cr-panel { z-index: 95; padding-top: env(safe-area-inset-top, 0px
   background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); color: #e9edf3; font: 600 10.5px var(--ui); cursor: pointer; }
 .cb-cont .i { width: 9px; height: 9px; }
 .cb-cont:hover { background: #fff; color: #000; }
+
+/* Planos (Missões > Planos): a job in steps any partner's Claude carries on (crew-board.js, planCard) */
+.pl-new { margin-bottom: 8px; }
+.pl-new > summary { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 10px; list-style: none; cursor: pointer;
+  color: #c9d1db; font: 600 12.5px var(--ui); border: 1px dashed rgba(255, 255, 255, .14); }
+.pl-new > summary::-webkit-details-marker { display: none; }
+.pl-new > summary svg { width: 14px; height: 14px; }
+.pl-new[open] > summary { border-style: solid; color: #fff; }
+.pl-new form { display: grid; gap: 7px; margin-top: 7px; }
+.pl-new input, .pl-new textarea, .pl-add input { width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .1);
+  background: #06080b; color: #fff; font: 13px var(--ui); resize: vertical; }
+.pl-card { padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, .025); border: 1px solid rgba(255, 255, 255, .07); }
+.pl-card + .pl-card { margin-top: 7px; }
+.pl-card.closed { opacity: .6; }
+.pl-top { display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 0; border: 0; background: none; color: #fff; text-align: left; cursor: pointer; }
+.pl-top b { flex: 1; min-width: 0; font: 600 14px var(--serif, Georgia, serif); }
+.pl-top em { font: 700 12px var(--ui); color: #8b95a1; font-style: normal; }
+.pl-bar { height: 3px; margin: 8px 0 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.pl-bar i { display: block; height: 100%; background: var(--chrome, #dfe8f2); }
+.pl-who { display: flex; align-items: center; gap: 6px; margin: 0; color: #8b95a1; font: 11.5px var(--ui); }
+.pl-who i { width: 7px; height: 7px; border-radius: 50%; background: #ffbf3c; flex: none; }
+.pl-card.on .pl-who i { background: #4dff9a; }
+.pl-card.closed .pl-who i { background: #8b95a1; }
+.pl-last, .pl-goal { margin: 7px 0 0; color: #c9d1db; font: 12.5px/1.45 var(--ui); }
+.pl-last small { color: #6b7380; }
+.pl-steps { margin: 9px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.pl-steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 7px; align-items: start; color: #dfe8f2; font: 12.5px/1.4 var(--ui); }
+.pl-steps li.ok span { color: #8b95a1; text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, .25); }
+.pl-steps small { display: block; color: #6b7380; font-size: 11px; }
+.pl-steps button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .16); background: none; color: #8b95a1; cursor: pointer; }
+.pl-steps li.ok button { background: #4dff9a; border-color: #4dff9a; color: #0b0c0e; }
+.pl-steps button svg { width: 12px; height: 12px; }
+.pl-notes { margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .07); display: grid; gap: 6px; }
+.pl-notes p { margin: 0; color: #c9d1db; font: 12px/1.45 var(--ui); }
+.pl-notes b { color: #fff; }
+.pl-notes time { color: #6b7380; font-size: 11px; }
+.pl-notes span { display: block; white-space: pre-wrap; }
+.pl-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 7px; }
+.pl-add .btn { width: 36px; padding: 0; justify-content: center; }
+.pl-acts { display: flex; gap: 6px; margin-top: 9px; }
+.pl-acts .btn.primary { flex: 1; justify-content: center; }
+.pl-empty { margin: 4px 2px; color: #8b95a1; font: 12.5px/1.5 var(--ui); }
+html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 14px; }

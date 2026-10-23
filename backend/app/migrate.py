@@ -32,7 +32,8 @@ log = logging.getLogger("team.backend")
 #     conversation) and what it did (the start of its last answer), for the board of Empresa AMG.
 # 17: market_items and paper_trades, for Mercados (routers/trading.py): watchlist, alerts, investors, paper trading.
 # 18: messages and message_seen, for Mensagens (routers/messages.py): the team writes to each other in the Hub and the widget.
-SCHEMA_VERSION = 18
+# 19: plans, for Planos (routers/plans.py): a job in steps that any partner's Claude carries on.
+SCHEMA_VERSION = 19
 
 
 def current_version(conn) -> int:

@@ -217,6 +217,72 @@ window.CrewBoard = (function () {
     const ok = document.execCommand("copy"); box.remove();
     return ok;
   }
+  // Planos (23 Oct, David: «mando o plano todo; acabo os tokens, entra um parceiro no escritório, vê as cenas, acrescenta e
+  // continua»): a job in steps kept in the Hub of every PC (routers/plans.py). Each Claude ticks its steps with
+  // scripts/plano.py and leaves a hand-over note; here any partner sees it, adds a step or a note, and «Continuar» copies
+  // a prompt that sends their own Claude to the first step left. Asked of the Hub every 8 s while the page is open.
+  let plans = null, plansAt = 0, plansBusy = false;
+  async function loadPlans(force) {
+    if (plansBusy || (!force && Date.now() - plansAt < 8000) || document.hidden) return;
+    plansBusy = true;
+    try { plans = await api("/api/plans"); plansAt = Date.now(); } catch (e) { if (!plans) plans = []; plansAt = Date.now(); } finally { plansBusy = false; }
+    draw();
+  }
+  const planOn = (p) => p.worker && p.worker_at && Date.now() - new Date(p.worker_at) < 30 * 60e3;
+  function planPrompt(p) {
+    const next = p.steps.findIndex((x) => !x.done) + 1;
+    return `Continua o plano da equipa #${p.id} «${p.title}» (${p.done}/${p.total} passos feitos). `
+      + `Antes de mais nada corre \`python scripts/plano.py ver ${p.id}\` na pasta team-agent: tem o objetivo, os passos e a nota de quem lá esteve. `
+      + `Lê a skill plano-partilhado da biblioteca e segue-a: \`plano.py estou ${p.id}\`, ${next ? `começa no passo ${next}` : "confirma que está tudo feito"}, `
+      + `marca cada passo com \`plano.py feito ${p.id} <n> "o que fizeste"\`, faz commit e push de cada um e, antes de parares, deixa uma nota com \`plano.py nota ${p.id}\`. Não me perguntes o que o plano já decidiu.`;
+  }
+  function planCard(p) {
+    const id = `pl${p.id}`, isOpen = open.has(id) || (!open.has(`-${id}`) && plans.find((x) => x.status !== "done") === p);
+    const pct = p.total ? Math.round((p.done / p.total) * 100) : 0, last = p.notes[p.notes.length - 1], closed = p.status === "done";
+    const who = closed ? t("Fechado") : planOn(p) ? t("Com {n} agora", { n: p.worker }) : t("Parado: à espera de alguém");
+    const steps = p.steps.map((x, i) => `<li class="${x.done ? "ok" : ""}"><button type="button" data-ptick="${p.id}:${i + 1}:${x.done ? 0 : 1}" title="${esc(t(x.done ? "Desmarcar" : "Marcar como feito"))}">${icon(x.done ? "tick" : "plus")}</button>`
+      + `<div><span>${esc(x.text)}</span>${x.done ? `<small>${esc([x.by, ago(x.at), x.note].filter(Boolean).join(" · "))}</small>` : ""}</div></li>`).join("");
+    return `<article class="pl-card ${closed ? "closed" : ""} ${planOn(p) ? "on" : ""}">
+      <button type="button" class="pl-top" data-pfold="${id}" data-shown="${isOpen ? 1 : 0}"><b>${esc(p.title)}</b><em>${p.done}/${p.total}</em></button>
+      <div class="pl-bar"><i style="width:${pct}%"></i></div>
+      <p class="pl-who"><i></i>${esc(who)} · ${esc(t("de {n}", { n: p.by || "?" }))} · ${esc(ago(p.updated_at))}</p>
+      ${last && !isOpen ? `<p class="pl-last">«${esc(sentence(last.text, 120))}» <small>${esc(last.by)}</small></p>` : ""}
+      ${isOpen ? `${p.goal ? `<p class="pl-goal">${esc(p.goal)}</p>` : ""}<ol class="pl-steps">${steps}</ol>
+        ${p.notes.length ? `<div class="pl-notes">${p.notes.slice(-4).map((n) => `<p><b>${esc(n.by)}</b> <time>${esc(ago(n.at))}</time><span>${esc(n.text)}</span></p>`).join("")}</div>` : ""}
+        ${closed ? "" : `<form class="pl-add" data-padd="${p.id}"><input name="step" placeholder="${esc(t("Acrescentar um passo…"))}" maxlength="400" autocomplete="off"><button class="btn" title="${esc(t("Juntar o passo"))}">${icon("plus")}</button></form>
+        <form class="pl-add" data-pnote="${p.id}"><input name="note" placeholder="${esc(t("Nota para quem vem a seguir…"))}" maxlength="2000" autocomplete="off"><button class="btn" title="${esc(t("Deixar a nota"))}">${icon("note")}</button></form>`}
+        <div class="pl-acts">${closed ? `<button type="button" class="btn" data-pstatus="${p.id}:open">${esc(t("Reabrir"))}</button>`
+          : `<button type="button" class="btn primary" data-pcont="${p.id}" title="${esc(t("Copia um prompt para o teu Claude continuar este plano"))}">${icon("play")}${esc(t("Continuar"))}</button><button type="button" class="btn" data-pstatus="${p.id}:done">${esc(t("Fechar"))}</button>`}</div>` : ""}
+    </article>`;
+  }
+  function plansPane() {
+    if (!plans) return ui.skeleton(2);
+    const form = `<details class="pl-new"><summary>${icon("plus")}${esc(t("Novo plano"))}</summary><form data-pnew>
+      <input name="title" placeholder="${esc(t("Título do plano"))}" maxlength="200" required autocomplete="off">
+      <textarea name="steps" rows="5" placeholder="${esc(t("Um passo por linha"))}"></textarea>
+      <button class="btn primary">${esc(t("Criar plano"))}</button></form></details>`;
+    if (!plans.length) return form + `<p class="pl-empty">${esc(t("Ainda não há planos. Quando mandas um trabalho grande ao Claude, ele escreve aqui os passos e quem vier a seguir continua."))}</p>`;
+    return form + plans.map(planCard).join("");
+  }
+  const say = (text) => { if (typeof flash === "function") flash(text); };
+  async function planChange(id, body, okText) {
+    try { await api(`/api/plans/${id}`, { method: "PATCH", body }); if (okText) say(t(okText)); }
+    catch (e) { say(t("O Hub não aceitou: {e}", { e: e.message || e })); }
+    loadPlans(true);
+  }
+  async function planSubmit(e) {
+    const f = e.target.closest("form[data-pnew], form[data-padd], form[data-pnote]");
+    if (!f) return;
+    e.preventDefault();
+    if (f.hasAttribute("data-pnew")) {
+      const title = f.elements.title.value.trim(), steps = f.elements.steps.value.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+      if (!title) return;
+      try { const p = await api("/api/plans", { method: "POST", body: { title, steps } }); open.add(`pl${p.id}`); say(t("Plano criado: já está no Escritório de toda a equipa.")); }
+      catch (err) { say(t("O Hub não aceitou: {e}", { e: err.message || err })); }
+      f.reset(); f.closest("details").open = false; loadPlans(true);
+    } else if (f.dataset.padd) { const v = f.elements.step.value.trim(); if (v) planChange(f.dataset.padd, { add_steps: [v] }, "Passo juntado."); }
+    else { const v = f.elements.note.value.trim(); if (v) planChange(f.dataset.pnote, { note: v }, "Nota deixada."); }
+  }
   function queueRow(it, i, p, s) {
     const x = it.x, a = it.agent, m = (s.team || []).find((u) => u.user === x.assignee), on = agentOn(m);
     const why = it.held ? t("Em espera: arranca quando a mandares")
@@ -447,15 +513,20 @@ window.CrewBoard = (function () {
       for (const p of people) paint($(`cb-col-${p.id}`), personCard(p));
       paint($("cb-queue"), queuePane(people, s));
       paint($("cb-done"), donePane(people));
+      const pb = $("cb-plans"), typing = pb && pb.contains(document.activeElement) && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+      if (pb && !typing && !pb.querySelector("details.pl-new[open]")) paint(pb, plansPane());   // never under someone's fingers
+      const openPlans = (plans || []).filter((x) => x.status !== "done").length;
+      paint($("cb-np"), openPlans ? String(openPlans) : "");
       const waiting = people.reduce((n, p) => n + p.queue.length, 0), done = people.reduce((n, p) => n + p.done.length, 0), seg = root.querySelector('.cb-seg [data-tab="queue"]');
       if (seg) seg.textContent = waiting ? `${t("Missões")} · ${waiting}` : t("Missões");
       paint($("cb-nq"), waiting ? String(waiting) : "");
       paint($("cb-nd"), done ? String(done) : "");
-      $("cb-side").dataset.m = mtab || (waiting ? "queue" : "done");
+      $("cb-side").dataset.m = mtab || (waiting ? "queue" : openPlans ? "plans" : "done");
       root.querySelectorAll(".cx-mtabs [data-mtab]").forEach((b) => b.classList.toggle("on", b.dataset.mtab === $("cb-side").dataset.m));
     }
     paintWall(s);
     paint($("cb-doors"), doors(s));
+    loadPlans();
     if (tip && !tip.hidden && tipFor) paint(tip, peek(tipFor));
   }
   // On a computer the command centre takes exactly the height of the window: no long page, each column scrolls inside.
@@ -541,6 +612,14 @@ window.CrewBoard = (function () {
       const ok = s && copyText(carryPrompt(s));
       if (typeof flash === "function") flash(t(ok ? "Prompt copiado: abre uma janela nova do Claude e cola (Ctrl+V)." : "Não deu para copiar o prompt."));
     }
+    else if ((b = at("[data-pcont]"))) {
+      const p = (plans || []).find((x) => String(x.id) === b.dataset.pcont), ok = p && copyText(planPrompt(p));
+      if (ok) say(t("Prompt copiado: abre uma janela nova do Claude e cola (Ctrl+V)."));
+      else if (p) openSheet(`<div class="pl-goal"><b>${esc(t("Copia este prompt para o teu Claude"))}</b><textarea readonly rows="9" style="width:100%;margin-top:8px">${esc(planPrompt(p))}</textarea></div>`);
+    }
+    else if ((b = at("[data-ptick]"))) { const [id, n, on] = b.dataset.ptick.split(":").map(Number); planChange(id, on ? { tick: n } : { untick: n }); }
+    else if ((b = at("[data-pstatus]"))) { const [id, st] = b.dataset.pstatus.split(":"); planChange(id, { status: st }, st === "done" ? "Plano fechado." : "Plano reaberto."); }
+    else if ((b = at("[data-pfold]"))) { const id = b.dataset.pfold; open.delete(id); open.delete(`-${id}`); open.add(b.dataset.shown === "1" ? `-${id}` : id); draw(); }
     else if ((b = at("[data-release]"))) host.release(Number(b.dataset.release), b);
     else if ((b = at("[data-mini]"))) host.openMini();
     else if ((b = at("[data-href]"))) location.hash = b.dataset.href;
@@ -578,8 +657,9 @@ window.CrewBoard = (function () {
       </section>
       <aside class="cx-side" id="cb-side" data-pane="queue"><small class="cx-k">${esc(t("Missões"))}</small>
         ${composer}
-        <nav class="cx-mtabs"><button type="button" data-mtab="queue">${esc(t("Na fila"))}<b id="cb-nq"></b></button><button type="button" data-mtab="done">${esc(t("Feito hoje"))}<b id="cb-nd"></b></button></nav>
+        <nav class="cx-mtabs"><button type="button" data-mtab="queue">${esc(t("Na fila"))}<b id="cb-nq"></b></button><button type="button" data-mtab="plans">${esc(t("Planos"))}<b id="cb-np"></b></button><button type="button" data-mtab="done">${esc(t("Feito hoje"))}<b id="cb-nd"></b></button></nav>
         <div class="cx-box" data-m="queue"><small class="cb-k">${esc(t("Na fila"))}</small><div id="cb-queue"></div></div>
+        <div class="cx-box" data-m="plans"><small class="cb-k">${esc(t("Planos da equipa"))}</small><div id="cb-plans"></div></div>
         <div class="cx-box" data-m="done"><small class="cb-k">${esc(t("Feito hoje"))}</small><div id="cb-done"></div></div>
       </aside>
       <div class="cb-doors" id="cb-doors" data-pane="now"></div>`;
@@ -587,6 +667,8 @@ window.CrewBoard = (function () {
     showView(view);
     showWho(sessionStorage.getItem("cb.who") || mine);
     root.onclick = click;
+    root.onsubmit = planSubmit;
+    plansAt = 0;
     root.onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches(".cc-cam")) { e.preventDefault(); e.target.click(); } };
     root.ondblclick = (e) => { const b = e.target.closest("[data-cam]"); if (b) { hideTip(); host.openAgent(Number(b.dataset.cam)); } };
     // the pointer on a small camera brings up the agent's card; a large one already says what it is doing

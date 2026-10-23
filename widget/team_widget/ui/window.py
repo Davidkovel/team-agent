@@ -1510,8 +1510,9 @@ class InfoColumn(QWidget):
 
     The pills (Pill) still hold the text and the colour; they are never shown, this paints them. The column keeps room
     for one open icon: the empty part is fully transparent, so Windows lets the clicks through to the desktop."""
-    W, TIME_H, ICON, GAP = 320, 34, 26, 6
-    H = TIME_H + 4 + ICON
+    W, TIME_H, ICON, GAP = 320, 46, 24, 6
+    X0 = 15          # the hairline by the star, then the words
+    H = TIME_H + 6 + ICON
     clicked = Signal(str)   # "hora" or the view's key
 
     def __init__(self):
@@ -1523,8 +1524,14 @@ class InfoColumn(QWidget):
         self.open: dict[str, float] = {}
         self._anims: dict[str, QVariantAnimation] = {}
         self._hovered = None
-        self._f_time = font(21, QFont.DemiBold, DISPLAY)
+        self._f_time = font(22, QFont.DemiBold, DISPLAY)
         self._f_text = font(8, QFont.DemiBold, UI)
+        self.light = False   # the wallpaper behind is light: the time, the line and AMG go graphite (WidgetWindow._sample)
+
+    def set_light(self, light: bool):
+        if light != self.light:
+            self.light = light
+            self.update()
 
     def set_items(self, items):
         self.items = items
@@ -1539,23 +1546,23 @@ class InfoColumn(QWidget):
     def _width_of(self, key, pill) -> float:
         k = self.open.get(key, 0.0)
         full = QFontMetricsF(self._f_text).horizontalAdvance(pill.text) + self.ICON + 14
-        room = self.W - 6 - (len(self.items) - 1) * (self.ICON + self.GAP)   # the others stay closed beside it
+        room = self.W - self.X0 - 4 - (len(self.items) - 1) * (self.ICON + self.GAP)   # the others stay closed beside it
         return self.ICON + (min(room, full) - self.ICON) * k
 
     def _rects(self) -> list[tuple[str, "Pill", QRectF]]:
-        out, x = [], 2.0
+        out, x = [], float(self.X0)
         widths = [(key, pill, self._width_of(key, pill)) for key, pill in self.items]
         total = sum(w for _, _, w in widths) + self.GAP * max(0, len(widths) - 1)
         if self.right:
-            x = self.W - 2 - total
-        y = self.TIME_H + 4
+            x = self.W - self.X0 - total
+        y = self.TIME_H + 6
         for key, pill, w in widths:
             out.append((key, pill, QRectF(x, y, w, self.ICON)))
             x += w + self.GAP
         return out
 
     def _time_rect(self) -> QRectF:
-        return QRectF(2, 0, self.W - 4, self.TIME_H)
+        return QRectF(self.X0, 0, self.W - 2 * self.X0, self.TIME_H)
 
     # ---- the mouse
     def _hover(self, key):
@@ -1606,19 +1613,33 @@ class InfoColumn(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        # the time, white with a soft dark halo so it reads on any wallpaper
+        # the look Marco liked from the start (2 Oct): a hairline by the star, the time, the AMG badge under it; white
+        # with a dark halo on a dark wallpaper, graphite with a light halo on a light one
+        ink = QColor(22, 23, 26) if self.light else QColor(TEXT)
+        halo = QColor(255, 255, 255, 120) if self.light else QColor(0, 0, 0, 80)
+        line_x = self.W - 0.5 if self.right else 0.5
+        line = QLinearGradient(0, 2, 0, self.TIME_H)
+        line.setColorAt(0, rgba(ink.name(), 0))
+        line.setColorAt(0.5, rgba(ink.name(), 0.45))
+        line.setColorAt(1, rgba(ink.name(), 0))
+        p.setPen(QPen(line, 1))
+        p.drawLine(QPointF(line_x, 4), QPointF(line_x, self.TIME_H))
         if self.time_text:
             path = QPainterPath()
-            fm = QFontMetricsF(self._f_time)
-            tw = fm.horizontalAdvance(self.time_text)
-            x = self.W - 3 - tw if self.right else 3
-            path.addText(QPointF(x, self.TIME_H - 7), self._f_time, self.time_text)
-            p.setPen(pen(QColor(0, 0, 0, 90), 3.4))
+            tw = QFontMetricsF(self._f_time).horizontalAdvance(self.time_text)
+            x = self.W - self.X0 - tw if self.right else self.X0
+            path.addText(QPointF(x, 27), self._f_time, self.time_text)
+            p.setPen(pen(halo, 3.2))
             p.setBrush(Qt.NoBrush)
             p.drawPath(path)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor(TEXT))
+            p.setBrush(ink)
             p.drawPath(path)
+            bh = 10.0
+            bx = self.W - self.X0 - badge.width(bh) if self.right else self.X0 + 0.5
+            if not self.light:   # bright chrome with a shadow on dark wallpapers; graphite on light ones, where chrome vanishes
+                p.drawImage(QRectF(bx + 0.5, 35, badge.width(bh), bh), badge.image(bh, self.devicePixelRatioF(), shadow=True))
+            badge.paint(p, bx, 34, bh, dark=self.light)
         dpr = self.devicePixelRatioF()
         for key, pill, r in self._rects():
             k = self.open.get(key, 0.0)
@@ -1632,8 +1653,8 @@ class InfoColumn(QWidget):
             p.setPen(QPen(rim, 1))
             p.setBrush(body)
             p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
-            glyph = QRectF(r.left() + (self.ICON - 15) / 2, r.top() + (self.ICON - 15) / 2, 15, 15)
-            p.drawPixmap(glyph.topLeft(), info_glyph(key, 15, dpr))
+            glyph = QRectF(r.left() + (self.ICON - 14) / 2, r.top() + (self.ICON - 14) / 2, 14, 14)
+            p.drawPixmap(glyph.topLeft(), info_glyph(key, 14, dpr))
             dot = QPointF(r.left() + self.ICON - 5, r.top() + 5)   # how it is, on the icon's shoulder
             if pill.glow:
                 glow_disc(p, dot, 6, 6, pill.dot, 0.45)
@@ -1754,7 +1775,7 @@ class Orb(QWidget):
     it (WidgetWindow._layout_orb). Click to open the central de comando; drag to move.
 
     It paints a cached face and only repaints when the minute, the state or the count changes, or while the finger is on it."""
-    D, M = 70, 16                    # the star's diameter, and the room round it for its light and the count
+    D, M = 64, 14                    # the star's diameter (as on 2 Oct), and the room round it for its shadow and the count
     CAP_H = 0                        # nothing under the star any more (the time is a pill)
     W, H = D + 2 * M, D + 2 * M
     FACE = QRect(M, M, D, D)        # the star, inside the widget (what grows into the central de comando)
@@ -1897,7 +1918,6 @@ class Orb(QWidget):
         p.setOpacity(self.fade)
         c = QPointF(self.FACE.center())
         s = 1 + 0.045 * self._hover - 0.07 * self._down     # it gives under the finger, like an iOS icon
-        self.paint_halo(p, QRectF(self.FACE), 0.75 + 0.6 * self._hover)   # the ambient light comes up under the mouse
         p.translate(c)
         p.scale(s, s)
         p.translate(-c)
@@ -1981,6 +2001,9 @@ class WidgetWindow(QWidget):
         self.glances = {key: Pill() for key, _ in TOGGLES}   # the lines and colours the icons show (never shown themselves)
         for card in self.glances.values():
             card.on_change = self._info_changed
+        self._looks = QTimer(self)   # a look at the wallpaper behind the time every 20 s, while it is on the screen
+        self._looks.timeout.connect(self._sample)
+        self._looks.start(20_000)
         self._clock_tick = QTimer(self)   # once a minute, on the minute
         self._clock_tick.setSingleShot(True)
         self._clock_tick.timeout.connect(self._tick_time)
@@ -2044,6 +2067,22 @@ class WidgetWindow(QWidget):
         self.tokens.box.addWidget(self.usage)
         self.tokens.box.addSpacing(6)
         col.addWidget(self.tokens)
+
+        # «Ao lado do relógio»: what shows as a pill beside the minimized clock, chosen in the middle of the cockpit, under
+        # «Hoje» (23 Oct, Marco: «quero ativar os tokens, quero ativar as câmaras»; then «fica ao lado, no meio», not at the bottom)
+        side = Platter("Ao lado do relógio", "quando minimizas")
+        tiles = QHBoxLayout()
+        tiles.setContentsMargins(0, 4, 0, 4)
+        tiles.setSpacing(6)
+        pinned = set(prefs.load().get("pins", ["janelas"]))
+        self.pins = {}
+        for key, name in TOGGLES:
+            tile = Toggle(key, name, key in pinned)
+            tile.clicked.connect(lambda _=False, key=key: self._toggle_pin(key))   # clicked(bool) would take key's place
+            tiles.addWidget(tile)
+            self.pins[key] = tile
+        side.box.addLayout(tiles)
+        col.addWidget(side)
 
         # «Claude agora»: this person's Claude windows working or waiting, what each is doing
         self.claude_now = Platter("Claude agora")
@@ -2213,21 +2252,6 @@ class WidgetWindow(QWidget):
         self.ledger.hide()
         col.addWidget(self.ledger)
 
-        # «Ao lado do relógio»: what shows as a pill beside the minimized clock, chosen here at the bottom (23 Oct, Marco:
-        # «quero que seja uma coisa em que eu selecione logo ali embaixo: quero ativar os tokens, quero ativar as câmaras»)
-        side = Platter("Ao lado do relógio", "quando minimizas")
-        tiles = QHBoxLayout()
-        tiles.setContentsMargins(0, 4, 0, 4)
-        tiles.setSpacing(6)
-        pinned = set(prefs.load().get("pins", ["janelas"]))
-        self.pins = {}
-        for key, name in TOGGLES:
-            tile = Toggle(key, name, key in pinned)
-            tile.clicked.connect(lambda key=key: self._toggle_pin(key))
-            tiles.addWidget(tile)
-            self.pins[key] = tile
-        side.box.addLayout(tiles)
-        col.addWidget(side)
 
     # ------------------------------------------------------------ size and place
 
@@ -2249,6 +2273,7 @@ class WidgetWindow(QWidget):
         """The star was let go where it is: that place is kept for next time. Nothing snaps."""
         face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
         prefs.save(star_x=face.x(), star_y=face.y())
+        QTimer.singleShot(150, self._sample)   # a new spot on the desktop: check the colour behind it
 
     def _layout_orb(self, face: QPoint | None = None):
         """The minimized widget: the star where `face` says (its top left on the screen; by default where it is now), and
@@ -2282,6 +2307,19 @@ class WidgetWindow(QWidget):
         """The time pill: the hours, and a dot in the colour of how things are."""
         self.glance.set_time(datetime.now().strftime("%H:%M"))
         self._clock_tick.start(int((60 - time.time() % 60) * 1000) + 20)
+
+    def _sample(self):
+        """Looks at the desktop behind the time and picks white or graphite words to match (the old button did this;
+        23 Oct, Marco: «quando passo de fundos pretos para brancos o horário não muda de cor»)."""
+        if self.mode != "orb" or not self.isVisible() or self.windowOpacity() < 0.99:
+            return
+        screen = self.screen()
+        if screen is None:
+            return
+        g = self.glance.mapToGlobal(QPoint(0, 0)) - screen.geometry().topLeft()
+        shot = screen.grabWindow(0, g.x(), g.y(), self.glance.width(), InfoColumn.TIME_H).toImage().scaled(16, 6)
+        lum = [QColor(shot.pixel(x, y)).lightnessF() for x in range(shot.width()) for y in range(shot.height())]
+        self.glance.set_light(sum(lum) / len(lum) > 0.6)
 
     def _info_changed(self):
         """A line beside the star changed: an icon may come or go."""

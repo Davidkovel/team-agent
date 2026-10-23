@@ -88,3 +88,16 @@
 html.is-phone .rd .ph-actions, html.is-phone .rd-ctl { width: 100%; }
 html.is-phone .rd-ctl .st { flex-basis: 100%; }
 html.is-phone .rd-ctl .btn { flex: 1; }
+
+/* seguimento */
+.rd-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.rd-acts a.btn { text-decoration: none; }
+.rd-seg-st { display: flex; flex-wrap: wrap; gap: 6px; }
+.rd-pill { all: unset; cursor: pointer; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); font: 500 11.5px var(--ui); }
+.rd-pill:hover { color: var(--text); }
+.rd-pill.on { color: var(--text); border-color: currentColor; background: rgba(255, 255, 255, .05); }
+.rd-pill.on.ok { color: #bfe9cf; } .rd-pill.on.wait { color: #ecd3a0; } .rd-pill.on.bad { color: #f3ab9f; } .rd-pill.on.busy { color: #bfe9cf; }
+.rd-nota { margin-top: 8px; min-height: 64px; resize: vertical; font: 13px var(--ui); }
+.rd-segk { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.rd-segk .num { font-size: 24px; }
+@container rd (max-width: 760px) { .rd-segk { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

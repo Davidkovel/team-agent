@@ -8,6 +8,7 @@
   const eur = (v) => `${Number(v).toLocaleString("pt-PT")} €`;
   const day = (ts) => new Date(ts * 1000).toLocaleDateString("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   const host = (u) => { try { return new URL(u).host.replace(/^www\./, ""); } catch { return u; } };
+  const SEG_TONE = { por_contactar: "off", contactado: "wait", respondeu: "ai", reuniao: "busy", fechou: "ok", nao: "bad" };
   const NIVEL = { quente: ["bad", "Quente"], morna: ["wait", "Morna"], fria: ["off", "Fria"] };
 
   // as peças da máquina: o que já trabalha e o que vem a seguir
@@ -19,8 +20,9 @@
     ["Concorrência", "Que plataformas e que agências servem a zona.", "ok"],
     ["Mensagem", "Uma mensagem curta por negócio com os problemas dele, pronta a copiar.", "ok"],
     ["Nota no Google", "Estrelas e opiniões de cada um: precisa de GOOGLE_PLACES_KEY.", "wait"],
-    ["Dossiê em PDF", "O dossiê de crescimento de cada quente, com amostras (skill dossie-crescimento).", "off"],
-    ["Seguimento", "Quem foi contactado, quem respondeu, quem fechou.", "off"],
+    ["Diagnóstico em PDF", "Uma ou duas páginas por negócio, para mandar com a mensagem.", "ok"],
+    ["Seguimento", "Quem foi contactado, quem respondeu, quem fechou, com notas.", "ok"],
+    ["Dossiê com amostras", "O site e o Instagram refeitos em imagens para os quentes (skill dossie-crescimento).", "off"],
   ];
 
   HUB_VIEWS.radar = async function () {
@@ -30,6 +32,7 @@
         `<div class="rd-ctl" id="rd-ctl"></div>`)}
       <div class="rd-msg" id="rd-msg" hidden></div>
       <section class="panel pad rd-form" id="rd-form"></section>
+      <div id="rd-seg"></div>
       <div id="rd-scan"></div>
       ${ui.sec("A máquina", `<small class="rd-sr">${esc(t("o que já trabalha e o que vem a seguir"))}</small>`)}
       <div class="rd-pecas">${PECAS.map(([n, d, st], i) => `<div class="panel rd-peca ${st}"><span class="rd-pn">${String(i + 1).padStart(2, "0")}</span>
@@ -42,7 +45,7 @@
 
   async function load() {
     S = await api("/api/radar");
-    paintForm(); paintHist();
+    paintForm(); paintHist(); paintSeg();
     if (cur && !S.varreduras.some((v) => v.id === cur)) cur = null;
     cur = cur || S.varreduras[0]?.id || null;
     await loadScan();
@@ -147,7 +150,8 @@
         <span class="rd-name"><b>${esc(n.nome)}</b><small>${site}${a.plataforma ? ` · ${esc(a.plataforma)}` : ""}${n.morada ? ` · ${esc(n.morada)}` : ""}</small></span>
         <span class="rd-score" title="${esc(t("Nota do site"))}">${ui.progress(n.nota_site, n.nota_site < 40 ? "bad" : n.nota_site < 70 ? "warn" : "ok")}<small>${n.nota_site}</small></span>
         <span class="rd-eur">${g.max ? `${g.min}–${g.max} €` : "—"}</span>
-        <span class="st ${tone}"><i></i>${esc(t(lbl))} · ${n.oportunidade}</span>
+        ${n.lead && n.lead.estado !== "por_contactar" ? `<span class="st ${SEG_TONE[n.lead.estado]}"><i></i>${esc(t(S.estados[n.lead.estado]))}</span>`
+          : `<span class="st ${tone}"><i></i>${esc(t(lbl))} · ${n.oportunidade}</span>`}
       </button>
       ${isOpen ? detail(n) : ""}
     </div>`;
@@ -178,7 +182,14 @@
         ${n.site_achado ? `<p class="rd-none">${esc(t("Site achado pela pesquisa do nome: confirma antes de usar."))}</p>` : ""}
         <h4 class="rd-h">${esc(t("Contacto"))}</h4>
         <div class="rd-contact">${contact || `<span class="rd-none">${esc(t("Sem contacto no mapa nem no site."))}</span>`}</div>
-        <button type="button" class="btn primary rd-copy" data-copy="${n.id}">${icon("doc")}${esc(t("Copiar mensagem"))}</button>
+        <div class="rd-acts">
+          <button type="button" class="btn primary" data-copy="${n.id}">${icon("doc")}${esc(t("Copiar mensagem"))}</button>
+          <a class="btn" href="/api/radar/${cur}/${n.id}/pdf?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">${icon("doc")}${esc(t("Diagnóstico em PDF"))}</a>
+        </div>
+        <h4 class="rd-h">${esc(t("Seguimento"))}</h4>
+        <div class="rd-seg-st">${Object.entries(S.estados).map(([k, v]) => `<button type="button" class="rd-pill ${(n.lead?.estado || "por_contactar") === k ? "on " + SEG_TONE[k] : ""}" data-lead="${n.id}" data-st="${k}">${esc(t(v))}</button>`).join("")}</div>
+        <textarea class="inp rd-nota" data-nota="${n.id}" placeholder="${esc(t("Notas: com quem falaste, o que disse, quando voltar a ligar"))}">${esc(n.lead?.nota || "")}</textarea>
+        ${n.lead?.por ? `<p class="rd-none">${esc(t("Mudado por {p} · {d}", { p: n.lead.por, d: day(n.lead.at) }))}</p>` : ""}
       </div>
     </div>`;
   }
@@ -192,7 +203,7 @@
   }
 
   async function click(e) {
-    const b = e.target.closest("[data-act],[data-row],[data-copy],[data-scan],[data-del],[data-retry]");
+    const b = e.target.closest("[data-act],[data-row],[data-copy],[data-scan],[data-del],[data-retry],[data-lead],[data-seg]");
     if (!b) return;
     if (b.dataset.retry != null) return load().catch(() => {});
     if (b.dataset.act === "focus") { $("rd-f").local.focus(); $("rd-form").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
@@ -204,6 +215,8 @@
       if (cur === b.dataset.del) cur = null;
       return load();
     }
+    if (b.dataset.lead) return saveLead(b.dataset.lead, b.dataset.st);
+    if (b.dataset.seg) { const [sid, nid] = b.dataset.seg.split("/"); cur = sid; open = nid; try { localStorage.setItem(KEY, cur); } catch {} await loadScan(); paintHist(); document.querySelector(".rd-row.open")?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (b.dataset.copy) {
       const sc = await api(`/api/radar/${cur}`);
       const n = sc.negocios.find((x) => x.id === b.dataset.copy);
@@ -220,5 +233,34 @@
       <button type="button" class="rd-h-open" data-scan="${v.id}"><b>${esc(v.ramo_nome)} · ${esc(v.local || t("lista"))}</b>
         <small>${esc(day(v.at))}${v.job ? ` · ${esc(t("a correr"))}` : v.resumo?.total != null ? ` · ${t("{n} negócios, {q} quentes", { n: v.resumo.total, q: v.resumo.quentes })}` : ""}</small></button>
       ${v.job ? "" : `<button type="button" class="btn quiet sm" data-del="${v.id}">${esc(t("Apagar"))}</button>`}</div>`).join("")}</section>`);
+  }
+
+  async function saveLead(nid, estado, nota) {
+    try {
+      await api(`/api/radar/${cur}/${nid}/lead`, { method: "POST", body: nota == null ? { estado } : { estado, nota } });
+    } catch (err) { return msg(err.message); }
+    S = await api("/api/radar"); paintSeg(); await loadScan();
+  }
+
+  // as notas guardam-se ao sair da caixa
+  document.addEventListener("focusout", (e) => {
+    const el = e.target.closest?.("[data-nota]");
+    if (!el || !$("rd")) return;
+    const st = document.querySelector(`[data-lead="${el.dataset.nota}"].on`)?.dataset.st || "por_contactar";
+    saveLead(el.dataset.nota, st, el.value);
+  });
+
+  // o seguimento de todas as varreduras: quantos em cada passo e os que estão em jogo
+  function paintSeg() {
+    const ls = S.seguimento || [];
+    if (!ls.length) { paint($("rd-seg"), ""); return; }
+    const count = (k) => ls.filter((l) => l.estado === k).length;
+    const live = ls.filter((l) => ["contactado", "respondeu", "reuniao"].includes(l.estado));
+    paint($("rd-seg"), `${ui.sec("Seguimento", `<small class="rd-sr">${esc(t("de todas as varreduras"))}</small>`)}
+      <div class="bd-kpis rd-kpis rd-segk">${["contactado", "respondeu", "reuniao", "fechou", "nao"].map((k) =>
+        `<div class="panel bd-kpi"><span class="bd-l">${esc(t(S.estados[k]))}</span>${ui.num(String(count(k)))}</div>`).join("")}</div>
+      ${live.length ? `<section class="panel rd-hist">${live.map((l) => `<div class="rd-h-row"><button type="button" class="rd-h-open" data-seg="${l.sid}/${l.nid}">
+        <b>${esc(l.nome)}</b><small>${esc(t(S.estados[l.estado]))} · ${esc(day(l.at))}${l.telefone ? ` · ${esc(l.telefone)}` : ""}${l.nota ? ` · ${esc(l.nota.slice(0, 90))}` : ""}</small></button>
+        <span class="st ${SEG_TONE[l.estado]}"><i></i>${esc(l.local || "")}</span></div>`).join("")}</section>` : ""}`);
   }
 })();

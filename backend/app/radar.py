@@ -37,6 +37,10 @@ RAMOS = {
     "oficinas": ("Oficinas", ['nwr["shop"="car_repair"]'], "oficina automóvel"),
 }
 
+# o caminho de um contacto, por ordem
+ESTADOS = {"por_contactar": "Por contactar", "contactado": "Contactado", "respondeu": "Respondeu", "reuniao": "Reunião marcada",
+           "fechou": "Fechou", "nao": "Não quer"}
+
 # resultados de pesquisa que não são o site do negócio (diretórios, redes, mapas)
 NOT_SITE = re.compile(r"facebook|instagram|youtube|linkedin|tiktok|twitter|x\.com|google\.|bomcondutor|escolasconducao|drivingschools|"
                       r"escola-de-conducao\.pt|schoolandcollege|pai\.pt|paginasamarelas|tripadvisor|zomato|cylex|infoempresas|racius|einforma|"
@@ -86,7 +90,49 @@ class Radar:
             raise ValueError("varredura desconhecida")
         out = json.loads(p.read_text("utf-8"))
         out["job"] = self.jobs.get(sid)
+        leads = self._leads()
+        for n in out.get("negocios", []):
+            n["lead"] = leads.get(self.lead_key(out["ramo"], n["nome"]))
         return out
+
+    # ---------- seguimento: quem foi contactado, respondeu, fechou ----------
+    # guardado por ramo + nome, por isso sobrevive a varreduras novas da mesma zona
+    @staticmethod
+    def lead_key(ramo: str, nome: str) -> str:
+        return f"{ramo}:{' '.join(sorted(w for w in _norm(nome).split() if w not in GENERIC)) or _norm(nome)}"
+
+    def _leads(self) -> dict:
+        try:
+            return json.loads((DIR / "seguimento.json").read_text("utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def set_lead(self, sid: str, nid: str, estado: str, nota: str | None, who: str) -> dict:
+        if estado not in ESTADOS:
+            raise ValueError("estado desconhecido")
+        scan = self.get(sid)
+        n = next((x for x in scan["negocios"] if x["id"] == nid), None)
+        if not n:
+            raise ValueError("negócio desconhecido")
+        leads = self._leads()
+        k = self.lead_key(scan["ramo"], n["nome"])
+        old = leads.get(k) or {}
+        lead = {**old, "estado": estado, "nota": old.get("nota", "") if nota is None else str(nota)[:1000], "at": time.time(), "por": who,
+                "nome": n["nome"], "ramo": scan["ramo"], "local": scan["local"] or n.get("morada", ""), "telefone": n.get("telefone", ""),
+                "site": n.get("site", ""), "sid": sid, "nid": nid}
+        if old.get("estado") != estado:
+            lead["hist"] = (old.get("hist") or [])[-20:] + [[time.time(), estado, who]]
+        if estado == "por_contactar" and not lead["nota"]:
+            leads.pop(k, None)
+        else:
+            leads[k] = lead
+        tmp = DIR / "seguimento.tmp"
+        tmp.write_text(json.dumps(leads, ensure_ascii=False), "utf-8")
+        tmp.replace(DIR / "seguimento.json")
+        return lead
+
+    def leads(self) -> list[dict]:
+        return sorted(self._leads().values(), key=lambda x: -x["at"])
 
     def _save(self, scan: dict) -> None:
         tmp = self._path(scan["id"]).with_suffix(".tmp")

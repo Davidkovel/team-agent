@@ -30,3 +30,18 @@ def test_gasto_soma_plataforma_agencia_e_anuncios():
     g = n["gasto"]
     assert (g["min"], g["max"]) == (17 + 30 + 150, 36 + 120 + 600) and g["anuncios"] and len(g["porque"]) == 3
     assert 0 < n["nota_site"] < 100
+
+
+def test_seguimento_guarda_por_nome_e_sobrevive_a_varreduras(tmp_path, monkeypatch):
+    import app.radar as r
+    monkeypatch.setattr(r, "DIR", tmp_path)
+    R = r.Radar()
+    scan = {"id": "a" * 12, "ramo": "escolas", "local": "Leiria", "raio": 20, "at": 0, "fim": 1,
+            "negocios": [{"id": "n1", "nome": "Escola de Condução Esteves", "site": ""}]}
+    R._save(scan)
+    R.set_lead(scan["id"], "n1", "contactado", "ligar sexta", "Marco")
+    scan2 = {**scan, "id": "b" * 12, "negocios": [{"id": "x9", "nome": "Esteves", "site": ""}]}
+    R._save(scan2)
+    assert R.get(scan2["id"])["negocios"][0]["lead"]["estado"] == "contactado"
+    R.set_lead(scan2["id"], "x9", "por_contactar", "", "Marco")
+    assert R.leads() == []

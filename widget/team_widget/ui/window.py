@@ -1060,10 +1060,11 @@ APP_GLYPHS = {   # the Hub's pages as iOS icons (24-unit strokes, like the Hub's
     "empresa": '<path d="M4.5 20.5V6.5l7.5-3 7.5 3v14"/><path d="M9.5 20.5v-4.5h5v4.5M8.5 9h.01M12 9h.01M15.5 9h.01M8.5 12.5h.01M12 12.5h.01M15.5 12.5h.01"/>',
     "skills": '<path d="M12 3.5l8.5 4.6-8.5 4.6-8.5-4.6z"/><path d="M3.5 12.4l8.5 4.6 8.5-4.6M3.5 16.4l8.5 4.6 8.5-4.6"/>',
     "trading": '<path d="M3.5 17l5.5-5.5 4 4 7.5-7.5"/><path d="M15 8h5.5v5.5"/>',
+    "radar": '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l5.5-5.5"/><circle cx="12" cy="12" r=".6"/>',
     "fundednext": '<path d="M12 3l7.5 2.8v5.7c0 4.4-3.2 7.8-7.5 9-4.3-1.2-7.5-4.6-7.5-9V5.8z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/>',
 }
 APPS = (("hub", "Hub", "#/home"), ("escritorio", "Escritório", "#/escritorio"), ("tarefas", "Tarefas", "#/tarefas"),
-        ("mensagens", "Mensagens", "#/mensagens"), ("empresa", "Empresa", "#/empresa"), ("skills", "Skills", "#/skills"),
+        ("mensagens", "Mensagens", "#/mensagens"), ("radar", "Radar", "#/radar"), ("empresa", "Empresa", "#/empresa"), ("skills", "Skills", "#/skills"),
         ("trading", "Trading", "#/trading"), ("fundednext", "FundedNext", "#/fundednext"))
 _app_icons: dict[tuple, QPixmap] = {}
 
@@ -2106,7 +2107,7 @@ class WidgetWindow(QWidget):
         for i, (glyph, name, href) in enumerate(APPS):
             icon = AppIcon(glyph, name, f"Abrir {name} no Hub")
             icon.clicked.connect(lambda href=href: self._open_notice(href))
-            grid.addWidget(icon, i // 4, i % 4)
+            grid.addWidget(icon, i // 5, i % 5)
             self.apps[glyph] = icon
         col.addWidget(apps)
 

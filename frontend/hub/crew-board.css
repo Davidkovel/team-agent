@@ -290,3 +290,4 @@ html.is-phone .cb-card h4, html.is-phone .cb-tile h4 { font-size: 15.5px; }
 .pl-acts .btn.primary { flex: 1; justify-content: center; }
 .pl-empty { margin: 4px 2px; color: var(--muted); font: 12.5px/1.5 var(--ui); }
 html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 15px; }
+.cx-mtabs button { white-space: nowrap; padding: 0 6px; font-size: 12px; gap: 5px; }

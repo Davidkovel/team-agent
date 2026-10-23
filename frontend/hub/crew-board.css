@@ -152,7 +152,7 @@ html:not(.is-phone) body:has(#cb-root) #ai-fab { right: 20px; }
 .cr-pick select { height: 32px; min-width: 0; padding: 0 8px; border-radius: 8px; background: #0f1215; border: 1px solid rgba(255, 255, 255, .09); color: var(--text); font: 500 12.5px var(--ui); }
 .cr-route { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: 12px; }
 .cr-btns { display: flex; justify-content: flex-end; gap: 8px; }
-.cx-mtabs { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; gap: 2px; border-radius: 10px; background: rgba(255, 255, 255, .045); border: 1px solid var(--line); }
+.cx-mtabs { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 3px; gap: 2px; border-radius: 10px; background: rgba(255, 255, 255, .045); border: 1px solid var(--line); }
 .cx-mtabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--muted); font: 550 12.5px var(--ui); cursor: pointer; }
 .cx-mtabs button.on { background: #e9ecef; color: #0a0b0d; }
 .cx-mtabs b { min-width: 16px; padding: 0 5px; border-radius: 9px; background: rgba(255, 255, 255, .1); font: 600 10.5px/16px var(--ui); }
@@ -160,7 +160,7 @@ html:not(.is-phone) body:has(#cb-root) #ai-fab { right: 20px; }
 .cx-mtabs button.on b { background: rgba(0, 0, 0, .12); }
 .cx-box { min-height: 0; }
 .cb.desk .cx-box { display: none; flex: 1; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
-.cb.desk .cx-side[data-m="queue"] .cx-box[data-m="queue"], .cb.desk .cx-side[data-m="done"] .cx-box[data-m="done"] { display: block; }
+.cb.desk .cx-side[data-m="queue"] .cx-box[data-m="queue"], .cb.desk .cx-side[data-m="plans"] .cx-box[data-m="plans"], .cb.desk .cx-side[data-m="done"] .cx-box[data-m="done"] { display: block; }
 .cb-k { display: block; margin: 0 0 6px; color: var(--faint); font: 600 10.5px var(--ui); letter-spacing: .06em; text-transform: uppercase; }
 .cb-grp + .cb-grp { margin-top: 12px; }
 .cb-q { display: flex; align-items: center; gap: 9px; padding: 8px 0; }
@@ -247,3 +247,46 @@ html.is-phone .cr-btns .btn { flex: 1; height: 42px; font-size: 14px; border-rad
 html.is-phone .cb-dep-t b { font-size: 15px; }
 html.is-phone .cb-dep-t span { font-size: 12.5px; }
 html.is-phone .cb-card h4, html.is-phone .cb-tile h4 { font-size: 15.5px; }
+
+/* Planos (Missões > Planos): a job in steps any partner's Claude carries on (crew-board.js, planCard; David, 23 out) */
+.pl-new { margin-bottom: 8px; }
+.pl-new > summary { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 10px; list-style: none; cursor: pointer;
+  color: var(--muted); font: 550 12.5px var(--ui); border: 1px dashed var(--line-2); }
+.pl-new > summary::-webkit-details-marker { display: none; }
+.pl-new > summary svg { width: 14px; height: 14px; }
+.pl-new[open] > summary { border-style: solid; color: var(--text); }
+.pl-new form { display: grid; gap: 7px; margin-top: 7px; }
+.pl-new input, .pl-new textarea, .pl-add input { width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--line-2);
+  background: #0a0c0f; color: var(--text); font: 13px var(--ui); resize: vertical; }
+.pl-card { padding: 11px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
+.pl-card + .pl-card { margin-top: 7px; }
+.pl-card.closed { opacity: .6; }
+.pl-top { display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; }
+.pl-top b { flex: 1; min-width: 0; font: 650 14px var(--display); letter-spacing: -.01em; }
+.pl-top em { font: 600 12px var(--ui); color: var(--muted); font-style: normal; font-variant-numeric: tabular-nums; }
+.pl-bar { height: 3px; margin: 8px 0 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.pl-bar i { display: block; height: 100%; background: #e9ecef; }
+.pl-who { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font: 11.5px var(--ui); }
+.pl-who i { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; }
+.pl-card.on .pl-who i { background: var(--ok); }
+.pl-card.closed .pl-who i { background: var(--idle); }
+.pl-last, .pl-goal { margin: 7px 0 0; color: #c9d1db; font: 12.5px/1.45 var(--ui); }
+.pl-last small { color: var(--faint); }
+.pl-steps { margin: 9px 0 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+.pl-steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: start; color: var(--text); font: 12.5px/1.4 var(--ui); }
+.pl-steps li.ok span { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, .25); }
+.pl-steps small { display: block; color: var(--faint); font-size: 11px; }
+.pl-steps button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid var(--line-2); background: none; color: var(--muted); cursor: pointer; }
+.pl-steps li.ok button { background: var(--ok); border-color: var(--ok); color: #0b0c0e; }
+.pl-steps button svg { width: 11px; height: 11px; }
+.pl-notes { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.pl-notes p { margin: 0; color: #c9d1db; font: 12px/1.45 var(--ui); }
+.pl-notes b { color: var(--text); }
+.pl-notes time { color: var(--faint); font-size: 11px; }
+.pl-notes span { display: block; white-space: pre-wrap; }
+.pl-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 7px; }
+.pl-add .btn { width: 36px; padding: 0; justify-content: center; }
+.pl-acts { display: flex; gap: 6px; margin-top: 9px; }
+.pl-acts .btn.primary { flex: 1; justify-content: center; }
+.pl-empty { margin: 4px 2px; color: var(--muted); font: 12.5px/1.5 var(--ui); }
+html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 15px; }

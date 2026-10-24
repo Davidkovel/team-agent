@@ -290,7 +290,7 @@ window.CrewBoard = (function () {
       : !on ? t("À espera do agente automático do {n}", { n: p.name })
       : x.current_action ? x.current_action : i ? t("À espera de vez") : t("É a seguinte");
     return `<div class="cb-q ${it.held ? "held" : ""}"><span class="cb-pos">${i + 1}</span>
-      <div><b data-href="#task-${x.id}">${esc(x.title)}</b><small>${a ? `${esc(a.name)} · ${esc(t(a.what))} — ` : ""}${esc(why)}</small></div>
+      <div><b ${x ? `data-href="#task-${x.id}"` : ""}>${esc(title)}</b><small>${a ? `${esc(a.name)} · ${esc(t(a.what))} — ` : ""}${esc(why)}</small></div>
       ${it.held ? `<button type="button" class="btn cb-go" data-release="${x.id}">${esc(t("Arrancar"))}</button>` : ""}</div>`;
   }
   // a partner: who, where they are and how much Claude they have left (the top of both their card and their row)
@@ -574,7 +574,7 @@ window.CrewBoard = (function () {
     const m = p.m || {}, on = m.status && m.status !== "OFFLINE", where = m.where || [];
     const place = !on ? (m.last_seen ? t("offline · visto {q}", { q: ago(m.last_seen) }) : t("offline")) : where.includes("phone") && !where.includes("pc") ? t("no telemóvel") : t("no computador");
     const jobs = [...p.needs, ...p.working], claudes = jobs.filter((it) => it.kind === "claude").length + p.idle;
-    const cap = Math.max(1, bvCap[p.id] || jobs.length), shown = jobs.length > cap ? jobs.slice(0, cap - 1) : jobs;
+    const cap = Math.max(1, bvCap[p.id] || jobs.length), shown = jobs.length > cap ? jobs.slice(0, Math.max(1, cap - 1)) : jobs;
     const tally = [t(claudes === 1 ? "1 Claude" : "{n} Claudes", { n: claudes }), p.working.length ? t("{n} a trabalhar", { n: p.working.length }) : "",
       p.needs.length ? t(p.me ? "{n} à tua espera" : "{n} à espera dele", { n: p.needs.length }) : "", p.idle ? t(p.idle === 1 ? "1 parada" : "{n} paradas", { n: p.idle }) : ""].filter(Boolean);
     return `<header class="bv-who"><span class="bv-av ${on ? "on" : ""}">${ui.avatar(p.name)}</span>
@@ -583,9 +583,55 @@ window.CrewBoard = (function () {
       <p class="bv-tally">${tally.map((x, k) => `<span class="${k === 0 ? "big" : ""}">${esc(x)}</span>`).join("")}</p>
       <div class="bv-jobs" id="bv-jobs-${p.id}">${shown.map((it) => bvJob(it, p)).join("")}
         ${jobs.length > shown.length ? `<div class="bv-more">${esc(t("+ {n} a trabalhar com o {p}", { n: jobs.length - shown.length, p: p.name }))}</div>` : ""}
-        ${jobs.length ? "" : `<div class="bv-none">${esc(t("Sem nada a correr agora."))}</div>`}</div>
-      <div class="bv-pdone">${p.done.length ? `<small>${esc(t(p.done.length === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: p.done.length }))}</small>${p.done.slice(0, 3).map((it) =>
-        `<span class="${it.bad ? "bad" : ""}"><i>${icon(it.bad ? "x" : "tick")}</i><b>${esc(it.goal)}</b><time>${esc(ago(it.at))}</time></span>`).join("")}` : `<small>${esc(t("Nada acabado hoje"))}</small>`}</div>`;
+        ${jobs.length ? "" : `<div class="bv-none">${esc(t("Sem nada a correr agora."))}</div>`}</div>`;
+  }
+  // The missions (Marco, 24 Oct: «nas missões, estás a mandar missões para quem? tem de ver as missões que estão ali»): every
+  // task given to a department, whoever it is for, newest work first: running, waiting for someone, in the queue, done today;
+  // and the team's open plans. Each says the department doing it, for whom, and where it stands. The one button is «Arrancar»
+  // on a mission held in the queue.
+  let bvMAll = 0;   // how many missions there are, for the fitting below
+  function bvMissions(people, s) {
+    // every task of the team that is still open, and those finished today: a mission is anything sent to someone, to a
+    // partner or to a department; the department that does it (crew) when there is one, the partner it is for
+    const all = [], now = Date.now();
+    const WORD = { TODO: ["queue", "Por fazer", COLD], ASSIGNED: ["queue", "Na fila", COLD], IN_PROGRESS: ["run", "A fazer", GREEN], WAITING_APPROVAL: ["need", "Aprovar", AMBER],
+      NEEDS_HELP: ["need", "Precisa de ajuda", RED], PAUSED: ["need", "Em pausa", GREY], COMPLETED: ["done", "Feita", GREY], FAILED: ["done", "Falhou", RED], STOPPED: ["done", "Parou", RED] };
+    for (const x of s.tasks || []) {
+      const w = WORD[x.status];
+      if (!w || x.trashed_at) continue;
+      const end = x.completed_at || x.started_at || x.created_at;
+      if (w[0] === "done" && !(end && now - Date.parse(end) < DAY)) continue;
+      const pp = host.partnerOf(nameOf(x.assignee)), p = people.find((q) => q.id === pp.id) || { name: nameOf(x.assignee) || t("todos"), color: GREY };
+      const held = x.status === "TODO" && !!x.crew;
+      const agent = s.agents.find((a) => a.job && a.job.key === "t" + x.id) || s.agents.find((a) => a.id === x.crew) || null;
+      all.push({ it: { x, agent, held, at: w[0] === "done" ? end : x.started_at || x.created_at }, p, st: w[0], word: held ? "Em espera" : w[1], c: w[2] });
+    }
+    // and the work of the Claude windows: today the missions are mostly what each partner asked their Claude
+    for (const p of people) {
+      for (const it of p.working) if (it.kind === "claude") all.push({ it, p, st: "run", word: "A fazer", c: GREEN });
+      for (const it of p.needs) if (it.kind === "claude") all.push({ it, p, st: "need", word: it.s.wait === "permission" ? "Autorização" : "Pergunta", c: AMBER });
+      for (const it of p.done) if (it.kind === "claude") all.push({ it, p, st: "done", word: it.quiet ? "Parou" : "Feita", c: GREY });
+    }
+    const order = { need: 0, run: 1, queue: 2, done: 3 }, live = (plans || []).filter((x) => x.status !== "done");
+    bvMAll = all.length;
+    all.sort((a, b) => order[a.st] - order[b.st] || String(b.it.at).localeCompare(String(a.it.at)));
+    const count = (k) => all.filter((m) => m.st === k).length;
+    const cap = Math.max(1, bvCap.m || all.length), shown = all.length > cap ? all.slice(0, Math.max(1, cap - 1)) : all;
+    const row = ({ it, p, st, word, c }) => {
+      const a = it.agent, x = it.x, title = x ? x.title : it.goal;
+      return `<article class="bv-mi ${st}" style="--c:${c};--p:${p.color}">
+        <button type="button" class="bv-mface" ${a ? `data-agent="${a.i}" title="${esc(t("Abrir o posto de {n}", { n: a.name }))}"` : "disabled"}>${a ? `<img class="cr-px" src="${a.portrait}" alt="">` : icon("bot")}</button>
+        <div><b ${x ? `data-href="#task-${x.id}"` : ""}>${esc(title)}</b><small>${a ? `<em>${esc(a.code || a.name)}</em> ` : ""}${esc(t("para"))} <i></i>${esc(p.name)} · ${esc(ago(it.at))}</small></div>
+        ${it.held && x ? `<button type="button" class="bv-btn" data-release="${x.id}">${esc(t("Arrancar"))}</button>` : `<span class="bv-mst"><i></i>${esc(t(word))}</span>`}</article>`;
+    };
+    const plan = (x) => `<article class="bv-mi plan"><span class="bv-mface">${icon("layers")}</span><div><b>${esc(x.title)}</b><small>${esc(t("Plano da equipa · {d} de {n} passos", { d: x.done, n: x.total }))}</small></div>
+      <span class="bv-mbar"><i style="width:${x.total ? Math.round((x.done / x.total) * 100) : 0}%"></i></span></article>`;
+    const tally = [count("run") ? t("{n} a fazer", { n: count("run") }) : "", count("need") ? t("{n} à espera", { n: count("need") }) : "",
+      count("queue") ? t("{n} na fila", { n: count("queue") }) : "", count("done") ? t("{n} feitas hoje", { n: count("done") }) : ""].filter(Boolean);
+    return `<header class="bv-mh"><b>${esc(t("Missões"))}</b><span>${esc(tally.join(" · ") || t("nenhuma agora"))}</span></header>
+      <div class="bv-mlist" id="bv-mlist">${live.map(plan).join("")}${shown.map(row).join("")}
+        ${all.length > shown.length ? `<div class="bv-more">${esc(t("+ {n} missões", { n: all.length - shown.length }))}</div>` : ""}
+        ${all.length || live.length ? "" : `<p class="bv-none">${esc(t("Nenhuma missão hoje. Cada trabalho mandado a um Claude, a um sócio ou a um departamento aparece aqui: para quem é, quem o faz e como está."))}</p>`}</div>`;
   }
   function bvCrew(s) {
     return s.agents.map((a) => {
@@ -602,6 +648,8 @@ window.CrewBoard = (function () {
     paint($("bv-kpis"), kpi(claudes, "Claudes abertos", COLD) + kpi(n("working"), "a trabalhar", GREEN) + kpi(mine ? mine.needs.length : 0, "à tua espera", AMBER) + kpi(n("done"), "feitas hoje", GREY));
     paint($("bv-sum"), esc(summary(people)));
     for (const p of people) paint($(`bv-p-${p.id}`), bvPerson(p));
+    paint($("bv-m"), bvMissions(people, s));
+    loadPlans();
     paint($("bv-crew"), bvCrew(s));
     // no scroll, ever: a column whose jobs do not fit shows one fewer and says how many more, until it fits
     for (const p of people) {
@@ -611,8 +659,11 @@ window.CrewBoard = (function () {
       if (box.scrollHeight > box.clientHeight + 2 && (bvCap[p.id] || total) > 1) { bvCap[p.id] = (bvCap[p.id] || total) - 1; return bvDraw(s, people); }
       if (bvCap[p.id] && bvCap[p.id] < total && box.scrollHeight + 110 < box.clientHeight) { bvCap[p.id]++; return bvDraw(s, people); }
     }
+    const ml = $("bv-mlist"), mt = bvMAll;
+    if (ml && ml.scrollHeight > ml.clientHeight + 2 && (bvCap.m || mt) > 1) { bvCap.m = (bvCap.m || mt) - 1; return bvDraw(s, people); }
+    if (ml && bvCap.m && bvCap.m < mt && ml.scrollHeight + 70 < ml.clientHeight) { bvCap.m++; return bvDraw(s, people); }
   }
-  const bossOn = () => document.documentElement.classList.contains("cb-boss");
+  const bossOn = () => !!root && root.classList.contains("desk");   // on a computer the office IS this screen (Marco, 24 Oct: «não é clicar num botão»)
 
   // ---------------------------------------------------------------- the page
   function draw() {
@@ -740,7 +791,6 @@ window.CrewBoard = (function () {
     else if ((b = at("[data-pstatus]"))) { const [id, st] = b.dataset.pstatus.split(":"); planChange(id, { status: st }, st === "done" ? "Plano fechado." : "Plano reaberto."); }
     else if ((b = at("[data-pfold]"))) { const id = b.dataset.pfold; open.delete(id); open.delete(`-${id}`); open.add(b.dataset.shown === "1" ? `-${id}` : id); draw(); }
     else if ((b = at("[data-release]"))) host.release(Number(b.dataset.release), b);
-    else if ((b = at("[data-boss]"))) bossMode(!document.documentElement.classList.contains("cb-boss"));
     else if ((b = at("[data-mini]"))) host.openMini();
     else if ((b = at("[data-href]"))) location.hash = b.dataset.href;
     else if ((b = at("[data-open]"))) { hideTip(); host.openAgent(Number(b.dataset.open)); }
@@ -762,7 +812,7 @@ window.CrewBoard = (function () {
       <header class="cx-top" data-pane="now">
         <div class="cx-id"><small>${esc(t("02 · Agentes · central de comando"))}</small><h1>${esc(t("Escritório"))}</h1><p id="cx-sum">${esc(t("A ler o que a empresa está a fazer…"))}</p></div>
         <div class="cb-nums" id="cb-nums"></div>
-        <div class="cx-acts"><nav class="cx-view"><button type="button" data-view="team">${icon("users")}${esc(t("Equipa"))}</button><button type="button" data-view="cams">${icon("grid")}${esc(t("Câmaras"))}</button></nav><button type="button" class="btn cx-boss" data-boss title="${esc(t("O Escritório no ecrã inteiro, sem a barra do lado (Esc sai)"))}">${icon("expand")}${esc(t("Modo chefe"))}</button><a class="btn cx-cave" href="#/empresa">${icon("play")}${esc(t("A cave"))}</a><button type="button" class="btn cx-mini" data-mini title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div>
+        <div class="cx-acts"><nav class="cx-view"><button type="button" data-view="team">${icon("users")}${esc(t("Equipa"))}</button><button type="button" data-view="cams">${icon("grid")}${esc(t("Câmaras"))}</button></nav><a class="btn cx-cave" href="#/empresa">${icon("play")}${esc(t("A cave"))}</a><button type="button" class="btn cx-mini" data-mini title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div>
         <ul class="cb-say" id="cb-say"></ul>
       </header>
       <section class="cx-people" data-pane="people"><small class="cx-k">${esc(t("Quem trabalha com quem"))}</small>
@@ -784,13 +834,12 @@ window.CrewBoard = (function () {
       </aside>
       <div class="cb-doors" id="cb-doors" data-pane="now"></div>
       <section class="bv" id="bv">
-        <header class="bv-top"><div class="bv-id"><small>${esc(t("Escritório · modo chefe"))}</small><h1>${esc(t("Quem trabalha com quem"))}</h1><p id="bv-sum"></p></div>
+        <header class="bv-top"><div class="bv-id"><small>${esc(t("02 · Agentes · Escritório"))}</small><h1>${esc(t("Quem trabalha com quem"))}</h1><p id="bv-sum"></p></div>
           <div class="bv-kpis" id="bv-kpis"></div><time id="bv-clock"></time>
-          <button type="button" class="bv-exit" data-boss title="${esc(t("Voltar ao Escritório (Esc)"))}">${icon("x")}${esc(t("Sair"))}</button></header>
-        <div class="bv-board">${host.partners.map(([id, , color]) => `<section class="bv-p" id="bv-p-${id}" style="--p:${color}"></section>`).join("")}</div>
+          <a class="bv-exit" href="#/empresa" title="${esc(t("A cave com os agentes ao vivo"))}">${icon("play")}${esc(t("A cave"))}</a></header>
+        <div class="bv-board">${host.partners.map(([id, , color]) => `<section class="bv-p" id="bv-p-${id}" style="--p:${color}"></section>`).join("")}<section class="bv-m" id="bv-m"></section></div>
         <footer class="bv-foot"><div class="bv-crew" id="bv-crew"></div></footer>
       </section>`;
-    try { if (localStorage.getItem("cb.boss") && !document.documentElement.classList.contains("is-phone")) document.documentElement.classList.add("cb-boss"); } catch { /* private window */ }
     showTab(sessionStorage.getItem("cb.tab") || "now");
     showView(view);
     showWho(sessionStorage.getItem("cb.who") || mine);
@@ -810,21 +859,7 @@ window.CrewBoard = (function () {
     const flashId = sessionStorage.getItem("cb.flash");
     if (flashId) { sessionStorage.removeItem("cb.flash"); setTimeout(() => flashPerson(flashId), 400); }
   }
-  // «Modo chefe»: the office on the whole screen, without the sidebar, everything at a glance. Esc (or leaving the page) ends it.
-  function bossMode(on) {
-    document.documentElement.classList.toggle("cb-boss", on);
-    try {
-      if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
-      else if (!on && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    } catch { /* the widget's window may not allow it: the sidebar is still hidden */ }
-    try { localStorage.setItem("cb.boss", on ? "1" : ""); } catch { /* private window */ }
-    for (const k in bvCap) delete bvCap[k];
-    draw();
-    setTimeout(() => { fit(); draw(); }, 260);   // the sidebar folds with a transition
-  }
-  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && document.documentElement.classList.contains("cb-boss")) bossMode(false); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.documentElement.classList.contains("cb-boss")) bossMode(false); });
-  window.addEventListener("hashchange", () => { hideTip(); if (sheet) sheet.hidden = true; if (!location.hash.startsWith("#/escritorio")) document.documentElement.classList.remove("cb-boss"); });
+  window.addEventListener("hashchange", () => { hideTip(); if (sheet) sheet.hidden = true; });
   window.addEventListener("scroll", hideTip, true);
   window.addEventListener("resize", fit);
   return { mount, paint: draw, ficha, roster, hideTip, cams, fit };

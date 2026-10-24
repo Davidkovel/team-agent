@@ -568,18 +568,15 @@ html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 14px; }
 .cb-col .bx-list + footer, .cb-col .bx-list ~ footer { margin-top: 10px; }
 
 /* «Modo chefe»: no sidebar, the whole screen for the office */
-html.cb-boss .hub, html.cb-boss .hub.paneled, html.cb-boss .hub.collapsed { grid-template-columns: minmax(0, 1fr) !important; }
-html.cb-boss .hside, html.cb-boss #hpanel { display: none; }
 .cb.desk .cx-id p { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 13px; }
 
 /* ================================================================ «Modo chefe» (bvDraw in crew-board.js, 24 Oct)
    A screen of its own: who works with whom, the partners on top and their agents hanging from a line under each, the ten
    departments at the bottom. One screen, no scroll anywhere (the script drops a job and says «+N» when a column is full). */
 .bv { display: none; }
-html.cb-boss .hub > main { padding: 14px 16px 12px !important; }
-html.cb-boss .cb { display: block !important; }
-html.cb-boss .cb > :not(.bv) { display: none !important; }
-html.cb-boss .bv { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 14px; height: 100%; min-height: 0; }
+.cb.desk { display: block !important; }
+.cb.desk > :not(.bv) { display: none !important; }
+.cb.desk .bv { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 14px; height: 100%; min-height: 0; }
 .bv-top { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 18px; align-items: center; padding: 4px 6px 0; }
 .bv-id small { color: #6b7380; font: 700 10px var(--ui); letter-spacing: .2em; text-transform: uppercase; }
 .bv-id h1 { margin: 3px 0 4px; font: 700 32px/1.05 var(--display); letter-spacing: -.025em; color: #fff; }
@@ -591,12 +588,12 @@ html.cb-boss .bv { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; 
 .bv-kpi.lit b { color: #fff; }
 .bv-kpi.lit { border-color: color-mix(in srgb, var(--c) 35%, transparent); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--c) 70%, transparent); }
 #bv-clock { color: #dfe8f2; font: 600 26px/1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.bv-exit { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .12); background: #0c0f13; color: #dfe4ea; font: 600 13px var(--ui); cursor: pointer; }
+.bv-exit { text-decoration: none; display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .12); background: #0c0f13; color: #dfe4ea; font: 600 13px var(--ui); cursor: pointer; }
 .bv-exit:hover { background: #151a20; }
 .bv-exit svg.i { width: 13px; height: 13px; }
 
-.bv-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; min-height: 0; }
-.bv-p { position: relative; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; padding: 16px 16px 14px; border-radius: 22px;
+.bv-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(300px, .95fr); gap: 14px; min-height: 0; }
+.bv-p { position: relative; display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; padding: 16px 16px 14px; border-radius: 22px;
   background: radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--p) 16%, transparent), transparent 60%), linear-gradient(180deg, #0d1014, #08090c);
   border: 1px solid rgba(255, 255, 255, .07); box-shadow: inset 0 2px 0 var(--p); overflow: hidden; }
 .bv-who { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
@@ -620,7 +617,7 @@ html.cb-boss .bv { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; 
 /* the line from the partner down to the agents working with them */
 .bv-jobs { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; padding-left: 22px; }
 .bv-jobs::before { content: ""; position: absolute; left: 8px; top: 0; bottom: 24px; width: 2px; border-radius: 2px; background: linear-gradient(180deg, var(--p), color-mix(in srgb, var(--p) 10%, transparent)); }
-.bv-job { position: relative; flex: none; display: grid; grid-template-columns: 50px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 12px; border-radius: 16px;
+.bv-job { position: relative; flex: none; display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 6px 12px; align-items: start; padding: 11px 12px; border-radius: 16px;
   background: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .02)); border: 1px solid rgba(255, 255, 255, .07); }
 .bv-job::before { content: ""; position: absolute; left: -15px; top: 50%; width: 14px; height: 2px; background: var(--p); opacity: .7; }
 .bv-job::after { content: ""; position: absolute; left: -19px; top: calc(50% - 4px); width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); }
@@ -672,3 +669,37 @@ html.cb-boss .bv { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; 
 .bv-pdone span i svg.i { width: 9px; height: 9px; }
 .bv-pdone b { overflow: hidden; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
 .bv-pdone time { color: #5d6570; font: 600 11px var(--ui); }
+
+/* the missions column */
+.bv-m { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 16px 14px 14px; border-radius: 22px; background: linear-gradient(180deg, #0d1014, #08090c); border: 1px solid rgba(255, 255, 255, .07); box-shadow: inset 0 2px 0 #dfe8f2; overflow: hidden; }
+.bv-mh { margin-bottom: 12px; }
+.bv-mh b { display: block; font: 700 22px/1.1 var(--display); letter-spacing: -.02em; color: #fff; }
+.bv-mh span { display: block; margin-top: 4px; color: #8b95a1; font: 600 12px var(--ui); }
+.bv-mlist { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+.bv-mi { flex: none; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 14px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .06); box-shadow: inset 3px 0 0 var(--c, #dfe8f2); }
+.bv-mi.done { opacity: .6; }
+.bv-mi.need { border-color: color-mix(in srgb, var(--c) 40%, transparent); background: color-mix(in srgb, var(--c) 8%, #0b0d10); }
+.bv-mface { width: 38px; height: 38px; padding: 0; display: grid; place-items: center; border-radius: 11px; background: #06080b; border: 1px solid rgba(255, 255, 255, .08); color: #8b95a1; overflow: hidden; cursor: pointer; }
+.bv-mface:disabled, span.bv-mface { cursor: default; }
+.bv-mface img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.bv-mface svg.i { width: 16px; height: 16px; }
+.bv-mi > div { min-width: 0; }
+.bv-mi b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #f2f4f7; font: 600 13px/1.3 var(--ui); cursor: pointer; word-break: break-word; }
+.bv-mi.plan b { cursor: default; }
+.bv-mi small { display: flex; align-items: center; gap: 5px; margin-top: 3px; overflow: hidden; color: #7d8794; font: 500 11.5px var(--ui); white-space: nowrap; }
+.bv-mi small em { color: #dfe4ea; font: 700 10.5px var(--ui); font-style: normal; letter-spacing: .06em; }
+.bv-mi small i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--p); }
+.bv-mst { display: flex; align-items: center; gap: 5px; color: var(--c); font: 700 11px var(--ui); white-space: nowrap; }
+.bv-mst i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+.bv-mbar { width: 54px; height: 5px; border-radius: 5px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.bv-mbar i { display: block; height: 100%; background: #dfe8f2; }
+@media (max-width: 1500px) { .bv-board { grid-template-columns: repeat(3, minmax(0, 1fr)) 290px; } .bv-job .bv-ask { display: none; } }
+/* the job's state, time and button in a row under the text, so the goal and the request get the whole width */
+.bv-job .bv-face { width: 46px; height: 46px; grid-row: span 2; }
+.bv-job .bv-side { grid-column: 2; display: flex; align-items: center; gap: 10px; justify-items: initial; }
+.bv-job .bv-side .bv-btn { margin-left: auto; }
+.bv-job .bv-side { min-width: 0; flex-wrap: wrap; white-space: normal; }
+.bv-mi.done .bv-mst { color: #8b95a1; }
+/* a narrow column (a laptop with the sidebar open): the name first, the rings and the asked text give way */
+.bv-p, .bv-m { container-type: inline-size; }
+@container (max-width: 330px) { .bv-rings, .bv-who > div > span { display: none; } .bv-job .bv-ask { display: none; } .bv-mi .bv-mst { display: none; } }

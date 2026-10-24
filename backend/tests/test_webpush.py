@@ -100,3 +100,38 @@ def test_a_task_reaches_the_phone_subscribed_here_and_a_phone_that_is_gone_is_fo
     time.sleep(0.3)
     assert [s["endpoint"] for s in wp.subscriptions("mark")] == ["https://push.example.test/ok"]  # the gone one is forgotten
     assert wp.subscriptions("david") == []  # nobody else's phone is involved
+
+
+def test_online_reaches_the_other_phones_once(monkeypatch):
+    """A teammate coming online buzzes the others' phones: not on the first look, not for themselves, not for a quick flap."""
+    import asyncio
+    from app.realtime import rt
+    sent = []
+
+    async def fake_send(username, payload):
+        sent.append((username, payload))
+        return 1
+    monkeypatch.setattr(wp, "_send", fake_send)
+    monkeypatch.setattr(wp, "subscriptions", lambda name: [{"endpoint": "x"}])
+    monkeypatch.setattr(wp, "_online", None)
+    monkeypatch.setattr(wp, "_left", {})
+    monkeypatch.setattr(wp, "_told", {})
+    present = set()
+
+    async def get_presence(uid):
+        return {"status": "ONLINE"} if uid in present else None
+    monkeypatch.setattr(rt.store, "get_presence", get_presence)
+    people = {1: ("owner", "Kovel"), 2: ("mark", "Marco Goucha")}
+
+    async def look():
+        await wp._presence(people)
+        await asyncio.sleep(0)
+    asyncio.run(look())                    # the first look is not news
+    present.add(2)
+    asyncio.run(look())
+    assert [(u, p["title"], p["kind"], p["tag"]) for u, p in sent] == [("owner", "Marco está online", "online", "online-2")]
+    present.discard(2)
+    asyncio.run(look())
+    present.add(2)
+    asyncio.run(look())                    # back after a second: no second buzz
+    assert len(sent) == 1

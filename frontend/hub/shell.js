@@ -2,16 +2,32 @@
 
 /* ---------- notifications: kept by the server, per person; the counter survives a reload ---------- */
 window.hubBell = true;
-let lastNotification = null; // newest id already seen in this window: only later ones raise a toast
-async function hubNews() {
+let lastNotification = null; // newest id already seen in this window: only later ones raise a banner
+// The widget's own window (QtWebEngine) and its mini window: the widget already draws its cards on the screen, so the page
+// stays quiet there instead of showing the same thing twice.
+const inWidget = /QtWebEngine/.test(navigator.userAgent) || document.documentElement.classList.contains("is-mini");
+// One look at a time: the live event, waking the phone and opening the bell all ask for news, and two looks running together
+// both saw the same new ids and showed each banner twice. A look asked while one runs waits for it and then runs once more.
+let newsRun = null, newsAgain = false;
+function hubNews() {
+  if (newsRun) { newsAgain = true; return newsRun; }
+  newsRun = lookNews().finally(() => { newsRun = null; if (newsAgain) { newsAgain = false; hubNews().catch(() => {}); } });
+  return newsRun;
+}
+async function lookNews() {
   const inbox = await request("/api/notifications?limit=100");
   $("bell-n").textContent = inbox.unread;
   $("bell-n").hidden = !inbox.unread;
-  const newest = inbox.items[0]?.id || 0;
+  const newest = Math.max(lastNotification || 0, ...inbox.items.map((x) => x.id));
   if (lastNotification !== null) {
-    for (const n of inbox.items.filter((x) => x.id > lastNotification && !x.read).reverse()) {
-      notify(n.title, n.href);
-      if (document.hidden && window.Notification?.permission === "granted") new Notification("Agente AMG", { body: n.title, icon: "logo.png" });
+    const fresh = inbox.items.filter((x) => x.id > lastNotification && !x.read).reverse();
+    // a task sent to me and a message have their own card (taskNews, msgNews), which says more than a banner
+    const pops = !document.documentElement.classList.contains("is-mini") && $("modal").hidden;
+    const show = fresh.filter((n) => !(pops && ((n.kind === "task_new" && n.directed) || n.kind === "message")));
+    if (!inWidget && show.length) hubBanners(show);
+    if (!onPhone() && !inWidget && document.hidden && fresh.length && window.Notification?.permission === "granted") {
+      const n = fresh.at(-1);   // the PC's browser in the background: one system notification, the newest, replacing the last
+      new Notification(fresh.length > 1 ? t("{n} notificações novas", { n: fresh.length }) : n.title, { body: fresh.length > 1 ? n.title : n.body || "", icon: "assets/icon-192.png", tag: "amg-news" });
     }
   }
   lastNotification = newest;
@@ -340,6 +356,18 @@ async function toggleNotifications(open = $("notif-panel").hidden) {
 }
 onLive(["notification"], hubNews);
 
+/* Somebody came online or left: the pill at the top (banners.js), the way the widget's corner card says it on the PC. Not for
+   me, not on the first look (that is not news), not in the widget's own window (the widget says it). */
+let onlineSeen = null;
+async function presenceNews() {
+  if (inWidget || !me) return;
+  const team = await api("/api/team");
+  const now = Object.fromEntries(team.map((m) => [m.user, m.status !== "OFFLINE"]));
+  if (onlineSeen) for (const m of team) if (m.user !== me.username && m.user in onlineSeen && now[m.user] !== onlineSeen[m.user]) hubPresence(m.display_name, now[m.user]);
+  onlineSeen = now;
+}
+onLive(["presence"], presenceNews);
+
 /* ---------- command palette ---------- */
 // what can be done from anywhere, then every page of the sidebar (NAV in app.js, with its section) and a few places inside them
 const ACTIONS = [
@@ -533,3 +561,4 @@ window.hubCheckVersion = async () => {
 hubCheckVersion();
 setInterval(hubCheckVersion, 15000); // a change on this PC shows on the phone within seconds
 window.addEventListener("focus", () => hubCheckVersion());
+setTimeout(() => presenceNews().catch(() => {}), 2500);   // the first look, so the first change after opening is news

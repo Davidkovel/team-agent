@@ -38,6 +38,8 @@ router = APIRouter(prefix="/api/webpush")
 _lock = threading.Lock()
 _sending: set[asyncio.Task] = set()
 STALE = timedelta(minutes=15)  # a notification that arrives by sync this long after it was made is old news
+AWAY_FOR = 120      # s offline before coming back counts as "está online" again: a reload or a dropped Radmin is not news
+ONLINE_EVERY = 900  # s: at most one "está online" a person in this long, however often their connection flaps
 
 
 def _dir() -> Path:
@@ -117,21 +119,54 @@ async def _send(username: str, payload: dict) -> int:
     return sent
 
 
-def _payload(title: str, body: str, href: str) -> dict:
+def _payload(title: str, body: str, href: str, kind: str = "", tag: str = "") -> dict:
+    """`tag` makes a newer notification replace an older one on the phone instead of piling up (the same task, the same
+    conversation, the same person coming online); `kind` lets the phone tell an "online" apart from a task."""
     url = "./" + (href if href.startswith("#") else "#/home")
-    return {"title": title, "body": body or "", "url": url}
+    return {"title": title, "body": body or "", "url": url, "kind": kind, "tag": tag or href or ""}
 
 
-async def to_people(db: AsyncSession, user_ids, title: str, body: str = "", href: str = ""):
+async def to_people(db: AsyncSession, user_ids, title: str, body: str = "", href: str = "", kind: str = ""):
     """Sends to the phones subscribed on this Hub, without making the caller wait."""
     if webpush is None or not user_ids or not any(_load().values()):
         return
     names = (await db.execute(select(User.username).where(User.id.in_(user_ids)))).scalars().all()
     for name in names:
         if subscriptions(name):
-            task = asyncio.create_task(_send(name, _payload(title, body, href)))
+            task = asyncio.create_task(_send(name, _payload(title, body, href, kind)))
             _sending.add(task)
             task.add_done_callback(_sending.discard)
+
+
+_online: dict[int, bool] | None = None   # who was online at the last look; None until the first look, which is not news
+_left: dict[int, float] = {}            # when each person was last seen going offline
+_told: dict[int, float] = {}            # when each person's "está online" last went out
+
+
+async def _presence(names: dict[int, tuple[str, str]]):
+    """The phones hear when a teammate comes online, the way the widget's green card says it on the PC. Only arriving, never
+    leaving, and only after a real absence, so the phone does not buzz for every reload."""
+    global _online
+    from .realtime import rt
+    now_t = datetime.now(timezone.utc).timestamp()
+    now = {uid: (await rt.store.get_presence(uid)) is not None for uid in names}
+    if _online is None:
+        _online = now
+        return
+    for uid, on in now.items():
+        was = _online.get(uid, False)
+        if was and not on:
+            _left[uid] = now_t
+        elif on and not was and now_t - _left.get(uid, 0) >= AWAY_FOR and now_t - _told.get(uid, 0) >= ONLINE_EVERY:
+            _told[uid] = now_t
+            first = names[uid][1].split(" ")[0]
+            for other, (username, _) in names.items():
+                if other != uid and subscriptions(username):
+                    task = asyncio.create_task(_send(username, _payload(f"{first} está online", "Abre a Equipa para ver o que está a fazer.",
+                                                                        "#/equipa", "online", f"online-{uid}")))
+                    _sending.add(task)
+                    task.add_done_callback(_sending.discard)
+    _online = now
 
 
 async def loop():
@@ -150,7 +185,9 @@ async def loop():
                 continue
             async with SessionLocal() as db:
                 rows = (await db.execute(select(Notification).where(Notification.id > start).order_by(Notification.id))).scalars().all()
-                names = {u.id: u.username for u in (await db.execute(select(User))).scalars()}
+                people = {u.id: (u.username, u.display_name) for u in (await db.execute(select(User))).scalars()}
+            names = {uid: p[0] for uid, p in people.items()}
+            await _presence(people)
             for n in rows:
                 if n.id in seen:
                     continue
@@ -160,7 +197,7 @@ async def loop():
                     continue
                 name = names.get(n.user_id)
                 if name and subscriptions(name):
-                    task = asyncio.create_task(_send(name, _payload(n.title, n.body, n.href)))
+                    task = asyncio.create_task(_send(name, _payload(n.title, n.body, n.href, n.kind)))
                     _sending.add(task)
                     task.add_done_callback(_sending.discard)
         except Exception:  # try again next round

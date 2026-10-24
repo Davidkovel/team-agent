@@ -1,0 +1,57 @@
+/* The Hub's banners (banners.js): a Mac notification on the computer, an iPhone one on the phone, and the black pill for
+   who came online. Solid glass colours, no live blur: the Hub window (QtWebEngine) repaints a blur on every frame. */
+.bn { position: fixed; z-index: 140; top: 14px; right: 14px; width: min(372px, calc(100vw - 28px)); display: grid; gap: 8px; pointer-events: none; }
+.bn-card { position: relative; display: grid; grid-template-columns: 38px 1fr; gap: 11px; align-items: start; padding: 11px 14px 12px 12px;
+  border-radius: 18px; background: linear-gradient(180deg, rgba(48, 49, 54, .97), rgba(32, 33, 37, .97)); color: #f2f3f5; text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, .1); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), 0 10px 30px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
+  font-family: var(--ui); pointer-events: auto; cursor: pointer; animation: bn-in .42s cubic-bezier(.2, .9, .25, 1.08) both;
+  transition: transform .24s cubic-bezier(.4, 0, .2, 1), opacity .24s; }
+.bn-card:hover { background: linear-gradient(180deg, rgba(54, 55, 60, .98), rgba(36, 37, 41, .98)); }
+.bn-card.out { opacity: 0; transform: translateX(24px) scale(.98); }
+@keyframes bn-in { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+.bn-ic { position: relative; width: 38px; height: 38px; }
+.bn-ic > img { width: 38px; height: 38px; border-radius: 9px; display: block; box-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.bn-ic .bn-av { width: 38px; height: 38px; font-size: 15px; }
+.bn-ic .bn-app { position: absolute; right: -4px; bottom: -4px; width: 17px; height: 17px; border-radius: 5px; border: 2px solid #26272b; }
+.bn-txt { min-width: 0; display: grid; gap: 1px; }
+.bn-top { display: flex; align-items: center; gap: 8px; color: #9ba0a8; font-size: 11.5px; line-height: 16px; }
+.bn-top em { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-style: normal; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bn-top time { flex: none; font-size: 11px; }
+.bn-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.bn-warn .bn-top em { color: #e3bd6b; }
+.bn-bad .bn-top em { color: #ef6f5e; }
+.bn-ok .bn-top em { color: #4ee07a; }
+.bn-txt > b { font: 600 13.5px/18px var(--ui); letter-spacing: -.005em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.bn-body { color: #c4c8ce; font-size: 13px; line-height: 17px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+.bn-x { position: absolute; top: -7px; left: -7px; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .16); background: #3a3b40; color: #e6e8eb; opacity: 0; transition: opacity .15s; cursor: pointer; }
+.bn-x svg.i { width: 10px; height: 10px; }
+.bn-card:hover .bn-x { opacity: 1; }
+
+/* who came online: the island at the top centre */
+.bn-island { position: fixed; z-index: 141; top: 12px; left: 50%; transform: translateX(-50%); display: grid; justify-items: center; gap: 6px; pointer-events: none; }
+.bn-pill { display: flex; align-items: center; gap: 9px; padding: 5px 14px 5px 5px; border-radius: 999px; background: #000; color: #f2f3f5;
+  border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 8px 24px rgba(0, 0, 0, .5); font: 500 13px var(--ui); white-space: nowrap;
+  animation: bn-drop .5s cubic-bezier(.2, .9, .25, 1.15) both; transition: opacity .25s, transform .25s; }
+.bn-pill.out { opacity: 0; transform: translateY(-10px) scale(.92); }
+@keyframes bn-drop { from { opacity: 0; transform: translateY(-14px) scale(.8); } to { opacity: 1; transform: none; } }
+.bn-pill .bn-av { width: 26px; height: 26px; font-size: 11px; }
+.bn-pill b { font-weight: 600; }
+.bn-pill span { color: #c4c8ce; }
+.bn-pill span b { color: #f2f3f5; }
+.bn-live { width: 8px; height: 8px; border-radius: 50%; background: #4ee07a; box-shadow: 0 0 0 0 rgba(78, 224, 122, .6); animation: bn-beat 1.2s ease-out 2; }
+.bn-pill.on .bn-av { box-shadow: 0 0 0 2px #000, 0 0 0 3.5px #4ee07a; }
+.bn-pill.off { color: #9ba0a8; }
+.bn-pill.off .bn-av { opacity: .5; }
+.bn-pill.off .bn-live { background: transparent; border: 1.5px solid #8a8f98; animation: none; }
+@keyframes bn-beat { to { box-shadow: 0 0 0 9px rgba(78, 224, 122, 0); } }
+
+/* the phone: iPhone banners across the top, under the bar, swiped away */
+html.is-phone .bn { top: calc(env(safe-area-inset-top, 0px) + 8px); left: 8px; right: 8px; width: auto; }
+html.is-phone .bn-card { border-radius: 22px; padding: 12px 14px; grid-template-columns: 38px 1fr; animation-name: bn-down; touch-action: pan-y; }
+html.is-phone .bn-card.out { transform: translateY(-30px) scale(.97); }
+@keyframes bn-down { from { opacity: 0; transform: translateY(-36px); } to { opacity: 1; transform: none; } }
+html.is-phone .bn-x { display: none; }
+html.is-phone .bn-island { top: calc(env(safe-area-inset-top, 0px) + 6px); }
+html.is-phone body:has(#bn-island .bn-pill) .bn { top: calc(env(safe-area-inset-top, 0px) + 52px); transition: top .3s; }   /* the island first, the banners under it */
+@media (prefers-reduced-motion: reduce) { .bn-card, .bn-pill { animation: none; } }

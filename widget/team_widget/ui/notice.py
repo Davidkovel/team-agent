@@ -5,18 +5,18 @@
     presence = Presence()
     presence.show("Marco")                  # the corner card: somebody came online (online=False: went offline)
 
-Three kinds, each with its own look: a task drops from the top of the screen; somebody coming online is the green corner
+Three kinds, each with its own look, all on the screen under the mouse: a task is a macOS banner in the top right corner; somebody coming online is the green corner
 card that rings and beats; somebody going offline is the same corner card, clean: grey, no sound, no ring, no light, and
 gone sooner. Leaving is worth knowing, not worth looking up for.
 
-A task card drops from the top of the screen, one after another, and leaves on its own. A task sent to this person
-(`directed`) is amber and rings, with the Windows notification sound; one sent to somebody else is white and silent.
-Every card is a lit plate with a shadow, a coloured edge and a line that runs out while it is on the screen.
+A banner slides in from the right, up to three at once one under the other, waits while the mouse is on it and leaves on
+its own. A task sent to this person (`directed`) has an amber caption and rings, with the Windows notification sound; one sent
+to somebody else is grey and silent. The presence cards are a lit plate with a shadow, a coloured edge and a line that runs out.
 """
 from collections import deque
 
 from PySide6.QtCore import QEasingCurve, QObject, QRectF, QTimer, Qt, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QCursor, QFont, QFontMetricsF, QGuiApplication, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
 from . import badge
@@ -32,8 +32,16 @@ MARGIN = 18                                # room around the plate for its shado
 TOP = 18                                   # gap between the card and the top of the screen
 SLIDE_IN, HOLD, SLIDE_OUT, GAP = 460, 8000, 300, 250   # ms
 MAX_BATCH = 3                              # more than this at once (a computer that was off, catching up) become a single card
+MAX_SHOWN = 3                              # banners on the screen at the same time
+M_PAD, M_RADIUS, M_EDGE, M_GAP = 13, 18, 14, 10   # the macOS banner: padding, corners, gap to the screen edge and between banners
 P_WIDTH, P_HEIGHT, P_EDGE, P_GAP, P_HOLD = 300, 72, 22, 10, 6000
 BEAT, BEATS = 1100, 3                       # ms of one ring beating out of a presence card, and how many
+
+
+def here():
+    """The screen being looked at: the one under the mouse, so the cards come up where the person is, not on the other monitor."""
+    screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+    return screen.availableGeometry()
 
 
 def ring():
@@ -152,22 +160,25 @@ class Card(QWidget):
 
 
 class NoticeCard(Card):
-    """A task was sent: the card at the top of the screen."""
+    """Something for this person (a task, a message): a macOS banner in the top right corner of the screen they are looking at.
+    The app's star, a line that says what it is and when, the title in bold and the body under it. No coloured edge, no line
+    of time running out: a task sent to them shows only in the caption's amber and in the sound."""
 
     def __init__(self, item: dict, hold: int = HOLD):
         directed = bool(item.get("directed"))
         # the Hub says what the card is when it is not a task: "MENSAGEM PARA TI" (Mensagens, routers/messages.py)
-        self._caption = item.get("caption") or ("NOVA TAREFA PARA TI" if directed else "NOVA TAREFA")
+        self._caption = (item.get("caption") or ("Nova tarefa para ti" if directed else "Nova tarefa")).capitalize()
         self._title, self._body = item.get("title", ""), (item.get("body") or "").strip()
-        self._f_caption, self._f_title, self._f_body = _font(7.5, QFont.Bold, 1.4), _font(11.5, QFont.DemiBold), _font(9.5)
-        self._text_x = PAD + ICON + 14
+        self._f_caption, self._f_title, self._f_body = _font(8.5, QFont.DemiBold), _font(10.5, QFont.DemiBold), _font(9.5)
+        self._text_x = PAD + ICON + 12
         self._inner = WIDTH - self._text_x - PAD
-        self._title_h = self._measure(self._f_title, self._title, self._inner, 3)
+        self._title_h = self._measure(self._f_title, self._title, self._inner, 2)
         self._body_h = self._measure(self._f_body, self._body, self._inner, 2) if self._body else 0
         self._caption_h = QFontMetricsF(self._f_caption).height()
-        height = PAD + self._caption_h + 7 + self._title_h + (6 + self._body_h if self._body else 0) + PAD + 3
-        super().__init__(WIDTH, round(max(height, PAD + ICON + PAD + 3)), AMBER if directed else WHITE, hold)
-        self._x = self._rest = self._off = 0
+        height = M_PAD + self._caption_h + 4 + self._title_h + (3 + self._body_h if self._body else 0) + M_PAD
+        super().__init__(WIDTH, round(max(height, M_PAD + ICON + M_PAD)), AMBER if directed else MUTED, hold)
+        self._y = self._rest = self._off = 0
+        self._held = False
 
     @staticmethod
     def _measure(font: QFont, text: str, width: float, lines: int) -> float:
@@ -175,41 +186,87 @@ class NoticeCard(Card):
         return min(fm.boundingRect(QRectF(0, 0, width, 10000), Qt.TextWordWrap, text).height(), fm.lineSpacing() * lines)
 
     def _at(self, k):
-        self.move(self._x, round(self._off + (self._rest - self._off) * k))
+        self.move(round(self._off + (self._rest - self._off) * k), self._y)
         self.setWindowOpacity(max(0.0, min(1.0, k * 1.6)))
 
-    def run(self):
-        """Drops from above the screen, stays a few seconds, slides back up."""
-        area = QGuiApplication.primaryScreen().availableGeometry()
-        self._x, self._rest, self._off = area.center().x() - self.width() // 2, area.top() + TOP - MARGIN, area.top() - self.height()
+    def run(self, y: int):
+        """Slides in from the right edge of the screen under the mouse, stays a few seconds, slides back out."""
+        area = here()
+        self._rest, self._off, self._y = area.right() - M_EDGE - WIDTH - MARGIN, area.right() + 1, y
         self._enter()
+
+    def _enter(self):
+        self.setWindowOpacity(0)
+        self._at(0.0)
+        self.show()
+        self._go(0.0, 1.0, SLIDE_IN, QEasingCurve.OutCubic)   # macOS slides in smoothly, no bounce
+        self._life.finished.connect(self.leave)
+        self._life.start()
+
+    def enterEvent(self, _):   # the mouse on it: it waits, the way macOS keeps a banner that is being read
+        self._held = True
+        self._life.pause()
+
+    def leaveEvent(self, _):
+        self._held = False
+        self._life.resume()
+
+    def _plate(self, p: QPainter) -> QRectF:
+        p.setRenderHint(QPainter.Antialiasing)
+        p.translate(MARGIN, MARGIN)
+        rect = QRectF(0, 0, self._w, self._h)
+        p.setPen(Qt.NoPen)
+        for i in range(16, 0, -2):
+            p.setBrush(QColor(0, 0, 0, 10))
+            p.drawRoundedRect(rect.adjusted(-i, -i + 3, i, i + 3), M_RADIUS + i, M_RADIUS + i)
+        path = QPainterPath()
+        path.addRoundedRect(rect.adjusted(.5, .5, -.5, -.5), M_RADIUS, M_RADIUS)
+        body = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        body.setColorAt(0, QColor(44, 44, 48))
+        body.setColorAt(1, QColor(30, 30, 33))
+        p.fillPath(path, body)
+        p.setPen(QPen(QColor(255, 255, 255, 30), 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(path)
+        return rect
 
     def paintEvent(self, _):
         p = QPainter(self)
         self._plate(p)
-        self._star(p, QRectF(PAD, PAD, ICON, ICON))
-        x, y = self._text_x, float(PAD)
+        av = QRectF(PAD, M_PAD, ICON, ICON)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0))
+        p.drawRoundedRect(av, 9, 9)   # the app icon: a rounded square, like every icon on a Mac
+        inset = av.width() * 0.16
+        badge.star(p, av.adjusted(inset, inset, -inset, -inset))
+        x, y = self._text_x, float(M_PAD)
+        fm = QFontMetricsF(self._f_caption)
+        when = "agora"
+        room = self._inner - fm.horizontalAdvance(when) - 10
         p.setFont(self._f_caption)
+        p.setPen(MUTED)
+        p.drawText(QRectF(x, y, self._inner, self._caption_h), Qt.AlignRight | Qt.AlignVCenter, when)
         p.setPen(self._accent)
-        p.drawText(QRectF(x, y, self._inner, self._caption_h), Qt.AlignLeft | Qt.AlignVCenter, self._caption)
-        y += self._caption_h + 7
+        p.drawText(QRectF(x, y, room, self._caption_h), Qt.AlignLeft | Qt.AlignVCenter, fm.elidedText(self._caption, Qt.ElideRight, room))
+        y += self._caption_h + 4
         p.setFont(self._f_title)
         p.setPen(TEXT)
         p.drawText(QRectF(x, y, self._inner, self._title_h), Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, self._title)
         if self._body:
-            y += self._title_h + 6
+            y += self._title_h + 3
             p.setFont(self._f_body)
             p.setPen(MUTED)
             p.drawText(QRectF(x, y, self._inner, self._body_h), Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, self._body)
 
 
 class Notices(QObject):
-    """The queue of cards: one on the screen at a time."""
+    """The banners on the screen: up to MAX_SHOWN at once, stacked down from the top right, so a burst arrives on time instead
+    of waiting in a line of 8-second cards. Whatever does not fit waits until the stack is empty."""
 
     def __init__(self, open_page, hold: int = HOLD, parent=None):
         super().__init__(parent)
         self._open_page, self._hold = open_page, hold
-        self._queue, self._card = deque(), None
+        self._queue, self._cards = deque(), []
 
     def push(self, items):
         items = list(items)
@@ -218,22 +275,31 @@ class Notices(QObject):
             items = [{"title": f"{len(items)} {'mensagens novas' if talk else 'tarefas novas'}", "body": "Foram enviadas enquanto estiveste fora.",
                       "href": "#/mensagens" if talk else "#/tarefas", "caption": items[0].get("caption") if talk else None,
                       "directed": any(i.get("directed") for i in items)}]
+        if any(i.get("directed") for i in items):
+            ring()   # once for the burst, not once a card
         self._queue.extend(items)
-        if self._card is None:
+        if not self._cards:
             self._next()
 
     def _next(self):
-        if not self._queue:
-            self._card = None
-            return
-        item = self._queue.popleft()
-        if item.get("directed"):
-            ring()
-        card = self._card = NoticeCard(item, self._hold)
-        if item.get("href"):
-            card.clicked.connect(lambda href=item["href"]: self._open_page(href))
-        card.finished.connect(lambda: (card.close(), card.deleteLater(), QTimer.singleShot(GAP, self._next)))
-        card.run()
+        y = here().top() + TOP - MARGIN
+        while self._queue and len(self._cards) < MAX_SHOWN:
+            item = self._queue.popleft()
+            card = NoticeCard(item, self._hold + (2000 if item.get("directed") else 0))
+            self._cards.append(card)
+            if item.get("href"):
+                card.clicked.connect(lambda href=item["href"]: self._open_page(href))
+            card.finished.connect(lambda card=card: self._gone(card))
+            card.run(y)
+            y += card.height() - 2 * MARGIN + M_GAP
+
+    def _gone(self, card):
+        if card in self._cards:
+            self._cards.remove(card)
+        card.close()
+        card.deleteLater()
+        if not self._cards:
+            QTimer.singleShot(GAP, self._next)   # the next ones come once the stack is empty, so nothing jumps under the mouse
 
 
 class PresenceCard(Card):
@@ -251,7 +317,7 @@ class PresenceCard(Card):
         self._pulse.setLoopCount(BEATS)
         self._pulse.setEasingCurve(QEasingCurve.OutCubic)
         self._pulse.valueChanged.connect(self._beaten)
-        area = QGuiApplication.primaryScreen().availableGeometry()
+        area = here()
         self._rest, self._off = area.right() - P_EDGE - P_WIDTH - MARGIN, area.right() + 1
         self._y = area.bottom() - P_EDGE - P_HEIGHT - MARGIN - slot * (P_HEIGHT + P_GAP)
 

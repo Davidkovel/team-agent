@@ -131,7 +131,8 @@ async def send(peer: str, body: MessageIn, user: User = Depends(current_user), d
     await db.refresh(m)
     for t in targets + [user.id]:
         await rt.publish("notification", t)
-    await push.to_people(db, targets, f"{user.display_name} mandou-te uma mensagem", "", "high", href)
+    # on the phone it reads like iMessage: who wrote (and where) on top, what they wrote under it
+    await push.to_people(db, targets, user.display_name, preview if peer != "team" else f"Equipa · {preview}", "high", href, "message")
     return out(m, {u.id: u.display_name for u in people})
 
 

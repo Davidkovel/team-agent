@@ -21,11 +21,15 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { title: event.data ? event.data.text() : "" }; }
+  // the same task, conversation or person coming online replaces its older notification instead of piling up under it
   event.waitUntil(self.registration.showNotification(data.title || "Agente AMG", {
     body: data.body || "",
     icon: "assets/icon-192.png",
     badge: "assets/icon-192.png",
-    data: { url: data.url || "./" },
+    tag: data.tag || undefined,
+    renotify: !!data.tag,
+    timestamp: Date.now(),
+    data: { url: data.url || "./", kind: data.kind || "" },
   }));
 });
 

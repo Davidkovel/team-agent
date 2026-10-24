@@ -27,7 +27,7 @@
 .cb-say b { color: #fff; font-weight: 700; }
 .cb-say q { color: #eef1f5; font-weight: 600; quotes: "«" "»"; }
 .cb-say em { font-style: normal; color: #7d8794; font-size: 13.5px; }
-.cb-nums { display: grid; grid-template-columns: repeat(4, 104px); gap: 8px; }
+.cb-nums { display: grid; grid-template-columns: repeat(5, 84px); gap: 6px; }
 .cb-num { padding: 9px 12px; border-radius: 12px; background: #06080b; border: 1px solid rgba(255, 255, 255, .07); }
 .cb-num b { display: block; font: 700 24px/1 var(--display); color: #4a515c; font-variant-numeric: tabular-nums; }
 .cb-num span { display: block; margin-top: 5px; color: #6b7380; font: 600 10.5px var(--ui); letter-spacing: .02em; white-space: nowrap; }
@@ -529,3 +529,46 @@ html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 14px; }
 /* the department's name, or its code (DEV, ENG…) on a camera too small for the name (23 out: the cave is back, with departments) */
 .cc-short { display: none; }
 @container (max-width: 150px) { .cb.desk .cc-long { display: none; } .cb.desk .cc-short { display: inline; letter-spacing: .04em; } }
+
+/* ================================================================ the boss view of a partner (bossCard, a computer, 24 Oct)
+   How many Claudes in big, then one line per Claude: what waits for the person (amber) first, then what is running. */
+.bx-count { display: flex; align-items: center; gap: 12px; margin: 2px 0 10px; padding: 10px 12px; border-radius: 14px; background: #06080b; border: 1px solid rgba(255, 255, 255, .06); }
+.bx-count > b { font: 700 34px/1 var(--display); letter-spacing: -.03em; color: #4a515c; font-variant-numeric: tabular-nums; min-width: 26px; text-align: center; }
+.bx-count.lit > b { color: #fff; }
+.bx-count span { display: block; color: #8b95a1; font: 600 11px var(--ui); letter-spacing: .02em; }
+.bx-count p { display: flex; flex-wrap: wrap; gap: 5px; margin: 5px 0 0; color: #6b7380; font-size: 12px; }
+.bx-count p span { padding: 2px 7px; border-radius: 6px; background: rgba(255, 255, 255, .05); color: #aab1bb; font: 600 11px var(--ui); letter-spacing: 0; }
+.bx-count p span.on { background: rgba(77, 255, 154, .1); color: #4dff9a; }
+.bx-count p span.wait { background: rgba(255, 191, 60, .12); color: #ffbf3c; }
+.bx-list { display: grid; gap: 6px; }
+.bx-row { border-radius: 12px; background: rgba(255, 255, 255, .025); border: 1px solid rgba(255, 255, 255, .06); box-shadow: inset 3px 0 0 var(--c); overflow: hidden; }
+.bx-row.need { background: color-mix(in srgb, var(--c) 7%, #0b0d10); border-color: color-mix(in srgb, var(--c) 30%, transparent); }
+.bx-row.open { border-color: rgba(255, 255, 255, .14); }
+.bx-main { width: 100%; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px 8px 12px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.bx-main:hover { background: rgba(255, 255, 255, .03); }
+.bx-who { display: grid; justify-items: center; gap: 2px; }
+.bx-who img, .bx-who > i { width: 26px; height: 26px; border-radius: 8px; background: #0d1014; object-fit: cover; display: grid; place-items: center; color: #8b95a1; }
+.bx-who > i svg.i { width: 15px; height: 15px; }
+.bx-who em { font: 700 9px var(--ui); letter-spacing: .08em; color: var(--c); font-style: normal; }
+.bx-txt { min-width: 0; display: grid; gap: 2px; }
+.bx-txt b { overflow: hidden; color: #f2f4f7; font: 600 13.5px/1.3 var(--ui); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+.bx-txt small { overflow: hidden; color: #8b95a1; font: 500 11.5px/1.3 ui-monospace, "SF Mono", Consolas, monospace; white-space: nowrap; text-overflow: ellipsis; }
+.bx-txt small i { margin-right: 6px; padding: 1px 5px; border-radius: 5px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); font: 700 10px var(--ui); font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
+.bx-r { display: grid; justify-items: end; gap: 3px; white-space: nowrap; }
+.bx-r time { color: #6b7380; font: 600 11px var(--ui); }
+.bx-r em { display: flex; align-items: center; gap: 3px; color: #8b95a1; font: 600 11px var(--ui); font-style: normal; }
+.bx-r em svg.i { width: 11px; height: 11px; }
+.bx-r em.on { color: #4dff9a; }
+.bx-r em u { text-decoration: none; opacity: .8; }
+.bx-more { display: grid; gap: 8px; padding: 2px 12px 10px 60px; }
+.bx-ask { margin: 0; color: #c3c9d2; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; max-height: 180px; overflow-y: auto; }
+.bx-ask small { display: block; margin-bottom: 2px; color: #6b7380; font: 700 9.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.cb.desk .cb-col > header em { display: none; }
+.cb.desk .cb-col > header { margin-bottom: 8px; }
+.cb-col .bx-list + footer, .cb-col .bx-list ~ footer { margin-top: 10px; }
+
+/* «Modo chefe»: no sidebar, the whole screen for the office */
+html.cb-boss .hub, html.cb-boss .hub.paneled, html.cb-boss .hub.collapsed { grid-template-columns: minmax(0, 1fr) !important; }
+html.cb-boss .hside, html.cb-boss #hpanel { display: none; }
+.cb .cx-boss.on { background: #fff; color: #0b0c0e; }
+.cb.desk .cx-id p { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 13px; }

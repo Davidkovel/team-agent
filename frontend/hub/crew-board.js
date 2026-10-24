@@ -318,6 +318,44 @@ window.CrewBoard = (function () {
       ${p.idle ? `<p class="cb-idle">${esc(t(p.idle === 1 ? "1 janela do Claude aberta, sem pedido" : "{n} janelas do Claude abertas, sem pedido", { n: p.idle }))}</p>` : ""}
       <footer>${facts.map((f) => `<span>${esc(f)}</span>`).join("")}</footer>`;
   }
+  // A computer: the partner as a boss reads it (Marco, 24 Oct: «tenho de dar scroll para ver quantos Claudes estou a trabalhar
+  // e em quê... quero que seja uma página tipo boss»). How many Claudes they have open in big, then one line per Claude: the
+  // agent's code, the goal, what it is doing right now, how long and how many tokens. What waits for the person comes first,
+  // in amber. A click on a line opens what was asked, the skills and «Continuar»; the cards of before were all open at once.
+  function bossRow(it, p) {
+    const need = p.needs.includes(it), task = it.kind === "task", s = it.s, x = it.x, a = it.agent, id = "b" + it.id, isOpen = open.has(id);
+    const c = need ? (task && x.status === "NEEDS_HELP" ? RED : AMBER) : GREEN;
+    const word = !need ? "" : task ? (x.status === "WAITING_APPROVAL" ? "Aprovação" : x.status === "NEEDS_HELP" ? "Ajuda" : "Pausa") : s.wait === "permission" ? "Autorização" : "Pergunta";
+    const now = task ? (need ? x.blocked_reason : x.current_action) : need ? t(s.wait === "permission" ? "Precisa de autorização para continuar" : "Fez uma pergunta e espera a resposta") : s.action;
+    const n = task ? 0 : tokensOf(s), r = task ? 0 : burn(it.id, n);
+    let more = "";
+    if (isOpen && task) more = `${x.progress > 0 ? `<span class="cb-bar"><i style="width:${Math.min(100, x.progress)}%"></i></span>` : ""}
+      <div class="cb-foot"><small>${esc(a ? `${a.name} · ${t(a.what)}` : t("agente automático"))}</small>${camLink(it)}<button type="button" class="cb-link" data-href="${x.status === "WAITING_APPROVAL" ? "#/aprovacoes" : `#task-${x.id}`}">${esc(t(x.status === "WAITING_APPROVAL" ? "Aprovar" : "Abrir"))}${icon("chevron")}</button></div>`;
+    else if (isOpen) {
+      const whole = s.request || asked(s), subs = (s.agents || []).filter((y) => y.state === "working").map((y) => y.kind);
+      more = `${whole ? `<p class="bx-ask"><small>${esc(t("Pediu"))}</small>${esc(whole)}</p>` : ""}${chips(s.skills, subs)}
+        <div class="cb-foot"><small>${esc([a ? a.name : t("janela do Claude Code"), s.project, model(s.model)].filter(Boolean).join(" · "))}</small>${carryOn(it)}${camLink(it)}</div>`;
+    }
+    return `<div class="bx-row ${need ? "need" : ""} ${isOpen ? "open" : ""}" style="--c:${c}">
+      <button type="button" class="bx-main" data-toggle="${id}" title="${esc(t(isOpen ? "Mostrar menos" : "Ver o pedido, as skills e mais"))}">
+        <span class="bx-who">${a ? `<img class="cr-px" src="${a.portrait}" alt="">` : `<i>${icon("bot")}</i>`}<em>${esc(a ? a.code || a.name : "CC")}</em></span>
+        <span class="bx-txt"><b>${esc(it.goal)}</b><small>${word ? `<i>${esc(t(word))}</i>` : ""}${esc(now || t("a pensar…"))}</small></span>
+        <span class="bx-r"><time>${esc(ago(it.at))}</time>${n ? `<em class="${r ? "on" : ""}">${icon("bolt")}${esc(tok(n).replace(" tokens", ""))}${r ? ` <u>${esc(perMin(r))}</u>` : ""}</em>` : ""}</span>
+      </button>${more ? `<div class="bx-more">${more}</div>` : ""}</div>`;
+  }
+  function bossCard(p) {
+    const live = [...p.needs, ...p.working], claudes = live.filter((it) => it.kind === "claude").length + p.idle;
+    const bits = [p.working.length ? `<span class="on">${esc(t("{n} a trabalhar", { n: p.working.length }))}</span>` : "",
+      p.needs.length ? `<span class="wait">${esc(t(p.me ? "{n} à tua espera" : "{n} à espera dele", { n: p.needs.length }))}</span>` : "",
+      p.idle ? `<span>${esc(t(p.idle === 1 ? "1 parada" : "{n} paradas", { n: p.idle }))}</span>` : ""].filter(Boolean).join("");
+    const facts = [p.done.length ? t(p.done.length === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: p.done.length }) : "",
+      p.queue.length ? t(p.queue.length === 1 ? "1 na fila" : "{n} na fila", { n: p.queue.length }) : "",
+      agentOn(p.m) ? t("agente automático ligado") : ""].filter(Boolean);
+    return `${personHead(p)}<div class="bx-count ${live.length ? "lit" : ""}"><b>${claudes}</b><div><span>${esc(t(claudes === 1 ? "janela do Claude aberta" : "janelas do Claude abertas"))}</span>
+        <p>${bits || esc(t("nada a correr"))}</p></div></div>
+      <div class="bx-list">${live.map((it) => bossRow(it, p)).join("") || lastLine(p)}</div>
+      ${facts.length ? `<footer>${facts.map((f) => `<span>${esc(f)}</span>`).join("")}</footer>` : ""}`;
+  }
   // the company in one sentence, and four numbers
   function summary(people) {
     const n = (k) => people.reduce((sum, p) => sum + p[k].length, 0), working = people.filter((p) => p.working.length).map((p) => p.name);
@@ -329,7 +367,8 @@ window.CrewBoard = (function () {
   function nums(people) {
     const n = (k) => people.reduce((sum, p) => sum + p[k].length, 0);
     const tile = (num, label, c) => `<div class="cb-num ${num ? "lit" : ""}" style="--c:${c}"><b>${num}</b><span>${esc(t(label))}</span></div>`;
-    return tile(n("working"), "a trabalhar", GREEN) + tile(n("needs"), "à espera", AMBER) + tile(n("queue"), "na fila", COLD) + tile(n("done"), "feitas hoje", GREY);
+    const claudes = people.reduce((sum, p) => sum + [...p.working, ...p.needs].filter((it) => it.kind === "claude").length + p.idle, 0);
+    return tile(claudes, "Claudes", COLD) + tile(n("working"), "a trabalhar", GREEN) + tile(n("needs"), "à espera", AMBER) + tile(n("queue"), "na fila", COLD) + tile(n("done"), "feitas hoje", GREY);
   }
   // the day in one line per partner (the phone's first tab)
   function sayList(people) {
@@ -510,7 +549,8 @@ window.CrewBoard = (function () {
       paint($("cx-sum"), esc(summary(people)));
       paint($("cb-nums"), nums(people));
       paint($("cb-say"), sayList(people));
-      for (const p of people) paint($(`cb-col-${p.id}`), personCard(p));
+      const boss = root.classList.contains("desk");
+      for (const p of people) paint($(`cb-col-${p.id}`), boss ? bossCard(p) : personCard(p));
       paint($("cb-queue"), queuePane(people, s));
       paint($("cb-done"), donePane(people));
       const pb = $("cb-plans"), typing = pb && pb.contains(document.activeElement) && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
@@ -621,6 +661,7 @@ window.CrewBoard = (function () {
     else if ((b = at("[data-pstatus]"))) { const [id, st] = b.dataset.pstatus.split(":"); planChange(id, { status: st }, st === "done" ? "Plano fechado." : "Plano reaberto."); }
     else if ((b = at("[data-pfold]"))) { const id = b.dataset.pfold; open.delete(id); open.delete(`-${id}`); open.add(b.dataset.shown === "1" ? `-${id}` : id); draw(); }
     else if ((b = at("[data-release]"))) host.release(Number(b.dataset.release), b);
+    else if ((b = at("[data-boss]"))) bossMode(!document.documentElement.classList.contains("cb-boss"));
     else if ((b = at("[data-mini]"))) host.openMini();
     else if ((b = at("[data-href]"))) location.hash = b.dataset.href;
     else if ((b = at("[data-open]"))) { hideTip(); host.openAgent(Number(b.dataset.open)); }
@@ -642,7 +683,7 @@ window.CrewBoard = (function () {
       <header class="cx-top" data-pane="now">
         <div class="cx-id"><small>${esc(t("02 · Agentes · central de comando"))}</small><h1>${esc(t("Escritório"))}</h1><p id="cx-sum">${esc(t("A ler o que a empresa está a fazer…"))}</p></div>
         <div class="cb-nums" id="cb-nums"></div>
-        <div class="cx-acts"><nav class="cx-view"><button type="button" data-view="team">${icon("users")}${esc(t("Equipa"))}</button><button type="button" data-view="cams">${icon("grid")}${esc(t("Câmaras"))}</button></nav><a class="btn cx-cave" href="#/empresa">${icon("play")}${esc(t("A cave"))}</a><button type="button" class="btn cx-mini" data-mini title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div>
+        <div class="cx-acts"><nav class="cx-view"><button type="button" data-view="team">${icon("users")}${esc(t("Equipa"))}</button><button type="button" data-view="cams">${icon("grid")}${esc(t("Câmaras"))}</button></nav><button type="button" class="btn cx-boss" data-boss title="${esc(t("O Escritório no ecrã inteiro, sem a barra do lado (Esc sai)"))}">${icon("expand")}${esc(t("Modo chefe"))}</button><a class="btn cx-cave" href="#/empresa">${icon("play")}${esc(t("A cave"))}</a><button type="button" class="btn cx-mini" data-mini title="${esc(t("A cave numa janela pequena, por cima do que estiveres a fazer"))}">${icon("pip")}${esc(t("Mini janela"))}</button></div>
         <ul class="cb-say" id="cb-say"></ul>
       </header>
       <section class="cx-people" data-pane="people"><small class="cx-k">${esc(t("Quem trabalha com quem"))}</small>
@@ -682,7 +723,19 @@ window.CrewBoard = (function () {
     const flashId = sessionStorage.getItem("cb.flash");
     if (flashId) { sessionStorage.removeItem("cb.flash"); setTimeout(() => flashPerson(flashId), 400); }
   }
-  window.addEventListener("hashchange", () => { hideTip(); if (sheet) sheet.hidden = true; });
+  // «Modo chefe»: the office on the whole screen, without the sidebar, everything at a glance. Esc (or leaving the page) ends it.
+  function bossMode(on) {
+    document.documentElement.classList.toggle("cb-boss", on);
+    try {
+      if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+      else if (!on && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    } catch { /* the widget's window may not allow it: the sidebar is still hidden */ }
+    root?.querySelector("[data-boss]")?.classList.toggle("on", on);
+    setTimeout(fit, 260);   // the sidebar folds with a transition
+  }
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && document.documentElement.classList.contains("cb-boss")) bossMode(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.documentElement.classList.contains("cb-boss")) bossMode(false); });
+  window.addEventListener("hashchange", () => { hideTip(); if (sheet) sheet.hidden = true; if (!location.hash.startsWith("#/escritorio")) document.documentElement.classList.remove("cb-boss"); });
   window.addEventListener("scroll", hideTip, true);
   window.addEventListener("resize", fit);
   return { mount, paint: draw, ficha, roster, hideTip, cams, fit };

@@ -1683,7 +1683,8 @@ class Orb(QWidget):
         fm = QFontMetricsF(self._f_time)
         time_w = fm.horizontalAdvance("00:00")
         content_h = (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if n else 0) + fm.capHeight() + 9 + 9
-        self.CW = round(self.X0 + max(chips_w, time_w, 120) + self.PAD + 2)
+        line_w = badge.width(8.0) + 8 + QFontMetricsF(self._f_line).horizontalAdvance("SÁB 24 MMM") + 4
+        self.CW = round(self.X0 + max(chips_w, time_w, line_w) + self.PAD + 2)
         self.CH = round(max(self.STAR + 2 * self.PAD, content_h + 2 * self.PAD))
         self._top = (self.CH - content_h) / 2   # the right column is centred on the card
         self._rows_items = rows

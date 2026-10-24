@@ -27,6 +27,9 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
   avariado) e nunca letras sem sombra: testar sempre por cima de escuro, cinzento médio e branco.
 - **Arrastar só move o cartão**, nada se reorganiza a meio; ao largar volta para dentro do ecrã se passou de uma borda, e
   o sítio fica guardado (`star_x`, `star_y`). Nada encaixa sozinho nos cantos.
+- **Ajusta-se às bordas ao largar** (24 out, «sempre que eu arrastar para os cantos do monitor... tem que ajustar os ícones e
+  tudo»): na metade direita do ecrã a estrela vai para o lado de fora e os ícones, a hora e o AMG encostam-se a ela, virados
+  para dentro (`Orb.set_flip`, decidido no `_layout_orb`). Só ao largar; a meio do arrasto nada muda.
 - **A central** é preta e cromada, ao estilo dos widgets do iOS, e tem de caber no ecrã (1032 px de altura no PC do Marco).
 
 ## O que o Marco recusou (não voltar a fazer)

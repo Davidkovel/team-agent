@@ -26,8 +26,8 @@ MAX_OFFER = 6
 AREAS = [
     ("Sites", r"\bsites?\b|website|webpage|p[aá]ginas? (web|de entrada|inicial)|landing|homepage|portef[oó]lio|portfolio|"
               r"front-?end|\bhtml\b|\bcss\b|next\.?js|react|tailwind|web ?app|infinite ?scroll|scroll infinito|"
-              r"parallax|scrollytelling|awwwards|сайт|лендинг|скролл",
-     ["site-scroll-infinito", "premium-site-rebuild", "site-empresa-local", "site-estudio-ia", "realtor-landing", "impeccable",
+              r"parallax|scrollytelling|awwwards|webgl|three\.?js|(?<![a-z0-9])3d(?![a-z])|imersiv|immersive|сайт|лендинг|скролл",
+     ["site-scroll-infinito", "site-imersivo-3d", "awwwards-3d", "premium-site-rebuild", "site-empresa-local", "site-estudio-ia", "realtor-landing", "impeccable",
       "frontend-design",
       "senior-frontend", "web-artifacts-builder", "webapp-testing"]),
     ("Clientes e vendas", r"angaria[rç]|prospe[cç]|prospect|dossi[eê]s?|propostas?\b|proposal|cold ?e-?mail|outreach|"

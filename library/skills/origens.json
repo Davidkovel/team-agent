@@ -5,6 +5,12 @@
   "licenca": "aberta",
   "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
  },
+ "awwwards-3d": {
+  "de": "skill pessoal instalada no PC do Marco (~/.claude/skills/awwwards-3d)",
+  "autor": "awwwards-3d skill authors, MIT",
+  "licenca": "aberta",
+  "veio": "juntada à biblioteca a 24 out 2026 com a site-imersivo-3d («добавь скилы»)"
+ },
  "caveman": {
   "de": "github.com/JuliusBrussee/caveman",
   "autor": "Julius Brussee, Apache-2.0",
@@ -164,6 +170,10 @@
  "site-estudio-ia": {
   "de": "github.com/fabiocabaceira/NeoDaemon",
   "autor": "Fábio (fabiocabaceira)"
+ },
+ "site-imersivo-3d": {
+  "de": "5 sites escolhidos pelo Marco a 24 out 2026 (aether1.ai, seasats.com, cornrevolution.resn.global, utsubo.com, alche.studio) + 6 sugeridos pelo Claude",
+  "autor": "Empresa AMG (Claude, a pedido do Marco, 24 out 2026); código nosso, nada copiado dos sites"
  },
  "site-scroll-infinito": {
   "de": "3 TikToks escolhidos pelo Marco: @wearebrand.io (Levora), @webforge6 (Mr. Day), @webloved (DRIP)",

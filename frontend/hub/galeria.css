@@ -1,0 +1,40 @@
+/* Galeria (galeria.js): the best sites on the web. AMG black, graphite cards with the site's own picture on top; the
+   only colour on the page is the sites' own. */
+
+.gl-seg { display: inline-grid; grid-auto-flow: column; gap: 2px; margin-bottom: 18px; padding: 3px; border-radius: 12px; background: #06080b;
+  border: 1px solid rgba(255, 255, 255, .08); max-width: 100%; overflow-x: auto; }
+.gl-seg button { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 15px; border: 0; border-radius: 9px; background: none;
+  color: #8b95a1; font: 600 13px var(--ui); cursor: pointer; white-space: nowrap; }
+.gl-seg button:hover { color: #fff; }
+.gl-seg button.on { background: var(--chrome); color: #0b0c0e; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
+.gl-seg b { min-width: 20px; padding: 1px 6px; border-radius: 6px; background: rgba(255, 255, 255, .08); font: 700 11px var(--ui); text-align: center; }
+.gl-seg .on b { background: rgba(0, 0, 0, .12); }
+
+.gl-n { color: #6b7380; font: 600 12px var(--ui); }
+.gl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 28px; }
+
+.gl-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.gl-shot { display: block; aspect-ratio: 800 / 478; background: #050608; overflow: hidden; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+.gl-shot img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .5s var(--ease); }
+.gl-shot:hover img { transform: scale(1.035); }
+
+.gl-body { display: flex; flex: 1; flex-direction: column; gap: 10px; padding: 16px 18px 16px; }
+.gl-body header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.gl-body header b { color: #f2f4f6; font: 680 18px/1.2 var(--display); letter-spacing: -.02em; }
+.gl-body header span { color: #6b7380; font: 500 12px var(--ui); text-align: right; }
+.gl-golpe { margin: 0; color: #c9ced5; font: 500 14px/1.5 var(--ui); }
+.gl-roubar { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.gl-roubar li { position: relative; padding-left: 16px; color: #8b95a1; font: 500 13px/1.45 var(--ui); }
+.gl-roubar li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 6px; height: 1px; background: #8b95a1; }
+.gl-stack { display: flex; flex-wrap: wrap; gap: 5px; }
+.gl-stack span { padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .07); color: #a7afb9;
+  font: 500 11.5px var(--mono); }
+.gl-body footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: auto; padding-top: 6px; }
+.gl-body footer .btn .i { width: 13px; height: 13px; }
+.gl-skill { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: #6b7380; font: 500 12px var(--mono); }
+.gl-skill .i { width: 13px; height: 13px; }
+
+html.is-phone .gl-grid { grid-template-columns: 1fr; gap: 12px; }
+html.is-phone .gl-seg { display: flex; width: 100%; }
+html.is-phone .gl-body { padding: 14px; }
+html.is-phone .gl-skill { margin-left: 0; width: 100%; }

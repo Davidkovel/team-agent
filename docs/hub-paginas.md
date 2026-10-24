@@ -12,7 +12,7 @@ A barra do lado tem cinco secções numeradas (`NAV` em `frontend/app.js`, o 4.�
 | Secção | Entradas (e os separadores no topo de cada uma) |
 |---|---|
 | 01 · Comando | Início · Tarefas (Aprovações, Semana) · Novidades |
-| 02 · Agentes | Escritório · Empresa AMG · Skills · Equipa (Ao vivo, Agentes, Histórico) |
+| 02 · Agentes | Escritório · Empresa AMG · Skills (Galeria) · Equipa (Ao vivo, Agentes, Histórico) |
 | 03 · Negócios | Trabalho (Empresas, Projetos, Código, Entregas, BareDesk, Kit do Claude) · Fábrica Etsy |
 | 04 · Trading | Sala de Trading (Robôs, Reforço na notícia, Gap da manhã) · Mercados |
 | 05 · Sistema | Análise (Uso de IA, Despesas) · Sistema (Memória, Saúde, Definições) |

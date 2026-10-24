@@ -1,0 +1,90 @@
+[
+  {
+    "id": "aether", "nome": "Aether 1", "url": "https://aether1.ai/", "de": "OFF+BRAND", "tipo": "produto", "quem": "marco",
+    "golpe": "O estojo dos auriculares flutua em 3D no meio de ondas de som; a cada capítulo do scroll abre-se, roda e mostra uma peça.",
+    "roubar": ["O produto nunca sai do ecrã: o scroll só muda o ângulo e o estado dele, capítulo a capítulo",
+               "Fundo de anéis de som que pulsam: o tema do produto feito fundo animado",
+               "Botão «Ask Aether» fixo em baixo: um assistente IA que responde sobre o produto"],
+    "stack": ["Webflow", "WebGL próprio", "Lenis"], "skill": "site-imersivo-3d"
+  },
+  {
+    "id": "seasats", "nome": "Seasats · Lightfish", "url": "https://www.seasats.com/#lightfish", "de": "Seasats", "tipo": "produto", "quem": "marco",
+    "golpe": "Um drone marinho em 3D roda com o scroll sobre um fundo claro em degradé, com o título gigante e fino por trás.",
+    "roubar": ["Pílula fixa em baixo para trocar de produto (Lightfish, Quickfish, Heavyfish) sem sair da página",
+               "Interruptor «X-ray view» que mostra o interior do produto",
+               "Ficha técnica em letra mono, com «Download full stats»"],
+    "stack": ["Next.js", "React Three Fiber", "GSAP", "Lenis", "Rive"], "skill": "site-imersivo-3d"
+  },
+  {
+    "id": "corn", "nome": "Corn. Revolutionized.", "url": "https://cornrevolution.resn.global/#result", "de": "Resn para a Pioneer", "tipo": "historia", "quem": "marco",
+    "golpe": "Uma semente de milho atravessa a história toda: laboratório, ADN em partículas, constelações, campo de testes, resultado.",
+    "roubar": ["Um só objeto conduz a história do princípio ao fim",
+               "Transições entre capítulos feitas de partículas que se juntam em formas novas",
+               "Capítulos à direita (Science, Real world testing, Result) e botão redondo «Experience the tests»"],
+    "stack": ["WebGL próprio", "Partículas", "Títulos condensados"], "skill": "site-imersivo-3d"
+  },
+  {
+    "id": "utsubo", "nome": "Utsubo", "url": "https://www.utsubo.com/", "de": "Utsubo (estúdio, Japão)", "tipo": "estudio", "quem": "marco",
+    "golpe": "Entra-se por um botão «Begin experience» com som; depois uma chita 3D no espaço estrelado vira a mascote do estúdio e corre com o scroll.",
+    "roubar": ["Porta de entrada que liga o som e carrega a cena enquanto a pessoa decide entrar",
+               "Mascote 3D como marca: a mesma personagem em várias poses ao longo do scroll",
+               "«Hold to interact»: carregar e segurar muda a cena"],
+    "stack": ["Astro", "Three.js", "GSAP", "Lenis", "Howler (som)"], "skill": "site-imersivo-3d"
+  },
+  {
+    "id": "alche", "nome": "Alche", "url": "https://alche.studio/", "de": "Alche (estúdio, Japão)", "tipo": "estudio", "quem": "marco",
+    "golpe": "O logótipo gigante com um triângulo 3D, e os trabalhos mostrados como ecrãs curvos numa sala 3D que roda com o scroll.",
+    "roubar": ["Portefólio como carrossel 3D de ecrãs curvos, com data, nome e etiquetas por baixo",
+               "Pormenores de «HUD» (giroscópio, grelha, números) que dão ar técnico",
+               "Mudança de página sem recarregar (Swup) e barra de som em baixo"],
+    "stack": ["Astro", "Swup", "Lenis", "Lottie", "WebGL"], "skill": "site-imersivo-3d"
+  },
+  {
+    "id": "lusion", "nome": "Lusion", "url": "https://lusion.co/", "de": "Lusion (estúdio, Reino Unido)", "tipo": "estudio", "quem": "claude",
+    "golpe": "A cena 3D vive dentro de um cartão de cantos redondos, não no ecrã todo: peças com física que fogem do rato.",
+    "roubar": ["3D num cartão emoldurado: fica premium e o texto respira à volta",
+               "Física simples que reage ao rato (empurrar, cair, juntar)",
+               "Página clara, muito branco, só três cores"],
+    "stack": ["Three.js", "Física", "GSAP"], "skill": "awwwards-3d"
+  },
+  {
+    "id": "igloo", "nome": "Igloo Inc", "url": "https://www.igloo.inc/", "de": "Abeto para a Igloo", "tipo": "historia", "quem": "claude",
+    "golpe": "Um iglu de blocos de gelo nas montanhas; o scroll leva a câmara para dentro dele. Site do Ano 2024 nos Awwwards.",
+    "roubar": ["Uma cena só, e a câmara viaja dentro dela em vez de mudar de secção",
+               "Texto mono pequeno nos cantos, como um ecrã de instrumento",
+               "Materiais de gelo e vidro com luz própria"],
+    "stack": ["Three.js", "Shaders", "Som"], "skill": "awwwards-3d"
+  },
+  {
+    "id": "activetheory", "nome": "Active Theory", "url": "https://activetheory.net/", "de": "Active Theory (estúdio, EUA)", "tipo": "estudio", "quem": "claude",
+    "golpe": "O logótipo em vidro cromado sobre fundo escuro, com partículas e uma fita de luz que se desenrola com o scroll.",
+    "roubar": ["Logótipo em material de vidro/cromado como herói da página",
+               "Menu numa pílula pequena no canto, quase invisível",
+               "Partículas lentas que dão profundidade sem distrair"],
+    "stack": ["WebGL próprio", "Shaders"], "skill": "awwwards-3d"
+  },
+  {
+    "id": "brunosimon", "nome": "Bruno Simon", "url": "https://bruno-simon.com/", "de": "Bruno Simon", "tipo": "jogo", "quem": "claude",
+    "golpe": "O portefólio é um jogo: conduz-se um carrinho por um mundo 3D e os projetos estão espalhados pelo mapa.",
+    "roubar": ["A página como brinquedo: a pessoa fica minutos a explorar",
+               "«Click to start» que liga o som e explica as teclas",
+               "Estilo low-poly colorido, leve de carregar"],
+    "stack": ["Three.js", "Física", "Howler"], "skill": "awwwards-3d"
+  },
+  {
+    "id": "messenger", "nome": "Messenger", "url": "https://messenger.abeto.co/", "de": "Abeto", "tipo": "jogo", "quem": "claude",
+    "golpe": "Um pequeno planeta 3D desenhado à mão, com o nome feito de prédios; carrega-se em «Begin» e anda-se por ele.",
+    "roubar": ["Mundo pequeno e redondo: cabe no ecrã todo e convida a rodar",
+               "Aspeto de ilustração (cel shading) em vez de 3D realista",
+               "Um botão único e grande para começar"],
+    "stack": ["Three.js", "Cel shading"], "skill": "awwwards-3d"
+  },
+  {
+    "id": "14islands", "nome": "14islands", "url": "https://www.14islands.com/", "de": "14islands (estúdio, Suécia)", "tipo": "estudio", "quem": "claude",
+    "golpe": "Sem 3D a gritar: tipografia enorme («Design & Technology»), muito espaço branco e movimento discreto mas perfeito.",
+    "roubar": ["Letra gigante como imagem principal quando não há 3D",
+               "Espaço vazio generoso: parece caro",
+               "Animações de entrada curtas e iguais em todo o site"],
+    "stack": ["React", "Smooth scroll", "WebGL leve"], "skill": "site-scroll-infinito"
+  }
+]

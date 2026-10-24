@@ -328,6 +328,10 @@ cave e pela porta Skills do Escritório) e `backend/app/routers/skills.py` (`/ap
   imagens por caminhos relativos) e manda o HTML com `Content-Security-Policy: sandbox`: o site corre noutra origem e
   nunca vê o login do Hub. A BareDesk tem `Sites` com o teste `teste-scroll` do repositório do tema: num PC sem ele,
   `git pull` no baredesk-theme.
+- **Galeria** (24 out, Marco: sites para ver, usar e que o Claude aconselhe): separador **Skills › Galeria** (`#/galeria`,
+  `frontend/hub/galeria.js` + `.css`). A lista é `frontend/hub/galeria/sites.json` (golpe, o que roubar, stack, skill, quem
+  escolheu) e as fotografias saem de `scripts/galeria.py <id> <url>` (Chrome com GPU, 800x478). Skill `site-imersivo-3d`
+  (o método tirado dos sites, e «Juntar um site»); a `awwwards-3d` (MIT) entrou na biblioteca para o código 3D.
 - Armadilha: uma classe CSS chamada `.src` já existe no `design.css` (rebentou o layout); nas páginas novas, prefixar as classes.
 
 ### Fábrica Etsy (print-on-demand) — desde 20 out

@@ -140,7 +140,7 @@ const NAV = [
   ["Novidades", "spark", [["novidades", "Novidades"]], "comando"],
   ["Escritório", "bot", [["escritorio", "Escritório"]], "agentes"],
   ["Empresa AMG", "grid", [["empresa", "Empresa AMG"]], "agentes"],
-  ["Skills", "layers", [["skills", "Skills"]], "agentes"],
+  ["Skills", "layers", [["skills", "Skills"], ["galeria", "Galeria"]], "agentes"],
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes"], ["historico", "Histórico"]], "agentes"],
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]], "negocios"],
   ["Radar", "target", [["radar", "Radar"]], "negocios"],

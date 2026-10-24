@@ -43,6 +43,7 @@ lazyView("saude", "hub/health.js", "hub/office.css");
 lazyView("empresa", "hub/crew.js", "hub/crew.css");
 lazyView("mensagens", "hub/mensagens.js", "hub/mensagens.css");   // the team writes to each other (routers/messages.py)
 lazyView("skills", "hub/skills.js", "hub/skills.css");   // the company's skills library: who masters each one
+lazyView("galeria", "hub/galeria.js", "hub/galeria.css");   // Skills › Galeria: the best sites on the web, to steal ideas from
 lazyView("kit", "hub/kit.js", "hub/kit.css");   // Trabalho › Kit do Claude: the same plugins and skills on every PC
 lazyView("mercados", "hub/mercados.js", "hub/mercados.css"); // Mercados: TradingView, SEC, paper trading
 lazyView("trading", "hub/trading-room.js", "hub/trading-room.css"); // Sala de Trading: the room's two traders, SMC, the big alert

@@ -50,6 +50,8 @@ GROW, SHRINK = 0.46, 0.34   # seconds: the bubble opening into the cockpit, and 
 # The decorative motion (the glint on the hero's star, the agent's dot pulsing, the rings round the faces of whoever is
 # online) plays only after a change: the cockpit opens, someone comes online or goes, a state changes. It runs whole
 # cycles, from its resting look back to it, and then stops: at rest the cockpit draws no frames at all.
+SNAP_KEEP = 20.0            # seconds a picture of the central made in advance is still good for opening into it
+DECOR_DT = 1 / 30           # seconds between frames of the slow decorations (glint, rings); the morph keeps the screen's rate
 GLINT = 3.2                 # seconds: one glint of light passes over the hero's star
 PULSES, PULSE = 2, 2.2      # the agent's dot pulses twice, 2.2 s each, while it works or waits
 RINGS, RING = 3, 1.8        # three sonar rings leave an online teammate's dot, 1.8 s each
@@ -685,7 +687,7 @@ class Hero(QWidget):
         super().showEvent(e)
         self._shown = True
         self._next_minute()
-        self._play()
+        self._settle()   # opening the central is not a change: nothing glints (24 Oct, it made every opening stutter)
 
     def hideEvent(self, e):
         super().hideEvent(e)
@@ -695,7 +697,7 @@ class Hero(QWidget):
 
     def _play(self):
         """Something changed: the glint passes over the star once and the agent's dot pulses, from rest back to rest."""
-        self._from = time.perf_counter()
+        self._from, self._drawn_at = time.perf_counter(), -1.0
         self._settle()
 
     def _motion(self) -> float:
@@ -716,6 +718,9 @@ class Hero(QWidget):
         if not self._moving:
             return
         t = time.perf_counter() - self._from
+        if t < self._motion() and t - getattr(self, "_drawn_at", -1.0) < DECOR_DT:
+            return   # a slow glint needs no 165 frames a second: 30 are enough, and the rest of the PC breathes
+        self._drawn_at = t
         glint = t < GLINT
         if glint or self._glinting:   # only what moves is repainted; once more after the glint, to leave the star clean
             self.update(self._star_rect().toAlignedRect())
@@ -943,7 +948,10 @@ class Member(Hover):
     def _frame(self, _):
         if not self._breathes:
             return
-        self._t = time.perf_counter() - self._from
+        t = time.perf_counter() - self._from
+        if t < self.MOTION and t - self._t < DECOR_DT:
+            return   # the rings breathe slowly: 30 frames a second, not the screen's 165
+        self._t = t
         self.update(self.PICTURE)  # the online dot breathes
         if self._t >= self.MOTION:
             self._settle()   # this frame paints the rings at rest: no more frames until the next change
@@ -966,7 +974,7 @@ class Member(Hover):
     def showEvent(self, e):
         super().showEvent(e)
         self._shown = True
-        self._play()
+        self._settle()   # the rings move when something changes, not each time the central opens
 
     def hideEvent(self, e):
         super().hideEvent(e)
@@ -1979,6 +1987,7 @@ class WidgetWindow(QWidget):
         self._morph_dir, self._morph_t0, self._k = 0, 0.0, 0.0
         self._orb_face = QPoint()    # where the button's face sits inside the window during a morph
         self._snap = None            # the cockpit as a picture while the bubble grows into it (_snapshot)
+        self._snap_ready, self._snap_at = None, 0.0   # one made in advance while minimized, so opening never waits for it
 
         self.setWindowTitle("Agente AMG")
         self.setWindowIcon(QIcon(str(LOGO)))
@@ -2463,7 +2472,11 @@ class WidgetWindow(QWidget):
         self.move(x, y)
         self.orb.hide()   # the window draws the face itself while it grows
         QToolTip.hideText()
-        self._snap = self._snapshot()
+        self.panel.layout().activate()
+        fresh = (self._snap_ready is not None and time.monotonic() - self._snap_at < SNAP_KEEP
+                 and round(self._snap_ready.deviceIndependentSize().height()) == self.panel.height())
+        self._snap = self._snap_ready if fresh else self._snapshot()   # ready-made: the first frame comes at once
+        self._snap_ready = None
         self._start_morph(+1)
 
     def collapse(self):
@@ -2475,8 +2488,16 @@ class WidgetWindow(QWidget):
         self.panel.hide()
         self._start_morph(-1)
 
+    def _morph_rect(self, k: float) -> QRectF:
+        """Where the growing card is at `k` (0 the clock, 1 the central)."""
+        orb = QRectF(self._orb_face.x(), self._orb_face.y(), self.orb.FACE.width(), self.orb.FACE.height())
+        full = self._panel_rect()
+        return QRectF(orb.left() + (full.left() - orb.left()) * k, orb.top() + (full.top() - orb.top()) * k,
+                      orb.width() + (full.width() - orb.width()) * k, orb.height() + (full.height() - orb.height()) * k)
+
     def _start_morph(self, direction):
         self.mode = "morph"
+        self._morph_last = None
         self._morph_dir, self._morph_t0 = direction, time.perf_counter()
         self._k = 0.0 if direction > 0 else 1.0
         clock().need(self)
@@ -2487,7 +2508,11 @@ class WidgetWindow(QWidget):
             return
         p = min(1.0, (time.perf_counter() - self._morph_t0) / (GROW if self._morph_dir > 0 else SHRINK))
         self._k = 1 - (1 - p) ** 4 if self._morph_dir > 0 else 1 - ease(p)   # opening: fast, then settles softly, like iOS
-        self.update()
+        # only the part of the window the card covers now and covered last frame is painted again, not the whole
+        # central-sized window: half the work per frame at 165 Hz
+        now = self._morph_rect(self._k).adjusted(-16, -16, 16, 22).toAlignedRect()
+        self.update(now.united(self._morph_last) if self._morph_last is not None else self.rect())
+        self._morph_last = now
         if p >= 1:
             self._morph_done()
 
@@ -2601,14 +2626,11 @@ class WidgetWindow(QWidget):
         elif self.mode == "morph":
             p.setRenderHint(QPainter.Antialiasing)
             p.setCompositionMode(QPainter.CompositionMode_Source)
-            p.fillRect(self.rect(), Qt.transparent)
+            p.fillRect(e.rect(), Qt.transparent)
             p.setCompositionMode(QPainter.CompositionMode_SourceOver)
-            p.setRenderHint(QPainter.SmoothPixmapTransform)
             k = self._k
-            orb = QRectF(self._orb_face.x(), self._orb_face.y(), self.orb.FACE.width(), self.orb.FACE.height())
-            full = self._panel_rect()
-            rect = QRectF(orb.left() + (full.left() - orb.left()) * k, orb.top() + (full.top() - orb.top()) * k,
-                          orb.width() + (full.width() - orb.width()) * k, orb.height() + (full.height() - orb.height()) * k)
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            rect = self._morph_rect(k)
             small = Orb.RADIUS
             radius = small + (RADIUS - small) * k
             p.setPen(Qt.NoPen)
@@ -2619,7 +2641,8 @@ class WidgetWindow(QWidget):
             shape.addRoundedRect(rect, radius, radius)
             p.save()
             p.setClipPath(shape)
-            p.fillRect(rect, QColor(9, 9, 10))
+            # the clock is transparent: the black glass comes in with the growth instead of popping up behind it
+            p.fillRect(rect, QColor(9, 9, 10, round(255 * min(1.0, k / 0.18))))
             if self._snap is not None:   # the cockpit, scaled from the bubble's width to its own, revealed as it grows
                 scale = rect.width() / WIDTH
                 snap = self._snap.deviceIndependentSize()
@@ -3181,6 +3204,8 @@ class WidgetWindow(QWidget):
             if self._fn != self._fn_seen:
                 self._render_fn(self._fn)
             self._fn_seen = self._fn
+        if self.mode == "orb" and self.orb._press_at is None and time.monotonic() - self._snap_at > SNAP_KEEP / 2:
+            self._snap_ready, self._snap_at = self._snapshot(), time.monotonic()   # ~20 ms every 10 s while minimized
         if time.time() - self._usage_at > 10:
             self._usage_at = time.time()
             self._render_usage()

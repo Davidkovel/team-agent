@@ -358,17 +358,63 @@
   /* Tarefas: like Reminders. Hoje, Próximas and Feitas, each in blocks; the circle finishes a task, a tap opens it. */
   const desktopTarefas = HUB_VIEWS.tarefas;
   HUB_VIEWS.tarefas = (r) => (phone() ? phoneTarefas(r) : desktopTarefas(r));
-  // The screen itself is in tarefas.js (tqPhone): the composer on top, the numbers, Hoje · Próximas · Agentes · Feitas.
-  // It keeps the id m-tasks, so the live refresh, the swipe to delete and the task screen below work as on every tab.
-  // Início sets taskTab (its numbers open Tarefas on the right tab) and reads the scope; a company sets taskCo.
-  let taskTab = "", taskCo = "";
+  // Como estava antes de 23 out (pedido do Marco a 24 out): Hoje, Próximas e Feitas, cada uma em blocos.
+  let taskTab = "hoje", taskCo = "";
+  // Minhas or Equipa: whoever directs the work sees the team's tasks, as on the computer, until they choose otherwise (remembered).
   let taskScope = (() => { try { return localStorage.getItem("hub.taskScope"); } catch { return null; } })();
   const scopeNow = () => taskScope || (me?.lead ? "team" : "mine");
+
   async function phoneTarefas(r) {
-    await tqLoad();
-    if (taskTab) { tqPhoneTab = { hoje: "hoje", proximas: "proximas", feitas: "feitas" }[taskTab] || "hoje"; taskTab = ""; }
-    if (taskCo) { tqCo = taskCo; taskCo = ""; }
-    return tqPhone(r, (fn) => { reload = fn; });
+    page(`<div class="m-screen" id="m-tasks">
+      <header class="m-headrow"><div class="m-large"><span id="m-t-sub">&nbsp;</span><h1>${t("Tarefas")}</h1></div>
+        <div class="m-head-act"><span id="m-t-scope"></span><button class="m-plus" data-new aria-label="${t("Nova tarefa")}">${icon("plus")}</button></div></header>
+      <div id="m-t-body">${ui.skeleton(5)}</div></div>`);
+    const load = async () => {
+      const [list, approvals] = await Promise.all([api("/api/tasks"), api("/api/approvals").catch(() => [])]);
+      if (!$("m-tasks")) return;
+      const withCo = companies.filter((c) => list.some((x) => !x.trashed_at && x.company === c.id));
+      if (taskCo && taskCo !== "none" && !withCo.some((c) => c.id === taskCo)) taskCo = "";
+      const all = list.filter((x) => !x.trashed_at && (!taskCo || (taskCo === "none" ? !x.company : x.company === taskCo)));
+      const waiting = approvals.filter((a) => a.status === "PENDING").length;
+      const hasTeam = all.some((x) => x.assignee !== me.username), team = hasTeam && scopeNow() === "team";
+      const p = plan(scopeOf(all, team ? "team" : "mine"));
+      $("m-t-sub").textContent = `${p.open.length} ${t("por fazer")}${p.nLate ? ` · ${p.nLate} ${t(p.nLate === 1 ? "atrasada" : "atrasadas")}` : ""}`;
+      $("m-t-scope").innerHTML = hasTeam ? `<span class="m-scope"><button data-scope="mine" class="${team ? "" : "on"}">${t("Minhas")}</button><button data-scope="team" class="${team ? "on" : ""}">${t("Equipa")}</button></span>` : "";
+      const seg = [["hoje", "Hoje", p.nHoje], ["proximas", "Próximas", p.nProximas], ["feitas", "Feitas", null]]
+        .map(([id, label, n]) => `<button data-tab="${id}" class="${id === taskTab ? "on" : ""}">${t(label)}${n ? `<i class="${id === "hoje" && (p.hoje.urgent.length || p.nLate) ? "hot" : ""}">${n}</i>` : ""}</button>`).join("");
+      let body = "";
+      if (taskTab === "hoje") body = block("Urgentes", p.hoje.urgent, "late", team) + block("Atrasadas", p.hoje.late, "late", team)
+        + block("Para hoje", p.hoje.today, "today", team) + block("Sem prazo", p.hoje.undated, "", team);
+      else if (taskTab === "proximas") body = block("Amanhã", p.proximas.tomorrow, "", team) + block("Esta semana", p.proximas.week, "", team) + block("Mais tarde", p.proximas.after, "", team);
+      else body = block("Hoje", p.feitas.today, "ok", team, false) + block("Ontem", p.feitas.yesterday, "ok", team, false) + block("Mais antigas", p.feitas.older, "ok", team, false);
+      const empty = { hoje: ["check", "Tudo feito por hoje", "Quando houver algo para fazer, aparece aqui."], proximas: ["calendar", "Nada marcado", "As tarefas com prazo para os próximos dias aparecem aqui."],
+        feitas: ["check", "Ainda nada concluído", "O que concluíres aparece aqui."] }[taskTab];
+      const coBar = withCo.length ? `<div class="m-filter">${[["", "Todas"], ...withCo.map((c) => [c.id, c.name]), ["none", "Sem empresa"]]
+        .map(([id, label]) => `<button data-co="${esc(id)}" class="${id === taskCo ? "on" : ""}">${esc(t(label))}</button>`).join("")}</div>` : "";
+      const wait = waiting ? `<a class="m-approve" href="#/aprovacoes">${icon("alert")}<span>${t(waiting === 1 ? "1 aprovação à espera" : "{n} aprovações à espera", { n: waiting })}</span>${icon("chev")}</a>` : "";
+      const week = `<div class="m-list"><a class="m-row2" href="#/semana"><span class="m-ico">${icon("calendar")}</span><div><b>${t("Resumo da semana")}</b><span>${t("O que a equipa fez e o que vem a seguir")}</span></div>${icon("chev")}</a></div>`;
+      paint($("m-t-body"), `${wait}<div class="m-seg">${seg}</div>${coBar}${body || `<div class="m-empty big">${icon(empty[0])}<b>${t(empty[1])}</b><span>${t(empty[2])}</span></div>`}${week}`);
+    };
+    reload = load;
+    $("view").onclick = async (e) => {
+      if (e.target.closest("[data-new]")) return newTask();
+      const done = e.target.closest("[data-done]");
+      if (done) {
+        done.disabled = true;
+        done.closest(".m-task")?.classList.add("finishing");
+        try { await api(`/api/tasks/${done.dataset.done}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); } catch (err) { flash(err.message); }
+        return load();
+      }
+      const tab = e.target.closest("[data-tab]"), scope = e.target.closest("[data-scope]"), co = e.target.closest("[data-co]");
+      if (tab) { taskTab = tab.dataset.tab; return load(); }
+      if (co) { taskCo = co.dataset.co; return load(); }
+      if (scope) { taskScope = scope.dataset.scope; try { localStorage.setItem("hub.taskScope", taskScope); } catch { /* private window */ } return load(); }
+      const row = e.target.closest(".m-task");
+      if (row) openTaskModal(Number(row.dataset.id));
+    };
+    const linked = Number(r.company) || openTask; // #/tarefas/12 and the widget's "Open Task" open that task
+    if (linked) { openTask = null; openTaskModal(linked); }
+    await load().catch((e) => { if (e.message !== "unauthorized") $("m-t-body").innerHTML = ui.error(e.message); });
   }
 
   /* ---------- a task, the iOS way: a screen pushed over the tab you are on, not the computer's window ----------

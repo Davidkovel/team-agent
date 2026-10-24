@@ -1393,8 +1393,8 @@ def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, d
     """An option on the minimized card, small: a capsule of glass with a tiny ring (the gauge's arc, or one piece per
     partner) round the option's glyph, and the figure beside it in the gauge's colour."""
     p.save()
-    p.setPen(QPen(QColor(255, 255, 255, 60 if hot else 26), 1))
-    p.setBrush(QColor(255, 255, 255, 30 if hot else 14))
+    p.setPen(QPen(QColor(255, 255, 255, 70 if hot else 34), 1))
+    p.setBrush(QColor(28, 29, 33, 225) if hot else QColor(10, 10, 12, 190))   # its own dark capsule: reads on any desktop
     p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
     c = QPointF(r.left() + 12.5, r.center().y())
     ring = QRectF(c.x() - 8, c.y() - 8, 16, 16)
@@ -1629,11 +1629,12 @@ def chrome_text(p: QPainter, at: QPointF, f: QFont, text: str):
 
 
 class Orb(QWidget):
-    """The widget at its smallest: one compact card of dark glass (24 Oct, Marco: the time beside the star «está bué feio»,
-    the options «nem vale a pena» as dots; then a lock screen of big round gauges was worse: «mete o símbolo da Mercedes...
-    de forma organizada... os ícones mete acima... não é objeto assim tão grande»).
+    """The widget at its smallest, transparent on the desktop (24 Oct, Marco, after the card of dark glass: «não curti...
+    mete tipo transparente, como tava antes... tá grande»). No card: only a soft dark shadow under the star, the time and
+    the badge (always the same, never switching colour by the wallpaper), so it reads on light and dark; each chip keeps
+    its own small dark capsule.
 
-    The Mercedes star large on the left. On the right, on top, a row of small chips, one per option switched on in the
+    The Mercedes star on the left. On the right, on top, a row of small chips, one per option switched on in the
     central (GAUGES: Claude, Tokens, Equipa, Mensagens, Tarefas, Ponto, Câmaras, FundedNext): a tiny ring with the glyph
     inside, coloured by how it is, and the figure beside it. Under them the time in chrome, and under the time the AMG
     badge with the date (or, in amber or red, what needs this person: a Claude waiting, the Hub down). Up to four chips
@@ -1641,9 +1642,9 @@ class Orb(QWidget):
     click elsewhere opens the central; dragging moves the card and nothing else. It reads the same on any wallpaper.
 
     It paints a cached face and only repaints when the minute, a figure, the line or the count changes, or under the mouse."""
-    PAD, STAR, RADIUS, M = 14, 56, 22, 14
-    CHIP_H, CHIP_GAP, PER_ROW = 22, 5, 4
-    X0 = PAD + STAR + 12      # where the right column (chips, time, badge) begins
+    PAD, STAR, RADIUS, M = 8, 46, 22, 14
+    CHIP_H, CHIP_GAP, PER_ROW = 20, 4, 4
+    X0 = PAD + STAR + 10      # where the right column (chips, time, badge) begins
     on_icon = None            # the window: what a click on a chip does
 
     def __init__(self, on_click):
@@ -1660,7 +1661,7 @@ class Orb(QWidget):
         self._count, self._hot = 0, None
         self.line, self.line_colour = "", MUTED   # what the line over the time says instead of the date
         self.items: list = []
-        self._f_time = font(28, QFont.DemiBold, DISPLAY)
+        self._f_time = font(24, QFont.DemiBold, DISPLAY)
         self._f_line = font(7, QFont.DemiBold, UI, spacing=1.0)
         self._f_value = font(8.5, QFont.DemiBold, DISPLAY)
         self._f_count = font(7.5, QFont.Bold, UI)
@@ -1811,31 +1812,16 @@ class Orb(QWidget):
         p.save()
         p.translate(face.topLeft())
         p.scale(face.width() / self.CW, face.height() / self.CH)
-        r = QRectF(0, 0, self.CW, self.CH)
-        shape = QPainterPath()
-        shape.addRoundedRect(r, self.RADIUS, self.RADIUS)
-        body = QLinearGradient(0, 0, 0, self.CH)
-        body.setColorAt(0, QColor(30, 31, 35, 246))
-        body.setColorAt(1, QColor(9, 9, 11, 248))
+        # no card (transparent, as before): a soft dark shadow with no edge, the same on every wallpaper, so the chrome
+        # reads on a light desktop too
         p.setPen(Qt.NoPen)
-        p.setBrush(body)
-        p.drawPath(shape)
-        p.save()
-        p.setClipPath(shape)
-        glow_disc(p, QPointF(self.CW / 2, -10), self.CW * 0.7, 70, "#ffffff", 0.07)   # light from above, behind the time
-        sheen = QLinearGradient(0, 0, 0, 40)   # the glass catches the light at the top
-        sheen.setColorAt(0, QColor(255, 255, 255, 20))
-        sheen.setColorAt(1, QColor(255, 255, 255, 0))
-        p.fillRect(QRectF(0, 0, self.CW, 40), sheen)
-        p.restore()
-        rim = QLinearGradient(0, 0, self.CW, self.CH)
-        rim.setColorAt(0, QColor(255, 255, 255, 96))
-        rim.setColorAt(0.45, QColor(255, 255, 255, 18))
-        rim.setColorAt(1, QColor(255, 255, 255, 52))
-        p.setPen(QPen(rim, 1))
-        p.setBrush(Qt.NoBrush)
-        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), self.RADIUS, self.RADIUS)
-        # the Mercedes star, large, on the left (24 Oct, Marco: «mete o símbolo da Mercedes»)
+        glow_disc(p, QPointF(self.CW / 2, self.CH / 2), self.CW * 0.56, self.CH * 0.62, "#000000", 0.42)
+        glow_disc(p, QPointF(self.PAD + self.STAR / 2, self.CH / 2), self.STAR * 0.7, self.STAR * 0.7, "#000000", 0.25)
+        fm_t = QFontMetricsF(self._f_time)
+        ty = self._top + (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if self.items else 0)
+        tw = max(fm_t.horizontalAdvance(hhmm_now), badge.width(8.0) + 70)
+        glow_disc(p, QPointF(self.X0 + tw / 2, ty + fm_t.capHeight() * 0.9), tw * 0.78, fm_t.capHeight() * 1.5, "#000000", 0.6)
+        # the Mercedes star on the left (24 Oct, Marco: «mete o símbolo da Mercedes»)
         paint_star(p, QRectF(self.PAD, (self.CH - self.STAR) / 2, self.STAR, self.STAR), shadow=True)
         # on top, the chips of the options switched on
         dpr = self.devicePixelRatioF()
@@ -1875,10 +1861,6 @@ class Orb(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         face = QRectF(self.FACE)
-        p.setPen(Qt.NoPen)
-        for i in range(self.M, 0, -2):   # a soft shadow under the card
-            p.setBrush(QColor(0, 0, 0, int(34 * (1 - i / self.M) ** 2)))
-            p.drawRoundedRect(face.adjusted(-i, -i + 4, i, i + 4), self.RADIUS + i, self.RADIUS + i)
         self.paint_face(p, face, hhmm_now)
         if self._count:   # iOS's red count on the card's top right
             text = str(self._count) if self._count < 100 else "99+"

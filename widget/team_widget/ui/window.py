@@ -79,14 +79,22 @@ def worked(iso_time: str) -> str:
     return f"{minutes // 60}h {minutes % 60:02d}"
 
 
-def worked_of(person: dict) -> str:
-    """3h 25 worked today: the stretches the clock already ran, plus the one running now. It stands still while stopped."""
+def worked_s(person: dict) -> int:
+    """Seconds worked today: the stretches the clock already ran, plus the one running now. It stands still while stopped."""
     state = person.get("ponto_state")
+    if not person.get("ponto"):
+        return 0
     if not state:   # a Hub from before the clock could stop
-        return worked(person["ponto"])
+        return max(0, int((datetime.now().astimezone() - datetime.fromisoformat(person["ponto"]).astimezone()).total_seconds()))
     seconds = int(state.get("worked_s") or 0)
     if state.get("running") and state.get("since"):
         seconds += max(0, int((datetime.now().astimezone() - datetime.fromisoformat(state["since"]).astimezone()).total_seconds()))
+    return seconds
+
+
+def worked_of(person: dict) -> str:
+    """3h 25 worked today."""
+    seconds = worked_s(person)
     return f"{seconds // 3600}h {seconds % 3600 // 60:02d}"
 
 
@@ -773,10 +781,8 @@ class Hero(QWidget):
             p.fillRect(sr, glint)
             p.restore()
         now = datetime.now()
-        p.setPen(QColor(TEXT))
-        p.setFont(self._f_time)
-        p.drawText(QRectF(22, 0, 220, self.H), Qt.AlignLeft | Qt.AlignVCenter, now.strftime("%H:%M"))
-        return   # 23 Oct, Marco: only the time (no date, no «Tudo bem», no note)
+        chrome_text(p, QPointF(22, self.H / 2 + QFontMetricsF(self._f_time).capHeight() / 2), self._f_time, now.strftime("%H:%M"))
+        return   # 23 Oct, Marco: only the time (no date, no «Tudo bem», no note); 24 Oct: in chrome, like the minimized clock
         p.setPen(QColor(MUTED))
         p.setFont(self._f_date)
         p.drawText(QRectF(21, 58, 220, 18), Qt.AlignLeft | Qt.AlignVCenter,
@@ -889,13 +895,13 @@ class Member(Hover):
     picture breathes and the dot sends out sonar rings, from rest back to rest, and then the row is still. While it
     moves, each frame repaints only that corner (PICTURE). The hours of a running clock are repainted when their minute
     turns."""
-    PICTURE = QRect(0, 6, 45, 47)   # the picture with its rings and dot (paintEvent, on a row 54 tall)
+    PICTURE = QRect(0, 0, 45, 44)   # the picture with its rings and dot (paintEvent, on a row 44 tall)
     MOTION = max(RINGS * RING, BREATHS * BREATH)   # seconds the rings move after a change
     GAUGE = 32   # one of the two Claude limit rings on the right
 
     def __init__(self):
         super().__init__()
-        self.setFixedHeight(54)
+        self.setFixedHeight(44)   # 24 Oct, Marco: the team rows were «tão grande»
         self._person, self._me = None, False
         self.last = False
         self._f_name, self._f_state, self._f_time, self._f_small, self._f_pill = (
@@ -976,8 +982,9 @@ class Member(Hover):
         can = False   # since 23 Oct the clock-in is only in the Hub: the row just shows
         self.setEnabled(can)
         self.setCursor(Qt.PointingHandCursor if can else Qt.ArrowCursor)
-        self.setToolTip("" if not can else "Bater o ponto" if not person.get("ponto") else
-                        "Parar: as horas de hoje deixam de contar" if clock_runs(person) else "Retomar: as horas voltam a contar")
+        plan = (person.get("live") or {}).get("limits") or {}
+        self.setToolTip("\n".join(f"{name}: {round(plan[k])}% usado" + (f" · {until(plan.get(k + '_reset'))}" if plan.get(k + "_reset") else "")
+                                  for k, name in (("five", "Claude 5 h"), ("week", "Semana")) if plan.get(k) is not None))
         self.update()
         if self._state(person) != self._state(was):
             self._play()   # they came online or went, or what they do changed: the rings move for a few seconds
@@ -1017,9 +1024,9 @@ class Member(Hover):
             return   # a breathing frame: nothing else on the row has changed
         p.setPen(QColor(TEXT) if online else QColor(MUTED))
         p.setFont(self._f_name)
-        p.drawText(QRectF(48, 7, 150, 18), Qt.AlignLeft | Qt.AlignVCenter, person["name"])
+        p.drawText(QRectF(48, 3, 150, 18), Qt.AlignLeft | Qt.AlignVCenter, person["name"])
         if self._me:  # which row is yours
-            tag = QRectF(48 + QFontMetricsF(self._f_name).horizontalAdvance(person["name"]) + 7, 10, 22, 13)
+            tag = QRectF(48 + QFontMetricsF(self._f_name).horizontalAdvance(person["name"]) + 7, 6, 22, 13)
             p.setPen(Qt.NoPen)
             p.setBrush(rgba(COLORS["ONLINE"] if online else MUTED, 0.2))
             p.drawRoundedRect(tag, 6.5, 6.5)
@@ -1028,28 +1035,23 @@ class Member(Hover):
             p.drawText(tag, Qt.AlignCenter, "TU")
         # on the right, their Claude: the 5 h session and the week, as two small rings (23 Oct, Marco: «os limites do
         # Claude do Kovel e do David, são os importantes»; the clock-in left the cockpit, it is in the Hub)
+        # (24 Oct: the same gauges as the minimized clock's, «os tokens semanais, diários do pessoal»)
         plan = (person.get("live") or {}).get("limits") or {}
         right = w - 2 * self.GAUGE - 8
         for i, (key, name) in enumerate((("five", "5 h"), ("week", "sem."))):
             pct = plan.get(key)
-            ring = QRectF(right + 6 + i * (self.GAUGE + 2) + (self.GAUGE - 28) / 2, 5, 28, 28)
-            p.setBrush(Qt.NoBrush)
-            p.setPen(pen(QColor(255, 255, 255, 22), 3))
-            p.drawEllipse(ring)
-            if pct:
-                p.setPen(pen(QColor(meter_color(pct)), 3))
-                p.drawArc(ring, 90 * 16, -round(360 * 16 * min(1.0, pct / 100)))
-            p.setPen(QColor(TEXT) if pct is not None else QColor(FAINT))
-            p.setFont(self._f_gauge)
-            p.drawText(ring, Qt.AlignCenter, "—" if pct is None else f"{round(pct)}")
+            ring = QRectF(right + 6 + i * (self.GAUGE + 2) + (self.GAUGE - 27) / 2, 1, 27, 27)
+            paint_gauge(p, ring, [(pct / 100, meter_color(pct))] if pct is not None else [],
+                        "—" if pct is None else f"{round(pct)}", f_value=self._f_gauge, ink=TEXT if pct is not None else FAINT,
+                        disc=False, dpr=self.devicePixelRatioF())
             p.setPen(QColor(FAINT))
             p.setFont(self._f_small)
-            p.drawText(QRectF(ring.center().x() - 20, ring.bottom() + 2, 40, 12), Qt.AlignHCenter | Qt.AlignTop, name)
+            p.drawText(QRectF(ring.center().x() - 20, ring.bottom() + 1, 40, 12), Qt.AlignHCenter | Qt.AlignTop, name)
         # the second line says what they are doing: their Claude windows, the task, or whether they are here
         doing, colour = activity({**person, "_me": self._me})
         p.setPen(QColor(colour))
         p.setFont(self._f_state)
-        p.drawText(QRectF(48, 27, right - 48, 16), Qt.AlignLeft | Qt.AlignVCenter,
+        p.drawText(QRectF(48, 22, right - 48, 16), Qt.AlignLeft | Qt.AlignVCenter,
                    QFontMetricsF(self._f_state).elidedText(doing, Qt.ElideRight, right - 52))
 
 
@@ -1081,9 +1083,10 @@ def app_icon(glyph: str, size: int, dpr: float) -> QPixmap:
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(0.5, 0.5, size - 1, size - 1)
         radius = size * 0.27
-        body = QLinearGradient(0, 0, 0, size)
-        body.setColorAt(0, QColor(58, 61, 67) if glyph != "hub" else QColor(22, 23, 26))
-        body.setColorAt(1, QColor(16, 17, 19) if glyph != "hub" else QColor(0, 0, 0))
+        body = QLinearGradient(0, 0, 0, size)   # black lacquer with a graphite top, like the car's trim
+        body.setColorAt(0, QColor(46, 48, 54) if glyph != "hub" else QColor(22, 23, 26))
+        body.setColorAt(0.55, QColor(20, 21, 24) if glyph != "hub" else QColor(6, 6, 7))
+        body.setColorAt(1, QColor(9, 9, 11) if glyph != "hub" else QColor(0, 0, 0))
         p.setPen(Qt.NoPen)
         p.setBrush(body)
         p.drawRoundedRect(r, radius, radius)
@@ -1102,8 +1105,11 @@ def app_icon(glyph: str, size: int, dpr: float) -> QPixmap:
         if glyph == "hub":
             paint_star(p, QRectF(size * 0.14, size * 0.14, size * 0.72, size * 0.72))
         else:
-            svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#f4f6f8" stroke-width="1.7" '
-                   f'stroke-linecap="round" stroke-linejoin="round">{APP_GLYPHS[glyph]}</svg>')
+            # the glyph in chrome: white at the top, steel at the foot
+            svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="c" x1="0" y1="0" x2="0" y2="1">'
+                   '<stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#e2e5ea"/><stop offset="1" stop-color="#9299a3"/>'
+                   '</linearGradient></defs><g fill="none" stroke="url(#c)" stroke-width="1.8" stroke-linecap="round" '
+                   f'stroke-linejoin="round">{APP_GLYPHS[glyph]}</g></svg>')
             QSvgRenderer(QByteArray(svg.encode())).render(p, QRectF(size * 0.24, size * 0.24, size * 0.52, size * 0.52))
         p.end()
         _app_icons[key] = pix
@@ -1286,143 +1292,164 @@ class TokenTracker:
         return list(self.seen.get(key) or ())
 
 
-class UsageView(QWidget):
-    """«Hoje»: what this person spent and what they can still use (23 Oct, Marco: «quero mais saber o uso diário, o que
-    estou a gastar, o que posso utilizar»). The tokens of the last 24 h, counting up when they grow, with the speed now;
-    then the Claude plan as two bars, the 5 h session and the week, each with what is left and when it renews. A click
-    opens the token central (tokens.py), where every window is."""
-    opened = Signal()
-    BAR = 34
-
-    def __init__(self, tracker):
-        super().__init__()
-        self.tracker = tracker
-        self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Abrir a central de tokens")
-        self._mine, self._windows, self._shown = 0, [], 0.0
-        self._limits = [("Claude 5 h", None, "sem dados"), ("Semana", None, "sem dados")]
-        self._count = animate(self, 700, self._count_to)
-        self._f_big, self._f_unit = font(20, QFont.DemiBold, DISPLAY), font(8, QFont.Normal, UI)
-        self._f_name, self._f_num, self._f_note = font(8.5, QFont.DemiBold, UI), font(8.5, QFont.DemiBold, DISPLAY), font(7.5, QFont.Normal, UI)
-        self.setFixedHeight(44 + 2 * self.BAR)
-
-    def _count_to(self, v):
-        self._shown = v
-        self.update()
-
-    def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton:
-            self.opened.emit()
-
-    def set_tokens(self, mine: int, windows: list):
-        """Repainted at every look at the Hub: the speed changes with time."""
-        if mine != self._mine:
-            self._count.stop()
-            self._count.setStartValue(float(self._shown or mine))
-            self._count.setEndValue(float(mine))
-            self._count.start()
-        self._mine, self._windows = mine, windows
-        self.update()
-
-    def set_limits(self, limits: list):
-        """[(name, percent used or None, note)] for the 5 h session and the week."""
-        if limits != self._limits:
-            self._limits = limits
-            self.update()
-
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        w = self.width()
-        p.setPen(QColor(TEXT))
-        p.setFont(self._f_big)
-        big = tokens_text(self._shown or self._mine)
-        p.drawText(QRectF(0, 2, w, 32), Qt.AlignLeft | Qt.AlignVCenter, big)
-        x = QFontMetricsF(self._f_big).horizontalAdvance(big) + 10
-        speed = sum(self.tracker.rate(win.get("key")) for win in self._windows)
-        if speed >= 1:   # spending right now: a green chip with the speed
-            text = f"{tokens_text(speed)}/min"
-            chip = QRectF(x, 9, QFontMetricsF(self._f_num).horizontalAdvance(text) + 24, 20)
-            p.setPen(Qt.NoPen)
-            p.setBrush(rgba(COLORS["WORKING"], 0.16))
-            p.drawRoundedRect(chip, 10, 10)
-            p.setBrush(QColor(COLORS["WORKING"]))
-            p.drawEllipse(QPointF(chip.left() + 10, chip.center().y()), 3, 3)
-            p.setPen(QColor(COLORS["WORKING"]))
-            p.setFont(self._f_num)
-            p.drawText(chip.adjusted(16, 0, -6, 0), Qt.AlignCenter, text)
-        else:
-            p.setPen(QColor(MUTED))
-            p.setFont(self._f_unit)
-            p.drawText(QRectF(x, 10, w - x, 22), Qt.AlignLeft | Qt.AlignVCenter, "tokens nas últimas 24 h")
-        y = 44.0
-        for name, pct, note in self._limits:
-            p.setFont(self._f_name)
-            p.setPen(QColor(TEXT))
-            p.drawText(QRectF(0, y, w / 2, 16), Qt.AlignLeft | Qt.AlignVCenter, name)
-            left = "—" if pct is None else f"restam {max(0, round(100 - pct))}%"
-            p.setFont(self._f_num)
-            p.setPen(QColor(TEXT) if pct is not None else QColor(FAINT))
-            lw = QFontMetricsF(self._f_num).horizontalAdvance(left) + 2
-            p.drawText(QRectF(w - lw, y, lw, 16), Qt.AlignRight | Qt.AlignVCenter, left)
-            p.setFont(self._f_note)
-            p.setPen(QColor(FAINT))
-            p.drawText(QRectF(w / 2 - 40, y, w / 2 + 40 - lw - 8, 16), Qt.AlignRight | Qt.AlignVCenter,
-                       QFontMetricsF(self._f_note).elidedText(note, Qt.ElideRight, w / 2 + 40 - lw - 8))
-            track = QRectF(0, y + 20, w, 5)
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(255, 255, 255, 16))
-            p.drawRoundedRect(track, 2.5, 2.5)
-            if pct:
-                p.setBrush(QColor(meter_color(pct)))
-                p.drawRoundedRect(QRectF(0, track.top(), max(5.0, w * min(pct, 100) / 100), 5), 2.5, 2.5)
-            y += self.BAR
-
-
-TOGGLE_GLYPHS = {   # what can sit beside the minimized clock (24-unit strokes, like the apps)
-    "janelas": '<rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/>',
-    "tokens": '<path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z"/>',
-    "limites": '<path d="M4.5 16.5a7.5 7.5 0 1115 0"/><path d="M12 16.5l4-5"/><path d="M8 19.5h8"/>',
+GAUGE_GLYPHS = {   # the clock's complications and the central's controls (24-unit strokes, like the apps)
+    "claude": '<rect x="3" y="4.5" width="18" height="15" rx="3.5"/><path d="M7.5 9.8l2.8 2.4-2.8 2.4M13 14.8h3.5"/>',
+    "tokens": '<path d="M13.2 2.8L5.5 13.2h5.8l-1 8 7.7-10.4h-5.8z"/>',
+    "equipa": ('<circle cx="9" cy="8.6" r="3.1"/><path d="M3.6 19.4a5.4 5.4 0 0110.8 0"/><circle cx="16.6" cy="9.6" r="2.5"/>'
+               '<path d="M15.8 14.3a4.5 4.5 0 014.6 5.1"/>'),
+    "mensagens": '<path d="M20.5 11.5a8 8 0 01-11.8 7l-4.7 1.3 1.3-4.4A8 8 0 1120.5 11.5z"/>',
+    "tarefas": '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M8 12.2l2.8 2.8 5.2-6"/>',
+    "ponto": '<circle cx="12" cy="13.2" r="7.6"/><path d="M12 9.4v3.8l2.6 1.6M9.6 2.8h4.8M18.6 6.4l1.4-1.4"/>',
     "camaras": '<rect x="3" y="6.5" width="13" height="11" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3z"/>',
+    "trading": '<path d="M3.5 17l5.5-5.5 4 4 7.5-7.5"/><path d="M15 8h5.5v5.5"/>',
+    "pausa": '<rect x="6.8" y="5.5" width="3.4" height="13" rx="1.2"/><rect x="13.8" y="5.5" width="3.4" height="13" rx="1.2"/>',
+    "play": '<path d="M8.5 5.6v12.8l10-6.4z"/>',
+    "parar": '<rect x="6.5" y="6.5" width="11" height="11" rx="2.6"/>',
+    "cima": '<path d="M9.2 3.5h5.6l-.9 5.6 3.6 3.9H6.5l3.6-3.9z"/><path d="M12 13v7.5"/>',
+    "invisivel": '<path d="M19.8 14.6A8 8 0 019.4 4.2a8 8 0 1010.4 10.4z"/>',
+    "hub": '<path d="M14.5 4.5h5v5M9.5 19.5h-5v-5M19.5 4.5l-6 6M4.5 19.5l6-6"/>',
 }
-TOGGLES = (("janelas", "Claude"), ("tokens", "Tokens"), ("limites", "Limites"), ("camaras", "Câmaras"))
-_toggle_icons: dict[tuple, QPixmap] = {}
+# What can sit under the minimized clock, in this order (24 Oct, Marco: «quando seleciono "tokens" aquilo fica tipo um ícone
+# a combinar de forma com o relógio... funcional o suficiente para não ter que abrir o Hub todo... opções que combinem com a
+# funcionalidade de uma empresa»)
+GAUGES = (("claude", "Claude"), ("tokens", "Tokens"), ("equipa", "Equipa"), ("mensagens", "Mensagens"),
+          ("tarefas", "Tarefas"), ("ponto", "Ponto"), ("camaras", "Câmaras"), ("trading", "FundedNext"))
+PINS_BEFORE = {"janelas": "claude", "limites": "tokens"}   # the choices' names before 24 Oct
+DEFAULT_PINS = ["claude", "tokens", "equipa", "mensagens"]
+SWEEP = 270   # degrees of a gauge's arc: open at the bottom, where its glyph sits, as on the iPhone's lock screen
+_glyphs: dict[tuple, QPixmap] = {}
 
 
-def toggle_icon(glyph: str, on: bool, dpr: float) -> QPixmap:
-    key = (glyph, on, round(dpr, 2))
-    if key not in _toggle_icons:
-        pix = QPixmap(round(18 * dpr), round(18 * dpr))
+def glyph(key: str, size: float, colour: str, dpr: float, width=1.9) -> QPixmap:
+    """A glyph of GAUGE_GLYPHS in one colour; drawn once per size, colour and screen density."""
+    k = (key, size, colour, round(dpr, 2), width)
+    if k not in _glyphs:
+        pix = QPixmap(round(size * dpr), round(size * dpr))
         pix.setDevicePixelRatio(dpr)
         pix.fill(Qt.transparent)
         p = QPainter(pix)
         p.setRenderHint(QPainter.Antialiasing)
-        ink = "#0b0b0d" if on else "#8d9198"
-        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{ink}" stroke-width="1.9" '
-               f'stroke-linecap="round" stroke-linejoin="round">{TOGGLE_GLYPHS[glyph]}</svg>')
-        QSvgRenderer(QByteArray(svg.encode())).render(p, QRectF(0, 0, 18, 18))
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{colour}" stroke-width="{width}" '
+               f'stroke-linecap="round" stroke-linejoin="round">{GAUGE_GLYPHS[key]}</svg>')
+        QSvgRenderer(QByteArray(svg.encode())).render(p, QRectF(0, 0, size, size))
         p.end()
-        _toggle_icons[key] = pix
-    return _toggle_icons[key]
+        _glyphs[k] = pix
+    return _glyphs[k]
+
+
+def blend(a: QColor, b: QColor, k: float) -> QColor:
+    return QColor(int(a.red() + (b.red() - a.red()) * k), int(a.green() + (b.green() - a.green()) * k),
+                  int(a.blue() + (b.blue() - a.blue()) * k), int(a.alpha() + (b.alpha() - a.alpha()) * k))
+
+
+def paint_gauge(p: QPainter, r: QRectF, arcs, value="", key=None, segments=None, f_value=None, ink=TEXT, disc=True, dpr=1.0):
+    """A complication as on the iPhone's lock screen: a translucent disc, an arc of 270° open at the bottom that fills
+    clockwise (`arcs`: [(how full 0..1, colour)], the outer one first, each further one inside it), the glyph in the
+    opening and the figure in the middle. `segments` splits the outer arc into one piece per colour (the partners)."""
+    s, c = r.width(), r.center()
+    w = max(2.2, s * 0.072)
+    p.save()
+    if disc:
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 16))
+        p.drawEllipse(c, s / 2, s / 2)
+    radius = s / 2 - w / 2 - (2.6 if disc else 0.6)
+    inner = radius - w / 2
+    p.setBrush(Qt.NoBrush)
+    for i in range(max(1, len(arcs))):
+        frac, colour = arcs[i] if i < len(arcs) else (0, WHITE)
+        box = QRectF(c.x() - radius, c.y() - radius, 2 * radius, 2 * radius)
+        if i == 0 and segments:
+            gap = 10
+            each = (SWEEP - gap * (len(segments) - 1)) / len(segments)
+            for j, col in enumerate(segments):
+                p.setPen(pen(QColor(col), w))
+                p.drawArc(box, round((225 - j * (each + gap)) * 16), -round(each * 16))
+        else:
+            p.setPen(pen(QColor(255, 255, 255, 36), w))
+            p.drawArc(box, 225 * 16, -SWEEP * 16)
+            if frac > 0.004:
+                p.setPen(pen(QColor(colour), w))
+                p.drawArc(box, 225 * 16, -round(SWEEP * 16 * min(1.0, frac)))
+        inner = radius - w / 2
+        radius -= w + 1.6
+    if key:
+        g = round(s * 0.25)
+        outer = s / 2 - w / 2 - (2.6 if disc else 0.6)
+        p.drawPixmap(QPointF(c.x() - g / 2, c.y() + outer * 0.74 - g / 2), glyph(key, g, "#c9ced6", dpr, 2.1))
+    if value:
+        f = QFont(f_value or font(10, QFont.DemiBold, DISPLAY))
+        room = inner * 2 * (0.9 if len(arcs) < 2 else 0.74)   # inside two rings the figure has less room
+        while (QFontMetricsF(f).horizontalAdvance(value) > room or QFontMetricsF(f).capHeight() > inner * 0.8) and f.pointSizeF() > 6:
+            f.setPointSizeF(f.pointSizeF() - 0.5)
+        p.setFont(f)
+        p.setPen(QColor(ink))
+        lift = s * 0.06 if key else 0
+        p.drawText(QRectF(c.x() - inner, c.y() - inner - lift, 2 * inner, 2 * inner), Qt.AlignCenter, value)
+    p.restore()
+
+
+def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, dpr=1.0):
+    """An option on the minimized card, small: a capsule of glass with a tiny ring (the gauge's arc, or one piece per
+    partner) round the option's glyph, and the figure beside it in the gauge's colour."""
+    p.save()
+    p.setPen(QPen(QColor(255, 255, 255, 60 if hot else 26), 1))
+    p.setBrush(QColor(255, 255, 255, 30 if hot else 14))
+    p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
+    c = QPointF(r.left() + 12.5, r.center().y())
+    ring = QRectF(c.x() - 8, c.y() - 8, 16, 16)
+    p.setBrush(Qt.NoBrush)
+    if g.segments:
+        gap = 24
+        each = (SWEEP - gap * (len(g.segments) - 1)) / len(g.segments)
+        for j, col in enumerate(g.segments):
+            p.setPen(pen(QColor(col), 1.7))
+            p.drawArc(ring, round((225 - j * (each + gap)) * 16), -round(each * 16))
+    else:
+        p.setPen(pen(QColor(255, 255, 255, 40), 1.7))
+        p.drawArc(ring, 225 * 16, -SWEEP * 16)
+        if g.arcs and g.arcs[0][0] > 0.004:
+            p.setPen(pen(QColor(g.arcs[0][1]), 1.7))
+            p.drawArc(ring, 225 * 16, -round(SWEEP * 16 * min(1.0, g.arcs[0][0])))
+    p.drawPixmap(QPointF(c.x() - 5, c.y() - 5), glyph(key, 10, "#eef0f3", dpr, 2.3))
+    p.setFont(f_value)
+    p.setPen(QColor(g.ink))
+    p.drawText(QRectF(r.left() + 25, r.top(), r.width() - 28, r.height()), Qt.AlignLeft | Qt.AlignVCenter, g.value or "—")
+    p.restore()
+
+
+class Gauge:
+    """What one complication says: its arcs, the outer arc in segments (one per partner) or not, the figure inside and
+    its colour, and the line its tooltip shows. set() says whether anything changed, so the card repaints only then."""
+
+    def __init__(self, tip="A ler o Hub…"):
+        self.arcs, self.value, self.tip, self.segments, self.ink = [], "", tip, None, TEXT
+
+    def set(self, arcs, value, tip, segments=None, ink=TEXT) -> bool:
+        new = ([(round(f, 3), c) for f, c in arcs], value, tip, segments, ink)
+        if new == (self.arcs, self.value, self.tip, self.segments, self.ink):
+            return False
+        self.arcs, self.value, self.tip, self.segments, self.ink = new
+        return True
 
 
 class Toggle(Hover):
-    """One choice of «Ao lado do relógio»: an icon over its name in a rounded tile. On, the tile is polished chrome with
-    a dark icon, like an iOS Control Centre button; off, dark glass. It slides between the two."""
+    """One choice of «No relógio»: the complication's glyph over its name in a rounded tile. On, the tile is polished
+    chrome with a dark glyph, like an iOS Control Centre button; off, dark glass. It slides between the two."""
     changed = Signal()
 
-    def __init__(self, glyph: str, name: str, on: bool):
+    def __init__(self, key: str, name: str, on: bool):
         super().__init__()
-        self.glyph, self.name, self.on = glyph, name, on
+        self.key, self.name, self.on = key, name, on
         self._lit = 1.0 if on else 0.0
         self._fade = animate(self, 220, lambda v: self._set("_lit", v), curve=QEasingCurve.OutCubic)
-        self.setFixedHeight(54)
+        self.setFixedHeight(44)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._f = font(7.5, QFont.DemiBold, UI)
         self._tip()
 
     def _tip(self):
-        self.setToolTip(f"Tirar «{self.name}» do lado do relógio" if self.on else f"Mostrar «{self.name}» ao lado do relógio quando minimizas")
+        self.setToolTip(f"Tirar «{self.name}» do relógio" if self.on else f"Pôr «{self.name}» no relógio quando minimizas")
 
     def toggle(self):
         self.on = not self.on
@@ -1436,260 +1463,69 @@ class Toggle(Hover):
         r = r.adjusted(self.press, self.press, -self.press, -self.press)
         lit = self._lit
         body = QLinearGradient(0, r.top(), 0, r.bottom())
-        top, bottom = QColor(232, 234, 238), QColor(168, 172, 180)
-        dark_top, dark_bottom = QColor(44, 46, 51), QColor(22, 23, 26)
-        mix = lambda a, b: QColor(int(a.red() + (b.red() - a.red()) * lit), int(a.green() + (b.green() - a.green()) * lit),
-                                  int(a.blue() + (b.blue() - a.blue()) * lit))
-        body.setColorAt(0, mix(dark_top, top))
-        body.setColorAt(1, mix(dark_bottom, bottom))
+        body.setColorAt(0, blend(QColor(44, 46, 51), QColor(236, 238, 242), lit))
+        body.setColorAt(1, blend(QColor(22, 23, 26), QColor(166, 171, 179), lit))
         p.setPen(QPen(QColor(255, 255, 255, int(30 + 50 * lit + 30 * self.hover)), 1))
         p.setBrush(body)
         p.drawRoundedRect(r, 14, 14)
-        icon = toggle_icon(self.glyph, lit > 0.5, self.devicePixelRatioF())
-        p.drawPixmap(QPointF(r.center().x() - 9, r.top() + 9), icon)
+        icon = glyph(self.key, 17, "#0b0b0d" if lit > 0.5 else "#aeb3ba", self.devicePixelRatioF())
+        p.drawPixmap(QPointF(r.center().x() - 8.5, r.top() + 6), icon)
         v = int(170 + (11 - 170) * lit)
         p.setPen(QColor(v, v, v + 2))
         p.setFont(self._f)
-        p.drawText(QRectF(r.left(), r.top() + 30, r.width(), 16), Qt.AlignHCenter | Qt.AlignVCenter, self.name)
+        p.drawText(QRectF(r.left(), r.top() + 24, r.width(), 16), Qt.AlignHCenter | Qt.AlignVCenter, self.name)
 
 
-class Pill(QAbstractButton):
-    """A pinned view at its smallest, beside the minimized clock: one line on a dark glass capsule, like an iPhone's
-    Live Activity (23 Oct, Marco: the cards «ocupam boé espaço... tem que ser justo, no canto do monitor»). A click
-    opens the cockpit on that view."""
-    H, MAX_W = 26, 214
+class Control(Hover):
+    """A Control Centre button of the central (24 Oct, Marco: «mete todos os botões que estão no widget na central de
+    comando»: what was only in the tray menu): a round button with its glyph and its name under it. On (the clock
+    running, the widget on top, invisible) it is polished chrome with a dark glyph; off, dark glass. `danger` glyphs are red."""
+    D = 40
 
-    def __init__(self):
+    def __init__(self, key: str, name: str, tip="", danger=False):
         super().__init__()
-        self.text, self.dot, self.glow = "", MUTED, False
-        self.setCursor(Qt.PointingHandCursor)
-        self._f = font(8, QFont.DemiBold, UI)
-        self.setFixedSize(60, self.H)
+        self.key, self.name, self.on, self.danger = key, name, False, danger
+        self._lit = 0.0
+        self._fade = animate(self, 220, lambda v: self._set("_lit", v))
+        self.setFixedHeight(self.D + 20)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setToolTip(tip)
+        self._f = font(7.5, QFont.DemiBold, UI)
 
-    on_change = None   # the window's InfoColumn repaints when a line changes
-
-    def set(self, text: str, dot: str, glow=False):
-        if (text, dot, glow) != (self.text, self.dot, self.glow):
-            self.text, self.dot, self.glow = text, dot, glow
-            if self.on_change:
-                self.on_change()
-            self.setToolTip(text)
-            self.setFixedWidth(int(min(self.MAX_W, QFontMetricsF(self._f).horizontalAdvance(text) + 34)))
+    def show_as(self, on: bool, key=None, name=None, tip=None, enabled=True):
+        if tip is not None and tip != self.toolTip():
+            self.setToolTip(tip)
+        if (key or self.key, name or self.name, enabled) != (self.key, self.name, self.isEnabled()):
+            self.key, self.name = key or self.key, name or self.name
+            self.setEnabled(enabled)
+            self.setCursor(Qt.PointingHandCursor if enabled else Qt.ArrowCursor)
             self.update()
+        if on != self.on:
+            self.on = on
+            self._to(self._fade, self._lit, 1 if on else 0)
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        body = QLinearGradient(0, 0, 0, r.height())
-        body.setColorAt(0, QColor(30, 31, 35, 240))
-        body.setColorAt(1, QColor(8, 8, 10, 240))
-        rim = QLinearGradient(0, 0, r.width(), r.height())
-        rim.setColorAt(0, QColor(255, 255, 255, 80))
-        rim.setColorAt(0.5, QColor(255, 255, 255, 16))
-        rim.setColorAt(1, QColor(255, 255, 255, 46))
-        p.setPen(QPen(rim, 1))
+        if not self.isEnabled():
+            p.setOpacity(0.35)
+        lit = self._lit
+        c = QPointF(self.width() / 2, self.D / 2 + 1)
+        rad = self.D / 2 - 1 - 1.5 * self.press
+        body = QLinearGradient(0, c.y() - rad, 0, c.y() + rad)
+        body.setColorAt(0, blend(QColor(52, 54, 60), QColor(238, 240, 244), lit))
+        body.setColorAt(1, blend(QColor(20, 21, 24), QColor(160, 166, 174), lit))
+        p.setPen(QPen(QColor(255, 255, 255, int(34 + 50 * lit + 40 * self.hover)), 1))
         p.setBrush(body)
-        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
-        dot = QPointF(13, r.center().y())
-        if self.glow:
-            glow_disc(p, dot, 8, 8, self.dot, 0.4)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(self.dot))
-        p.drawEllipse(dot, 3.2, 3.2)
-        p.setPen(QColor(TEXT))
+        p.drawEllipse(c, rad, rad)
+        disc = QPainterPath()
+        disc.addEllipse(c, rad, rad)
+        self.paint_wave(p, disc)
+        ink = "#0b0b0d" if lit > 0.5 else "#ff6961" if self.danger else "#eef0f3"
+        p.drawPixmap(QPointF(c.x() - 9, c.y() - 9), glyph(self.key, 18, ink, self.devicePixelRatioF()))
+        p.setPen(QColor("#c9ccd1") if self.hover < 0.5 else QColor(TEXT))
         p.setFont(self._f)
-        p.drawText(QRectF(23, 0, r.width() - 31, r.height()), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(self._f).elidedText(self.text, Qt.ElideRight, r.width() - 31))
-
-
-class InfoColumn(QWidget):
-    """What sits beside the minimized star (23 Oct, Marco: the pills were «feias»; «as horas ao lado do símbolo», and
-    «um ícone e, quando passo o rato por cima, aparecem as informações»): the time written large next to the star, and
-    under it a row of small round icons, one per view switched on in the central, each with a dot in the colour of how
-    it is. The mouse over an icon opens it into a capsule with the line it stands for; leaving closes it.
-
-    The pills (Pill) still hold the text and the colour; they are never shown, this paints them. The column keeps room
-    for one open icon: the empty part is fully transparent, so Windows lets the clicks through to the desktop."""
-    W, TIME_H, ICON, GAP = 320, 46, 24, 6
-    X0 = 15          # the hairline by the star, then the words
-    H = TIME_H + 6 + ICON
-    clicked = Signal(str)   # "hora" or the view's key
-
-    def __init__(self):
-        super().__init__()
-        self.setFixedSize(self.W, self.H)
-        self.setMouseTracking(True)
-        self.items: list[tuple[str, "Pill"]] = []
-        self.time_text, self.right = "", False   # right: the column is on the star's left, everything hugs its right edge
-        self.open: dict[str, float] = {}
-        self._anims: dict[str, QVariantAnimation] = {}
-        self._hovered = None
-        self._f_time = font(22, QFont.DemiBold, DISPLAY)
-        self._f_text = font(8, QFont.DemiBold, UI)
-        self.light = False   # the wallpaper behind is light: the time, the line and AMG go graphite (WidgetWindow._sample)
-
-    def set_light(self, light: bool):
-        if light != self.light:
-            self.light = light
-            self.update()
-
-    def set_items(self, items):
-        self.items = items
-        self.update()
-
-    def set_time(self, text: str):
-        if text != self.time_text:
-            self.time_text = text
-            self.update()
-
-    # ---- geometry
-    def _width_of(self, key, pill) -> float:
-        k = self.open.get(key, 0.0)
-        full = QFontMetricsF(self._f_text).horizontalAdvance(pill.text) + self.ICON + 14
-        room = self.W - self.X0 - 4 - (len(self.items) - 1) * (self.ICON + self.GAP)   # the others stay closed beside it
-        return self.ICON + (min(room, full) - self.ICON) * k
-
-    def _rects(self) -> list[tuple[str, "Pill", QRectF]]:
-        out, x = [], float(self.X0)
-        widths = [(key, pill, self._width_of(key, pill)) for key, pill in self.items]
-        total = sum(w for _, _, w in widths) + self.GAP * max(0, len(widths) - 1)
-        if self.right:
-            x = self.W - self.X0 - total
-        y = self.TIME_H + 6
-        for key, pill, w in widths:
-            out.append((key, pill, QRectF(x, y, w, self.ICON)))
-            x += w + self.GAP
-        return out
-
-    def _time_rect(self) -> QRectF:
-        return QRectF(self.X0, 0, self.W - 2 * self.X0, self.TIME_H)
-
-    # ---- the mouse
-    def _hover(self, key):
-        if key == self._hovered:
-            return
-        for k in {self._hovered, key} - {None}:
-            target = 1.0 if k == key else 0.0
-            anim = self._anims.get(k)
-            if anim is None:
-                anim = self._anims[k] = animate(self, 240, lambda v, k=k: self._set_open(k, v), curve=QEasingCurve.OutCubic)
-            anim.stop()
-            anim.setStartValue(self.open.get(k, 0.0))
-            anim.setEndValue(target)
-            anim.start()
-        self._hovered = key
-        self.setCursor(Qt.PointingHandCursor if key else Qt.ArrowCursor)
-
-    def _set_open(self, key, v):
-        self.open[key] = v
-        self.update()
-
-    def _hit(self, pos: QPointF):
-        for key, _, r in self._rects():
-            if r.adjusted(-2, -3, 2, 3).contains(pos):
-                return key
-        tw = QFontMetricsF(self._f_time).horizontalAdvance(self.time_text)
-        t = self._time_rect()
-        time_box = QRectF(t.right() - tw if self.right else t.left(), t.top(), tw, t.height())
-        return "hora" if time_box.contains(pos) else None
-
-    def mouseMoveEvent(self, e):
-        hit = self._hit(e.position())
-        self._hover(hit if hit != "hora" else None)
-        self.setCursor(Qt.PointingHandCursor if hit else Qt.ArrowCursor)
-
-    def leaveEvent(self, e):
-        self._hover(None)
-        super().leaveEvent(e)
-
-    def mousePressEvent(self, e):
-        hit = self._hit(e.position())
-        if hit and e.button() == Qt.LeftButton:
-            self.clicked.emit(hit)
-        else:
-            e.ignore()
-
-    # ---- painting
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        # the look Marco liked from the start (2 Oct): a hairline by the star, the time, the AMG badge under it; white
-        # with a dark halo on a dark wallpaper, graphite with a light halo on a light one
-        ink = QColor(22, 23, 26) if self.light else QColor(TEXT)
-        halo = QColor(255, 255, 255, 120) if self.light else QColor(0, 0, 0, 80)
-        line_x = self.W - 0.5 if self.right else 0.5
-        line = QLinearGradient(0, 2, 0, self.TIME_H)
-        line.setColorAt(0, rgba(ink.name(), 0))
-        line.setColorAt(0.5, rgba(ink.name(), 0.45))
-        line.setColorAt(1, rgba(ink.name(), 0))
-        p.setPen(QPen(line, 1))
-        p.drawLine(QPointF(line_x, 4), QPointF(line_x, self.TIME_H))
-        if self.time_text:
-            path = QPainterPath()
-            tw = QFontMetricsF(self._f_time).horizontalAdvance(self.time_text)
-            x = self.W - self.X0 - tw if self.right else self.X0
-            path.addText(QPointF(x, 27), self._f_time, self.time_text)
-            p.setPen(pen(halo, 3.2))
-            p.setBrush(Qt.NoBrush)
-            p.drawPath(path)
-            p.setPen(Qt.NoPen)
-            p.setBrush(ink)
-            p.drawPath(path)
-            bh = 10.0
-            bx = self.W - self.X0 - badge.width(bh) if self.right else self.X0 + 0.5
-            if not self.light:   # bright chrome with a shadow on dark wallpapers; graphite on light ones, where chrome vanishes
-                p.drawImage(QRectF(bx + 0.5, 35, badge.width(bh), bh), badge.image(bh, self.devicePixelRatioF(), shadow=True))
-            badge.paint(p, bx, 34, bh, dark=self.light)
-        dpr = self.devicePixelRatioF()
-        for key, pill, r in self._rects():
-            k = self.open.get(key, 0.0)
-            body = QLinearGradient(0, r.top(), 0, r.bottom())
-            body.setColorAt(0, QColor(40, 42, 47, 235))
-            body.setColorAt(1, QColor(10, 10, 12, 235))
-            rim = QLinearGradient(r.left(), r.top(), r.right(), r.bottom())
-            rim.setColorAt(0, QColor(255, 255, 255, 120))
-            rim.setColorAt(0.5, QColor(255, 255, 255, 25))
-            rim.setColorAt(1, QColor(255, 255, 255, 70))
-            p.setPen(QPen(rim, 1))
-            p.setBrush(body)
-            p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
-            glyph = QRectF(r.left() + (self.ICON - 14) / 2, r.top() + (self.ICON - 14) / 2, 14, 14)
-            p.drawPixmap(glyph.topLeft(), info_glyph(key, 14, dpr))
-            dot = QPointF(r.left() + self.ICON - 5, r.top() + 5)   # how it is, on the icon's shoulder
-            if pill.glow:
-                glow_disc(p, dot, 6, 6, pill.dot, 0.45)
-            p.setPen(QPen(QColor(10, 10, 12), 1.4))
-            p.setBrush(QColor(pill.dot))
-            p.drawEllipse(dot, 3.2, 3.2)
-            if k > 0.02:   # open: the line it stands for, fading in as it widens
-                p.setOpacity(min(1.0, k * 1.4))
-                p.setPen(QColor(TEXT))
-                p.setFont(self._f_text)
-                room = r.width() - self.ICON - 10
-                p.drawText(QRectF(r.left() + self.ICON + 2, r.top(), room, r.height()), Qt.AlignLeft | Qt.AlignVCenter,
-                           QFontMetricsF(self._f_text).elidedText(pill.text, Qt.ElideRight, room))
-                p.setOpacity(1.0)
-
-
-_info_glyphs: dict[tuple, QPixmap] = {}
-
-
-def info_glyph(key: str, size: int, dpr: float) -> QPixmap:
-    """A view's glyph in white, for the icons beside the star; drawn once per size and screen density."""
-    k = (key, size, round(dpr, 2))
-    if k not in _info_glyphs:
-        pix = QPixmap(round(size * dpr), round(size * dpr))
-        pix.setDevicePixelRatio(dpr)
-        pix.fill(Qt.transparent)
-        p = QPainter(pix)
-        p.setRenderHint(QPainter.Antialiasing)
-        svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#f2f4f7" stroke-width="2" '
-               f'stroke-linecap="round" stroke-linejoin="round">{TOGGLE_GLYPHS.get(key, "")}</svg>')
-        QSvgRenderer(QByteArray(svg.encode())).render(p, QRectF(0, 0, size, size))
-        p.end()
-        _info_glyphs[k] = pix
-    return _info_glyphs[k]
+        p.drawText(QRectF(0, self.D + 4, self.width(), 14), Qt.AlignHCenter | Qt.AlignVCenter, self.name)
 
 
 class Ring(QWidget):
@@ -1769,25 +1605,49 @@ class TitleBar(QWidget):
             self._on_double_click()
 
 
-class Orb(QWidget):
-    """The widget at its smallest, as an iOS widget on the desktop (23 Oct, Marco: the time loose on the wallpaper could
-    not be read on light backgrounds, flipped colours and dragged badly, «tudo bug»; «estilo iOS, já disse»). One small
-    card of dark glass with the chrome star, the time, the AMG badge and a row of small icons for the views switched on in
-    the central (Claude, Tokens, Limites, Câmaras), each with a dot in the colour of how it is. It reads the same on any
-    wallpaper, so nothing looks at the desktop. The mouse over an icon shows its line; a click opens the central (the
-    Câmaras icon opens the cave live); dragging moves the card and nothing else changes while it moves.
+DAYS = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"]
+MONTHS_SHORT = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"]
 
-    It paints a cached face and only repaints when the minute, the state, the count or the icons change, or under the finger."""
-    CW, CH, RADIUS, M = 200, 86, 22, 14   # the card, its corners, and the room round it for the shadow and the count
-    W, H = CW + 2 * M, CH + 2 * M
-    FACE = QRect(M, M, CW, CH)            # the card inside the widget (what grows into the central de comando)
-    D = CH
-    STAR, ICON, GAP = 58, 18, 6
-    on_icon = None                        # the window: what a click on an icon opens
+
+def chrome_text(p: QPainter, at: QPointF, f: QFont, text: str):
+    """Text in polished chrome (white at the top, steel at the foot) over a soft shadow: the time, as on the car's badges."""
+    path = QPainterPath()
+    path.addText(at, f, text)
+    cap = QFontMetricsF(f).capHeight()
+    p.save()
+    p.setPen(Qt.NoPen)
+    p.translate(0, 1.2)
+    p.fillPath(path, QColor(0, 0, 0, 120))
+    p.translate(0, -1.2)
+    chrome = QLinearGradient(0, at.y() - cap, 0, at.y())
+    chrome.setColorAt(0, QColor("#ffffff"))
+    chrome.setColorAt(0.5, QColor("#e4e7eb"))
+    chrome.setColorAt(0.52, QColor("#cfd3d9"))
+    chrome.setColorAt(1, QColor("#9aa1aa"))
+    p.fillPath(path, chrome)
+    p.restore()
+
+
+class Orb(QWidget):
+    """The widget at its smallest: one compact card of dark glass (24 Oct, Marco: the time beside the star «está bué feio»,
+    the options «nem vale a pena» as dots; then a lock screen of big round gauges was worse: «mete o símbolo da Mercedes...
+    de forma organizada... os ícones mete acima... não é objeto assim tão grande»).
+
+    The Mercedes star large on the left. On the right, on top, a row of small chips, one per option switched on in the
+    central (GAUGES: Claude, Tokens, Equipa, Mensagens, Tarefas, Ponto, Câmaras, FundedNext): a tiny ring with the glyph
+    inside, coloured by how it is, and the figure beside it. Under them the time in chrome, and under the time the AMG
+    badge with the date (or, in amber or red, what needs this person: a Claude waiting, the Hub down). Up to four chips
+    in a row, then two rows. The mouse over a chip shows its line; a click does what it is for (the window's on_icon); a
+    click elsewhere opens the central; dragging moves the card and nothing else. It reads the same on any wallpaper.
+
+    It paints a cached face and only repaints when the minute, a figure, the line or the count changes, or under the mouse."""
+    PAD, STAR, RADIUS, M = 14, 56, 22, 14
+    CHIP_H, CHIP_GAP, PER_ROW = 22, 5, 4
+    X0 = PAD + STAR + 12      # where the right column (chips, time, badge) begins
+    on_icon = None            # the window: what a click on a chip does
 
     def __init__(self, on_click):
         super().__init__()
-        self.setFixedSize(self.W, self.H)
         self.setCursor(Qt.PointingHandCursor)
         self.setMouseTracking(True)
         self._on_click = on_click
@@ -1797,13 +1657,42 @@ class Orb(QWidget):
         self._down_anim = animate(self, 110, lambda v: self._set("_down", v))
         self._press_at, self._grab, self._dragged = None, None, False
         self._face, self._face_key = None, None
-        self._colour, self._count, self._load, self._rest = QColor(COLORS["ONLINE"]), 0, None, True
+        self._count, self._hot = 0, None
+        self.line, self.line_colour = "", MUTED   # what the line over the time says instead of the date
         self.items: list = []
-        self._f_time = font(21, QFont.DemiBold, DISPLAY)
+        self._f_time = font(28, QFont.DemiBold, DISPLAY)
+        self._f_line = font(7, QFont.DemiBold, UI, spacing=1.0)
+        self._f_value = font(8.5, QFont.DemiBold, DISPLAY)
         self._f_count = font(7.5, QFont.Bold, UI)
         self._minute = QTimer(self)          # the face only changes when the minute does: one repaint then
         self._minute.setSingleShot(True)
         self._minute.timeout.connect(self._next_minute)
+        self._rows = 0
+        self._layout()
+
+    def _chip_w(self, g) -> float:
+        return 28 + QFontMetricsF(self._f_value).horizontalAdvance(g.value or "—") + 9
+
+    def _layout(self):
+        """Sizes the card to what it holds: the chips' rows over the time, the star's height at least."""
+        n = len(self.items)
+        self._rows = math.ceil(n / self.PER_ROW) if n else 0
+        per = math.ceil(n / self._rows) if n else 0
+        rows = [self.items[i:i + per] for i in range(0, n, per)] if n else []
+        chips_w = max((sum(self._chip_w(g) for _, g in row) + self.CHIP_GAP * (len(row) - 1) for row in rows), default=0)
+        fm = QFontMetricsF(self._f_time)
+        time_w = fm.horizontalAdvance("00:00")
+        content_h = (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if n else 0) + fm.capHeight() + 9 + 9
+        self.CW = round(self.X0 + max(chips_w, time_w, 120) + self.PAD + 2)
+        self.CH = round(max(self.STAR + 2 * self.PAD, content_h + 2 * self.PAD))
+        self._top = (self.CH - content_h) / 2   # the right column is centred on the card
+        self._rows_items = rows
+        size = (self.CW + 2 * self.M, self.CH + 2 * self.M)
+        if size != (getattr(self, "W", 0), getattr(self, "H", 0)):
+            self.W, self.H = size
+            self.FACE = QRect(self.M, self.M, self.CW, self.CH)   # the card inside the widget (what grows into the central)
+            self.setFixedSize(self.W, self.H)
+        self._face_key = None
 
     def _next_minute(self):
         self.update()
@@ -1828,11 +1717,10 @@ class Orb(QWidget):
         anim.setEndValue(float(end))
         anim.start()
 
-    def set(self, load, colour, pulse):
-        """How things are: the small dot after the time (blue at rest, the state's colour while a Claude works or waits)."""
-        colour, rest = QColor(colour), not pulse and QColor(colour) == QColor(COLORS["ONLINE"])
-        if colour != self._colour or rest != self._rest or load != self._load:
-            self._colour, self._rest, self._load = colour, rest, load
+    def set_line(self, text: str, colour=MUTED):
+        """What the line over the time says instead of the date: what needs this person now ("" = the date)."""
+        if (text, colour) != (self.line, self.line_colour):
+            self.line, self.line_colour = text, colour
             self.update()
 
     def set_count(self, n: int):
@@ -1842,25 +1730,29 @@ class Orb(QWidget):
             self.update()
 
     def set_items(self, items: list):
-        """[(key, Pill)]: the views switched on in the central, as icons on the card."""
-        sig = [(k, pill.text, pill.dot, pill.glow) for k, pill in items]
-        if sig != [(k, pill.text, pill.dot, pill.glow) for k, pill in self.items]:
-            self.items = list(items)
-            self.update()
-
-    def ambient(self) -> QColor:
-        return QColor(AMBIENT_REST) if self._rest else self._colour
+        """[(key, Gauge)]: the complications switched on in the central, in GAUGES' order."""
+        self.items = list(items)
+        self._layout()
+        self.update()
 
     # ---- where things are on the card (card coordinates)
-    def _icon_rects(self) -> list:
-        x0 = 14 + self.STAR + 12
-        return [(key, pill, QRectF(x0 + i * (self.ICON + self.GAP), 58, self.ICON, self.ICON)) for i, (key, pill) in enumerate(self.items)]
+    def _gauge_rects(self) -> list:
+        """Each chip: (key, Gauge, its rect on the card), row by row from the top of the right column."""
+        out, y = [], self._top
+        for row in self._rows_items:
+            x = float(self.X0)
+            for key, g in row:
+                w = self._chip_w(g)
+                out.append((key, g, QRectF(x, y, w, self.CHIP_H)))
+                x += w + self.CHIP_GAP
+            y += self.CHIP_H + self.CHIP_GAP
+        return out
 
-    def _icon_at(self, pos: QPointF):
+    def _gauge_at(self, pos: QPointF):
         local = pos - QPointF(self.FACE.topLeft())
-        for key, pill, r in self._icon_rects():
+        for key, g, r in self._gauge_rects():
             if r.adjusted(-3, -3, 3, 3).contains(local):
-                return key, pill
+                return key, g
         return None, None
 
     # ---- the mouse
@@ -1869,6 +1761,7 @@ class Orb(QWidget):
 
     def leaveEvent(self, e):
         self._to(self._hover_anim, self._hover, 0)
+        self._hot = None
         QToolTip.hideText()
 
     def mousePressEvent(self, e):
@@ -1879,10 +1772,13 @@ class Orb(QWidget):
             self._to(self._down_anim, self._down, 1)
 
     def mouseMoveEvent(self, e):
-        if self._press_at is None:   # only hovering: an icon says what it is
-            key, pill = self._icon_at(e.position())
-            if pill is not None:
-                QToolTip.showText(e.globalPosition().toPoint(), pill.text, self)
+        if self._press_at is None:   # only hovering: a gauge lights up and says what it is
+            key, g = self._gauge_at(e.position())
+            if key != self._hot:
+                self._hot = key
+                self.update()
+            if g is not None:
+                QToolTip.showText(e.globalPosition().toPoint(), g.tip, self)
             else:
                 QToolTip.hideText()
                 self.setToolTip("Abrir a central de comando")
@@ -1890,6 +1786,7 @@ class Orb(QWidget):
         at = e.globalPosition().toPoint()
         if not self._dragged and (at - self._press_at).manhattanLength() > 4:
             self._dragged = True
+            self._hot = None
             self._to(self._down_anim, self._down, 0)
             QToolTip.hideText()
         if self._dragged:
@@ -1897,15 +1794,15 @@ class Orb(QWidget):
 
     def mouseReleaseEvent(self, e):
         self._to(self._down_anim, self._down, 0)
-        if self._press_at is not None and not self._dragged and e.button() == Qt.LeftButton:
-            key, _ = self._icon_at(e.position())
+        pressed, self._press_at = self._press_at, None
+        if pressed is not None and not self._dragged and e.button() == Qt.LeftButton:
+            key, _ = self._gauge_at(e.position())
             if key and self.on_icon:
                 self.on_icon(key)
             else:
                 self._on_click()
         elif self._dragged and hasattr(self.window(), "dock"):
             self.window().dock()   # let go: kept inside the screen, and the place is kept for next time
-        self._press_at = None
 
     # ---- painting
     def paint_face(self, p: QPainter, face: QRectF, hhmm_now: str, shadow=True):
@@ -1917,55 +1814,55 @@ class Orb(QWidget):
         shape = QPainterPath()
         shape.addRoundedRect(r, self.RADIUS, self.RADIUS)
         body = QLinearGradient(0, 0, 0, self.CH)
-        body.setColorAt(0, QColor(32, 33, 37, 246))
-        body.setColorAt(1, QColor(11, 11, 13, 246))
+        body.setColorAt(0, QColor(30, 31, 35, 246))
+        body.setColorAt(1, QColor(9, 9, 11, 248))
         p.setPen(Qt.NoPen)
         p.setBrush(body)
         p.drawPath(shape)
         p.save()
         p.setClipPath(shape)
-        sheen = QLinearGradient(0, 0, 0, self.CH * 0.5)   # the glass catches the light at the top
-        sheen.setColorAt(0, QColor(255, 255, 255, 22))
+        glow_disc(p, QPointF(self.CW / 2, -10), self.CW * 0.7, 70, "#ffffff", 0.07)   # light from above, behind the time
+        sheen = QLinearGradient(0, 0, 0, 40)   # the glass catches the light at the top
+        sheen.setColorAt(0, QColor(255, 255, 255, 20))
         sheen.setColorAt(1, QColor(255, 255, 255, 0))
-        p.fillRect(QRectF(0, 0, self.CW, self.CH * 0.5), sheen)
+        p.fillRect(QRectF(0, 0, self.CW, 40), sheen)
         p.restore()
         rim = QLinearGradient(0, 0, self.CW, self.CH)
-        rim.setColorAt(0, QColor(255, 255, 255, 90))
+        rim.setColorAt(0, QColor(255, 255, 255, 96))
         rim.setColorAt(0.45, QColor(255, 255, 255, 18))
-        rim.setColorAt(1, QColor(255, 255, 255, 50))
+        rim.setColorAt(1, QColor(255, 255, 255, 52))
         p.setPen(QPen(rim, 1))
         p.setBrush(Qt.NoBrush)
         p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), self.RADIUS, self.RADIUS)
-        # the star
-        paint_star(p, QRectF(14, (self.CH - self.STAR) / 2, self.STAR, self.STAR), shadow=True)
-        # the time, a dot of how things are, AMG under it
-        x0 = 14 + self.STAR + 12
-        p.setPen(QColor(TEXT))
-        p.setFont(self._f_time)
-        p.drawText(QRectF(x0, 10, self.CW - x0 - 10, 30), Qt.AlignLeft | Qt.AlignVCenter, hhmm_now)
-        tw = QFontMetricsF(self._f_time).horizontalAdvance(hhmm_now)
-        dot = QPointF(x0 + tw + 9, 26)
-        light = self.ambient().name()
-        if not self._rest:
-            glow_disc(p, dot, 7, 7, light, 0.45)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(light))
-        p.drawEllipse(dot, 3, 3)
-        badge.paint(p, x0 + 0.5, 42, 9.0)
-        # the icons of the views switched on in the central
+        # the Mercedes star, large, on the left (24 Oct, Marco: «mete o símbolo da Mercedes»)
+        paint_star(p, QRectF(self.PAD, (self.CH - self.STAR) / 2, self.STAR, self.STAR), shadow=True)
+        # on top, the chips of the options switched on
         dpr = self.devicePixelRatioF()
-        for key, pill, ir in self._icon_rects():
-            p.setPen(QPen(QColor(255, 255, 255, 40), 1))
-            p.setBrush(QColor(255, 255, 255, 18))
-            p.drawEllipse(ir)
-            g = 11
-            p.drawPixmap(QPointF(ir.center().x() - g / 2, ir.center().y() - g / 2), info_glyph(key, g, dpr))
-            d = QPointF(ir.right() - 2, ir.top() + 2)
-            if pill.glow:
-                glow_disc(p, d, 5, 5, pill.dot, 0.5)
-            p.setPen(QPen(QColor(14, 14, 16), 1.2))
-            p.setBrush(QColor(pill.dot))
-            p.drawEllipse(d, 2.6, 2.6)
+        for key, g, cr in self._gauge_rects():
+            paint_chip(p, cr, key, g, self._f_value, key == self._hot, dpr)
+        # the time in chrome
+        fm = QFontMetricsF(self._f_time)
+        y = self._top + (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if self.items else 0)
+        base = y + fm.capHeight()
+        chrome_text(p, QPointF(self.X0 - 1, base), self._f_time, hhmm_now)
+        # under it the AMG badge and the date, or what needs you
+        by = base + 9
+        badge.paint(p, self.X0, by, 8.0)
+        x = self.X0 + badge.width(8.0) + 8
+        room = self.CW - self.PAD - x
+        if self.line:
+            dot = QPointF(x + 3, by + 4.5)
+            glow_disc(p, dot, 7, 7, self.line_colour, 0.5)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(self.line_colour))
+            p.drawEllipse(dot, 2.6, 2.6)
+            x, room = x + 10, room - 10
+        now = datetime.now()
+        text = self.line.upper() if self.line else f"{DAYS[now.weekday()]} {now.day} {MONTHS_SHORT[now.month - 1]}"
+        p.setFont(self._f_line)
+        p.setPen(QColor(self.line_colour if self.line else "#8e939a"))
+        p.drawText(QRectF(x, by - 3, room, 15), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetricsF(self._f_line).elidedText(text, Qt.ElideRight, room))
         p.restore()
 
     def _build_face(self, hhmm_now: str) -> QPixmap:
@@ -1997,15 +1894,16 @@ class Orb(QWidget):
 
     def paintEvent(self, _):
         now = datetime.now().strftime("%H:%M")
-        key = (self.devicePixelRatioF(), now, self.ambient().rgba(), self._rest, self._count,
-               tuple((k, pill.dot, pill.glow) for k, pill in self.items))
+        key = (self.devicePixelRatioF(), now, datetime.now().day, self.line, self.line_colour, self._count, self.CW, self.CH,
+               self._hot, tuple((k, tuple(g.arcs), g.value, tuple(g.segments or ()), g.ink) for k, g in self.items))
         if self._face_key != key:
             self._face, self._face_key = self._build_face(now), key
         p = QPainter(self)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
+        p.setRenderHint(QPainter.Antialiasing)
         p.setOpacity(self.fade)
         c = QPointF(self.FACE.center())
-        s = 1 + 0.015 * self._hover - 0.03 * self._down     # it gives a little under the finger, like an iOS widget
+        s = 1 + 0.012 * self._hover - 0.025 * self._down     # it gives a little under the finger, like an iOS widget
         p.translate(c)
         p.scale(s, s)
         p.translate(-c)
@@ -2081,25 +1979,17 @@ class WidgetWindow(QWidget):
 
         self.orb = Orb(self.expand)
         self.orb.setParent(self)
-        self.orb.on_icon = lambda key: self._open_cave() if key == "camaras" else self.expand()
-        app = QApplication.instance()   # the icons' lines show in a dark glass tooltip, like the card
+        self.orb.on_icon = self._gauge_clicked
+        app = QApplication.instance()   # the gauges' lines show in a dark glass tooltip, like the card
         if app is not None and "QToolTip" not in app.styleSheet():
             app.setStyleSheet(app.styleSheet() + "QToolTip { background: #141518; color: #f2f3f5; border: 1px solid #34373c;"
                               " border-radius: 8px; padding: 5px 8px; font-family: 'Segoe UI Variable Text'; font-size: 9pt; }")
-        # the pinned views in small, under the clock while the cockpit is minimized
-        self.glance = InfoColumn()   # the time and the icons beside the star
-        self.glance.setParent(self)
-        self.glance.clicked.connect(lambda key: self._open_cave() if key == "camaras" else self.expand())
-        self.glances = {key: Pill() for key, _ in TOGGLES}   # the lines and colours the icons show (never shown themselves)
-        for card in self.glances.values():
-            card.on_change = self._info_changed
-        self._looks = QTimer(self)   # a look at the wallpaper behind the time every 20 s, while it is on the screen
-        self._looks.timeout.connect(self._sample)
-        # not started since 23 Oct: the card reads the same on any wallpaper
-        self._clock_tick = QTimer(self)   # once a minute, on the minute
-        self._clock_tick.setSingleShot(True)
-        self._clock_tick.timeout.connect(self._tick_time)
-        self._side = "right"
+        self.gauges = {key: Gauge() for key, _ in GAUGES}   # what each complication under the minimized clock says
+        self._ponto_armed = False   # the Ponto gauge was clicked once: a second click within a few seconds starts or stops it
+        self._ponto_disarm = QTimer(self)
+        self._ponto_disarm.setSingleShot(True)
+        self._ponto_disarm.timeout.connect(self._disarm_ponto)
+        self._asking = False        # one of this person's Claude windows waits for them
         self.panel = Panel(self)
         self.panel.setFixedWidth(WIDTH)
         self.panel.move(SHADOW, SHADOW)
@@ -2118,7 +2008,6 @@ class WidgetWindow(QWidget):
         clock().frame.connect(self._morph_frame)
         self._fade = animate(self, 220, self.setWindowOpacity)
         self._fade.finished.connect(self._fade_done)
-        self._tick_time()
         self._place()
         self._render_people(self._team)
         self._render_week({})
@@ -2150,29 +2039,46 @@ class WidgetWindow(QWidget):
         self.hero = Hero()
         col.addWidget(self.hero)
 
-        # «Hoje» under the time: what this person spends and what is left of the plan (23 Oct, Marco: the windows count,
-        # the per-window list and the cameras were «demasiada informação»; the tabs went with them)
-        self.tokens = Platter("Hoje", "tokens ›")
-        self.tracker = TokenTracker()
-        self.usage = UsageView(self.tracker)
-        self.usage.opened.connect(self._open_tokens)
-        self.tokens.box.addWidget(self.usage)
-        self.tokens.box.addSpacing(6)
-        col.addWidget(self.tokens)
+        # the team right under the time, each with their Claude 5 h and week (24 Oct, Marco: the 24 h tokens in thousands and
+        # millions were «texto desnecessário... devia ser só os tokens semanais, diários, etc. do pessoal»)
+        self.tracker = TokenTracker()   # the token central's speeds (tokens.py)
+        team = Platter("Equipa", "por janela ›")
+        team.note.setCursor(Qt.PointingHandCursor)
+        team.note.setToolTip("Os tokens de cada janela do Claude, ao vivo")
+        team.note.mousePressEvent = lambda e: self._open_tokens()
+        self.members = [Member() for _ in range(3)]
+        for m in self.members:
+            team.box.addWidget(m)
+        self.members[-1].last = True
+        self.hub_note = label("O Hub não está a responder.", 8.5, FAINT)
+        self.hub_note.hide()
+        team.box.addWidget(self.hub_note)
+        team.box.addSpacing(2)
+        col.addWidget(team)
 
-        # «Ao lado do relógio»: what shows as a pill beside the minimized clock, chosen in the middle of the cockpit, under
-        # «Hoje» (23 Oct, Marco: «quero ativar os tokens, quero ativar as câmaras»; then «fica ao lado, no meio», not at the bottom)
-        side = Platter("Ao lado do relógio", "quando minimizas")
-        tiles = QHBoxLayout()
+        # «No relógio»: the complications under the minimized clock, chosen in the middle of the central (23 Oct, Marco:
+        # «quero ativar os tokens, quero ativar as câmaras»; 24 Oct: options «que combinem com a funcionalidade de uma empresa»)
+        side = Platter("No relógio", "quando minimizas")
+        self.side_note = side.note
+        tiles = QGridLayout()
         tiles.setContentsMargins(0, 4, 0, 4)
         tiles.setSpacing(6)
-        pinned = set(prefs.load().get("pins", ["janelas"]))
+        saved = prefs.load().get("pins")
+        if saved is None:
+            pinned = set(DEFAULT_PINS)
+        elif set(saved) & set(PINS_BEFORE):   # chosen before 24 Oct, when there were four: the new ones that matter come on
+            pinned = set(DEFAULT_PINS) | {PINS_BEFORE.get(k, k) for k in saved}
+        else:
+            pinned = set(saved)
         self.pins = {}
-        for key, name in TOGGLES:
+        for i, (key, name) in enumerate(GAUGES):
             tile = Toggle(key, name, key in pinned)
             tile.clicked.connect(lambda _=False, key=key: self._toggle_pin(key))   # clicked(bool) would take key's place
-            tiles.addWidget(tile)
+            tiles.addWidget(tile, i // 4, i % 4)
             self.pins[key] = tile
+        on = len([k for k in self.pins if self.pins[k].on])
+        side.note.setText(f"{on} no relógio" if on else "só a hora")
+        prefs.save(pins=[k for k, pin in self.pins.items() if pin.on])
         side.box.addLayout(tiles)
         col.addWidget(side)
 
@@ -2188,6 +2094,29 @@ class WidgetWindow(QWidget):
         self.claude_now.box.addSpacing(4)
         col.addWidget(self.claude_now)
 
+        # «Controlo»: the buttons that were only in the tray menu, as the iPhone's Control Centre
+        controls = Platter("Controlo")
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 4, 0, 2)
+        row.setSpacing(0)
+        self.ctl_ponto = Control("ponto", "Ponto", "Bater o ponto")
+        self.ctl_ponto.clicked.connect(self.punch_ponto)
+        self.ctl_agent = Control("pausa", "Pausar", "Pausar o agente")
+        self.ctl_agent.clicked.connect(lambda: self.client.send("resume" if self.store.get().get("status") == "PAUSED" else "pause"))
+        self.ctl_stop = Control("parar", "Parar", "Parar a tarefa do agente", danger=True)
+        self.ctl_stop.clicked.connect(lambda: self.client.send("stop"))
+        self.ctl_top = Control("cima", "Por cima", "")
+        self.ctl_top.clicked.connect(lambda: self.set_on_top(not prefs.on_top()))
+        self.ctl_away = Control("invisivel", "Invisível", "")
+        self.ctl_away.clicked.connect(lambda: self.set_away(not self._away))
+        self.ctl_hub = Control("hub", "Hub", "Abrir o Hub em grande")
+        self.ctl_hub.clicked.connect(self._open_hub)
+        for button in (self.ctl_ponto, self.ctl_agent, self.ctl_stop, self.ctl_top, self.ctl_away, self.ctl_hub):
+            row.addWidget(button)
+        controls.box.addLayout(row)
+        col.addWidget(controls)
+        self._render_controls()
+
         # the apps: the Hub's pages one click away, as on the iPhone's home screen
         apps = QWidget()
         grid = QGridLayout(apps)
@@ -2195,14 +2124,14 @@ class WidgetWindow(QWidget):
         grid.setHorizontalSpacing(0)
         grid.setVerticalSpacing(4)
         self.apps = {}
-        for i, (glyph, name, href) in enumerate(APPS):
-            icon = AppIcon(glyph, name, f"Abrir {name} no Hub")
+        for i, (glyph_key, name, href) in enumerate(APPS):
+            icon = AppIcon(glyph_key, name, f"Abrir {name} no Hub")
             icon.clicked.connect(lambda href=href: self._open_notice(href))
             grid.addWidget(icon, i // 5, i % 5)
-            self.apps[glyph] = icon
+            self.apps[glyph_key] = icon
         col.addWidget(apps)
 
-        # the FundedNext account (the Hub's #/fundednext in a few numbers); only on a PC with the account or the MT5
+        # the FundedNext account (the Hub's #/fundednext in a few numbers); only on a PC with the account
         self.fn = Platter("FundedNext")
         figures = QHBoxLayout()
         figures.setContentsMargins(0, 2, 0, 2)
@@ -2221,21 +2150,8 @@ class WidgetWindow(QWidget):
         self.fn.setToolTip("Abrir o painel FundedNext no Hub")
         self.fn.mousePressEvent = lambda e: self._open_notice("#/fundednext")
         self.fn.hide()
-
-        team = Platter("Equipa")
-        self.grid_note = team.note
-        self.members = [Member() for _ in range(3)]
-        for m in self.members:
-            m.clicked.connect(self.punch_ponto)
-            team.box.addWidget(m)
-        self.members[-1].last = True
-        self.hub_note = label("O Hub não está a responder.", 8.5, FAINT)
-        self.hub_note.hide()
-        team.box.addWidget(self.hub_note)
-        # to try the notifications (the others see this person go offline): in the tray menu now, the cockpit kept short
-        self.btn_away = TextButton("Ficar offline", "Aparecer offline para a equipa (para testar as notificações)", MUTED)
-        team.box.addSpacing(4)
-        col.addWidget(team)
+        # to try the notifications (the others see this person go offline): the «Invisível» control
+        self.btn_away = self.ctl_away
         col.addWidget(self.fn)
 
         # the plan limits as three small rings in one module
@@ -2350,83 +2266,159 @@ class WidgetWindow(QWidget):
     EDGE = 6   # px the pills keep from the edges of the screen
 
     def _place(self):
-        """Starts where the star was left last time (the top right of the screen the first time)."""
+        """Starts where the card was left last time (the top right of the screen the first time)."""
         screen = self.screen().availableGeometry()
         saved = prefs.load()
-        face = QPoint(saved.get("star_x", screen.right() - Orb.CW - 24), saved.get("star_y", screen.top() + 40))
+        face = QPoint(saved.get("star_x", screen.right() - self.orb.CW - 24), saved.get("star_y", screen.top() + 40))
         self._layout_orb(face)
 
     def dock(self):
         """The card was let go where it is: brought back inside the screen if it went past an edge, and that place is
         kept for next time. Nothing snaps to corners."""
         self._layout_orb()
-        face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
+        face = self.pos() + self.orb.pos() + self.orb.FACE.topLeft()
         prefs.save(star_x=face.x(), star_y=face.y())
+
+    def _pinned(self) -> list:
+        return [(k, self.gauges[k]) for k, _ in GAUGES if self.pins[k].on]
 
     def _layout_orb(self, face: QPoint | None = None):
         """The minimized widget: the card where `face` says (its top left on the screen; by default where it is now), kept
-        inside the screen, with the icons of the views switched on in the central."""
+        inside the screen, with the complications switched on in the central (the card grows down with them)."""
         if face is None:
-            face = self.pos() + self.orb.pos() + Orb.FACE.topLeft()
-        self.orb.set_items([(k, card) for k, card in self.glances.items() if self.pins[k].on and card.text])
-        self.glance.hide()   # the time and the icons are on the card now
-        screen = (QGuiApplication.screenAt(face + QPoint(Orb.CW // 2, Orb.CH // 2)) or self.screen()).availableGeometry()
-        x = max(screen.left() + self.EDGE, min(face.x(), screen.right() - Orb.CW - self.EDGE))
-        y = max(screen.top() + self.EDGE, min(face.y(), screen.bottom() - Orb.CH - self.EDGE))
-        self.orb.move(0, 0)
-        self.setFixedSize(Orb.W, Orb.H)
-        self.move(QPoint(x, y) - Orb.FACE.topLeft())
+            face = self.pos() + self.orb.pos() + self.orb.FACE.topLeft()
+        orb = self.orb
+        orb.set_items(self._pinned())
+        screen = (QGuiApplication.screenAt(face + QPoint(orb.CW // 2, 20)) or self.screen()).availableGeometry()
+        x = max(screen.left() + self.EDGE, min(face.x(), screen.right() - orb.CW - self.EDGE))
+        y = max(screen.top() + self.EDGE, min(face.y(), screen.bottom() - orb.CH - self.EDGE))
+        orb.move(0, 0)
+        self.setFixedSize(orb.W, orb.H)
+        self.move(QPoint(x, y) - orb.FACE.topLeft())
 
-    def _tick_time(self):
-        """The time pill: the hours, and a dot in the colour of how things are."""
-        self.glance.set_time(datetime.now().strftime("%H:%M"))
-        self._clock_tick.start(int((60 - time.time() % 60) * 1000) + 20)
-
-    def _sample(self):
-        """Looks at the desktop behind the time and picks white or graphite words to match (the old button did this;
-        23 Oct, Marco: «quando passo de fundos pretos para brancos o horário não muda de cor»)."""
-        if self.mode != "orb" or not self.isVisible() or self.windowOpacity() < 0.99:
-            return
-        screen = self.screen()
-        if screen is None:
-            return
-        g = self.glance.mapToGlobal(QPoint(0, 0)) - screen.geometry().topLeft()
-        shot = screen.grabWindow(0, g.x(), g.y(), self.glance.width(), InfoColumn.TIME_H).toImage().scaled(16, 6)
-        lum = [QColor(shot.pixel(x, y)).lightnessF() for x in range(shot.width()) for y in range(shot.height())]
-        self.glance.set_light(sum(lum) / len(lum) > 0.6)
-
-    def _info_changed(self):
-        """A line beside the star changed: an icon may come or go."""
-        if self.mode == "orb" and hasattr(self, "pins"):
-            self._layout_orb()
+    def _refresh_orb(self):
+        """A figure changed: the card repaints, and grows or shrinks when a row of gauges comes or goes (never mid-drag)."""
+        if self.mode == "orb" and self.orb._press_at is None:
+            size = (self.orb.W, self.orb.H)
+            self.orb.set_items(self._pinned())
+            if (self.orb.W, self.orb.H) != size:
+                self._layout_orb()
+        else:
+            self.orb.set_items(self._pinned())
 
     def _toggle_pin(self, key: str):
         self.pins[key].toggle()
+        on = sum(1 for pin in self.pins.values() if pin.on)
+        self.side_note.setText(f"{on} no relógio" if on else "só a hora")
         prefs.save(pins=[k for k, pin in self.pins.items() if pin.on])
         if self.mode == "orb":
             self._layout_orb()
 
-    def _render_glances(self, windows: list, mine_live: dict, cams: list):
-        """The pinned views as one line each. Only redrawn on a look at the Hub; the window keeps the clock where it is."""
-        asking = [w for w in windows if w.get("wait") in ("permission", "answer")]
-        working = sum(1 for w in windows if w.get("state") == "working")
-        if asking:   # what waits for you says what it is
-            text, dot = f"Espera por ti · {asking[0].get('topic') or asking[0].get('project') or 'Claude'}", COLORS["WAITING"]
-        elif working:
-            text, dot = f"{working} Claude a trabalhar", COLORS["WORKING"]
+    def _gauge_clicked(self, key: str):
+        """A complication clicked on the minimized card does what it is for, without the Hub when it can."""
+        if key == "camaras":
+            self._open_cave()
+        elif key == "ponto":
+            if self._ponto_armed:   # the second click: started or stopped for real
+                self._disarm_ponto()
+                self.punch_ponto()
+            else:                   # the first click only asks, so a stray click never stops the hours
+                self._ponto_armed = True
+                self._ponto_disarm.start(3500)
+                self._render_ponto()
+        elif key in ("mensagens", "tarefas", "trading"):
+            self._open_notice({"mensagens": "#/mensagens", "tarefas": "#/tarefas", "trading": "#/fundednext"}[key])
         else:
-            text, dot = "Claude parado", MUTED
-        self.glances["janelas"].set(text, dot, bool(asking or working))
-        token_windows = mine_live.get("token_windows") or []
-        speed = sum(self.tracker.rate(w.get("key")) for w in token_windows)
-        mine = tokens_text(mine_live.get("tokens") or 0)
-        self.glances["tokens"].set(f"{mine} · {tokens_text(speed)}/min" if speed >= 1 else f"{mine} tokens · 24 h",
-                                   COLORS["WORKING"] if speed >= 1 else MUTED, speed >= 1)
-        live = sum(1 for c in cams if c.get("state") == "working")
-        self.glances["camaras"].set(f"Empresa AMG · {live} a trabalhar" if live else "Empresa AMG · ao vivo",
-                                    "#ff3b30" if live else MUTED, bool(live))
-        if self.mode == "orb":
-            self._layout_orb()
+            self.expand()
+
+    def _disarm_ponto(self):
+        self._ponto_armed = False
+        self._ponto_disarm.stop()
+        self._render_ponto()
+
+    def _render_gauges(self, shown: list, mine_live: dict, windows: list):
+        """The complications that come from the Hub's look at the team (every 8 s). Only a real change repaints the card."""
+        g, changed = self.gauges, False
+        asking = [w for w in windows if w.get("wait") in ("permission", "answer")]
+        working = [w for w in windows if w.get("state") == "working"]
+        subject = lambda w: w.get("topic") or w.get("project") or "Claude"
+        self._asking = bool(asking)
+        if asking:
+            changed |= g["claude"].set([(1, COLORS["WAITING"])], str(len(asking)), f"O Claude espera por ti · {subject(asking[0])}")
+        elif working:
+            changed |= g["claude"].set([(1, COLORS["WORKING"])], str(len(working)),
+                                       f"{len(working)} Claude a trabalhar · {subject(working[0])}")
+        else:
+            changed |= g["claude"].set([], "0", "Nenhum Claude teu a trabalhar agora")
+        segments, lines = [], []
+        for person in shown:
+            live = person.get("live") or {}
+            if live.get("working"):
+                colour, what = COLORS["WORKING"], "Claude a trabalhar"
+            elif live.get("waiting") and live.get("wait") in ("permission", "answer"):
+                colour, what = COLORS["WAITING"], "Claude à espera"
+            elif person.get("online"):
+                colour, what = WHITE, "online"
+            else:
+                colour, what = "#3b3e44", "offline"
+            segments.append(colour)
+            plan = live.get("limits") or {}
+            use = " · ".join(f"{name} {round(plan[k])}%" for k, name in (("five", "5 h"), ("week", "semana")) if plan.get(k) is not None)
+            lines.append(f"{person['name']}: {what}" + (f" · {use}" if use else ""))
+        online = sum(1 for p in shown if p.get("online"))
+        changed |= g["equipa"].set([], str(online), "\n".join(lines) or "Sem notícias da equipa", segments or None)
+        n = mine_live.get("messages") or 0
+        changed |= g["mensagens"].set([(1, "#ff453a")] if n else [], str(n),
+                                      "1 mensagem por ler" if n == 1 else f"{n} mensagens por ler" if n else "Sem mensagens por ler")
+        n = mine_live.get("tasks") or 0
+        changed |= g["tarefas"].set([(1, WHITE)] if n else [], str(n),
+                                    "1 tarefa aberta para ti" if n == 1 else f"{n} tarefas abertas para ti" if n else "Nenhuma tarefa aberta para ti")
+        live = sum(1 for p in shown for w in (p.get("live") or {}).get("windows") or [] if w.get("state") == "working")
+        changed |= g["camaras"].set([(1, "#ff453a")] if live else [], str(live),
+                                    f"Empresa AMG ao vivo · {live} a trabalhar" if live else "Empresa AMG ao vivo · ninguém a trabalhar agora")
+        if changed:
+            self._refresh_orb()
+
+    def _render_ponto(self):
+        """The Ponto gauge: the hours worked today against an 8 h day, green while the clock runs. A first click arms it."""
+        me = self._identity(self._team or [])
+        mine = next((p for p in self._team or [] if p.get("user") == me), {})
+        runs = clock_runs(mine)
+        if self._ponto_armed:
+            ask = "Parar?" if runs else "Retomar?" if mine.get("ponto") else "Iniciar?"
+            changed = self.gauges["ponto"].set([(1, COLORS["WAITING"])], ask, "Clica outra vez para confirmar", ink=COLORS["WAITING"])
+        elif not mine.get("ponto"):
+            changed = self.gauges["ponto"].set([], "—", "Ponto por bater hoje · dois cliques para começar")
+        else:
+            s = worked_s(mine)
+            hours = f"{s // 3600}h{s % 3600 // 60:02d}"
+            changed = self.gauges["ponto"].set([(s / (8 * 3600), COLORS["WORKING"] if runs else WHITE)], hours,
+                                               f"Ponto a contar · {hours} hoje · dois cliques para parar" if runs
+                                               else f"Ponto parado · {hours} hoje · dois cliques para retomar")
+        if changed:
+            self._refresh_orb()
+
+    def _render_controls(self):
+        """The Control Centre of the central follows how things are."""
+        if not hasattr(self, "ctl_ponto"):
+            return
+        me = self._identity(self._team or [])
+        mine = next((p for p in self._team or [] if p.get("user") == me), {})
+        runs = clock_runs(mine)
+        self.ctl_ponto.show_as(runs, name=worked_of(mine).replace(" ", "") if mine.get("ponto") else "Ponto",
+                               tip="Parar o ponto: as horas de hoje deixam de contar" if runs else
+                               "Retomar o ponto" if mine.get("ponto") else "Bater o ponto", enabled=bool(me))
+        state = self.store.get()
+        status = state.get("status", "OFFLINE")
+        paused = status == "PAUSED"
+        self.ctl_agent.show_as(paused, key="play" if paused else "pausa", name="Retomar" if paused else "Pausar",
+                               tip="Retomar o agente" if paused else "Pausar o agente", enabled=status != "OFFLINE")
+        self.ctl_stop.show_as(False, tip="Parar a tarefa do agente", enabled=bool(state.get("task")))
+        top = prefs.on_top()
+        self.ctl_top.show_as(top, tip="O widget fica por cima das outras janelas (clica para deixar de ficar)" if top
+                             else "Pôr o widget sempre por cima das outras janelas")
+        self.ctl_away.show_as(self._away, tip="Estás invisível para a equipa: clica para voltar a aparecer online" if self._away
+                              else "Aparecer offline para a equipa (para testar as notificações)")
 
     def _panel_size(self) -> QSize:
         self.panel.adjustSize()
@@ -2453,7 +2445,7 @@ class WidgetWindow(QWidget):
         if self.mode != "orb":
             return
         size = self._panel_size()
-        face = QRect(self.pos() + self.orb.pos() + Orb.FACE.topLeft(), Orb.FACE.size())
+        face = QRect(self.pos() + self.orb.pos() + self.orb.FACE.topLeft(), self.orb.FACE.size())
         x, y = face.right() + 1 - WIDTH - SHADOW, face.top() - SHADOW
         screen = self.screen().availableGeometry()
         x = max(screen.left() - SHADOW, min(x, screen.right() + 1 + SHADOW - size.width()))
@@ -2462,7 +2454,7 @@ class WidgetWindow(QWidget):
         self.setFixedSize(size)
         self.move(x, y)
         self.orb.hide()   # the window draws the face itself while it grows
-        self.glance.hide()
+        QToolTip.hideText()
         self._snap = self._snapshot()
         self._start_morph(+1)
 
@@ -2470,7 +2462,7 @@ class WidgetWindow(QWidget):
         """The cockpit shrinks back into the button at its top-right corner."""
         if self.mode != "panel":
             return
-        self._orb_face = QPoint(SHADOW + WIDTH - Orb.FACE.width(), SHADOW)
+        self._orb_face = QPoint(SHADOW + WIDTH - self.orb.FACE.width(), SHADOW)
         self._snap = self._snapshot()
         self.panel.hide()
         self._start_morph(-1)
@@ -2605,7 +2597,7 @@ class WidgetWindow(QWidget):
             p.setCompositionMode(QPainter.CompositionMode_SourceOver)
             p.setRenderHint(QPainter.SmoothPixmapTransform)
             k = self._k
-            orb = QRectF(self._orb_face.x(), self._orb_face.y(), Orb.FACE.width(), Orb.FACE.height())
+            orb = QRectF(self._orb_face.x(), self._orb_face.y(), self.orb.FACE.width(), self.orb.FACE.height())
             full = self._panel_rect()
             rect = QRectF(orb.left() + (full.left() - orb.left()) * k, orb.top() + (full.top() - orb.top()) * k,
                           orb.width() + (full.width() - orb.width()) * k, orb.height() + (full.height() - orb.height()) * k)
@@ -2630,7 +2622,7 @@ class WidgetWindow(QWidget):
             fade = max(0.0, 1 - k / 0.3)
             if fade > 0:   # the watch face, carried up to the corner and fading as the cockpit comes in
                 sc = 1 + 0.3 * k
-                face = QRectF(rect.right() - Orb.CW * sc, rect.top(), Orb.CW * sc, Orb.CH * sc)
+                face = QRectF(rect.right() - self.orb.CW * sc, rect.top(), self.orb.CW * sc, self.orb.CH * sc)
                 p.setOpacity(fade)
                 self.orb.paint_face(p, face, datetime.now().strftime("%H:%M"), shadow=False)
                 p.setOpacity(1)
@@ -2738,18 +2730,18 @@ class WidgetWindow(QWidget):
                 member.show()
             else:
                 member.hide()
-        online = sum(1 for p in shown if p.get("online"))
-        done = (self._live or {}).get("done_today") or 0
-        self.grid_note.setText(f"{online} de {len(shown)} online" + (f" · {done} feitas hoje" if done else "") if shown else "")
         mine = next((p for p in shown if p["user"] == me), {})
         mine_live = mine.get("live") or {}
         self.apps["mensagens"].set_count(mine_live.get("messages") or 0)
         self.apps["tarefas"].set_count(mine_live.get("tasks") or 0, "#5b5f66")
         self.apps["escritorio"].set_count(sum((p.get("live") or {}).get("working") or 0 for p in shown), "#2f9e57")
-        self.orb.set_count((mine_live.get("messages") or 0) + (mine.get("approvals") or 0))
+        # the red count on the card: what waits in the Hub (the messages have their own gauge when it is on the card)
+        self.orb.set_count((0 if self.pins["mensagens"].on else mine_live.get("messages") or 0) + (mine.get("approvals") or 0))
         rank = {"permission": 0, "answer": 0}   # the ones waiting for this person first, then the ones working
         windows = sorted(mine_live.get("windows") or [], key=lambda w: rank.get(w.get("wait"), 1 if w.get("state") == "working" else 2))
-        for row, w in zip(self.claude_rows, windows + [None] * len(self.claude_rows)):
+        room = 2 if self.fn.isVisible() else 3   # the central has to fit the screen
+        for i, (row, w) in enumerate(zip(self.claude_rows, windows + [None] * len(self.claude_rows))):
+            w = w if i < room else None
             row.setVisible(w is not None)
             if w:
                 row.show_window(w)
@@ -2757,9 +2749,9 @@ class WidgetWindow(QWidget):
         self.claude_now.note.setText(f"{asking} à tua espera" if asking else "")
         recolour(self.claude_now.note, COLORS["WAITING"] if asking else MUTED)
         self.claude_none.setVisible(not windows)
-        self.usage.set_tokens(mine_live.get("tokens") or 0, mine_live.get("token_windows") or [])
-        cams = [w for p in shown for w in (p.get("live") or {}).get("windows") or []]
-        self._render_glances(windows, mine_live, cams)
+        self._render_gauges(shown, mine_live, windows)
+        self._render_ponto()
+        self._render_controls()
         self.hub_note.setVisible(team is None)
         self._render_doing(team or [], me)
         self._render_state()
@@ -2871,10 +2863,31 @@ class WidgetWindow(QWidget):
         if shown:
             self.show()  # changing a window flag hides the window
         prefs.save(on_top=on)
+        self._render_controls()
+
+    def _render_trading(self, f: dict):
+        """The FundedNext gauge: today's result in the middle, the arc is how much of today's loss limit is used."""
+        if not f.get("accounts"):
+            changed = self.gauges["trading"].set([], "—", "FundedNext: nenhuma conta ligada · clica para ligar")
+        elif not f.get("ok"):
+            changed = self.gauges["trading"].set([], "!", f"FundedNext sem ligação · {f.get('error') or 'abre o MT5'}", ink=COLORS["WAITING"])
+        else:
+            day = f.get("day_pnl") or 0
+            pct = ({i["id"]: i for i in f.get("items", [])}.get("daily") or {}).get("pct") or 0
+            short = f"{abs(day) / 1000:.1f}k".replace(".", ",") if abs(day) >= 1000 else f"{abs(day):.0f}"
+            value = f"{'+' if day > 0 else '−' if day < 0 else ''}{short}"
+            changed = self.gauges["trading"].set(
+                [(pct / 100, meter_color(pct))], value,
+                f"FundedNext · {f.get('phase', '')}\nEquity {usd(f.get('equity'))} · hoje {'+' if day > 0 else ''}{usd(day)}\n"
+                f"Podes perder hoje {usd(f.get('left_today'))} ({round(pct)}% do limite usado)",
+                ink=COLORS["ONLINE"] if day > 0 else RED if day < 0 else TEXT)
+        if changed:
+            self._refresh_orb()
 
     def _render_fn(self, f: dict):
         """The FundedNext card: equity and today, what can still be lost today and the phase target. With no account it is
         there only on the PC with the MT5, to say how to link it."""
+        self._render_trading(f)
         if not f.get("accounts"):   # with no account the FundedNext app icon is enough: its page says how to link it
             self.fn.hide()
             return
@@ -3000,7 +3013,7 @@ class WidgetWindow(QWidget):
         if self.mode == "panel":
             start = self.geometry().adjusted(SHADOW, SHADOW, -SHADOW, -SHADOW)
         else:
-            start = QRect(self.pos() + self.orb.pos() + Orb.FACE.topLeft(), Orb.FACE.size())
+            start = QRect(self.pos() + self.orb.pos() + self.orb.FACE.topLeft(), self.orb.FACE.size())
         self._expander.expand(start, url)
         self.hide()  # the expander starts exactly on top of the widget
 
@@ -3090,10 +3103,7 @@ class WidgetWindow(QWidget):
             self.notify("Equipa", "O Hub não aceitou a mudança. Faz git pull e reinicia o Hub.")
             return
         self._away = result
-        if result:
-            self.btn_away.set_text("Ficar online", COLORS["ERROR"])
-        else:
-            self.btn_away.set_text("Ficar offline", MUTED)
+        self._render_controls()
 
     def punch_ponto(self):
         who = self._identity(self._team or [])
@@ -3200,8 +3210,16 @@ class WidgetWindow(QWidget):
         note = ", ".join(n for n in (f"{working} Claude a trabalhar" if working else "",
                                      f"{waiting} à espera de resposta" if waiting else "") if n) or ("Nenhum Claude a correr" if people else "")
         self.hero.set_status(text, colour, pulse, note)
-        self.orb.set(self._load, colour, pulse)
-        self._tick_time()   # the time pill's dot follows the state
+        # the line over the minimized clock says what needs this person; otherwise the date
+        if self._team is None or colour == COLORS["ERROR"]:
+            self.orb.set_line(text, COLORS["ERROR"])
+        elif self._asking:
+            self.orb.set_line("O Claude espera por ti", COLORS["WAITING"])
+        elif colour == COLORS["WAITING"]:
+            self.orb.set_line("Aprovação à espera", COLORS["WAITING"])
+        else:
+            self.orb.set_line("")
+        self._render_controls()
 
     def _render(self, state: dict):
         status = state.get("status", "OFFLINE")
@@ -3267,16 +3285,13 @@ class WidgetWindow(QWidget):
             self.tile_week.set(self._load, "—" if self._load is None else f"{round(self._load)}%",
                                f"${spent:.2f} de ${mine.get('week_budget_usd', 0):.0f}" if mine else "sem dados")
             self.tile_session.set(None, "—", "sem dados")
+        # the Tokens gauge: this person's Claude plan as two rings, the 5 h session outside and the week inside
         five, week = self.tile_session._pct, self.tile_week._pct
-        self.usage.set_limits([("Claude 5 h", five, self.tile_session._note), ("Semana", week, self.tile_week._note)])
-        known = [v for v in (five, week) if v is not None]
-        if known:
-            parts = ([f"5 h · restam {max(0, round(100 - five))}%"] if five is not None else []) +                     ([f"semana {max(0, round(100 - week))}%"] if week is not None else [])
-            pill = self.glances["limites"]
-            fresh = not pill.text
-            pill.set(" · ".join(parts), meter_color(max(known)) if max(known) >= 60 else COLORS["WORKING"])
-            if fresh and self.mode == "orb":
-                self._layout_orb()
+        arcs = [((five or 0) / 100, meter_color(five or 0)), ((week or 0) / 100, meter_color(week) if (week or 0) >= 60 else "#8f97a1")]
+        tip = (f"Claude 5 h: {'sem dados' if five is None else f'{round(five)}% usado'} · {self.tile_session._note}\n"
+               f"Semana: {'sem dados' if week is None else f'{round(week)}% usado'} · {self.tile_week._note}")
+        if self.gauges["tokens"].set(arcs, "—" if five is None else f"{round(five)}%", tip):
+            self._refresh_orb()
         used = mine.get("higgsfield_pct")
         self.tile_higgs.set(used, "—" if used is None else f"{round(used)}%", "por definir no Hub" if used is None else "créditos gastos")
         self._render_state()

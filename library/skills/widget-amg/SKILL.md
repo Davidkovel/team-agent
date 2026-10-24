@@ -11,11 +11,16 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 
 ## O visual que fica (decidido a 23 out, depois de várias voltas)
 
-- **Minimizado = um widget do iOS** (decidido a 23 out, depois de tudo o resto falhar): **um cartão pequeno de vidro escuro**
-  (`Orb`, 200 × 86, cantos de 22, sombra suave, aro cromado fino) com a estrela cromada à esquerda, a hora grande, um
-  ponto pequeno na cor do estado, o emblema AMG por baixo e uma fila de ícones pequenos das vistas ligadas na central
-  (Claude, Tokens, Limites, Câmaras), cada um com um ponto de estado. O rato num ícone mostra a linha dele num balão
-  escuro; clicar abre a central (Câmaras abre a cave). Ao clicar no cartão, ele cresce até à central.
+- **Minimizado = um cartão compacto de vidro escuro** (24 out, depois de duas voltas no mesmo dia). `Orb`: **a estrela da
+  Mercedes grande à esquerda**; à direita, **em cima**, uma fila de pílulas pequenas, uma por opção ligada em «No relógio»
+  (`GAUGES`: Claude, Tokens, Equipa, Mensagens, Tarefas, Ponto, Câmaras, FundedNext; `paint_chip`: um anel minúsculo à
+  volta do ícone, na cor do estado, e o número ao lado); por baixo a hora **em cromado** (`chrome_text`), e por baixo dela
+  o AMG com a data (ou, a âmbar/vermelho, «O Claude espera por ti», «Hub desligado»). Até 4 pílulas por fila (5 = 3+2); o
+  cartão ajusta a largura e a altura ao que tem. Cada pílula faz a sua coisa ao clicar (`_gauge_clicked`): Ponto com dois
+  cliques, Câmaras abre a cave, Mensagens/Tarefas/FundedNext a página, o resto a central; o rato mostra o detalhe.
+- **A central** (24 out): Equipa logo por baixo da hora com o 5 h e a semana de cada um (o número grande de tokens em
+  milhares/milhões saiu: «texto desnecessário»), «No relógio» (8 opções), Claude agora, **Controlo** (os botões que só
+  estavam no menu da bandeja: ponto, pausar/retomar, parar, por cima, invisível, Hub) e as apps com ícones cromados.
 - **Lê-se em qualquer fundo porque tem o seu próprio vidro.** Nunca pôr letras soltas por cima do ambiente de trabalho:
   num fundo cinzento médio nem o branco nem o grafite se leem, e trocar de cor a olhar para o fundo salta e parece avariado.
 - **Arrastar só move o cartão**, nada se reorganiza a meio; ao largar volta para dentro do ecrã se passou de uma borda, e
@@ -30,6 +35,8 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 | Relógio analógico de tablier (IWC), com aro e ponteiros | «forçado», «ficou mais feio» |
 | Cartões grandes por baixo do relógio | «ocupa boé espaço» |
 | Pílulas de texto ao lado, com a hora numa pílula | «feio» |
+| Cartão 200 × 86: estrela, hora, AMG e ícones minúsculos com um ponto (23 out) | «as horas bué feio», as opções «nem vale a pena» |
+| Ecrã bloqueado do iPhone: estrela pequena, hora ao centro e mostradores redondos grandes por baixo (24 out) | «não é objeto assim tão grande», «mete o símbolo da Mercedes», «os ícones mete acima» |
 | Encaixar sozinho no canto do ecrã | não era isso: quer mexer à vontade e que o resto se ajuste |
 | Data, «Tudo bem», ponto e o módulo Limites na central | tralha |
 | Hora branca fixa sem olhar para o fundo | em fundos brancos deixa de se ler |

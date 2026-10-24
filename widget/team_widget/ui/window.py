@@ -1669,6 +1669,7 @@ class Orb(QWidget):
         self._minute.setSingleShot(True)
         self._minute.timeout.connect(self._next_minute)
         self._rows = 0
+        self.flip = False   # let go on the right of the screen: the star on the outside, the rest on its left
         self._layout()
 
     def _chip_w(self, g) -> float:
@@ -1686,6 +1687,7 @@ class Orb(QWidget):
         content_h = (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if n else 0) + fm.capHeight() + 9 + 9
         line_w = badge.width(8.0) + 8 + QFontMetricsF(self._f_line).horizontalAdvance("SÁB 24 MMM") + 4
         self.CW = round(self.X0 + max(chips_w, time_w, line_w) + self.PAD + 2)
+        self._colw = self.CW - self.X0 - self.PAD - 2   # the column of chips, time and badge
         self.CH = round(max(self.STAR + 2 * self.PAD, content_h + 2 * self.PAD))
         self._top = (self.CH - content_h) / 2   # the right column is centred on the card
         self._rows_items = rows
@@ -1731,6 +1733,21 @@ class Orb(QWidget):
             self._count = n
             self.update()
 
+    def _col(self) -> float:
+        """Where the column of chips, time and badge begins (mirrored when the star is on the right)."""
+        return float(self.CW - self.X0 - self._colw) if self.flip else float(self.X0)
+
+    def _star_x(self) -> float:
+        return float(self.CW - self.PAD - self.STAR) if self.flip else float(self.PAD)
+
+    def set_flip(self, on: bool):
+        """The side the star sits on (24 Oct, Marco: dragged to the edges of the monitor, the icons and the rest adjust,
+        so they always face the screen). Only when the card is let go, never mid-drag."""
+        if on != self.flip:
+            self.flip = on
+            self._face_key = None
+            self.update()
+
     def set_items(self, items: list):
         """[(key, Gauge)]: the complications switched on in the central, in GAUGES' order."""
         self.items = list(items)
@@ -1742,7 +1759,9 @@ class Orb(QWidget):
         """Each chip: (key, Gauge, its rect on the card), row by row from the top of the right column."""
         out, y = [], self._top
         for row in self._rows_items:
-            x = float(self.X0)
+            x = self._col()
+            if self.flip:   # the rows lean on the star, on its left
+                x += self._colw - (sum(self._chip_w(g) for _, g in row) + self.CHIP_GAP * (len(row) - 1))
             for key, g in row:
                 w = self._chip_w(g)
                 out.append((key, g, QRectF(x, y, w, self.CHIP_H)))
@@ -1816,13 +1835,13 @@ class Orb(QWidget):
         # reads on a light desktop too
         p.setPen(Qt.NoPen)
         glow_disc(p, QPointF(self.CW / 2, self.CH / 2), self.CW * 0.56, self.CH * 0.62, "#000000", 0.42)
-        glow_disc(p, QPointF(self.PAD + self.STAR / 2, self.CH / 2), self.STAR * 0.7, self.STAR * 0.7, "#000000", 0.25)
+        glow_disc(p, QPointF(self._star_x() + self.STAR / 2, self.CH / 2), self.STAR * 0.7, self.STAR * 0.7, "#000000", 0.25)
         fm_t = QFontMetricsF(self._f_time)
         ty = self._top + (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if self.items else 0)
         tw = max(fm_t.horizontalAdvance(hhmm_now), badge.width(8.0) + 70)
-        glow_disc(p, QPointF(self.X0 + tw / 2, ty + fm_t.capHeight() * 0.9), tw * 0.78, fm_t.capHeight() * 1.5, "#000000", 0.6)
+        glow_disc(p, QPointF((self._col() + self._colw - tw / 2) if self.flip else (self.X0 + tw / 2), ty + fm_t.capHeight() * 0.9), tw * 0.78, fm_t.capHeight() * 1.5, "#000000", 0.6)
         # the Mercedes star on the left (24 Oct, Marco: «mete o símbolo da Mercedes»)
-        paint_star(p, QRectF(self.PAD, (self.CH - self.STAR) / 2, self.STAR, self.STAR), shadow=True)
+        paint_star(p, QRectF(self._star_x(), (self.CH - self.STAR) / 2, self.STAR, self.STAR), shadow=True)
         # on top, the chips of the options switched on
         dpr = self.devicePixelRatioF()
         for key, g, cr in self._gauge_rects():
@@ -1831,25 +1850,30 @@ class Orb(QWidget):
         fm = QFontMetricsF(self._f_time)
         y = self._top + (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if self.items else 0)
         base = y + fm.capHeight()
-        chrome_text(p, QPointF(self.X0 - 1, base), self._f_time, hhmm_now)
+        col, end = self._col(), self._col() + self._colw
+        tx = end - fm.horizontalAdvance(hhmm_now) if self.flip else col - 1
+        chrome_text(p, QPointF(tx, base), self._f_time, hhmm_now)
         # under it the AMG badge and the date, or what needs you
         by = base + 9
-        badge.paint(p, self.X0, by, 8.0)
-        x = self.X0 + badge.width(8.0) + 8
-        room = self.CW - self.PAD - x
+        now = datetime.now()
+        text = self.line.upper() if self.line else f"{DAYS[now.weekday()]} {now.day} {MONTHS_SHORT[now.month - 1]}"
+        fl = QFontMetricsF(self._f_line)
+        room = self._colw - badge.width(8.0) - 8 - (10 if self.line else 0)
+        text = fl.elidedText(text, Qt.ElideRight, room)
+        line_w = badge.width(8.0) + 8 + (10 if self.line else 0) + fl.horizontalAdvance(text) + 1
+        x = end - line_w if self.flip else col   # leaning on the star, like the time
+        badge.paint(p, x, by, 8.0)
+        x += badge.width(8.0) + 8
         if self.line:
             dot = QPointF(x + 3, by + 4.5)
             glow_disc(p, dot, 7, 7, self.line_colour, 0.5)
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(self.line_colour))
             p.drawEllipse(dot, 2.6, 2.6)
-            x, room = x + 10, room - 10
-        now = datetime.now()
-        text = self.line.upper() if self.line else f"{DAYS[now.weekday()]} {now.day} {MONTHS_SHORT[now.month - 1]}"
+            x += 10
         p.setFont(self._f_line)
         p.setPen(QColor(self.line_colour if self.line else "#8e939a"))
-        p.drawText(QRectF(x, by - 3, room, 15), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(self._f_line).elidedText(text, Qt.ElideRight, room))
+        p.drawText(QRectF(x, by - 3, room + 2, 15), Qt.AlignLeft | Qt.AlignVCenter, text)
         p.restore()
 
     def _build_face(self, hhmm_now: str) -> QPixmap:
@@ -2275,6 +2299,7 @@ class WidgetWindow(QWidget):
         screen = (QGuiApplication.screenAt(face + QPoint(orb.CW // 2, 20)) or self.screen()).availableGeometry()
         x = max(screen.left() + self.EDGE, min(face.x(), screen.right() - orb.CW - self.EDGE))
         y = max(screen.top() + self.EDGE, min(face.y(), screen.bottom() - orb.CH - self.EDGE))
+        orb.set_flip(x + orb.CW / 2 > screen.center().x())   # on the right half the star goes to the outside edge
         orb.move(0, 0)
         self.setFixedSize(orb.W, orb.H)
         self.move(QPoint(x, y) - orb.FACE.topLeft())

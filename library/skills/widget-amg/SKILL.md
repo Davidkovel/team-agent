@@ -11,8 +11,10 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 
 ## O visual que fica (decidido a 23 out, depois de várias voltas)
 
-- **Minimizado = um cartão compacto de vidro escuro** (24 out, depois de duas voltas no mesmo dia). `Orb`: **a estrela da
-  Mercedes grande à esquerda**; à direita, **em cima**, uma fila de pílulas pequenas, uma por opção ligada em «No relógio»
+- **Minimizado = transparente, sem cartão** (24 out, 4.ª volta do dia: «não curti... mete tipo transparente, como tava
+  antes... tá grande»). Pequeno (estrela 46 px, hora 24 pt). Sem fundo: só uma sombra escura suave e sem bordas por trás
+  (`glow_disc` preto no `paint_face`), sempre igual, que deixa a hora cromada ler-se em fundo claro, cinzento ou escuro; cada
+  pílula tem a sua própria cápsula escura. `Orb`: **a estrela da Mercedes à esquerda**; à direita, **em cima**, uma fila de pílulas pequenas, uma por opção ligada em «No relógio»
   (`GAUGES`: Claude, Tokens, Equipa, Mensagens, Tarefas, Ponto, Câmaras, FundedNext; `paint_chip`: um anel minúsculo à
   volta do ícone, na cor do estado, e o número ao lado); por baixo a hora **em cromado** (`chrome_text`), e por baixo dela
   o AMG com a data (ou, a âmbar/vermelho, «O Claude espera por ti», «Hub desligado»). Até 4 pílulas por fila (5 = 3+2); o
@@ -21,8 +23,8 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 - **A central** (24 out): Equipa logo por baixo da hora com o 5 h e a semana de cada um (o número grande de tokens em
   milhares/milhões saiu: «texto desnecessário»), «No relógio» (8 opções), Claude agora, **Controlo** (os botões que só
   estavam no menu da bandeja: ponto, pausar/retomar, parar, por cima, invisível, Hub) e as apps com ícones cromados.
-- **Lê-se em qualquer fundo porque tem o seu próprio vidro.** Nunca pôr letras soltas por cima do ambiente de trabalho:
-  num fundo cinzento médio nem o branco nem o grafite se leem, e trocar de cor a olhar para o fundo salta e parece avariado.
+- **Lê-se em qualquer fundo pela sombra fixa, não por um cartão.** Nunca trocar de cor a olhar para o fundo (salta e parece
+  avariado) e nunca letras sem sombra: testar sempre por cima de escuro, cinzento médio e branco.
 - **Arrastar só move o cartão**, nada se reorganiza a meio; ao largar volta para dentro do ecrã se passou de uma borda, e
   o sítio fica guardado (`star_x`, `star_y`). Nada encaixa sozinho nos cantos.
 - **A central** é preta e cromada, ao estilo dos widgets do iOS, e tem de caber no ecrã (1032 px de altura no PC do Marco).
@@ -37,6 +39,7 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 | Pílulas de texto ao lado, com a hora numa pílula | «feio» |
 | Cartão 200 × 86: estrela, hora, AMG e ícones minúsculos com um ponto (23 out) | «as horas bué feio», as opções «nem vale a pena» |
 | Ecrã bloqueado do iPhone: estrela pequena, hora ao centro e mostradores redondos grandes por baixo (24 out) | «não é objeto assim tão grande», «mete o símbolo da Mercedes», «os ícones mete acima» |
+| Cartão de vidro escuro com estrela grande, pílulas por cima e hora cromada (24 out, 4fa0a67) | «não curti», «tá grande», quer transparente como antes |
 | Encaixar sozinho no canto do ecrã | não era isso: quer mexer à vontade e que o resto se ajuste |
 | Data, «Tudo bem», ponto e o módulo Limites na central | tralha |
 | Hora branca fixa sem olhar para o fundo | em fundos brancos deixa de se ler |

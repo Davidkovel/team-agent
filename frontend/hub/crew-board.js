@@ -541,10 +541,89 @@ window.CrewBoard = (function () {
     return out;
   }
 
+  // ---------------------------------------------------------------- «Modo chefe»: a screen of its own
+  // Marco, 24 Oct: «não é clicar no botão e ficar grande sem mudar nada... não quero observação, nem mandar, nem tanto botão;
+  // tem de dizer quem trabalha com quem, sem scroll». The whole screen, nothing else of the Hub: each partner on top of a
+  // line, and hanging from it the agents working with them, each saying in a few words what it does and what it is doing now.
+  // No lists, no forms: the only buttons are the ones that do something (open a task, «Continuar» one of your windows).
+  // At the bottom the ten departments, lit when busy, with whom they work. Never a scroll: what does not fit is «+N».
+  const bvCap = {};   // partner id -> how many jobs fit in their column, measured after painting
+  const ring = (label, pct) => (pct == null ? "" : `<span class="bv-ring" style="--v:${Math.min(100, pct)};--c:${pct >= 90 ? RED : pct >= 70 ? AMBER : COLD}"><i><b>${Math.round(pct)}%</b></i><small>${esc(t(label))}</small></span>`);
+  function bvJob(it, p) {
+    const need = p.needs.includes(it), task = it.kind === "task", s = it.s, x = it.x, a = it.agent;
+    const c = need ? (task && x.status === "NEEDS_HELP" ? RED : AMBER) : GREEN;
+    const word = !need ? t("A trabalhar") : task ? t(x.status === "WAITING_APPROVAL" ? "Aprovar" : x.status === "NEEDS_HELP" ? "Precisa de ajuda" : "Em pausa")
+      : t(s.wait === "permission" ? (p.me ? "Precisa da tua autorização" : "Precisa de autorização") : (p.me ? "Fez-te uma pergunta" : "Fez uma pergunta"));
+    const now = task ? (need ? x.blocked_reason : x.current_action) : need ? "" : s.action;
+    const n = task ? 0 : tokensOf(s);
+    const act = task ? `<button type="button" class="bv-btn" data-href="${x.status === "WAITING_APPROVAL" ? "#/aprovacoes" : `#task-${x.id}`}">${esc(t(x.status === "WAITING_APPROVAL" ? "Aprovar" : "Abrir"))}</button>`
+      : p.me && s.key ? `<button type="button" class="bv-btn" data-continue="${s.id}" title="${esc(t("Copia um prompt para uma janela nova do Claude continuar este trabalho"))}">${icon("play")}${esc(t("Continuar"))}</button>` : "";
+    return `<article class="bv-job ${need ? "need" : ""}" style="--c:${c}">
+      <button type="button" class="bv-face" ${a ? `data-agent="${a.i}" title="${esc(t("Abrir o posto de {n}", { n: a.name }))}"` : "disabled"}>${a ? `<img class="cr-px" src="${a.portrait}" alt="">` : icon("bot")}</button>
+      <div class="bv-what"><small><b>${esc(a ? a.name : "Claude")}</b>${esc(a ? ` · ${t(a.what)}` : ` · ${t(task ? "agente automático" : "janela do Claude Code")}`)}</small>
+        <h4>${esc(it.goal)}</h4>${ask(it)}${now ? `<p>${esc(now)}</p>` : ""}</div>
+      <div class="bv-side"><em><i></i>${esc(word)}</em><span>${esc([ago(it.at), n ? tok(n).replace(" tokens", "") : ""].filter(Boolean).join(" · "))}</span>${act}</div></article>`;
+  }
+  // what was asked, two lines, when it says more than the goal
+  function ask(it) {
+    if (it.kind !== "claude") return "";
+    const whole = (it.s.request || asked(it.s)).replace(/\s+/g, " ").trim();
+    return whole && !same(whole, it.goal.replace(/…$/, "")) ? `<q class="bv-ask">${esc(whole)}</q>` : "";
+  }
+  function bvPerson(p) {
+    const m = p.m || {}, on = m.status && m.status !== "OFFLINE", where = m.where || [];
+    const place = !on ? (m.last_seen ? t("offline · visto {q}", { q: ago(m.last_seen) }) : t("offline")) : where.includes("phone") && !where.includes("pc") ? t("no telemóvel") : t("no computador");
+    const jobs = [...p.needs, ...p.working], claudes = jobs.filter((it) => it.kind === "claude").length + p.idle;
+    const cap = Math.max(1, bvCap[p.id] || jobs.length), shown = jobs.length > cap ? jobs.slice(0, cap - 1) : jobs;
+    const tally = [t(claudes === 1 ? "1 Claude" : "{n} Claudes", { n: claudes }), p.working.length ? t("{n} a trabalhar", { n: p.working.length }) : "",
+      p.needs.length ? t(p.me ? "{n} à tua espera" : "{n} à espera dele", { n: p.needs.length }) : "", p.idle ? t(p.idle === 1 ? "1 parada" : "{n} paradas", { n: p.idle }) : ""].filter(Boolean);
+    return `<header class="bv-who"><span class="bv-av ${on ? "on" : ""}">${ui.avatar(p.name)}</span>
+        <div><b>${esc(p.name)}${p.me ? ` <small>${esc(t("tu"))}</small>` : ""}</b><span>${esc([place, p.tokens ? t("{k} hoje", { k: tok(p.tokens) }) : ""].filter(Boolean).join(" · "))}</span></div>
+        <div class="bv-rings">${p.limits ? ring("5 h", p.limits.five) + ring("semana", p.limits.week) : ""}</div></header>
+      <p class="bv-tally">${tally.map((x, k) => `<span class="${k === 0 ? "big" : ""}">${esc(x)}</span>`).join("")}</p>
+      <div class="bv-jobs" id="bv-jobs-${p.id}">${shown.map((it) => bvJob(it, p)).join("")}
+        ${jobs.length > shown.length ? `<div class="bv-more">${esc(t("+ {n} a trabalhar com o {p}", { n: jobs.length - shown.length, p: p.name }))}</div>` : ""}
+        ${jobs.length ? "" : `<div class="bv-none">${esc(t("Sem nada a correr agora."))}</div>`}</div>
+      <div class="bv-pdone">${p.done.length ? `<small>${esc(t(p.done.length === 1 ? "1 feita hoje" : "{n} feitas hoje", { n: p.done.length }))}</small>${p.done.slice(0, 3).map((it) =>
+        `<span class="${it.bad ? "bad" : ""}"><i>${icon(it.bad ? "x" : "tick")}</i><b>${esc(it.goal)}</b><time>${esc(ago(it.at))}</time></span>`).join("")}` : `<small>${esc(t("Nada acabado hoje"))}</small>`}</div>`;
+  }
+  function bvCrew(s) {
+    return s.agents.map((a) => {
+      const st = host.stateOf(a), j = busy(a) ? a.job : null, who = j ? host.partnerOf(j.who) : null;
+      return `<button type="button" class="bv-dep ${j ? "busy" : ""}" data-agent="${a.i}" style="--c:${host.light(st)};--p:${who ? who.color : "transparent"}"
+        title="${esc(j ? `${a.name}: ${jobGoal(j)}` : `${a.name}: ${(CAN[a.id] || []).map((x) => t(x)).join(", ")}`)}"><img class="cr-px" src="${a.portrait}" alt="">
+        <span><b>${esc(a.code || a.name)}</b><small>${esc(j ? (who.name ? t("com o {n}", { n: who.name }) : t(STATE_WORD[st] || st)) : t("livre"))}</small></span></button>`;
+    }).join("");
+  }
+  function bvDraw(s, people) {
+    const n = (k) => people.reduce((sum, p) => sum + p[k].length, 0), mine = people.find((p) => p.me);
+    const claudes = people.reduce((sum, p) => sum + [...p.working, ...p.needs].filter((it) => it.kind === "claude").length + p.idle, 0);
+    const kpi = (v, label, c) => `<div class="bv-kpi ${v ? "lit" : ""}" style="--c:${c}"><b>${v}</b><span>${esc(t(label))}</span></div>`;
+    paint($("bv-kpis"), kpi(claudes, "Claudes abertos", COLD) + kpi(n("working"), "a trabalhar", GREEN) + kpi(mine ? mine.needs.length : 0, "à tua espera", AMBER) + kpi(n("done"), "feitas hoje", GREY));
+    paint($("bv-sum"), esc(summary(people)));
+    for (const p of people) paint($(`bv-p-${p.id}`), bvPerson(p));
+    paint($("bv-crew"), bvCrew(s));
+    // no scroll, ever: a column whose jobs do not fit shows one fewer and says how many more, until it fits
+    for (const p of people) {
+      const box = $(`bv-jobs-${p.id}`);
+      if (!box) continue;
+      const total = p.needs.length + p.working.length;
+      if (box.scrollHeight > box.clientHeight + 2 && (bvCap[p.id] || total) > 1) { bvCap[p.id] = (bvCap[p.id] || total) - 1; return bvDraw(s, people); }
+      if (bvCap[p.id] && bvCap[p.id] < total && box.scrollHeight + 110 < box.clientHeight) { bvCap[p.id]++; return bvDraw(s, people); }
+    }
+  }
+  const bossOn = () => document.documentElement.classList.contains("cb-boss");
+
   // ---------------------------------------------------------------- the page
   function draw() {
     if (!root || !root.isConnected) return;
     const s = host.state(), people = build(s);
+    if (bossOn()) {   // the boss screen: nothing else of the office is drawn
+      if (host.ready()) bvDraw(s, people);
+      const clock = $("bv-clock");
+      if (clock) clock.textContent = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+      return;
+    }
     if (host.ready()) {   // before the Hub has answered there is nothing true to say: the page waits
       paint($("cx-sum"), esc(summary(people)));
       paint($("cb-nums"), nums(people));
@@ -703,7 +782,15 @@ window.CrewBoard = (function () {
         <div class="cx-box" data-m="plans"><small class="cb-k">${esc(t("Planos da equipa"))}</small><div id="cb-plans"></div></div>
         <div class="cx-box" data-m="done"><small class="cb-k">${esc(t("Feito hoje"))}</small><div id="cb-done"></div></div>
       </aside>
-      <div class="cb-doors" id="cb-doors" data-pane="now"></div>`;
+      <div class="cb-doors" id="cb-doors" data-pane="now"></div>
+      <section class="bv" id="bv">
+        <header class="bv-top"><div class="bv-id"><small>${esc(t("Escritório · modo chefe"))}</small><h1>${esc(t("Quem trabalha com quem"))}</h1><p id="bv-sum"></p></div>
+          <div class="bv-kpis" id="bv-kpis"></div><time id="bv-clock"></time>
+          <button type="button" class="bv-exit" data-boss title="${esc(t("Voltar ao Escritório (Esc)"))}">${icon("x")}${esc(t("Sair"))}</button></header>
+        <div class="bv-board">${host.partners.map(([id, , color]) => `<section class="bv-p" id="bv-p-${id}" style="--p:${color}"></section>`).join("")}</div>
+        <footer class="bv-foot"><div class="bv-crew" id="bv-crew"></div></footer>
+      </section>`;
+    try { if (localStorage.getItem("cb.boss") && !document.documentElement.classList.contains("is-phone")) document.documentElement.classList.add("cb-boss"); } catch { /* private window */ }
     showTab(sessionStorage.getItem("cb.tab") || "now");
     showView(view);
     showWho(sessionStorage.getItem("cb.who") || mine);
@@ -730,8 +817,10 @@ window.CrewBoard = (function () {
       if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
       else if (!on && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     } catch { /* the widget's window may not allow it: the sidebar is still hidden */ }
-    root?.querySelector("[data-boss]")?.classList.toggle("on", on);
-    setTimeout(fit, 260);   // the sidebar folds with a transition
+    try { localStorage.setItem("cb.boss", on ? "1" : ""); } catch { /* private window */ }
+    for (const k in bvCap) delete bvCap[k];
+    draw();
+    setTimeout(() => { fit(); draw(); }, 260);   // the sidebar folds with a transition
   }
   document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && document.documentElement.classList.contains("cb-boss")) bossMode(false); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.documentElement.classList.contains("cb-boss")) bossMode(false); });

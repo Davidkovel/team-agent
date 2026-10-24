@@ -903,3 +903,34 @@ html.is-phone .m-tv-details h3 { font-size: 11px; color: #6b727b; }
 html.is-phone .m-tv-details .m-tv-row { min-height: 42px; font-size: 14px; }
 html.is-phone .m-tv-details .m-tv-row .m-tv-ic svg.i { width: 17px; height: 17px; color: #8f969f; }
 html.is-phone .m-tv-details .m-tv-row em { color: #a7aeb7; }
+
+/* Início do telemóvel, mais pequeno e arrumado (24 out: «tão grande, coisa feia»): o mesmo desenho de antes, à escala de um
+   widget do iOS — um cabeçalho curto, números numa fila fina, a equipa em caras pequenas, listas compactas. */
+html.is-phone #m-home { gap: 14px; }
+html.is-phone #m-home .m-amg { min-height: 112px; gap: 4px; padding: 2px 2px 8px; }
+html.is-phone #m-home .m-amg h1 { font: 700 28px/1.08 var(--display, var(--ui)); letter-spacing: -.03em; }
+html.is-phone #m-home .m-amg .m-eyebrow { font-size: 9.5px; letter-spacing: .2em; }
+html.is-phone #m-home .m-amg > span:not(.m-eyebrow) { font-size: 10px; letter-spacing: .1em; }
+html.is-phone .m-amg-car { right: -34%; bottom: -22%; width: 78%; opacity: .5; }
+html.is-phone #m-home .m-stat { gap: 3px; padding: 10px 4px 9px; }
+html.is-phone #m-home .m-stat b { font-size: 22px; }
+html.is-phone #m-home .m-stat > span:last-child { font-size: 8.5px; letter-spacing: .14em; }
+html.is-phone #m-home .m-sec header { margin: 0 2px 6px; }
+html.is-phone #m-home .m-sec header b { font-size: 10px; letter-spacing: .18em; }
+html.is-phone #m-home .m-sec header a, html.is-phone #m-home .m-online { font-size: 9.5px; letter-spacing: .1em; }
+html.is-phone #m-home .m-people { padding: 10px 6px 8px; border-radius: 14px; }
+html.is-phone #m-home .m-person { flex: 1 0 70px; gap: 1px; padding: 2px; }
+html.is-phone #m-home .m-ring { width: 44px; height: 44px; margin-bottom: 4px; padding: 2px; }
+html.is-phone #m-home .m-ring .av { width: 40px; height: 40px; font-size: 15px; border-width: 2px; }
+html.is-phone #m-home .m-person .m-place { transform: scale(.7); transform-origin: 100% 100%; }
+html.is-phone #m-home .m-person b { font-size: 13px; }
+html.is-phone #m-home .m-person > span { font-size: 11px; }
+html.is-phone #m-home .m-person em { font-size: 10.5px; }
+html.is-phone #m-home .m-empty { padding: 11px 13px; gap: 10px; border-radius: 12px; font-size: 13px; }
+html.is-phone #m-home .m-empty svg.i { width: 17px; height: 17px; }
+html.is-phone #m-home .m-task, html.is-phone #m-home .m-nrow { min-height: 0; padding-top: 9px; padding-bottom: 9px; font-size: 14px; }
+html.is-phone #m-home .m-nrow { min-height: 0; gap: 10px; padding: 8px 12px; }
+html.is-phone #m-home .m-nrow b { font-size: 13.5px; }
+html.is-phone #m-home .m-nrow span, html.is-phone #m-home .m-nrow time { font-size: 12px; }
+html.is-phone #m-home .m-nrow .av, html.is-phone #m-home .m-nrow .m-ico { width: 30px; height: 30px; font-size: 12px; }
+html.is-phone #m-home .m-nrow .m-ico svg.i { width: 15px; height: 15px; }

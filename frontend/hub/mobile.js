@@ -240,8 +240,82 @@
   const block = (title, list, tone, team, sort = true) => (list.length ? `<section class="m-sec"><h3 class="m-grp ${tone}"><i></i>${t(title)}<span>${list.length}</span></h3>
     <div class="m-list">${(sort ? [...list].sort(byImportance) : list).map((x) => taskRow(x, team)).join("")}</div></section>` : "");
 
-  /* ---------- Início: the phone shows the same page as the computer (home.js), laid out as an iOS screen by home.css under
-     html.is-phone (23 out 2026: one Início, the central of the working day, instead of two pages that drifted apart). ---------- */
+  /* ---------- Início: who is where, three numbers, what is next, the latest notices ---------- */
+  const desktopHome = HUB_VIEWS.home;
+  HUB_VIEWS.home = (r) => (phone() ? phoneHome() : desktopHome(r));
+  const PLACE = { pc: ["monitor", "No computador"], phone: ["phone", "No telemóvel"] };
+  // One person, side by side with the others like the people row of iOS: the face in a ring (green online, blue working),
+  // where they are on a badge, and one short line.
+  function mateTile(m) {
+    if (m.doing) m = { ...m, status: "WORKING", task: m.doing.title }; // "Estou a fazer" on a task
+    const on = m.status !== "OFFLINE", where = (m.where || []).filter((w) => PLACE[w]);
+    const working = m.status === "WORKING" && m.task;
+    const state = working ? "work" : m.status === "WAITING" || m.status === "PAUSED" ? "wait" : m.status === "ERROR" ? "bad" : on ? "on" : "off";
+    const both = where.includes("pc") && where.includes("phone");
+    const badge = on ? icon(working ? "bolt" : where.includes("phone") && !where.includes("pc") ? "phone" : "monitor") : "";
+    const line = working ? t("A trabalhar") : !on ? (m.last_seen ? fmt.ago(m.last_seen) : t("Offline"))
+      : both ? t("PC e telemóvel") : where.includes("phone") ? t("No telemóvel") : t("No computador");
+    return `<a class="m-person ${state}" href="${m.doing ? `#/tarefas/${m.doing.id}` : "#/equipa"}" title="${esc(working ? `${t("A trabalhar")}: ${m.task}` : line)}">
+      <span class="m-ring">${ui.avatar(m.display_name)}${on ? `<i class="m-place">${badge}</i>` : ""}</span>
+      <b>${esc(m.user === me.username ? t("Tu") : m.display_name)}</b><span>${esc(line)}</span>${working ? `<em>${esc(m.task)}</em>` : ""}</a>`;
+  }
+  // What is urgent goes first, above everything, in red: you cannot miss it.
+  function urgentCard(list) {
+    if (!list.length) return "";
+    const row = (x) => `<div class="m-urow" data-open="${x.id}"><button class="m-check" data-done="${x.id}" aria-label="${t("Concluir")}"></button>
+      <div><b>${esc(x.title)}</b><span>${[x.group ? whoLeft(x.group) : "", deadlineLabel(x) || t("Sem prazo")].filter(Boolean).join(" · ")}</span></div>${icon("chev")}</div>`;
+    return `<section class="m-urgent"><header><i class="m-pulse"></i><b>${t(list.length === 1 ? "Urgente" : "Urgentes")}</b><span>${list.length}</span></header>
+      ${[...list].sort(byImportance).slice(0, 3).map(row).join("")}${list.length > 3 ? `<a class="m-umore" href="#/tarefas" data-goto="hoje">${t("Ver as {n} urgentes", { n: list.length })}</a>` : ""}</section>`;
+  }
+  async function phoneHome() {
+    const hour = new Date().getHours(), greeting = hour < 6 ? "Boa noite" : hour < 13 ? "Bom dia" : hour < 20 ? "Boa tarde" : "Boa noite";
+    const date = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
+    page(`<div class="m-screen" id="m-home">
+      <header class="m-large m-amg"><span class="m-eyebrow">${t("Centro de comando")}</span><h1>${esc(t(greeting))}, <em>${esc(me.display_name)}</em></h1>
+        <span>${esc(date[0].toUpperCase() + date.slice(1))}</span><div class="m-amg-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" alt="" decoding="async"></div></header>
+      <div id="m-new"></div><div id="m-alert"></div><div class="m-stats" id="m-stats">${ui.skeleton(1)}</div><div id="m-now"></div><div id="m-todo"></div><div id="m-team"></div><div id="m-last"></div></div>`);
+    const load = async () => {
+      const [tasks, team, inbox] = await Promise.all([api("/api/tasks"), api("/api/team"), request("/api/notifications?limit=100")]);
+      if (!$("m-home")) return;
+      // a task somebody sent you comes first, big, the same card as on the computer (home.js), until you open it
+      const fresh = newTasksOf(tasks, inbox), freshIds = new Set(fresh.map((f) => f.x.id));
+      paint($("m-new"), newTaskCard(fresh));
+      const teamView = scopeNow() === "team"; // the same tasks as Tarefas (and as the computer, for whoever directs the work)
+      const p = plan(scopeOf(tasks, teamView ? "team" : "mine"));
+      paint($("m-alert"), urgentCard(p.hoje.urgent.filter((x) => !freshIds.has(x.id))));
+      const stat = (tab, n, label, tone, ic) => `<a class="m-stat ${n ? `${tone} lit` : ""}" href="${tab ? "#/tarefas" : "#/avisos"}" ${tab ? `data-goto="${tab}"` : ""}>
+        <span class="m-stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></a>`;
+      paint($("m-stats"), stat("hoje", p.nHoje, "Para hoje", "today", "calendar") + stat("hoje", p.nHot, "Urgentes", "hot", "flag") + stat("", inbox.unread, "Por ler", "blue", "bell"));
+      const busy = team.filter((m) => m.doing);
+      paint($("m-now"), busy.length ? `<section class="m-sec in-doing"><header><b>${t("A fazer agora")}</b></header><div class="in-doing-list">${busy.map((m) => `<a class="in-doing-card" href="#/tarefas/${m.doing.id}">
+        <span class="in-doing-task">${esc(m.doing.title)}</span>${doingCard(m.display_name, m.doing.since, m.user === me.username)}</a>`).join("")}</div></section>` : "");   // the task window's own card
+      const online = team.filter((m) => m.status !== "OFFLINE").length;
+      const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
+      paint($("m-team"), `<section class="m-sec"><header><b>${t("Equipa")}</b><span class="m-online"><i></i>${online} ${t("de")} ${team.length} ${t("online")}</span></header>
+        <div class="m-people">${order.map(mateTile).join("")}</div></section>`);
+      const rest = [...p.hoje.late, ...p.hoje.today, ...p.hoje.undated].sort(byImportance), next = rest.slice(0, 5); // the urgent ones are already on top
+      paint($("m-todo"), `<section class="m-sec"><header><b>${t("A seguir")}</b><a href="#/tarefas" data-goto="hoje">${rest.length > 5 ? t("Ver as {n}", { n: rest.length }) : t("Ver todas")}</a></header>${next.length
+        ? `<div class="m-list">${next.map((x) => taskRow(x, teamView)).join("")}</div>`
+        : `<div class="m-empty">${icon("check")}<span>${t(p.hoje.urgent.length ? "Fora as urgentes, mais nada para hoje." : "Nada por fazer hoje. Bom trabalho.")}</span></div>`}</section>`);
+      paint($("m-last"), `<section class="m-sec"><header><b>${t("Últimos avisos")}</b><a href="#/avisos">${t("Ver todos")}</a></header>${inbox.items.length
+        ? `<div class="m-list">${inbox.items.slice(0, 3).map(nrow).join("")}</div>` : `<div class="m-empty">${icon("bell")}<span>${t("Sem avisos novos.")}</span></div>`}</section>`);
+    };
+    reload = load;
+    $("view").onclick = async (e) => {
+      if (await newTaskClick(e)) return load();
+      const done = e.target.closest("[data-done]");
+      if (done) {
+        e.preventDefault(); done.disabled = true;
+        done.closest(".m-task")?.classList.add("finishing");
+        try { await api(`/api/tasks/${done.dataset.done}`, { method: "PATCH", body: { status: "COMPLETED" } }); flash(t("Tarefa concluída.")); } catch (err) { flash(err.message); }
+        return load();
+      }
+      const task = e.target.closest(".m-task, [data-open]"); if (task) return openTaskModal(Number(task.dataset.id || task.dataset.open));
+      const go = e.target.closest("[data-goto]"); if (go) taskTab = go.dataset.goto; // the numbers open Tarefas on the right tab
+      const row = e.target.closest("[data-n]"); if (row) api("/api/notifications/read", { method: "POST", body: { ids: [Number(row.dataset.n)] } }).then(() => hubNews()).catch(() => {});
+    };
+    await load().catch((e) => { if (e.message !== "unauthorized") $("m-stats").innerHTML = ui.error(e.message); });
+  }
 
   /* Avisos: the notifications as an inbox, by day, unread first in bold. A tap marks it read and opens it. */
   HUB_VIEWS.avisos = async function () {

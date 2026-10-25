@@ -45,3 +45,35 @@ def test_seguimento_guarda_por_nome_e_sobrevive_a_varreduras(tmp_path, monkeypat
     assert R.get(scan2["id"])["negocios"][0]["lead"]["estado"] == "contactado"
     R.set_lead(scan2["id"], "x9", "por_contactar", "", "Marco")
     assert R.leads() == []
+
+
+def test_ficha_marca_redes_e_custo_sem_rede():
+    import httpx
+    from app import radar_ficha as F
+    page = """<html><head><meta name="theme-color" content="#c8102e"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400">
+      <style>body{color:#222222;background:#fafafa} .btn{background:#c8102e} a{color:#0a4d8c} .x{color:#cf2e2e}</style></head>
+      <body><a class="logo" href="/"><img src="/img/logo.png" alt="Logo"></a><h1>Tire a carta connosco</h1>
+      <a href="https://www.instagram.com/escolaxpto/">ig</a><a href="https://www.facebook.com/sharer/sharer.php">x</a>
+      <a href="/precos">p</a><a href="contactos.html">c</a>
+      <footer>Desenvolvido por <a href="https://agenciax.pt">Agência X</a></footer></body></html>"""
+    base = httpx.URL("https://escolax.pt/")
+    cores = [c["hex"] for c in F._palette(page, "#c8102e")]
+    assert cores[0] == "#c8102e" and "#0a4d8c" in cores and "#cf2e2e" not in cores  # a paleta do WordPress não é a marca
+    assert F._fonts(page, page) == ["Poppins"]
+    assert F._logo(page, base)["logo"] == "https://escolax.pt/img/logo.png"
+    assert F._credit(page, base) == {"nome": "Agência X", "site": "https://agenciax.pt/"}
+    assert F._pages(page, "escolax.pt") == 3
+    assert F._followers("Escola X (@escolaxpto) • 1,2 mil seguidores, 300 publicações") == {"seguidores": 1200, "publicacoes": 300}
+    n = {"nome": "X", "site": "https://escolax.pt", "audit": {"plataforma": "WordPress", "agencia": "Agência X"}, "gasto": {"min": 35, "max": 150}}
+    k = F.custo(n, {"paginas": 25, "desde": 2016})
+    assert (k["min"], k["max"]) == (1040, 3250) and k["anos"] >= 10 and k["ate_hoje"][0] > k["min"]
+    assert F.custo({"nome": "Y", "site": ""}) is None
+
+
+def test_ofertas_tem_sempre_preco_e_porque():
+    from app import radar_ficha as F
+    n = {"nome": "Gato Preto", "site": "", "nota_site": 0, "problemas": [], "gasto": {}}
+    of = F.ofertas(n, {"redes": {}, "google": {"nao_tem": True}})
+    ids = [o["id"] for o in of]
+    assert ids[0] == "site" and "redes" in ids and "google" in ids and "acompanhamento" in ids
+    assert all(o["porque"] and (o["unico"] or o["mensal"]) for o in of)

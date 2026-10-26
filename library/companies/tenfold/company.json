@@ -4,25 +4,82 @@
   "tagline": "A nossa agência · exemplos de projetos para mostrar a clientes",
   "sections": [
     {
-      "id": "sites", "label": "Sites", "icon": "🌐", "kind": "sites",
+      "id": "sites",
+      "label": "Sites",
+      "icon": "🌐",
+      "kind": "sites",
       "description": "Sites feitos pela equipa. Abrem aqui dentro, como no PC ou como no telemóvel. O original do site da agência está no repositório apex-agents (davidkovel.github.io/apex-agents).",
       "sources": [
-        {"source": "library", "path": "companies/tenfold/sites", "label": "Exemplos"}
+        {
+          "source": "library",
+          "path": "companies/tenfold/sites",
+          "label": "Exemplos"
+        }
       ]
     },
     {
-      "id": "marcas", "label": "Marcas", "icon": "🎨", "kind": "photos",
+      "id": "marcas",
+      "label": "Marcas",
+      "icon": "🎨",
+      "kind": "photos",
       "description": "Identidades visuais completas: Gato Preto e Via Dinâmica (escolas de condução), cada uma com manual de 70+ páginas.",
       "sources": [
-        {"source": "library", "path": "companies/tenfold/marcas/gato-preto", "label": "Gato Preto"},
-        {"source": "library", "path": "companies/tenfold/marcas/via-dinamica", "label": "Via Dinâmica"}
+        {
+          "source": "library",
+          "path": "companies/tenfold/marcas/gato-preto",
+          "label": "Gato Preto"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/marcas/via-dinamica",
+          "label": "Via Dinâmica"
+        }
       ]
     },
     {
-      "id": "videos", "label": "Vídeos", "icon": "🎬", "kind": "videos",
+      "id": "instagram",
+      "label": "Instagram",
+      "icon": "📱",
+      "kind": "photos",
+      "description": "Carrossel «Who we are & how we work» (1080×1350), pronto a publicar.",
+      "sources": [
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram",
+          "label": "Carrossel"
+        }
+      ]
+    },
+    {
+      "id": "videos",
+      "label": "Vídeos",
+      "icon": "🎬",
+      "kind": "videos",
       "description": "Reels da agência para o Instagram.",
       "sources": [
-        {"source": "library", "path": "companies/tenfold/videos", "label": "Reels"}
+        {
+          "source": "library",
+          "path": "companies/tenfold/videos",
+          "label": "Reels"
+        }
+      ]
+    },
+    {
+      "id": "docs",
+      "label": "Documentos",
+      "icon": "📄",
+      "kind": "files",
+      "editable": true,
+      "description": "Referências de reels e notas da agência.",
+      "sources": [
+        {
+          "source": "library",
+          "path": "companies/tenfold/docs",
+          "label": "docs",
+          "exts": [
+            ".md"
+          ]
+        }
       ]
     }
   ]

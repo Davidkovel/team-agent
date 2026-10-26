@@ -60,6 +60,11 @@ A demo `starter/` (marca fictícia NORTE, expedições de montanha) tem tudo ist
    - **A** filmagens/anúncios do cliente → `python -I scripts/fotogramas.py anuncio1.mp4 anuncio2.mp4 --saida frames`;
    - **B** IA (Higgsfield): imagens-chave no mesmo estilo → clips com **primeiro e último fotograma** (o último do clip N
      é o primeiro do N+1) → `fotogramas.py` cola-os numa viagem só. Gasta créditos: ver o saldo e o custo antes;
+   - **B rápida** (reel de um parceiro, 26 out: kutuzova_alesya, «анимация по скроллу в Claude»,
+     instagram.com/reel/Dd3Z8kpodHS): **uma** imagem forte (Pinterest ou foto do cliente, no estilo da marca) → um clip
+     image-to-video de 5–8 s com a câmara a andar devagar e a cena a mudar (ex.: vinho e queijo → copo → serpente) →
+     `fotogramas.py` → o Claude constrói o site à volta desse filme, com o título por cima. Um clip, um ecrã de filme: é a
+     forma mais barata de ter um hero «uau»;
    - **C** sem filme: **mundo de camadas** (PNG recortados do cliente, ou SVG e gradientes como na demo);
    - **D** produto: fotos à volta dele / vista explodida / render 3D → fotogramas, ou peças soltas com `data-peca`.
 4. **Construir a partir do `starter/`**: copiar a pasta, trocar a demo NORTE pelo cliente, apagar o `demo.js` se não
@@ -105,6 +110,11 @@ A demo `starter/` (marca fictícia NORTE, expedições de montanha) tem tudo ist
 - **`scroll-behavior: smooth`** faz o salto da volta animar: o motor usa `behavior: 'instant'`; quem escrever outro
   salto faz igual.
 - **`<video>` com `currentTime` para o scrub** engasga (só salta para keyframes): fotogramas num canvas.
+- **Demasiado filme pesa** (26 out, site Ten Fold): uma viagem 3D de 7 ecrãs com screenshots a voar, poeira e brilhos
+  com `blur(60px)`, mais uma abertura em túnel de 2 s, foram recusadas pelo cliente: «очень тяжело». Ficou um hero
+  estático leve (título, uma linha, dois botões, «Scroll down») e os projetos em cartões normais. Regra: o filme vive
+  **num** ecrã (o hero), nada de abertura que prenda o scroll, nada de `filter: blur` grande nem `backdrop-filter` em
+  elementos fixos, e uma indicação clara de que a página continua para baixo.
 - **A cor da página muda enquanto o palco ainda está à vista**: o palco de produto leva fundo próprio.
 - **Texto dentro dos fotogramas**: ilegível no telemóvel e invisível ao Google.
 - **Faixa parada**: o CSS do `@keyframes` tem de estar carregado antes do `scroll.js` (`defer` depois do `<link>`).

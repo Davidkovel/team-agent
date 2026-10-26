@@ -190,5 +190,17 @@
   "autor": "Bradley Bonanno (bradautomates), MIT",
   "licenca": "aberta",
   "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
+ },
+ "motion-react": {
+  "de": "github.com/secondsky/claude-skills/plugins/motion/skills/motion",
+  "autor": "Claude Skills Maintainers, MIT",
+  "licenca": "aberta",
+  "veio": "pedida pelo David a 26 out 2026 (Motion for React)"
+ },
+ "ui-ux-pro-max": {
+  "de": "github.com/nextlevelbuilder/ui-ux-pro-max-skill (v2.15.0)",
+  "autor": "Next Level Builder, MIT",
+  "licenca": "aberta",
+  "veio": "pedida pelo David a 26 out 2026"
  }
 }

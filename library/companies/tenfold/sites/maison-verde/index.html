@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maison Verde — fine jewellery (concept by Apex Agents)</title>
+<meta name="description" content="Concept website for a fine jewellery house: emeralds, gold and pearls. Designed and built by Apex Agents.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --verde: #0c3a24; --verde-2: #146b3e; --verde-3: #1f8a52; --ouro: #d9b26a; --ouro-2: #f3d99c;
+  --creme: #f1efe9; --tinta: #10140f; --serif: "Cormorant Garamond", Georgia, serif; --sans: "Jost", system-ui, sans-serif;
+  --curva: cubic-bezier(.16, 1, .3, 1); --g: clamp(16px, 4vw, 64px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--creme); color: var(--tinta); font: 300 1rem/1.6 var(--sans); overflow-x: clip; }
+img { display: block; max-width: 100%; }
+a { color: inherit; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 400; margin: 0; line-height: 1; }
+p { margin: 0; }
+
+/* header */
+.topo { position: absolute; inset: 0 0 auto; z-index: 5; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: calc(22px + env(safe-area-inset-top, 0px)) var(--g) 22px; color: var(--creme); }
+.topo nav { display: flex; gap: 2rem; font-size: .82rem; letter-spacing: .08em; }
+.topo nav a { text-decoration: none; opacity: .85; }
+.topo nav a:hover { opacity: 1; color: var(--ouro-2); }
+.logo { text-align: center; text-decoration: none; font: italic 400 2rem/1 var(--serif); color: var(--ouro-2); }
+.logo small { display: block; font: 400 .6rem/1 var(--sans); letter-spacing: .4em; text-transform: uppercase; color: var(--creme); opacity: .7; margin-bottom: .25rem; }
+.topo__dir { justify-self: end; display: flex; align-items: center; gap: 1.2rem; font-size: .82rem; }
+.topo__dir span { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--ouro); color: var(--verde); font-weight: 500; }
+@media (max-width: 760px) { .topo { grid-template-columns: 1fr auto; } .topo nav { display: none; } .logo { text-align: left; } }
+
+/* hero */
+.heroi { position: relative; min-height: 100svh; overflow: hidden; color: var(--creme);
+  background: radial-gradient(60% 70% at 55% 45%, var(--verde-3), var(--verde-2) 40%, var(--verde) 75%, #06200f); }
+.heroi__palavra { position: absolute; left: 50%; top: 52%; translate: -50% -50%; margin: 0; font: 500 clamp(9rem, 24vw, 26rem)/.8 var(--serif); letter-spacing: -.04em; color: rgb(255 255 255 / .09); white-space: nowrap; pointer-events: none; }
+.heroi__foto { position: absolute; left: 50%; top: 54%; width: min(46vw, 560px); aspect-ratio: 960 / 1716; translate: -50% -50%; rotate: -8deg;
+  -webkit-mask: radial-gradient(closest-side, #000 62%, transparent 100%); mask: radial-gradient(closest-side, #000 62%, transparent 100%);
+  filter: saturate(1.15) contrast(1.05); animation: flutua 9s ease-in-out infinite; }
+.heroi__foto img { width: 100%; height: 100%; object-fit: cover; mix-blend-mode: luminosity; opacity: .95; }
+.heroi__foto::after { content: ""; position: absolute; inset: 0; background: radial-gradient(closest-side, transparent 40%, rgb(12 58 36 / .6)); }
+@keyframes flutua { 50% { translate: -50% calc(-50% - 14px); } }
+.heroi__txt { position: absolute; left: var(--g); top: 26%; max-width: 20rem; }
+.heroi__txt p:first-child { font-size: .75rem; letter-spacing: .2em; text-transform: uppercase; opacity: .7; margin-bottom: 1.2rem; }
+.heroi__txt h1 { font-size: clamp(2.6rem, 2rem + 2.4vw, 4.2rem); }
+.heroi__txt h1 em { color: var(--ouro-2); }
+.vidro { position: absolute; display: flex; align-items: center; gap: .9rem; padding: .9rem 1.1rem; border-radius: 18px; background: rgb(255 255 255 / .08); backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .14); font-size: .85rem; line-height: 1.3; }
+.vidro img { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; }
+.vidro b { display: block; font: 400 1.25rem/1.1 var(--serif); }
+.vidro--a { right: var(--g); top: 22%; }
+.vidro--b { right: calc(var(--g) + 2rem); bottom: 18%; max-width: 15rem; display: block; }
+.vidro--c { left: var(--g); bottom: 24%; max-width: 15rem; display: block; opacity: .9; }
+.botao { display: inline-flex; align-items: center; gap: .6rem; margin-top: 1.8rem; padding: .85rem 1.5rem; border-radius: 99px; background: var(--ouro); color: var(--verde); text-decoration: none; font-weight: 500; font-size: .9rem; letter-spacing: .04em; transition: background-color .3s, transform .3s var(--curva); }
+.botao:hover { background: var(--ouro-2); transform: translateY(-2px); }
+.corrente { height: 14px; background: repeating-linear-gradient(90deg, #b8893d 0 7px, var(--ouro-2) 7px 10px, #8a6427 10px 14px); box-shadow: 0 2px 0 rgb(0 0 0 / .15) inset; }
+@media (max-width: 760px) {
+  .heroi__foto { width: 78vw; top: 58%; }
+  .heroi__txt { top: 15%; right: var(--g); max-width: none; }
+  .vidro--a, .vidro--b { display: none; }
+  .vidro--c { bottom: 6%; }
+}
+
+/* creations */
+.secao { padding: clamp(4.5rem, 10vw, 8rem) var(--g); }
+.cabeca { text-align: center; margin-bottom: clamp(2.5rem, 5vw, 4rem); }
+.cabeca h2 { font-size: clamp(2.6rem, 2rem + 2.5vw, 4.4rem); }
+.cabeca p { margin-top: .8rem; opacity: .65; }
+.criacoes { list-style: none; margin: 0 auto; padding: 0; max-width: 1100px; display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(.8rem, 2vw, 1.6rem); }
+.criacoes a { display: block; text-decoration: none; border-radius: 26px; overflow: hidden; background: linear-gradient(160deg, #fbfaf7, #e8e5dc); box-shadow: 0 1px 0 #fff inset, 0 24px 50px -30px rgb(16 20 15 / .35); transition: transform .5s var(--curva), box-shadow .5s var(--curva); }
+.criacoes a:hover { transform: translateY(-6px); box-shadow: 0 1px 0 #fff inset, 0 34px 60px -30px rgb(12 58 36 / .5); }
+.criacoes figure { margin: 0; aspect-ratio: 1; overflow: hidden; }
+.criacoes img { width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--curva); }
+.criacoes a:hover img { transform: scale(1.06); }
+.criacoes span { display: block; padding: 1rem 1.2rem 1.3rem; text-align: center; font: 400 1.35rem/1 var(--serif); }
+@media (max-width: 700px) { .criacoes { grid-template-columns: 1fr 1fr; } }
+
+/* story */
+.historia { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(2rem, 6vw, 6rem); align-items: center; max-width: 1150px; margin: 0 auto; }
+.historia figure { margin: 0; border-radius: 300px 300px 26px 26px; overflow: hidden; aspect-ratio: 4 / 5; }
+.historia img { width: 100%; height: 100%; object-fit: cover; }
+.historia h2 { font-size: clamp(2.4rem, 1.8rem + 2.4vw, 4rem); }
+.historia h2 em { color: var(--verde-2); }
+.historia p { margin-top: 1.4rem; opacity: .75; max-width: 36ch; }
+.historia ul { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; gap: .9rem; }
+.historia li { display: flex; gap: 1rem; padding-bottom: .9rem; border-bottom: 1px solid rgb(16 20 15 / .12); }
+.historia li b { font: 400 1.2rem/1.2 var(--serif); min-width: 2.5rem; color: var(--verde-2); }
+@media (max-width: 800px) { .historia { grid-template-columns: 1fr; } }
+
+/* private viewing */
+.visita { position: relative; overflow: hidden; margin: 0 var(--g) clamp(3rem, 6vw, 5rem); padding: clamp(3rem, 7vw, 6rem) var(--g); border-radius: 36px; text-align: center; color: var(--creme);
+  background: radial-gradient(70% 90% at 50% 0%, var(--verde-3), var(--verde) 70%); }
+.visita h2 { font-size: clamp(2.6rem, 2rem + 3vw, 5rem); }
+.visita h2 em { color: var(--ouro-2); }
+.visita p { margin: 1rem auto 0; max-width: 40ch; opacity: .8; }
+.rodape { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; padding: 2rem var(--g) calc(2.5rem + env(safe-area-inset-bottom, 0px)); font-size: .8rem; opacity: .7; }
+.rodape a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* reveal */
+.aparece { opacity: 0; translate: 0 30px; transition: opacity 1s var(--curva), translate 1s var(--curva); }
+.aparece.visto { opacity: 1; translate: 0 0; }
+</style>
+</head>
+<body>
+<header class="topo">
+  <nav aria-label="Main"><a href="#criacoes">Creations</a><a href="#historia">The house</a><a href="#visita">Private viewing</a></nav>
+  <a class="logo" href="#"><small>Maison</small>Verde</a>
+  <div class="topo__dir"><a href="#visita" style="text-decoration:none">Book a viewing</a><span aria-hidden="true">2</span></div>
+</header>
+
+<main>
+  <section class="heroi" aria-label="Maison Verde">
+    <p class="heroi__palavra" aria-hidden="true">Verde</p>
+    <figure class="heroi__foto"><img src="img/bracelet.webp" alt="Gold bracelet with emeralds and pearls" width="960" height="1716"></figure>
+    <div class="heroi__txt">
+      <p>Fine jewellery · emeralds &amp; gold</p>
+      <h1>Wear the <em>colour</em> of rare things</h1>
+      <a class="botao" href="#criacoes">Discover the pieces →</a>
+    </div>
+    <div class="vidro vidro--a"><img src="img/drops.webp" alt=""><span><b>Emerald Rain</b>new collection</span></div>
+    <div class="vidro vidro--b"><b>Hand-set stones</b>Every emerald is chosen and set by hand, one piece at a time.</div>
+    <div class="vidro vidro--c">Gold, pearls and emeralds, made to be worn every day and kept for a lifetime.</div>
+  </section>
+  <div class="corrente" aria-hidden="true"></div>
+
+  <section class="secao" id="criacoes">
+    <div class="cabeca aparece"><h2>Our creations</h2><p>Discover the pieces of the house.</p></div>
+    <ul class="criacoes">
+      <li class="aparece"><a href="#visita"><figure><img src="img/bracelet.webp" alt="Bracelet" loading="lazy"></figure><span>Bracelets</span></a></li>
+      <li class="aparece"><a href="#visita"><figure><img src="img/earrings.webp" alt="Earrings" loading="lazy"></figure><span>Earrings</span></a></li>
+      <li class="aparece"><a href="#visita"><figure><img src="img/necklace.webp" alt="Necklace" loading="lazy"></figure><span>Necklaces</span></a></li>
+      <li class="aparece"><a href="#visita"><figure><img src="img/pendant.webp" alt="Pendant" loading="lazy"></figure><span>Pendants</span></a></li>
+      <li class="aparece"><a href="#visita"><figure><img src="img/drops.webp" alt="Drop earrings" loading="lazy"></figure><span>Drops</span></a></li>
+      <li class="aparece"><a href="#visita"><figure><img src="img/chain.webp" alt="Chain" loading="lazy"></figure><span>Chains</span></a></li>
+    </ul>
+  </section>
+
+  <section class="secao" id="historia" style="padding-top:0">
+    <div class="historia">
+      <figure class="aparece"><img src="img/earrings.webp" alt="Gold earrings with pearls and emeralds" loading="lazy"></figure>
+      <div class="aparece">
+        <h2>Old gold,<br><em>new light</em></h2>
+        <p>Every piece starts with a stone. We look for the green that catches the light, then build the gold around it.</p>
+        <ul>
+          <li><b>01</b><span>Stones chosen one by one</span></li>
+          <li><b>02</b><span>Set and polished by hand</span></li>
+          <li><b>03</b><span>Engraved, boxed and delivered to your door</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="visita aparece" id="visita">
+    <h2>A private <em>viewing</em></h2>
+    <p>See the pieces in person, with time to choose. Leave your number and we will call to arrange it.</p>
+    <a class="botao" href="#">Book a viewing →</a>
+  </section>
+</main>
+
+<footer class="rodape">
+  <span>Maison Verde is a concept website designed and built by <a href="../../index.html">Apex Agents</a>.</span>
+  <span>Photos: The Met, Cleveland Museum of Art, British Museum (CC0, public domain).</span>
+</footer>
+<script>
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('visto'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('.aparece').forEach((el) => io.observe(el));
+</script>
+</body>
+</html>

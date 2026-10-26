@@ -1,0 +1,29 @@
+{
+  "name": "Ten Fold",
+  "short": "TF",
+  "tagline": "A nossa agência · exemplos de projetos para mostrar a clientes",
+  "sections": [
+    {
+      "id": "sites", "label": "Sites", "icon": "🌐", "kind": "sites",
+      "description": "Sites feitos pela equipa. Abrem aqui dentro, como no PC ou como no telemóvel. O original do site da agência está no repositório apex-agents (davidkovel.github.io/apex-agents).",
+      "sources": [
+        {"source": "library", "path": "companies/tenfold/sites", "label": "Exemplos"}
+      ]
+    },
+    {
+      "id": "marcas", "label": "Marcas", "icon": "🎨", "kind": "photos",
+      "description": "Identidades visuais completas: Gato Preto e Via Dinâmica (escolas de condução), cada uma com manual de 70+ páginas.",
+      "sources": [
+        {"source": "library", "path": "companies/tenfold/marcas/gato-preto", "label": "Gato Preto"},
+        {"source": "library", "path": "companies/tenfold/marcas/via-dinamica", "label": "Via Dinâmica"}
+      ]
+    },
+    {
+      "id": "videos", "label": "Vídeos", "icon": "🎬", "kind": "videos",
+      "description": "Reels da agência para o Instagram.",
+      "sources": [
+        {"source": "library", "path": "companies/tenfold/videos", "label": "Reels"}
+      ]
+    }
+  ]
+}

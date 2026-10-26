@@ -36,7 +36,8 @@ def _load_json(path: Path, default):
 
 def sources() -> dict[str, Path]:
     raw = _load_json(library_dir() / "sources.json", {})
-    return {name: Path(p) for name, p in raw.items() if isinstance(p, str)}
+    # "library" = the library folder itself: what lives in git reaches every PC without a sources.json line
+    return {"library": library_dir(), **{name: Path(p) for name, p in raw.items() if isinstance(p, str)}}
 
 
 def companies() -> dict[str, dict]:

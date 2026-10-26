@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Career — Ten Fold</title>
+<meta name="description" content="Join Ten Fold: front-end developers, designers, media buyers and sales managers. Remote.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0c0f">
+<meta property="og:title" content="Career — Ten Fold">
+<meta property="og:description" content="Join Ten Fold: front-end developers, designers, media buyers and sales managers. Remote.">
+<meta property="og:image" content="img/tf-og.jpg">
+<link rel="icon" href="img/tf-favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css?v=36">
+<script defer src="js/contacto.js?v=25"></script>
+</head>
+<body>
+<a class="saltar" href="#conteudo">Skip to content</a>
+
+<header class="topo">
+  <a class="marca" href="index.html#viagem" aria-label="Ten Fold, home">
+    <img class="marca__s" src="img/tf-mark.png" alt="" width="148" height="196"><span>Ten Fold<em>Scaling Partners</em></span>
+  </a>
+  <nav aria-label="Main">
+    <a href="index.html#ciclo">How it works</a>
+    <a href="projects.html">Projects</a>
+    <a href="index.html#servicos">Services</a>
+    <a href="career.html" aria-current="page">Career</a>
+    <a class="topo__tel" href="index.html#contactos" data-tel>+380 68 418 55 76</a>
+    <a class="pilula" href="index.html#contacto">Book a call</a>
+  </nav>
+</header>
+
+
+<main id="conteudo" class="sub">
+  <section class="sub__topo">
+    <p class="chapeu">Career</p>
+    <h1>Build with <em>us.</em></h1>
+    <p class="linha">We are growing and looking for people who like to ship. Remote, flexible, real products.</p>
+  </section>
+  <section class="sub__secao">
+    <h2 class="titulo-secao">Open positions</h2>
+    <div class="vagas">
+    <article class="vaga">
+      <div><p class="chapeu">Development · Remote · full-time or per project</p><h3>Front-end developer</h3><p>HTML/CSS/JS and React or Next.js. Fast, phone-first sites and web apps that look premium.</p></div>
+      <a class="botao botao--vazio" href="#candidatura" data-servico="Front-end developer">Apply</a>
+    </article>
+    <article class="vaga">
+      <div><p class="chapeu">Design · Remote · per project</p><h3>UI/UX & brand designer</h3><p>Figma, landing pages, brand identities and ad creatives. Show us a portfolio you are proud of.</p></div>
+      <a class="botao botao--vazio" href="#candidatura" data-servico="UI/UX & brand designer">Apply</a>
+    </article>
+    <article class="vaga">
+      <div><p class="chapeu">Marketing · Remote · part-time</p><h3>Media buyer (targeted ads)</h3><p>Meta and TikTok campaigns with results you can show in money, not likes.</p></div>
+      <a class="botao botao--vazio" href="#candidatura" data-servico="Media buyer (targeted ads)">Apply</a>
+    </article>
+    <article class="vaga">
+      <div><p class="chapeu">Sales · Remote · base + commission</p><h3>Sales / account manager</h3><p>Finds clients in Portugal and across Europe, runs the first call and keeps them happy. English required.</p></div>
+      <a class="botao botao--vazio" href="#candidatura" data-servico="Sales / account manager">Apply</a>
+    </article>
+    </div>
+  </section>
+  <section class="sub__secao">
+    <h2 class="titulo-secao">Why people work with us</h2>
+    <ol class="passos"><li><b>Remote, worldwide</b><p>Work from anywhere, flexible hours, one weekly call.</p></li><li><b>AI-first company</b><p>Our own AI agents take the routine; you do the interesting part.</p></li><li><b>Real products</b><p>Everything ships and goes into your portfolio — see the projects page.</p></li><li><b>Grow with us</b><p>Pay that grows with the projects you lead.</p></li></ol>
+  </section>
+  <section class="contacto" id="candidatura">
+    <div class="contacto__esq">
+      <p class="chapeu">Apply</p>
+      <h2>Send us<br>your work.</h2>
+      <p class="linha">Name, contact, the position and a link to your portfolio or CV. We read every application and answer within a week.</p>
+      <ul class="contactos" aria-label="Contacts">
+        <li><span>Email</span><a data-email href="#">dkovel7@gmail.com</a></li>
+        <li><span>Messengers</span><span class="contactos__mens" data-mensageiros></span></li>
+      </ul>
+    </div>
+    <form class="pedido" id="pedido" data-assunto="Job application — Ten Fold" data-rotulo="Position" novalidate>
+      <fieldset class="chips"><legend>Position</legend><label><input type="checkbox" name="servico" value="Front-end developer"><span>Front-end developer</span></label><label><input type="checkbox" name="servico" value="UI/UX & brand designer"><span>UI/UX & brand designer</span></label><label><input type="checkbox" name="servico" value="Media buyer (targeted ads)"><span>Media buyer (targeted ads)</span></label><label><input type="checkbox" name="servico" value="Sales / account manager"><span>Sales / account manager</span></label><label><input type="checkbox" name="servico" value="Other"><span>Other</span></label></fieldset>
+      <label class="campo"><span>Your name</span><input name="nome" autocomplete="name" required></label>
+      <label class="campo"><span>Email or Telegram</span><input name="contacto" autocomplete="email" required></label>
+      <label class="campo"><span>Portfolio / CV link</span><input name="portfolio" type="url" placeholder="https://"></label>
+      <label class="campo"><span>About you</span><textarea name="mensagem" rows="4" placeholder="What you do best, what you want to do next…"></textarea></label>
+      <button class="botao" type="submit">Send the application</button>
+      <p class="pedido__estado" role="status"></p>
+    </form>
+  </section>
+</main>
+
+<footer class="rodape">
+  <div class="rodape__grelha">
+    <div class="rodape__marca">
+      <a class="marca" href="index.html#viagem"><img class="marca__s" src="img/tf-mark.png" alt="" width="148" height="196"><span>Ten Fold<em>Scaling Partners</em></span></a>
+      <p>Digital studio: websites, software, brand design and targeted ads for small business, companies and agencies.</p>
+      <p class="rodape__redes" data-redes></p>
+    </div>
+    <nav aria-label="Services"><b>Services</b><a href="index.html#servicos">Websites</a><a href="index.html#servicos">Software &amp; AI agents</a><a href="index.html#servicos">Design</a><a href="index.html#servicos">Targeted ads</a></nav>
+    <nav aria-label="Company"><b>Company</b><a href="projects.html">Projects</a><a href="career.html">Career</a><a href="index.html#servicos">Services</a><a href="index.html#auditoria">Free audit</a><a href="index.html#processo">Process</a></nav>
+    <div class="rodape__contactos"><b>Contacts</b><a data-tel href="#">+380 68 418 55 76</a><a data-email href="#">dkovel7@gmail.com</a><span data-horas>24/7, every day</span></div>
+  </div>
+  <div class="rodape__fim">
+    <span>© <span id="ano">2026</span> Ten Fold</span>
+    <a href="index.html#viagem">Back to the top ↑</a>
+  </div>
+</footer>
+</body>
+</html>

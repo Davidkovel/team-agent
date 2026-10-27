@@ -284,7 +284,7 @@ window.CrewBoard = (function () {
     else { const v = f.elements.note.value.trim(); if (v) planChange(f.dataset.pnote, { note: v }, "Nota deixada."); }
   }
   function queueRow(it, i, p, s) {
-    const x = it.x, a = it.agent, m = (s.team || []).find((u) => u.user === x.assignee), on = agentOn(m);
+    const x = it.x, a = it.agent, m = (s.team || []).find((u) => u.user === x.assignee), on = agentOn(m), title = x.title || it.goal;
     const why = it.held ? t("Em espera: arranca quando a mandares")
       : !on && p.me ? t("À espera do teu agente automático, que está desligado")
       : !on ? t("À espera do agente automático do {n}", { n: p.name })

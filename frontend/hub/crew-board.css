@@ -589,10 +589,10 @@ html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 14px; }
 .bv-kpi span { display: block; margin-top: 6px; color: #7c838d; font: 550 12px var(--ui); white-space: nowrap; }
 .bv-kpi.lit b { color: #fff; }
 .bv-kpi.lit::after { content: ""; position: absolute; right: 12px; top: 12px; width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); }
-.bv-kpi:first-child { background: linear-gradient(165deg, #ffffff 0%, #eef1f4 38%, #d5dae0 100%); border-color: rgba(255, 255, 255, .7);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 24px 50px -28px rgba(214, 224, 240, .55); }
-.bv-kpi:first-child b { color: #0b0c0e; }
-.bv-kpi:first-child span { color: #555c66; }
+.bv-kpi:first-child { background: var(--pn-hero); border-color: rgba(236, 241, 247, .28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .22) inset, 0 24px 50px -26px rgba(214, 224, 240, .32); }
+.bv-kpi:first-child b { color: #fff; }
+.bv-kpi:first-child span { color: var(--pn-ink-2); }
 .bv-kpi:first-child::after { display: none; }
 #bv-clock { color: #dfe8f2; font: 600 26px/1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .bv-exit { text-decoration: none; display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .12); background: #0c0f13; color: #dfe4ea; font: 600 13px var(--ui); cursor: pointer; }

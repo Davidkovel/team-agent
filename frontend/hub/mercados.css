@@ -485,15 +485,15 @@ html.is-phone .mk > .ph .mk-live { flex-basis: 100%; }
 .mk-fc-spark .pn-spark { flex: 1; min-width: 0; width: auto; max-width: 170px; }
 .mk-fc-spark > span { display: grid; justify-items: end; gap: 3px; }
 .mk-fc-spark small { color: var(--faint); font-size: 10.5px; }
-.hub .mk-four > .mk-fc:first-child { background: var(--pn-hero); border-color: rgba(255, 255, 255, .7); color: var(--pn-ink);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 24px 50px -28px rgba(214, 224, 240, .55); }
+.hub .mk-four > .mk-fc:first-child { background: var(--pn-hero); border-color: rgba(236, 241, 247, .28); color: var(--pn-ink);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .22) inset, 0 24px 50px -26px rgba(214, 224, 240, .32); }
 .hub .mk-four > .mk-fc:first-child::before { display: none; }
 .hub .mk-four > .mk-fc:first-child:hover { background: var(--pn-hero); filter: brightness(1.03); }
 .hub .mk-four > .mk-fc:first-child :is(.mk-fc-h b, .mk-fc-p b) { color: var(--pn-ink); }
 .hub .mk-four > .mk-fc:first-child :is(.mk-fc-h span, .mk-range small, .mk-fc-s span, .mk-fc-spark small, .mk-none) { color: var(--pn-ink-2); }
 .hub .mk-four > .mk-fc:first-child .mk-fc-spark { color: var(--pn-ink); }
-.hub .mk-four > .mk-fc:first-child .pn-delta.up { background: rgba(10, 120, 60, .14); color: #0b6b37; }
-.hub .mk-four > .mk-fc:first-child .pn-delta.dn { background: rgba(180, 40, 20, .12); color: #a3301c; }
-.hub .mk-four > .mk-fc:first-child .mk-range::before { background: rgba(0, 0, 0, .12); }
-.hub .mk-four > .mk-fc:first-child .mk-range i { background: var(--pn-ink); box-shadow: 0 0 0 2px #e8ebee; }
+.hub .mk-four > .mk-fc:first-child .pn-delta.up { background: rgba(95, 213, 143, .16); color: var(--pn-up); }
+.hub .mk-four > .mk-fc:first-child .pn-delta.dn { background: rgba(255, 125, 107, .16); color: var(--pn-dn); }
+.hub .mk-four > .mk-fc:first-child .mk-range::before { background: rgba(255, 255, 255, .14); }
+.hub .mk-four > .mk-fc:first-child .mk-range i { background: var(--pn-ink); box-shadow: 0 0 0 2px #22262d; }
 .hub .mk-four > .mk-fc:first-child .tool { color: var(--pn-ink); }

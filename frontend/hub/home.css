@@ -490,11 +490,11 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 .hub .stats .stat b { font: 650 34px/1 var(--display); letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
 .hub .stats .stat > span:last-child { font: 550 12.5px var(--ui); letter-spacing: -.005em; text-transform: none; color: #8d949e; }
 .hub .stats .stat.lit:not(.hot) { background: var(--pn-card-hi); border-color: rgba(255, 255, 255, .14); }
-.hub .stats .stat:first-child:not(.hot) { background: var(--pn-hero); border-color: rgba(255, 255, 255, .7);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 24px 50px -28px rgba(214, 224, 240, .55), 0 0 0 1px rgba(0, 0, 0, .4); }
+.hub .stats .stat:first-child:not(.hot) { background: var(--pn-hero); border-color: rgba(236, 241, 247, .28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .22) inset, 0 24px 50px -26px rgba(214, 224, 240, .32), 0 0 0 1px rgba(0, 0, 0, .4); }
 .hub .stats .stat:first-child:not(.hot) b { color: var(--pn-ink); }
 .hub .stats .stat:first-child:not(.hot) > span:last-child { color: var(--pn-ink-2); }
-.hub .stats .stat:first-child:not(.hot) .stat-ic { background: var(--pn-ink); color: #f4f6f8; box-shadow: none; }
+.hub .stats .stat:first-child:not(.hot) .stat-ic { background: rgba(255, 255, 255, .12); color: #fff; box-shadow: none; }
 .hub .stats .stat.lit.hot { border-radius: var(--pn-r); }
 html.is-phone .hub .stats .stat { min-height: 0; padding: 14px 15px; border-radius: 18px; }
 html.is-phone .hub .stats .stat b { font-size: 26px; }

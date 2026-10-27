@@ -3,14 +3,26 @@
    edge and a chrome icon tile; the row of themes on top is chrome chips. */
 
 .sk-get { display: flex; gap: 8px; width: min(520px, 100%); }
-.sk-get label { flex: 1; display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 13px; border-radius: 12px; background: #06080b;
+.sk-get label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 13px; border-radius: 12px; background: #06080b;
   border: 1px solid rgba(255, 255, 255, .1); color: #6b7380; }
 .sk-get label:focus-within { border-color: rgba(255, 255, 255, .3); }
 .sk-get .i { width: 15px; height: 15px; flex: none; }
 .sk-get input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; color: #eceef1; font: 500 13.5px var(--ui); }
-.sk-get .btn { height: 42px; padding: 0 18px; border-radius: 12px; }
+.sk-get .btn { flex: none; height: 42px; padding: 0 18px; border-radius: 12px; }
 .sk-sum { margin: -4px 0 14px; color: #8b95a1; font: 500 14px/1.45 var(--ui); }
 .sk-sum:empty { display: none; }
+/* the Painel on top (hub/painel.css): four figures, then who masters most beside the themes */
+#sk-dash { margin-bottom: 22px; }
+.sk-heart { margin-top: 14px; }
+.hub .sk-go { cursor: pointer; }
+.hub .sk-go:hover { border-color: rgba(255, 255, 255, .12); }
+.sk-heart .pn-bars > div > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.sk-rank { display: grid; gap: 14px; padding-top: 6px; }
+.sk-rank > div { display: grid; grid-template-columns: minmax(70px, 120px) minmax(0, 1fr) 28px; align-items: center; gap: 12px; color: #c9ced5; font: 550 13px var(--ui); }
+.sk-rank i { display: block; height: 8px; border-radius: 999px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.sk-rank u { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #7d858f, #f4f6f8); }
+.sk-rank b { text-align: right; color: #f4f6f8; font: 650 14px var(--display); font-variant-numeric: tabular-nums; }
+html.is-phone .sk-heart .pn-bars > div > span { display: none; }
 
 .sk-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 8px 0;
   background: linear-gradient(180deg, var(--bg) 70%, transparent); }
@@ -152,3 +164,6 @@
 html.is-phone .sk-bar { top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px)); }
 html.is-phone .sk-card > b { font-size: 15px; }
 html.is-phone .sk-card > p { font-size: 14px; }
+/* the GitHub box on the phone: the header's actions are as wide as the screen, never wider */
+html.is-phone .ph-actions:has(.sk-get) { min-width: 0; max-width: 100%; width: 100%; }
+html.is-phone .sk-get { max-width: 100%; }

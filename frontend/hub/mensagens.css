@@ -103,3 +103,13 @@ html.is-phone .ms-send { padding: 10px; }
 html.is-phone .ms-send textarea { font-size: 16px; }
 html.is-phone .ms-send .btn { padding: 0 14px; }
 html.is-phone .ms-hint { display: none; }
+
+/* the Painel row on top (hub/painel.css), short so the conversation keeps most of the screen; on the phone the list is the page */
+.ms-dash { margin-bottom: 14px; }
+.ms-dash:empty { display: none; }
+.hub .ms-dash .pn-kpi { min-height: 0; padding: 14px 18px 13px; gap: 6px; }
+.hub .ms-dash .pn-kpi .num { font-size: 26px; }
+.hub .ms-dash .pn-cols { height: 30px; }
+.hub .ms-dash .pn-ring { width: 40px; height: 40px; }
+html:not(.is-phone) .ms { height: calc(100vh - 290px); }
+html.is-phone .ms-dash { display: none; }

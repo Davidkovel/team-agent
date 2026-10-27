@@ -25,7 +25,8 @@ arrumado. Esta skill serve para cada página nova continuar assim. **As regras c
 
 - `ui.head(_, "Título", "Para que serve, numa frase.", ações)`: o texto pequeno por cima («04 · Trading») é posto
   sozinho. Nas ações há no máximo uma `btn primary` cromada, e o estado (ligado/desligado) aparece como chip ao lado.
-- Por baixo vem uma fila de números (`.panel.pad` + `.num`), depois secções `ui.sec("…")` com `.panel`/`.cards`, os
+- Por baixo vem a fila de números do Painel (`ui.kpis` + `ui.kpi`, o 1.º aceso, cada um com variação e mini-gráfico de uma série
+  real) e o coração da página (`.pn-split` com `ui.gauge`/`ui.bars`/`ui.trend`/`ui.share`; secção «O Painel» do doc), depois secções `ui.sec("…")` com `.panel`/`.cards`, os
   vazios com `ui.empty(…, ação)` e o «a carregar» e os erros com `mount()`.
 - Aspeto preto AMG e monocromático: verde, âmbar e vermelho só para o estado. Letra do iPhone (SF Pro / Inter, desde
   23 out): títulos e números em `--display` com tracking negativo, botões e abas em sentence case, maiúsculas pequenas só

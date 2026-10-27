@@ -55,12 +55,31 @@
 
   HUB_VIEWS.novidades = async function () {
     page(`${ui.head("Equipa", t("Novidades"), t("O que mudou no Hub e no widget, e quem mudou. Toca numa linha para ver os pormenores."))}
-      <div id="nv-filter" class="nv-filter"></div><div id="nv-list">${ui.skeleton(6)}</div>`);
+      <div id="nv-dash"></div><div id="nv-filter" class="nv-filter"></div><div id="nv-list">${ui.skeleton(6)}</div>`);
     const seen = seenAt();
     let list, person = "";
     try { list = ours(await api("/api/commits?limit=100")); } catch (e) { $("nv-list").innerHTML = ui.error(e.message); return; }
     if (list[0]) markSeen(list[0].date);
     setBadge(0);
+    // the Painel on top (hub/painel.css): how much changed, what is new for this person, who changed most, the days as columns
+    if (list.length) {
+      const at = (c) => c.date, mineName = (me.display_name || "").toLowerCase();
+      const fresh = list.filter((c) => new Date(c.date) > new Date(seen) && who(c.author).toLowerCase() !== mineName).length;
+      const per = {};
+      list.forEach((c) => { const n = who(c.author); per[n] = (per[n] || 0) + 1; });
+      const ranked = Object.entries(per).sort((a, b) => b[1] - a[1]);
+      const areas = {};
+      list.forEach((c) => { const a = brief(c).area || t("Outros"); areas[a] = (areas[a] || 0) + 1; });
+      const topArea = Object.entries(areas).sort((a, b) => b[1] - a[1])[0];
+      const days = series.byDay(list, at, 14), week = series.inPeriod(list, at, 0, 7);
+      $("nv-dash").innerHTML = ui.kpis([
+        ui.kpi({ label: "Mudanças · 7 dias", value: week, delta: ui.delta(week, series.inPeriod(list, at, 7, 14), { label: t("contra a semana antes") }), viz: ui.spark(days.map((d) => d.value)) }),
+        ui.kpi({ label: "Novas para ti", value: fresh, sub: fresh ? t("desde a última vez que abriste") : t("já viste tudo") }),
+        ui.kpi({ label: "Quem mudou mais", value: ranked[0][0], sub: t("{n} de {m} mudanças", { n: ranked[0][1], m: list.length }), viz: ranked.length > 1 ? ui.cols(ranked.map(([, n]) => n), { fat: true, hi: 0 }) : "" }),
+        ui.kpi({ label: "Onde mais mexeram", value: topArea[0], sub: t("{n} mudanças", { n: topArea[1] }), viz: ui.ring((topArea[1] / list.length) * 100) }),
+      ]) + `<div class="panel pad" style="margin:14px 0 22px"><div class="pn-card-h">${esc(t("Mudanças por dia"))}<small>${esc(t("últimos 14 dias"))}</small></div>
+        ${ui.bars(days, { fmtV: (v) => t(v === 1 ? "1 mudança" : "{n} mudanças", { n: v }) })}</div>`;
+    }
     const draw = () => {
       const people = [...new Set(list.map((c) => who(c.author)))];
       $("nv-filter").innerHTML = people.length > 1 ? [["", "Todos"], ...people.map((p) => [p, p])]

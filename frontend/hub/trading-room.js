@@ -58,6 +58,7 @@
       <button type="button" class="btn primary" id="tr-meet">${icon("users")}${esc(t("Convocar reunião"))}</button>`;
     page(`<div class="tr" id="tr">
       ${ui.head("Trading", t("Sala de Trading"), t("A mesa da AMG Capital: o Macro lê as notícias, a Análise técnica lê o gráfico e os dois reúnem-se para decidir as trades."), actions)}
+      <div id="tr-kpis"></div>
       <section class="bd-stats tr-clock" id="tr-clocks"></section>
       ${sec("Mercados", esc(t("toca num para o abrir no gráfico")))}
       <section class="tr-radar" id="tr-radar"></section>
@@ -263,7 +264,7 @@
     finally { if (b) b.disabled = false; }
   }
 
-  function paintAll() { paintHead(); paintClocks(); paintTape(); paintRadar(); paintScore(); paintLive(); paintBar(); paintRead(); paintInst(); paintTable(); paintBook(); paintReaction(); paintCal(); paintNews(); }
+  function paintAll() { paintHead(); paintKpis(); paintClocks(); paintTape(); paintRadar(); paintScore(); paintLive(); paintBar(); paintRead(); paintInst(); paintTable(); paintBook(); paintReaction(); paintCal(); paintNews(); }
 
   function paintHead() {
     const st = S && S.settings; if (!st) return;
@@ -379,6 +380,39 @@
     const up = pts[pts.length - 1] >= 0;
     return `<svg class="tr-spark ${up ? "up" : "down"}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><line x1="0" x2="${w}" y1="${Y(0)}" y2="${Y(0)}"/>
       <path class="a" d="${d}L${X(pts.length - 1)},${Y(lo)}L${X(0)},${Y(lo)}Z"/><path d="${d}"/></svg>`;
+  }
+  // The Painel on top (hub/painel.css): the R of all the accounts lit, the best account, what is in play, and the heart of the
+  // page as in Marco's dashboard: how often the room is right (gauge) beside the trades it closed day by day.
+  function paintKpis() {
+    const el = $("tr-kpis");
+    if (!el) return;
+    const stats = (S.stats || []).filter((s) => s.n);
+    const closed = bookRows.filter((x) => ["won", "lost", "be"].includes(x.status) && x.r != null).sort((p, q) => (p.at < q.at ? -1 : 1));
+    if (!stats.length && !closed.length) return paint(el, "");
+    const totalR = stats.reduce((n, s) => n + (s.total_r || 0), 0);
+    let run = 0; const curve = closed.map((x) => (run += x.r));
+    const wins = closed.filter((x) => x.r > 0.05).length, losses = closed.filter((x) => x.r < -0.05).length;
+    const rate = wins + losses ? Math.round((wins / (wins + losses)) * 100) : null;
+    const best = stats.slice().sort((p, q) => q.total_r - p.total_r)[0];
+    const at = (x) => x.at;
+    const week = series.inPeriod(closed, at, 0, 7, (x) => x.r), before = series.inPeriod(closed, at, 7, 14, (x) => x.r);
+    const rChip = (v, label) => `<span class="pn-delta ${v > 0.05 ? "up" : v < -0.05 ? "dn" : "eq"}" title="${esc(label)}">${esc(rfmt(v))}</span>`;
+    const days = series.byDay(closed, at, 14);
+    const dayR = series.byDay(closed, at, 14, (x) => x.r);
+    const live = bookRows.filter((x) => x.status === "open").length, pend = bookRows.filter((x) => x.status === "pending").length;
+    paint(el, ui.kpis([
+      ui.kpi({ label: "R de todas as contas", value: rfmt(totalR), delta: closed.length ? rChip(week, t("últimos 7 dias")) : "", viz: ui.spark(curve.slice(-60)),
+        sub: closed.length ? t("7 dias {a} · semana antes {b}", { a: rfmt(week), b: rfmt(before) }) : "" }),
+      best ? ui.kpi({ label: "Conta na frente", value: esc(t(NAMES[best.agent] || best.name || best.agent)), viz: ui.ring(best.winrate, { text: best.winrate == null ? "—" : `${Math.round(best.winrate)}%` }),
+        sub: t("{r} em {n} trades", { r: rfmt(best.total_r), n: best.n }) }) : "",
+      ui.kpi({ label: "Trades fechadas", value: String(closed.length), viz: ui.cols(days.map((d) => d.value)), sub: t("{w} ganhas · {l} perdidas", { w: wins, l: losses }) }),
+      ui.kpi({ label: "Em jogo", value: String(live + pend), sub: t("{o} abertas · {p} à espera de entrada", { o: live, p: pend }) }),
+    ]) + (rate == null ? "" : `<div class="pn-split tr-heart">
+        <div class="panel pad"><div class="pn-card-h">${esc(t("Acerto da sala"))}<small>${esc(t("{n} trades fechadas", { n: wins + losses }))}</small></div>
+          ${ui.gauge(rate, 100, { text: `${rate}%`, of: t("das trades ganhas") })}
+          <p class="faint tr-heart-p">${esc(t("{w} ganhas e {l} perdidas, todas as contas juntas.", { w: wins, l: losses }))}</p></div>
+        <div class="panel pad"><div class="pn-card-h">${esc(t("Trades fechadas por dia"))}<small>${esc(t("últimos 14 dias"))}</small></div>
+          ${ui.bars(days.map((d, i) => ({ label: d.label, value: d.value, tip: `${t(d.value === 1 ? "1 trade" : "{n} trades", { n: d.value })} · ${rfmt(dayR[i].value)}` })))}</div></div>`));
   }
   function paintScore() {
     const list = S.stats || [];

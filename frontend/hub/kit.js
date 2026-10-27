@@ -90,7 +90,18 @@
     const skills = [...new Set(all.flatMap((p) => p.skills || []))].sort();
     const on = all.filter((p) => p.state === "on").length;
     paintCtl();
-    paint($("kt-body"), `${ui.sec("PCs da equipa", `<span class="kt-aside">${esc(t(on === 1 ? "1 de {m} com o kit ligado" : "{n} de {m} com o kit ligado", { n: on, m: all.length }))}</span>`)}
+    // the Painel's row (hub/painel.css): how far the team is from having the same kit on every PC
+    const mine = h.plugins.filter((k) => plugins.includes(k)).length, failed = Object.keys(h.failed || {}).length;
+    const kpis = ui.kpis([
+      ui.kpi({ label: "Kit ligado", value: `${on}/${all.length}`, sub: t(on === all.length ? "em todos os PCs" : "PCs com o kit ligado"), viz: ui.ring(all.length ? (on / all.length) * 100 : null) }),
+      ui.kpi({ label: "Plugins da equipa", value: plugins.length, sub: t("{n} neste PC", { n: mine }),
+        viz: plugins.length ? ui.ring((mine / plugins.length) * 100) : "" }),
+      ui.kpi({ label: "Skills pessoais", value: skills.length, sub: t("de todos os PCs"),
+        viz: all.length > 1 && skills.length ? ui.cols(all.map((p) => (p.skills || []).length), { fat: true, hi: all.findIndex((p) => p.here) }) : "" }),
+      ui.kpi({ label: "A caminho deste PC", value: h.waiting.length, sub: failed ? t("{n} falharam", { n: failed }) : h.busy ? t("a instalar agora") : t("nada a falhar"),
+        cls: failed ? "warn" : "" }),
+    ]);
+    paint($("kt-body"), `${kpis}${ui.sec("PCs da equipa", `<span class="kt-aside">${esc(t(on === 1 ? "1 de {m} com o kit ligado" : "{n} de {m} com o kit ligado", { n: on, m: all.length }))}</span>`)}
       <div class="kt-pcs">${all.map(pcCard).join("")}</div>
       ${ui.sec("Plugins", `<span class="kt-count">${plugins.length}</span>`)}
       ${plugins.length || out.length ? matrix([...plugins, ...out], "plugin") + legend() : `<div class="panel">${ui.empty("plugins", "Ainda não se sabe de plugins", "Liga o kit para ver os dos outros PCs.")}</div>`}

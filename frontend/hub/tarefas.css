@@ -461,3 +461,6 @@ html.is-phone .tq-row { flex-wrap: wrap; row-gap: 2px; }
 html.is-phone .tq-row > .tq-due { order: 5; flex-basis: 100%; padding-left: 33px; font-size: 13px; }
 html.is-phone .tq-meta { flex-wrap: wrap; white-space: normal; font-size: 13px; }
 html.is-phone .tq-meta > span { flex: none; max-width: 100%; }
+
+/* Aprovações and Semana: the Painel row of figures (27 out) */
+.tq-kpis { margin-bottom: 18px; }

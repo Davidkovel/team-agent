@@ -29,11 +29,19 @@
   function summary(d) {
     const fresh = d.pcs.filter((pc) => pc.updated_at && Date.now() - new Date(pc.updated_at) <= d.every * 3000);
     const over = fresh.filter((pc) => PARTS.some(([key]) => pc[`${key}_cpu`] != null && pc[`${key}_cpu`] > d.limits[key]));
-    const box = (label, value, sub) => `<div class="panel pad vw-kpi"><small>${esc(t(label))}</small>${ui.num(value)}<span class="vw-sub"><em>${esc(sub)}</em></span></div>`;
-    return `<div class="vw-kpis">${box("PCs medidos agora", d.pcs.length ? `${fresh.length}/${d.pcs.length}` : null, t("cada um mede-se de minuto a minuto"))}
-      ${box("Dentro dos limites", fresh.length ? `${fresh.length - over.length}/${fresh.length}` : null,
-        !fresh.length ? t("nenhum PC se mediu nos últimos minutos") : over.length ? t("pesado: {n}", { n: over.map((pc) => pc.name).join(", ") }) : t("tudo leve"))}
-      ${box("Limite", `${cpu(d.limits.hub)}`, t("widget e Hub parados · janela grande {n}", { n: cpu(d.limits.web) }))}</div>`;
+    // the Painel's row (hub/painel.css): rings for the share within the limits, the heaviest part against its limit
+    let worst = null;
+    fresh.forEach((pc) => PARTS.forEach(([key, label]) => { const v = pc[`${key}_cpu`]; if (v != null && (!worst || v / d.limits[key] > worst.v / worst.limit)) worst = { v, limit: d.limits[key], who: pc.name, label }; }));
+    return ui.kpis([
+      ui.kpi({ label: "PCs medidos agora", value: d.pcs.length ? `${fresh.length}/${d.pcs.length}` : null, sub: t("cada um mede-se de minuto a minuto"),
+        viz: d.pcs.length ? ui.ring((fresh.length / d.pcs.length) * 100) : "" }),
+      ui.kpi({ label: "Dentro dos limites", value: fresh.length ? `${fresh.length - over.length}/${fresh.length}` : null, cls: over.length ? "warn" : "",
+        sub: !fresh.length ? t("nenhum PC se mediu nos últimos minutos") : over.length ? t("pesado: {n}", { n: over.map((pc) => pc.name).join(", ") }) : t("tudo leve"),
+        viz: fresh.length ? ui.ring(((fresh.length - over.length) / fresh.length) * 100) : "" }),
+      ui.kpi({ label: "O que pesa mais", value: worst ? cpu(worst.v) : null, sub: worst ? `${worst.who} · ${t(worst.label)} · ${t("limite")} ${cpu(worst.limit)}` : "",
+        viz: worst ? ui.ring(Math.min(100, (worst.v / worst.limit) * 100), { text: `${Math.round((worst.v / worst.limit) * 100)}%` }) : "", hint: t("O anel é a parte do limite que já gasta.") }),
+      ui.kpi({ label: "Limite", value: `${cpu(d.limits.hub)}`, sub: t("widget e Hub parados · janela grande {n}", { n: cpu(d.limits.web) }) }),
+    ]);
   }
 
   async function loadHealth() {

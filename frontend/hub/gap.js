@@ -19,7 +19,7 @@
       ${ui.head("Trading", t("Gap da manhã"), t("O gap das 09:00 de Frankfurt (08:00 em Portugal), que o gráfico do Hub não mostra. Chega-te quando abre e outra vez quando o preço volta ao fecho anterior."),
         `<div class="gp-ctl" id="gp-ctl"></div>`)}
       <div class="gp-msg" id="gp-msg" hidden></div>
-      <div class="bd-kpis gp-kpis" id="gp-kpis"></div>
+      <div class="gp-kpis" id="gp-kpis"></div>
       <div id="gp-hero-h"></div>
       <section class="panel gp-hero" id="gp-hero"></section>
       <div id="gp-others"></div>
@@ -62,11 +62,16 @@
   function paintKpis() {
     const main = S.cfg.main, st = S.stats[main] || {};
     const has = st.n > 0;
-    const kpi = (l, v, sub = "") => `<div class="panel bd-kpi"><span class="bd-l">${esc(l)}</span>${ui.num(v)}${sub ? `<small class="faint">${esc(sub)}</small>` : ""}</div>`;
-    paint($("gp-kpis"), kpi(t("Gaps de {s} guardados", { s: main }), has ? String(st.n) : null, has ? "" : t("O histórico enche-se dia a dia."))
-      + kpi(t("Fecharam"), has ? `${st.filled}<small> · ${st.rate}%</small>` : null, has ? t("o preço voltou ao fecho anterior") : "")
-      + kpi(t("Tempo até fechar"), st.mins != null ? `~${st.mins}<small> min</small>` : null, st.mins != null ? t("mediana dos que fecharam") : "")
-      + kpi(t("Gap médio"), st.avg_pct != null ? `${num(st.avg_pct, 2)}<small>%</small>` : null));
+    // the Painel's figures (hub/painel.css): the gaps of the main instrument, oldest first, as the small charts
+    const mine = (S.history || []).filter((g) => g.symbol === main).sort((p, q) => p.t - q.t).slice(-14);
+    paint($("gp-kpis"), ui.kpis([
+      ui.kpi({ label: t("Gaps de {s} guardados", { s: main }), value: has ? String(st.n) : null, viz: mine.length > 1 ? ui.cols(mine.map((g) => Math.abs(g.pct))) : "",
+        sub: has ? t("o tamanho dos últimos {n}", { n: mine.length }) : t("O histórico enche-se dia a dia.") }),
+      ui.kpi({ label: "Fecharam", value: has ? `${st.filled}<small>/${st.n}</small>` : null, viz: has ? ui.ring(st.rate) : "", sub: has ? t("o preço voltou ao fecho anterior") : "" }),
+      ui.kpi({ label: "Tempo até fechar", value: st.mins != null ? `~${st.mins}<small> min</small>` : null, sub: st.mins != null ? t("mediana dos que fecharam") : "" }),
+      ui.kpi({ label: "Gap médio", value: st.avg_pct != null ? `${num(st.avg_pct, 2)}<small>%</small>` : null,
+        viz: mine.length > 1 ? ui.spark(mine.map((g) => g.pct)) : "", sub: mine.length > 1 ? t("para cima e para baixo, dia a dia") : "" }),
+    ]).replace('class="pn-kpis"', 'class="pn-kpis gp-kpis-in"'));
   }
 
   // the main instrument: the last gap of today, big, with its chart

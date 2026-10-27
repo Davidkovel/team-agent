@@ -48,12 +48,23 @@
 
   HUB_VIEWS.galeria = async function () {
     page(`${ui.head("Skills", t("Galeria"), t("Os sites mais bonitos da web: abre, rouba a ideia e manda o pedido ao Claude."))}
+      <div id="gl-kpis"></div>
       <nav class="gl-seg" id="gl-seg"></nav>
       <div id="gl-body">${ui.skeleton()}</div>`);
     $("view").onclick = click;
     const r = await fetch(`hub/galeria/sites.json?v=${HUB_VERSION}`);
     if (!r.ok) throw new Error(t("Não consegui abrir a lista de sites."));
     S = await r.json();
+    // the Painel's row (hub/painel.css): the gallery in four figures, the kinds of site as columns
+    const by = (q) => S.filter((s) => s.quem === q).length, skills = new Set(S.map((s) => s.skill)), stack = {};
+    S.forEach((s) => s.stack.forEach((x) => { stack[x] = (stack[x] || 0) + 1; }));
+    const top = Object.entries(stack).sort((a, b) => b[1] - a[1])[0];
+    $("gl-kpis").innerHTML = ui.kpis([
+      ui.kpi({ label: "Sites na galeria", value: S.length, sub: t("{n} tipos", { n: TIPOS.length - 1 }), viz: ui.cols(TIPOS.slice(1).map(([id]) => S.filter((s) => s.tipo === id).length), { fat: true }) }),
+      ui.kpi({ label: "Escolhidos pelo Marco", value: by("marco"), viz: ui.ring(S.length ? (by("marco") / S.length) * 100 : null) }),
+      ui.kpi({ label: "Sugestões do Claude", value: by("claude"), viz: ui.ring(S.length ? (by("claude") / S.length) * 100 : null) }),
+      ui.kpi({ label: "Skills para os fazer", value: skills.size, sub: top ? t("mais usado: {x}", { x: top[0] }) : "" }),
+    ]);
     draw();
   };
 })();

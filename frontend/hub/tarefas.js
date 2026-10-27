@@ -854,7 +854,7 @@ const TQ_RISK = { low: ["ok", "Risco baixo"], medium: ["warn", "Risco médio"], 
 let tqApprAll = [];
 async function tqApprovals() {
   page(`${ui.head("Comando", t("Aprovações"), t("O que os agentes pedem para fazer antes de o fazerem. Enquanto não decides, o agente espera."))}
-    <div class="tq-stats three" id="tq-appr-stats"></div>
+    <div class="tq-kpis" id="tq-appr-stats"></div>
     <div id="tq-appr"></div>
     <div class="tq-appr-grid"><div>${ui.sec("Decididas nos últimos 30 dias")}<div id="tq-appr-done"></div></div>
       <div>${ui.sec("O que o agente pode fazer")}<div class="tq-rules">${TQ_RULES.map(([what, rule]) => `<div><span>${esc(t(what))}</span><em class="${TQ_RULE[rule][0]}">${esc(t(TQ_RULE[rule][1]))}</em></div>`).join("")}</div></div></div>`);
@@ -881,9 +881,14 @@ async function tqPaintApprovals() {
     tqApprAll = await api("/api/approvals");
     const pending = tqApprAll.filter((a) => a.status === "PENDING");
     const month = tqApprAll.filter((a) => a.status !== "PENDING" && a.decided_at && Date.now() - new Date(a.decided_at) < 30 * 864e5);
-    const cell = (value, label, sub, tone = "") => `<div class="tq-stat ${tone}"><b>${value}</b><span>${esc(t(label))}</span><small>${esc(t(sub))}</small></div>`;
-    paint($("tq-appr-stats"), cell(pending.length, "À espera", pending.length ? (me.lead ? "o agente está parado à tua espera" : "à espera do owner") : "nada por decidir", pending.length ? "warn" : "")
-      + cell(month.filter((a) => a.status === "APPROVED").length, "Aprovadas", "o agente seguiu") + cell(month.filter((a) => a.status === "REJECTED").length, "Recusadas", "o agente não o fez"));
+    // the Painel's figures (27 Oct): what waits, and the last 30 days of decisions day by day
+    const yes = month.filter((a) => a.status === "APPROVED"), no = month.filter((a) => a.status === "REJECTED");
+    paint($("tq-appr-stats"), ui.kpis([
+      ui.kpi({ label: "À espera", value: pending.length, cls: pending.length ? "warn" : "", sub: t(pending.length ? (me.lead ? "o agente está parado à tua espera" : "à espera do owner") : "nada por decidir") }),
+      ui.kpi({ label: "Aprovadas · 30 dias", value: yes.length, sub: t("o agente seguiu"), viz: ui.spark(series.byDay(yes, (a) => a.decided_at, 30).map((d) => d.value)) }),
+      ui.kpi({ label: "Recusadas · 30 dias", value: no.length, sub: t("o agente não o fez"), viz: ui.cols(series.byDay(no, (a) => a.decided_at, 14).map((d) => d.value)) }),
+      ui.kpi({ label: "Aprovação", value: month.length ? `${Math.round((yes.length / month.length) * 100)}%` : null, sub: t("dos pedidos decididos"),
+        viz: ui.ring(month.length ? (yes.length / month.length) * 100 : null) })]));
     paint($("tq-appr-done"), month.length ? `<div class="tq-list">${month.slice(0, 25).map((a) => `<div class="tq-row ${a.status === "APPROVED" ? "" : "late"}">
       <span class="tq-check done ${a.status === "APPROVED" ? "" : "no"}">${icon(a.status === "APPROVED" ? "tick" : "x")}</span>
       <div class="tq-main"><b>${esc(a.action)}</b><span class="tq-meta"><span>${esc(t(a.status === "APPROVED" ? "Aprovado" : "Recusado"))} ${esc(fmt.ago(a.decided_at))}</span><span>${esc(a.user_name)}</span></span></div>
@@ -904,7 +909,7 @@ async function tqPaintApprovals() {
 /* ---------------------------------------------------------------- Semana, in the same look */
 async function tqWeek() {
   page(`${ui.head("Comando", t("Semana"), t("O que ficou feito, o que está preso e o que vem a seguir."), ui.btn("Gerar relatório semanal", "id=week-report", "", "spark"))}
-    <div class="tq-stats four" id="tq-week-stats"></div><div id="week-ai"></div><div class="tq-week" id="tq-week"></div>
+    <div class="tq-kpis" id="tq-week-stats"></div><div id="week-ai"></div><div class="tq-week" id="tq-week"></div>
     ${ui.sec("Dia a dia")}<div id="week"></div>`);
   const showReport = (r) => {
     if (!r || !$("week-ai")) return;
@@ -936,11 +941,16 @@ async function tqPaintWeek() {
     const stuck = cards.filter((x) => x.stage === "blocked" || x.status === "WAITING_APPROVAL");
     const next = cards.filter((x) => x.stage !== "done" && !stuck.includes(x)).sort(tqOrder);
     const agents = done.filter((x) => x.crew).length;
-    const cell = (value, label, sub, tone = "") => `<div class="tq-stat ${tone}"><b>${value}</b><span>${esc(t(label))}</span><small>${esc(sub)}</small></div>`;
-    paint($("tq-week-stats"), cell(done.length, "Feitas esta semana", done.length ? t("{n} pelos agentes", { n: agents }) : t("ainda nenhuma"))
-      + cell(stuck.length, "Paradas", stuck.length ? t("precisam de alguém") : t("nada preso"), stuck.length ? "bad" : "")
-      + cell(next.length, "A seguir", next.filter(tqLate).length ? t("{n} atrasadas", { n: next.filter(tqLate).length }) : t("tudo a tempo"))
-      + cell(cards.filter((x) => tqWithAgent(x)).length, "Com os agentes", t("agora")));
+    // the Painel's figures (27 Oct): this week against the one before, day by day
+    const doneAll = cards.filter((x) => x.stage === "done" && tqDoneAt(x)), at = (x) => tqDoneAt(x);
+    const late = next.filter(tqLate).length;
+    paint($("tq-week-stats"), ui.kpis([
+      ui.kpi({ label: "Feitas esta semana", value: done.length, sub: done.length ? t("{n} pelos agentes", { n: agents }) : t("ainda nenhuma"),
+        delta: ui.delta(series.inPeriod(doneAll, at, 0, 7), series.inPeriod(doneAll, at, 7, 14), { label: t("7 dias contra os 7 antes") }),
+        viz: ui.cols(series.byDay(doneAll, at, 7).map((d) => d.value)) }),
+      ui.kpi({ label: "Paradas", value: stuck.length, cls: stuck.length ? "bad" : "", sub: stuck.length ? t("precisam de alguém") : t("nada preso") }),
+      ui.kpi({ label: "A seguir", value: next.length, sub: late ? t("{n} atrasadas", { n: late }) : t("tudo a tempo"), viz: ui.ring(next.length ? ((next.length - late) / next.length) * 100 : null) }),
+      ui.kpi({ label: "Com os agentes", value: cards.filter((x) => tqWithAgent(x)).length, sub: t("agora") })]));
     const col = (title, list, tone, empty) => `<section class="tq-grp ${tone}"><h3><span>${esc(t(title))}</span><i>${list.length}</i></h3>
       ${list.length ? `<div class="tq-list">${list.slice(0, 8).map((x) => tqRow(x)).join("")}</div>${list.length > 8 ? `<a class="tq-next" href="#/tarefas">${t("Mais {n} em Tarefas", { n: list.length - 8 })}${icon("chevron")}</a>` : ""}`
         : `<p class="tq-col-none">${esc(t(empty))}</p>`}</section>`;

@@ -14,7 +14,7 @@
 
 /* ---------- the day's figures */
 .rb-kpi .num small { color: var(--muted); font-size: .6em; }
-.rb-kpi > small { line-height: 1.4; }
+.rb-kpi .num .up { color: var(--ok); } .rb-kpi .num .down { color: var(--bad); }
 
 /* ---------- the accounts */
 .rb-accline { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; }

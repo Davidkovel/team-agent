@@ -80,7 +80,20 @@
   }
 
   // ---------------------------------------------------------------- drawing and loading
-  function drawList() { if ($("ms-list")) paint($("ms-list"), listHtml()); }
+  function drawList() { if ($("ms-list")) paint($("ms-list"), listHtml()); drawDash(); }
+  // the Painel's row (hub/painel.css), small so the conversation keeps the screen: what waits for you and how the open one goes
+  function drawDash() {
+    if (!$("ms-dash") || !S) return;
+    const c = conv(peer), days = series.byDay(msgs, (m) => m.at, 14), mine = msgs.filter((m) => m.from === S.me).length;
+    const newest = S.conversations.filter((x) => x.last).sort((a, b) => String(b.last.at).localeCompare(String(a.last.at)))[0];
+    paint($("ms-dash"), ui.kpis([
+      ui.kpi({ label: "Por ler", value: S.unread || 0, sub: S.unread ? t("em {n} conversas", { n: S.conversations.filter((x) => x.unread).length }) : t("estás em dia") }),
+      ui.kpi({ label: c ? t("Com {n}", { n: c.name }) : "Esta conversa", value: msgs.length, sub: t("mensagens · {n} tuas", { n: mine }),
+        viz: msgs.length ? ui.cols(days.map((d) => d.value)) : "", delta: msgs.length ? ui.delta(series.inPeriod(msgs, (m) => m.at, 0, 7), series.inPeriod(msgs, (m) => m.at, 7, 14), { label: t("últimos 7 dias contra os 7 antes") }) : "" }),
+      ui.kpi({ label: "Última mensagem", value: newest ? fmt.ago(newest.last.at) : null, sub: newest ? t("de {n}", { n: newest.last.from === S.me ? t("ti") : newest.last.from_name }) : "" }),
+      ui.kpi({ label: "Conversas", value: S.conversations.length, sub: t("a equipa e cada pessoa"), viz: ui.ring(S.conversations.length ? (S.conversations.filter((x) => x.last).length / S.conversations.length) * 100 : null) }),
+    ]));
+  }
   function drawThread(keepInput = true) {
     const box = $("ms-thread");
     if (!box) return;
@@ -90,6 +103,7 @@
     const input = $("ms-in");
     if (input) { input.value = typed; grow(input); }
     if (atEnd && $("ms-body")) $("ms-body").scrollTop = $("ms-body").scrollHeight;
+    drawDash();
   }
   function grow(input) { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 200) + "px"; }
   async function loadList() {
@@ -151,6 +165,7 @@
     S = S || null; msgs = []; asking = null;
     peer = r.company || null;
     page(`${ui.head("", t("Mensagens"), t("Fala com a equipa: contas, comandos, o que for. Quem recebe vê logo um aviso no Hub, no widget e no telemóvel."))}
+      <div class="ms-dash" id="ms-dash"></div>
       <div class="ms ${peer ? "has-peer" : ""}" id="ms"><nav class="ms-list" id="ms-list">${ui.skeleton(4)}</nav><section class="ms-thread" id="ms-thread"></section></div>`);
     $("view").onclick = click;
     $("ms-thread").addEventListener("submit", send);

@@ -480,3 +480,21 @@ button.tcheck:disabled { opacity: .5; cursor: progress; }
 @keyframes nt-ping { 0% { box-shadow: 0 0 0 0 rgba(var(--who-rgb, 238, 245, 255), .65); } 100% { box-shadow: 0 0 0 12px rgba(var(--who-rgb, 238, 245, 255), 0); } }
 @media (max-width: 900px) { .nt:has(.nt-more) { grid-template-columns: minmax(0, 1fr); } .nt-more { padding-left: 0; border-left: 0; } }
 @media (prefers-reduced-motion: reduce) { .nt.enter, .nt.enter .nt-light, .nt-dot { animation: none; } }
+
+/* ---------------------------------------------------------------- the four figures as the Painel's (27 out, hub/painel.css)
+   Same order and same clicks; the cards are the big soft ones of every page, and the first (Para hoje) is the lit, chrome one. */
+.hub .stats { gap: 14px; }
+.hub .stats .stat { min-height: 96px; padding: 18px 20px; border-radius: var(--pn-r); background: var(--pn-card); border: 1px solid var(--pn-edge); box-shadow: var(--pn-shadow);
+  transition: transform .25s var(--ease), border-color .2s, background .2s; }
+.hub .stats .stat::before { display: none; }
+.hub .stats .stat b { font: 650 34px/1 var(--display); letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.hub .stats .stat > span:last-child { font: 550 12.5px var(--ui); letter-spacing: -.005em; text-transform: none; color: #8d949e; }
+.hub .stats .stat.lit:not(.hot) { background: var(--pn-card-hi); border-color: rgba(255, 255, 255, .14); }
+.hub .stats .stat:first-child:not(.hot) { background: var(--pn-hero); border-color: rgba(255, 255, 255, .7);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 24px 50px -28px rgba(214, 224, 240, .55), 0 0 0 1px rgba(0, 0, 0, .4); }
+.hub .stats .stat:first-child:not(.hot) b { color: var(--pn-ink); }
+.hub .stats .stat:first-child:not(.hot) > span:last-child { color: var(--pn-ink-2); }
+.hub .stats .stat:first-child:not(.hot) .stat-ic { background: var(--pn-ink); color: #f4f6f8; box-shadow: none; }
+.hub .stats .stat.lit.hot { border-radius: var(--pn-r); }
+html.is-phone .hub .stats .stat { min-height: 0; padding: 14px 15px; border-radius: 18px; }
+html.is-phone .hub .stats .stat b { font-size: 26px; }

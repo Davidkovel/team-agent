@@ -1,0 +1,214 @@
+/* =====================================================================
+   Painel: the dashboard finish over every page (27 out 2026).
+   Marco sent a retail dashboard («Corbel Supply Co.») and asked for that organisation on every page of the Hub, «algo que
+   brilha», for companies: big soft cards, the first figure of a row lit up, a small chart inside every figure, the change
+   as a green or red chip, pill tabs, a floating sidebar. Its organisation, not its colours (feedback-hub-look): the Hub
+   stays black AMG, and what is black in theirs is chrome in ours. Loaded last, after ios-type.css.
+   The components that draw the charts are in ui.js (ui.kpi, ui.spark, ui.cols, ui.ring, ui.gauge, ui.trend, ui.bars).
+   ===================================================================== */
+:root {
+  --pn-r: 22px; --pn-r-sm: 14px;
+  --pn-card: linear-gradient(180deg, #15181d 0%, #0e1013 100%);
+  --pn-card-hi: linear-gradient(180deg, #1a1e24 0%, #111317 100%);
+  --pn-edge: rgba(255, 255, 255, .065);
+  --pn-hero: linear-gradient(165deg, #ffffff 0%, #eef1f4 38%, #d5dae0 100%);
+  --pn-ink: #0b0c0e; --pn-ink-2: #555c66;
+  --pn-up: #5fd58f; --pn-dn: #ff7d6b;
+  --pn-shadow: inset 0 1px 0 rgba(255, 255, 255, .045), 0 22px 44px -30px rgba(0, 0, 0, .9);
+}
+
+/* ---------------------------------------------------------------- the room: a soft light from above, like a studio */
+html:not(.is-phone) .hub > main {
+  background:
+    radial-gradient(1100px 420px at 50% -120px, rgba(214, 224, 240, .085), transparent 72%),
+    radial-gradient(800px 360px at 100% 0%, rgba(196, 216, 255, .04), transparent 70%),
+    var(--bg);
+}
+
+/* ---------------------------------------------------------------- the sidebar floats, like the rail in theirs */
+html:not(.is-phone) .hub { grid-template-columns: 248px minmax(0, 1fr); }
+html:not(.is-phone) .hub.collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+html:not(.is-phone) .hside { height: calc(100vh - 24px); margin: 12px 0 12px 12px; border-radius: 24px; padding: 16px 10px 10px;
+  background: linear-gradient(180deg, #101216, #090a0c); border: 1px solid var(--pn-edge); box-shadow: var(--pn-shadow); }
+html:not(.is-phone) .side-link { border-radius: 10px; padding: 7px 9px; }
+html:not(.is-phone) .side-link.active { background: rgba(255, 255, 255, .09); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+html:not(.is-phone) .side-link.active::before { left: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; }
+html:not(.is-phone) .side-search { border-radius: 12px; padding: 8px 10px; }
+html:not(.is-phone) .hub.paneled #hpanel { height: calc(100vh - 24px); margin: 12px 12px 12px 0; border-radius: 24px; border: 1px solid var(--pn-edge);
+  background: linear-gradient(180deg, #101216, #090a0c); box-shadow: var(--pn-shadow); }
+
+/* ---------------------------------------------------------------- the tabs of an entry: a pill bar, the open one lit */
+html:not(.is-phone) .subtabs { display: flex; width: fit-content; max-width: 100%; gap: 2px; margin: 0 auto 22px; padding: 4px; border: 1px solid var(--pn-edge);
+  border-radius: 999px; background: rgba(255, 255, 255, .035); box-shadow: var(--pn-shadow); overflow-x: auto; scrollbar-width: none; }
+html:not(.is-phone) .subtabs a { margin: 0; padding: 7px 15px; border: 0; border-radius: 999px; color: #9aa1aa; font: 550 13px var(--ui); white-space: nowrap;
+  transition: background .2s var(--ease), color .2s; }
+html:not(.is-phone) .subtabs a:hover { color: #fff; background: rgba(255, 255, 255, .05); }
+html:not(.is-phone) .subtabs a.on { color: var(--pn-ink); background: var(--pn-hero); box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 6px 18px -8px rgba(230, 236, 244, .45); }
+html:not(.is-phone) .subtabs a.on::after { display: none; }
+html:not(.is-phone) .subtabs a.on .badge { background: var(--pn-ink); color: #fff; }
+
+/* ---------------------------------------------------------------- the head of a page: big title, the live count on the right */
+html:not(.is-phone) .ph { align-items: center; margin-bottom: 22px; }
+html:not(.is-phone) .ph h1 { font-size: 34px; letter-spacing: -.032em; }
+.pn-live { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--pn-edge);
+  background: rgba(255, 255, 255, .04); color: #c9ced5; font: 550 12px var(--ui); white-space: nowrap; }
+.pn-live b { color: #fff; font-weight: 650; font-variant-numeric: tabular-nums; }
+.pn-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--pn-up); box-shadow: 0 0 0 3px rgba(95, 213, 143, .16), 0 0 10px rgba(95, 213, 143, .6); }
+.pn-live.off i { background: var(--idle); box-shadow: none; }
+
+/* ---------------------------------------------------------------- filters: pills on a track */
+.segx { padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, .04); border: 1px solid var(--pn-edge); }
+.segx button { height: 28px; padding: 0 14px; border-radius: 999px; transition: background .2s var(--ease), color .2s; }
+.segx button.on { background: linear-gradient(180deg, #343941, #22262c); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 2px 8px rgba(0, 0, 0, .5); }
+html:not(.is-phone) .btn { border-radius: 999px; padding: 0 16px; }
+html:not(.is-phone) .btn.sm { padding: 0 12px; }
+
+/* ---------------------------------------------------------------- cards: bigger, softer, with a light on the top edge */
+.hub .panel { border-radius: var(--pn-r); background: var(--pn-card); border-color: var(--pn-edge); box-shadow: var(--pn-shadow); }
+.hub .panel.pad { padding: 18px 20px; }
+.hub .panel.hover:hover { background: var(--pn-card-hi); border-color: rgba(255, 255, 255, .12); transform: translateY(-2px); }
+.hub .sec { margin-top: 26px; }
+
+/* ---------------------------------------------------------------- the row of figures on top of a page */
+.hub .pn-kpis, .hub .vw-kpis, .hub .bd-kpis, .hub .ey-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.hub .pn-kpi, .hub .vw-kpi, .hub .bd-kpi, .hub .ey-kpi { position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 132px; padding: 18px 20px 16px;
+  overflow: hidden; color: inherit; text-decoration: none; transition: transform .25s var(--ease), border-color .2s, background .2s; }
+.hub .pn-kpi::before, .hub .vw-kpi::before, .hub .bd-kpi::before { display: none; }
+.hub .pn-kpi > small, .hub .vw-kpi > small, .hub .bd-kpi .bd-l, .hub .pn-l { display: flex; align-items: center; gap: 6px; color: #8d949e; font: 550 12.5px/1.3 var(--ui);
+  letter-spacing: -.005em; text-transform: none; }
+.hub .pn-kpi .num, .hub .vw-kpi .num, .hub .bd-kpi .num { white-space: nowrap; font-size: 32px; line-height: 1; color: #f6f7f9; letter-spacing: -.035em; }
+.hub .pn-kpi .num.none, .hub .vw-kpi .num.none, .hub .bd-kpi .num.none { font: 500 15px var(--ui); color: var(--faint); letter-spacing: 0; min-height: 32px; display: flex; align-items: center; }
+.hub .pn-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; min-width: 0; }
+.hub .pn-row > :first-child { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; flex: none; max-width: 100%; }
+.hub .pn-viz { flex: 0 1 auto; min-width: 0; max-width: 55%; display: flex; align-items: flex-end; justify-content: flex-end; overflow: hidden; color: #dfe4ea; }
+.hub .pn-viz .pn-spark { max-width: 100%; }
+.hub .pn-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: auto; color: #7c838d; font-size: 12px; line-height: 1.35; min-width: 0; }
+.hub .pn-foot em { font-style: normal; min-width: 0; overflow-wrap: anywhere; }
+.hub .pn-foot .src { margin-left: auto; }
+.hub .pn-go { margin-left: auto; color: #aeb5be; font-weight: 550; white-space: nowrap; }
+.hub a.pn-kpi:hover .pn-go, .hub a.vw-kpi:hover .pn-go { color: #fff; }
+
+/* the lit one: the first figure of a row, chrome where theirs is black */
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) {
+  background: var(--pn-hero); border-color: rgba(255, 255, 255, .7); color: var(--pn-ink);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 24px 50px -28px rgba(214, 224, 240, .55), 0 0 0 1px rgba(0, 0, 0, .4);
+}
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) :is(small, .bd-l, .pn-l, .pn-foot, .pn-foot em, .vw-sub, .vw-sub em, .faint, .fn-ksub, .src) { color: var(--pn-ink-2); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) :is(.num, b, .pn-go) { color: var(--pn-ink); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .num.none { color: var(--pn-ink-2); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-viz { color: var(--pn-ink); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-delta.up { background: rgba(10, 120, 60, .14); color: #0b6b37; }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-delta.dn { background: rgba(180, 40, 20, .12); color: #a3301c; }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-delta.eq { background: rgba(0, 0, 0, .07); color: var(--pn-ink-2); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-spark .area { opacity: .16; }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-cols i { background: rgba(11, 12, 14, .22); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-cols i.hi { background: var(--pn-ink); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-ring circle:first-child { stroke: rgba(0, 0, 0, .1); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .pn-ring text { fill: var(--pn-ink); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain):is(a, .hover):hover { background: var(--pn-hero); filter: brightness(1.03); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .vw-bar { background: rgba(0, 0, 0, .1); }
+.hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child:not(.bad):not(.warn):not(.pn-plain) .vw-bar u { background: var(--pn-ink); }
+
+/* the change since the period before: a small chip, green up, red down */
+.hub .pn-delta { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; border-radius: 999px; font: 650 11px var(--ui);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hub .pn-delta svg { width: 10px; height: 10px; }
+.hub .pn-delta.up { background: rgba(95, 213, 143, .13); color: var(--pn-up); }
+.hub .pn-delta.dn { background: rgba(255, 125, 107, .13); color: var(--pn-dn); }
+.hub .pn-delta.eq { background: rgba(255, 255, 255, .07); color: #9aa1aa; }
+.hub .pn-delta.bad-up.up { background: rgba(255, 125, 107, .13); color: var(--pn-dn); }   /* a cost going up is not good news */
+.hub .pn-delta.bad-up.dn { background: rgba(95, 213, 143, .13); color: var(--pn-up); }
+
+/* ---------------------------------------------------------------- the small charts inside a figure */
+.hub .pn-spark { display: block; width: 116px; height: 38px; overflow: visible; color: inherit; }
+.hub .pn-spark .line { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.hub .pn-spark .area { fill: currentColor; opacity: .09; }
+.hub .pn-spark .prev { fill: none; stroke: currentColor; stroke-width: 1.2; stroke-dasharray: 3 3; opacity: .35; vector-effect: non-scaling-stroke; }
+.hub .pn-spark .dot { fill: currentColor; }
+.hub .pn-cols { display: flex; align-items: flex-end; gap: 3px; height: 38px; }
+.hub .pn-cols i { display: block; width: 5px; min-height: 2px; border-radius: 3px; background: rgba(255, 255, 255, .2); }
+.hub .pn-cols i.hi { background: #f4f6f8; box-shadow: 0 0 10px rgba(244, 246, 248, .35); }
+.hub .pn-cols.fat i { width: 11px; border-radius: 6px; }
+.hub .pn-ring { display: block; width: 50px; height: 50px; }
+.hub .pn-ring circle { fill: none; stroke-width: 4; }
+.hub .pn-ring circle:first-child { stroke: rgba(255, 255, 255, .1); }
+.hub .pn-ring circle + circle { stroke: currentColor; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.hub .pn-ring text { fill: #f4f6f8; font-family: var(--ui); font-size: 10px; font-weight: 650; letter-spacing: 0; text-anchor: middle; dominant-baseline: central; }
+
+/* ---------------------------------------------------------------- the big ones: gauge, trend line, columns */
+.hub .pn-gauge { display: grid; justify-items: center; gap: 4px; padding: 6px 0 2px; }
+.hub .pn-gauge svg { width: 100%; max-width: 300px; height: auto; overflow: visible; }
+.hub .pn-gauge .tick { stroke: rgba(255, 255, 255, .16); stroke-width: 2; stroke-linecap: round; }
+.hub .pn-gauge .tick.on { stroke: #e9edf1; }
+.hub .pn-gauge .track { fill: none; stroke: rgba(255, 255, 255, .07); stroke-width: 16; stroke-linecap: round; }
+.hub .pn-gauge .fill { fill: none; stroke: url(#pn-chrome); stroke-width: 16; stroke-linecap: round; }
+.hub .pn-gauge .knob { fill: #0b0c0e; stroke: #f4f6f8; stroke-width: 4; }
+.hub .pn-gauge .val { fill: #f6f7f9; font-family: var(--display); font-size: 40px; font-weight: 700; letter-spacing: -.03em; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.hub .pn-gauge .of { fill: #7c838d; font-family: var(--ui); font-size: 12px; font-weight: 500; letter-spacing: 0; text-anchor: middle; }
+.hub .pn-gauge > b { color: #f4f6f8; font: 650 15px var(--ui); }
+.hub .pn-gauge > p { margin: 0; color: #8d949e; font-size: 12.5px; text-align: center; max-width: 34ch; }
+
+.hub .pn-trend { position: relative; }
+.hub .pn-trend svg { display: block; width: 100%; height: 200px; overflow: visible; }
+.hub .pn-trend .grid { stroke: rgba(255, 255, 255, .06); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.hub .pn-trend .line { fill: none; stroke: #f1f3f6; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.hub .pn-trend .prev { fill: none; stroke: #8d949e; stroke-width: 1.4; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; opacity: .7; }
+.hub .pn-trend .area { fill: url(#pn-fade); }
+.hub .pn-trend-x { display: flex; justify-content: space-between; margin-top: 8px; color: #6b727b; font: 500 11px var(--ui); }
+.hub .pn-trend-y { position: absolute; left: 0; top: 0; bottom: 22px; display: flex; flex-direction: column; justify-content: space-between; color: #5d646d; font: 500 10.5px var(--ui); pointer-events: none; }
+.hub .pn-trend-hit { position: absolute; inset: 0 0 22px; display: flex; }
+.hub .pn-trend-hit > span { position: relative; flex: 1; }
+.hub .pn-trend-hit > span:hover::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, .18); }
+.hub .pn-tip { position: absolute; z-index: 3; bottom: calc(100% - 30px); left: 50%; transform: translate(-50%, -6px); display: none; min-width: 120px; padding: 8px 10px;
+  border-radius: 12px; background: #f4f6f8; color: var(--pn-ink); box-shadow: 0 14px 30px -10px rgba(0, 0, 0, .8); font: 500 11.5px/1.45 var(--ui); white-space: nowrap; pointer-events: none; }
+.hub .pn-tip b { display: block; font-weight: 700; }
+.hub .pn-trend-hit > span:hover .pn-tip, .hub .pn-bars > div:hover .pn-tip { display: block; }
+.hub .pn-legend { display: flex; gap: 14px; color: #8d949e; font-size: 12px; }
+.hub .pn-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.hub .pn-legend i { width: 16px; height: 2px; background: #f1f3f6; }
+.hub .pn-legend i.prev { background: repeating-linear-gradient(90deg, #8d949e 0 4px, transparent 4px 7px); }
+
+/* columns with the stripes of theirs; the open period lit in chrome */
+.hub .pn-bars { display: flex; align-items: flex-end; gap: 10px; height: 190px; padding-top: 6px; }
+.hub .pn-bars > div { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; height: 100%; min-width: 0; }
+.hub .pn-bars > div > i { display: block; width: 100%; max-width: 40px; min-height: 4px; border-radius: 999px;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .16) 0 2px, rgba(255, 255, 255, .04) 2px 6px); border: 1px solid rgba(255, 255, 255, .09);
+  transition: background .2s; }
+.hub .pn-bars > div:hover > i { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .3) 0 2px, rgba(255, 255, 255, .08) 2px 6px); }
+.hub .pn-bars > div.hi > i { background: linear-gradient(180deg, #ffffff, #b9c0c8); border-color: transparent; box-shadow: 0 0 24px rgba(230, 236, 244, .3); }
+.hub .pn-bars > div > span { color: #6b727b; font: 500 11px var(--ui); white-space: nowrap; }
+.hub .pn-bars > div.hi > span { color: #f4f6f8; }
+.hub .pn-bars .pn-tip { bottom: auto; top: 0; }
+
+/* a card with a dark heart: the gauge, a big figure */
+.hub .pn-split { display: grid; grid-template-columns: minmax(280px, .9fr) minmax(0, 2fr); gap: 14px; }
+.hub .pn-card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; color: #c9ced5; font: 600 13.5px var(--ui); }
+.hub .pn-card-h small { color: #7c838d; font: 500 12px var(--ui); }
+.hub .pn-big { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 12px; }
+.hub .pn-big .num { font-size: 34px; }
+/* a split bar: online vs in store in theirs, here any share of two */
+.hub .pn-share { display: grid; gap: 10px; }
+.hub .pn-share-top { display: flex; justify-content: space-between; align-items: baseline; }
+.hub .pn-share-top b { font: 650 22px var(--display); letter-spacing: -.03em; }
+.hub .pn-share-top small { color: #7c838d; margin-left: 5px; }
+.hub .pn-share-bar { display: flex; gap: 4px; height: 10px; }
+.hub .pn-share-bar i { display: block; border-radius: 999px; background: #f1f3f6; }
+.hub .pn-share-bar i + i { background: rgba(255, 255, 255, .22); }
+
+.hub @media (max-width: 1100px) { .hub .pn-split { grid-template-columns: 1fr; } }
+html.is-phone .hub .pn-split { grid-template-columns: 1fr; gap: 10px; }
+
+/* ---------------------------------------------------------------- phone: two figures a line, the lit one across */
+html.is-phone .hub .pn-kpis, html.is-phone .hub .vw-kpis, html.is-phone .hub .bd-kpis, html.is-phone .hub .ey-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+html.is-phone .hub :is(.pn-kpis, .vw-kpis, .bd-kpis, .ey-kpis) > :first-child { grid-column: 1 / -1; }
+html.is-phone .hub .pn-kpi, html.is-phone .hub .vw-kpi, html.is-phone .hub .bd-kpi, html.is-phone .hub .ey-kpi { min-height: 0; padding: 14px 15px 13px; }
+html.is-phone .hub .pn-kpi .num, html.is-phone .hub .vw-kpi .num, html.is-phone .hub .bd-kpi .num { font-size: 26px; }
+html.is-phone .hub .pn-kpis > :not(:first-child) .pn-viz { display: none; }
+html.is-phone .hub .pn-bars { gap: 5px; height: 150px; }
+html.is-phone .hub .pn-bars > div > span { font-size: 9.5px; }
+html.is-phone .hub .panel { border-radius: 18px; }
+
+@media (prefers-reduced-motion: reduce) { .pn-kpi, .vw-kpi, .bd-kpi, .subtabs a, .segx button { transition: none; } }
+/* the Hub's icons give every svg a stroke: the words inside a chart have none */
+.pn-gauge text, .pn-ring text { stroke: none; }
+html.is-phone .hub :is(.pn-kpi, .vw-kpi, .bd-kpi) .num.none { font: 500 14px var(--ui); letter-spacing: 0; min-height: 26px; }

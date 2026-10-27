@@ -81,3 +81,8 @@ html.is-phone .rf-sr { display: none; }
 html.is-phone .rf-state { padding: 16px; }
 html.is-phone .rf-state-t b { font-size: 22px; }
 html.is-phone .rf-t td, html.is-phone .rf-t th { padding-right: 6px; white-space: normal; }
+
+/* the Painel on top (27 out) */
+.rf-kpis { margin-bottom: 14px; }
+.rf-kpis .num small { color: var(--muted); font-size: .55em; }
+.rf-kpis .num .up { color: var(--ok); } .rf-kpis .num .down { color: var(--bad); }

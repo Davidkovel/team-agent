@@ -716,7 +716,7 @@ HUB_VIEWS.tarefas = async function (r) {
   page(`${ui.head("Comando", t("Tarefas"), t("Cada sócio tem a sua cor, e as tuas dizem TU. Carrega numa pessoa para ver só as dela."),
     `<div class="segx" id="task-view">${[["pessoas", "Por pessoa"], ["lista", "Por prazo"], ["quadro", "Quadro"]].map(([v, l]) => `<button data-view="${v}" class="${v === taskView ? "on" : ""}">${t(l)}</button>`).join("")}</div>
     ${ui.btn("Nova tarefa", "data-new-task", "primary", "plus")}`)}
-    <div class="pstrip" id="task-people"></div><div class="chipbar" id="task-filter"></div><div class="board" id="board"></div><div class="bin" id="bin"></div>`);
+    <div id="task-kpis" class="tk-kpis"></div><div class="pstrip" id="task-people"></div><div class="chipbar" id="task-filter"></div><div class="board" id="board"></div><div class="bin" id="bin"></div>`);
   const view = $("view");
   view.onclick = (e) => {
     if (e.target.closest("[data-new-task]")) return newTask();
@@ -799,11 +799,35 @@ HUB_VIEWS.tarefas = async function (r) {
     try { await api(`/api/tasks/${dragged.dataset.id}`, { method: "PATCH", body: { status } }); } catch (err) { flash(err.message); }
     loadBoard();
   });
+  loadTaskKpis();
   await loadBoard();
   const linked = Number(r.company) || openTask;
   if (linked) { openTask = null; openTaskModal(linked); }
 };
 onLive(["task", "tick"], loadBoard);
+/* The Painel's row of figures over the tasks (27 Oct): only on top, the board and the lists stay as they were (24 Oct). */
+async function loadTaskKpis() {
+  if (!$("task-kpis")) return;
+  await mount($("task-kpis"), async () => {
+    const all = (await api("/api/tasks")).filter((x) => !x.trashed_at);
+    const isOpen = (x) => !["COMPLETED", "STOPPED"].includes(x.status);
+    const open = all.filter(isOpen), doneAt = (x) => (x.status === "COMPLETED" ? x.completed_at : null);
+    const late = open.filter((x) => x.deadline && new Date(x.deadline) < new Date());
+    const today = open.filter((x) => x.deadline && sameDay(x.deadline));
+    const done7 = series.inPeriod(all, doneAt, 0, 7), made7 = series.inPeriod(all, (x) => x.created_at, 0, 7);
+    return kpiRow([
+      kpi("Abertas", open.length, { sub: t("{n} criadas nos últimos 7 dias", { n: made7 }),
+        delta: ui.delta(made7, series.inPeriod(all, (x) => x.created_at, 7, 14), { label: t("criadas, contra a semana antes") }),
+        viz: ui.spark(series.byDay(all, (x) => x.created_at, 14).map((d) => d.value)) }),
+      kpi("Concluídas · 7 dias", done7, { sub: t("{n} hoje", { n: all.filter((x) => doneAt(x) && sameDay(x.completed_at)).length }),
+        delta: ui.delta(done7, series.inPeriod(all, doneAt, 7, 14), { label: t("contra a semana antes") }),
+        viz: ui.cols(series.byDay(all, doneAt, 7).map((d) => d.value)) }),
+      kpi("Para hoje", today.length, { sub: today.length ? today.slice(0, 2).map((x) => x.title).join(" · ") : t("nada com prazo hoje") }),
+      ui.kpi({ label: "Atrasadas", value: late.length, cls: `vw-kpi ${late.length ? "bad" : ""}`, sub: late.length ? t("passaram do prazo") : t("tudo dentro do prazo"),
+        viz: ui.ring(open.length ? (late.length / open.length) * 100 : null) })]);
+  }, 2);
+}
+onLive(["task", "tick"], loadTaskKpis);
 
 /* ================================================================ approvals */
 // The policy the agent follows (agent/team_agent/permissions/policy.py) is said in plain words on the page (tarefas.js, TQ_RULES).
@@ -827,12 +851,11 @@ pagesCss();   // asked for as the Hub opens, so these pages never show without t
 // Tokens as the Escritório says them: 524k, 1,2M
 const tok = (n) => (n == null ? null : n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(".", ",")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
 // A figure on top of a page: the label in small capitals, the number in serif, and under it a short line and where it comes from.
-function kpi(label, value, { sub = "", src = "", href = "" } = {}) {
-  const tag = href ? "a" : "div";
-  return `<${tag} class="panel pad vw-kpi${href ? " hover" : ""}"${href ? ` href="${href}"` : ""}><small>${esc(t(label))}</small>${ui.num(value)}${sub || src
-    ? `<span class="vw-sub">${sub ? `<em>${esc(sub)}</em>` : ""}${src ? ui.src(src) : ""}</span>` : ""}</${tag}>`;
+// Since 27 Oct it is the Painel's figure (ui.kpi, hub/painel.css): delta is the change chip, viz a small chart, go the link.
+function kpi(label, value, { sub = "", src = "", href = "", delta = "", viz = "", go = "" } = {}) {
+  return ui.kpi({ label, value, sub, src, href, delta, viz, go, cls: "vw-kpi" });
 }
-const kpiRow = (cards) => `<div class="vw-kpis">${cards.join("")}</div>`;
+const kpiRow = (cards) => `<div class="vw-kpis pn-kpis">${cards.join("")}</div>`;
 const limitTone = (pct) => (pct == null ? "none" : pct >= 90 ? "bad" : pct >= 75 ? "warn" : "");
 const bar = (pct, tone = "") => `<i class="vw-bar ${tone}"><u style="width:${Math.max(0, Math.min(100, Number(pct) || 0)).toFixed(1)}%"></u></i>`;
 const sameDay = (iso) => !!iso && new Date(iso).toDateString() === new Date().toDateString();
@@ -918,10 +941,19 @@ async function loadAgentsPage() {
     const subs = wins.flatMap((s) => s.agents || []).filter((x) => sameDay(x.started_at));
     const today = wins.filter((s) => sameDay(s.updated_at)).reduce((n, s) => n + winTokens(s), 0);
     return kpiRow([
-        kpi("Agentes ligados", `${on.length}/${agents.length}`, { sub: on.length ? on.map((a) => a.display_name).join(", ") : t("nenhum agente automático ligado") }),
-        kpi("Janelas do Claude", office ? live.length : null, { sub: t("{n} a trabalhar agora", { n: live.filter((s) => s.state === "working").length }), href: "#/escritorio" }),
-        kpi("Subagentes hoje", office ? subs.length : null, { sub: t("{n} a correr", { n: subs.filter((x) => x.state === "working").length }) }),
-        kpi("Tokens hoje", office ? tok(today) || "0" : null, { src: office ? "live" : "not_connected", href: "#/uso" })])
+        kpi("Agentes ligados", `${on.length}/${agents.length}`, { sub: on.length ? on.map((a) => a.display_name).join(", ") : t("nenhum agente automático ligado"),
+          viz: ui.ring((on.length / agents.length) * 100) }),
+        kpi("Janelas do Claude", office ? live.length : null, { sub: t("{n} a trabalhar agora", { n: live.filter((s) => s.state === "working").length }), href: "#/escritorio",
+          viz: office ? ui.cols(series.byDay(wins, (s) => s.started_at, 7).map((d) => d.value)) : "" }),
+        kpi("Subagentes hoje", office ? subs.length : null, { sub: t("{n} a correr", { n: subs.filter((x) => x.state === "working").length }),
+          viz: office ? ui.cols(series.byDay(wins.flatMap((s) => s.agents || []), (x) => x.started_at, 7).map((d) => d.value)) : "" }),
+        kpi("Tokens hoje", office ? tok(today) || "0" : null, { src: office ? "live" : "not_connected", href: "#/uso",
+          viz: office ? ui.spark(series.byDay(wins, (s) => s.updated_at, 7, winTokens).map((d) => d.value)) : "" })])
+      + (office && wins.length ? `<div class="pn-split" style="margin-top:14px">
+          <div class="panel pad"><div class="pn-card-h">${t("Janelas a trabalhar")}<small>${t("agora")}</small></div>
+            ${ui.gauge(live.filter((s) => s.state === "working").length, Math.max(1, live.length), { text: String(live.filter((s) => s.state === "working").length), of: t("de {n} abertas", { n: live.length }) })}</div>
+          <div class="panel pad"><div class="pn-card-h">${t("Tokens do Claude por dia")}<small>${t("pelo dia em que a janela mexeu pela última vez")}</small></div>
+            ${ui.bars(series.byDay(wins, (s) => s.updated_at, 7, winTokens), { fmtV: (v) => `${tok(v) || "0"} tokens` })}</div></div>` : "")
       + ui.sec("Agente automático de cada um") + `<div class="vw-agents">${agents.map((a) => agentCard(a, wins)).join("")}</div>`
       + ui.sec("Janelas do Claude abertas", `<a class="vw-link" href="#/escritorio">${t("Ver no Escritório")}${icon("chevron")}</a>`)
       + (live.length ? `<div class="panel vw-wins">${live.map((s) => winRow(s, true)).join("")}</div>`
@@ -1040,6 +1072,20 @@ async function teamData() {
     planLimits(), api("/api/tasks").catch(() => []), api("/api/analytics/ranking").catch(() => null)]);
   return { team, agents, office, limits, tasks: tasks.filter((x) => !x.trashed_at), rank };
 }
+// the heart of Equipa: who carried the week (tasks done per person, from the Hub) beside the Claude of each one this week
+function teamHeart(d, online, busy) {
+  const done = d.tasks.filter((x) => x.stage === "done");
+  const per = d.team.map((m) => ({ label: m.display_name, value: series.inPeriod(done.filter((x) => x.assignee === m.user), (x) => x.completed_at, 0, 7) }));
+  const total = per.reduce((n, p) => n + p.value, 0);
+  const rank = d.rank?.week || [];
+  return `<div class="pn-split" style="margin-top:14px">
+    <div class="panel pad"><div class="pn-card-h">${t("Equipa ao trabalho")}<small>${t("agora")}</small></div>
+      ${ui.gauge(busy.size, d.team.length || 1, { text: `${busy.size}/${d.team.length}`, of: t("a trabalhar · {n} online", { n: online.length }) })}</div>
+    <div class="panel pad"><div class="pn-card-h">${total || !rank.some((p) => p.commits) ? t("Tarefas feitas por pessoa") : t("Commits por pessoa")}<small>${total || !rank.some((p) => p.commits) ? t("{n} nos últimos 7 dias", { n: total }) : t("esta semana")}</small></div>
+      ${total ? ui.bars(per, { hi: per.reduce((b, p, i) => (p.value > per[b].value ? i : b), 0), fmtV: (v) => t(v === 1 ? "1 tarefa" : "{n} tarefas", { n: v }) })
+        : rank.some((p) => p.commits) ? ui.bars(rank.map((p) => ({ label: p.name, value: p.commits })), { hi: 0, fmtV: (v) => t(v === 1 ? "1 commit" : "{n} commits", { n: v }) })
+        : ui.empty("tick", "Ninguém fechou tarefas esta semana")}</div></div>`;
+}
 async function loadTeamPage() {
   if (!$("team-grid")) return;
   await mount($("team-grid"), async () => {
@@ -1055,10 +1101,15 @@ async function loadTeamPage() {
     const order = [...d.team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || busy.has(b.user) - busy.has(a.user)
       || isMe(b.user) - isMe(a.user) || a.display_name.localeCompare(b.display_name));
     return kpiRow([
-        kpi("Online agora", `${online.length}/${d.team.length}`, { sub: online.map((m) => m.display_name).join(", ") || t("ninguém") }),
-        kpi("A trabalhar", busy.size, { sub: t("numa tarefa ou com o Claude") }),
-        kpi("Janelas do Claude", d.office ? open.length : null, { sub: t("{n} a trabalhar", { n: open.filter((s) => s.state === "working").length }), href: "#/escritorio" }),
-        kpi("Feito hoje", did, { sub: commits == null ? t("tarefas concluídas") : t("tarefas · {n} commits", { n: commits }), href: "#/historico" })])
+        kpi("Online agora", `${online.length}/${d.team.length}`, { sub: online.map((m) => m.display_name).join(", ") || t("ninguém"),
+          viz: ui.ring(d.team.length ? (online.length / d.team.length) * 100 : null) }),
+        kpi("A trabalhar", busy.size, { sub: t("numa tarefa ou com o Claude"), viz: ui.ring(d.team.length ? (busy.size / d.team.length) * 100 : null) }),
+        kpi("Janelas do Claude", d.office ? open.length : null, { sub: t("{n} a trabalhar", { n: open.filter((s) => s.state === "working").length }), href: "#/escritorio",
+          viz: d.office ? ui.cols(series.byDay(wins, (s) => s.started_at || s.updated_at, 7).map((x) => x.value)) : "" }),
+        kpi("Feito hoje", did, { sub: commits == null ? t("tarefas concluídas") : t("tarefas · {n} commits", { n: commits }), href: "#/historico",
+          delta: ui.delta(did, d.tasks.filter((x) => x.stage === "done" && x.completed_at && sameDay(new Date(new Date(x.completed_at).getTime() + 864e5))).length, { label: t("contra ontem") }),
+          viz: ui.spark(series.byDay(d.tasks.filter((x) => x.stage === "done"), (x) => x.completed_at, 14).map((x) => x.value)) })])
+      + teamHeart(d, online, busy)
       + ui.sec("Pessoas") + `<div class="vw-people">${order.map((m) => personCard(m, d)).join("")}</div>`;
   }, 6);
 }
@@ -1152,6 +1203,22 @@ function feedClicks(e, draw) {
 
 const seenActivity = new Set();
 let liveFirst = true, liveData = null;
+/* The Painel's figures over Ao vivo and Histórico (27 Oct): the lines of the timeline counted, the presence comings and
+   goings left out. live = today against yesterday; otherwise the last 7 days against the 7 before, day by day. */
+// today hour by hour, from the first hour with something to now (Ao vivo only has today)
+function hourly(list) {
+  const hours = list.map((i) => new Date(i.at).getHours()), from = Math.min(new Date().getHours(), ...hours), to = new Date().getHours();
+  return Array.from({ length: to - from + 1 }, (_, k) => hours.filter((h) => h === from + k).length).slice(-12);
+}
+function feedKpis(items, live) {
+  const work = items.filter((i) => !i.presence), of = (cat) => work.filter((i) => i.cats?.includes(cat)), at = (i) => i.at;
+  const card = (label, list, sub) => live
+    ? kpi(label, list.filter((i) => sameDay(i.at)).length, { sub, viz: ui.cols(hourly(list.filter((i) => sameDay(i.at)))) })
+    : kpi(label, series.inPeriod(list, at, 0, 7), { sub, delta: ui.delta(series.inPeriod(list, at, 0, 7), series.inPeriod(list, at, 7, 14), { label: t("contra a semana antes") }),
+      viz: ui.spark(series.byDay(list, at, 14).map((d) => d.value)) });
+  return kpiRow([card(live ? "Hoje" : "Registos · 7 dias", work, live ? t("hora a hora") : t("tarefas, código, IA e aprovações")), card("Commits", of("code"), t("do git")),
+    card("Tarefas", of("tasks"), t("criadas, mexidas e feitas")), card("IA", of("ai"), t("o que os agentes fizeram"))]);
+}
 function liveHtml() {
   const items = liveData.items;
   if (!items.length) return ui.empty("pulse", "Sem atividade hoje", "O que as pessoas e os agentes fizerem aparece aqui no momento em que acontece: tarefas, commits, janelas do Claude, aprovações.",
@@ -1205,12 +1272,13 @@ async function loadLive() {
     return liveHtml();
   }, 8);
   if (side && $("live-side")) paint($("live-side"), liveSide(side));
+  if (liveData && $("live-kpis")) paint($("live-kpis"), feedKpis(liveData.items, true));
 }
 HUB_VIEWS.aovivo = async function () {
   liveFirst = true;
   await pagesCss();
   page(`${ui.head("Equipa", t("Ao vivo"), t("O que está a acontecer hoje, à medida que acontece."), `${modeSeg()}<span class="st busy"><i></i>${t("Em direto")}</span>`)}
-    <div class="detail vw-live"><div class="panel" id="live-feed"></div><aside class="stack" id="live-side"></aside></div>`);
+    <div id="live-kpis" class="vw-feedkpis"></div><div class="detail vw-live"><div class="panel" id="live-feed"></div><aside class="stack" id="live-side"></aside></div>`);
   $("view").onclick = (e) => feedClicks(e, () => liveData && paint($("live-feed"), liveHtml()));
   await loadLive();
 };
@@ -1238,6 +1306,7 @@ async function loadHistoryPage() {
     } else { rows = await api("/api/history?limit=300"); historyMore = false; }   // a Hub from before /api/analytics/feed
     const byId = new Map(rows.map((a) => [a.id, a]));
     historyData = [...[...byId.values()].map((a) => feedItem(a)), ...commits.map(commitItem)].sort((a, b) => new Date(b.at) - new Date(a.at));
+    paint($("history-kpis"), feedKpis(historyData, false));
     return historyHtml();
   }, 8);
 }
@@ -1253,7 +1322,7 @@ HUB_VIEWS.historico = async function () {
   historyOlder = [];
   await pagesCss();
   page(`${ui.head("Equipa", t("Histórico"), t("Uma só linha do tempo: pessoas, IA, tarefas, código e aprovações."), modeSeg())}
-    <div class="chipbar" id="history-cats"></div><div class="panel" id="history-feed"></div>`);
+    <div id="history-kpis" class="vw-feedkpis"></div><div class="chipbar" id="history-cats"></div><div class="panel" id="history-feed"></div>`);
   const draw = () => historyData && paint($("history-feed"), historyHtml());
   $("view").onclick = (e) => {
     if (feedClicks(e, draw)) return;
@@ -1294,9 +1363,17 @@ async function loadProjects() {
       leadOnly(`<button class="btn sm" data-new-project>${t("Criar o primeiro projeto")}</button>`))}</div>`;
     const sum = (k) => projects.reduce((n, p) => n + (p[k] || 0), 0);
     const active = projects.filter((p) => p.status === "active").length;
-    return kpiRow([kpi("Projetos ativos", active, { sub: t(projects.length === 1 ? "de 1 projeto" : "de {n} projetos", { n: projects.length }) }),
-        kpi("Tarefas abertas", sum("open_tasks"), { sub: t("nos projetos"), href: "#/tarefas" }), kpi("Concluídas", sum("done_tasks"), { sub: t("nos projetos") }),
+    const open = sum("open_tasks"), done = sum("done_tasks");
+    const byProject = projects.filter((p) => p.open_tasks + p.done_tasks).sort((a, b) => (b.open_tasks + b.done_tasks) - (a.open_tasks + a.done_tasks)).slice(0, 10);
+    return kpiRow([kpi("Projetos ativos", active, { sub: t(projects.length === 1 ? "de 1 projeto" : "de {n} projetos", { n: projects.length }), viz: ui.ring((active / projects.length) * 100) }),
+        kpi("Tarefas abertas", open, { sub: t("nos projetos"), href: "#/tarefas" }), kpi("Concluídas", done, { sub: t("nos projetos"), viz: ui.ring(open + done ? (done / (open + done)) * 100 : null) }),
         kpi("A trabalhar", sum("active_sessions"), { sub: t("agentes numa tarefa de um projeto"), href: "#/agentes" })])
+      + (open + done ? `<div class="pn-split" style="margin-top:14px">
+          <div class="panel pad"><div class="pn-card-h">${t("Feito nos projetos")}<small>${t("todas as tarefas")}</small></div>
+            ${ui.gauge(Math.round((done / (open + done)) * 100), 100, { text: `${Math.round((done / (open + done)) * 100)}%`, of: t("{a} de {b} tarefas", { a: done, b: open + done }) })}</div>
+          <div class="panel pad"><div class="pn-card-h">${t("Tarefas por projeto")}<small>${t("abertas e concluídas")}</small></div>
+            ${ui.bars(byProject.map((p) => ({ label: p.name.length > 12 ? `${p.name.slice(0, 11)}…` : p.name, value: p.open_tasks + p.done_tasks,
+              tip: t("{a} abertas · {b} concluídas", { a: p.open_tasks, b: p.done_tasks }) })), { hi: 0 })}</div></div>` : "")
       + ui.sec("Todos os projetos", `<span class="faint">${projects.length}</span>`)
       + `<div class="vw-projects">${projects.map(projectCard).join("")}${leadOnly(`<button type="button" class="vw-add" data-new-project>${icon("plus")}<b>${t("Novo projeto")}</b>
         <span>${t("Junta tarefas, agentes e custo de uma coisa grande num só sítio.")}</span></button>`)}</div>`;
@@ -1376,15 +1453,39 @@ async function loadAnalytics() {
   if (!$("analytics")) return;
   let a = null;
   await mount($("analytics"), async () => {
-    a = await api(`/api/analytics?days=${analyticsDays}`);
+    const n = analyticsDays;
+    let tasks, commits, claudeUse;
+    [a, tasks, commits, claudeUse] = await Promise.all([api(`/api/analytics?days=${n}`), api("/api/tasks").catch(() => []), api("/api/commits?limit=100").catch(() => null),
+      api(`/api/analytics/claude?days=${Math.min(n, 7)}`).catch(() => null)]);
     const people = a.people?.list || [], cd = a.people?.claude_days;
-    const claude = a.people ? people.reduce((n, p) => n + p.claude_tokens, 0) : null;
+    const claude = a.people ? people.reduce((k, p) => k + p.claude_tokens, 0) : null;
     const live = a.code.source === "live";
-    return kpiRow([
-        kpi("Commits", live ? a.code.commits : null, { sub: live ? t("+{a} −{d} linhas", { a: fmt.int(a.code.added), d: fmt.int(a.code.deleted) }) : "", src: live ? "" : a.code.source, href: "#/codigo" }),
-        kpi("Concluídas", a.team.tasks_completed, { sub: t("tarefas · {n} criadas", { n: a.team.tasks_created }), href: "#/tarefas" }),
-        kpi("Tokens do Claude", claude == null ? null : tok(claude) || "0", { sub: cd && cd < analyticsDays ? t("só os últimos {n} dias", { n: cd }) : t("janelas do Claude Code"), href: "#/uso" }),
-        kpi("Pessoas online", `${a.team.active_users}/${a.team.people}`, { sub: t("{n} tarefas abertas", { n: a.team.tasks_open }), href: "#/equipa" })])
+    // day by day and the period before, from the records themselves (the last 100 commits: the period before only when they reach back that far)
+    const doneAt = (x) => (x.status === "COMPLETED" ? x.completed_at : null);
+    const doneDays = series.byDay(tasks, doneAt, n), commitDays = series.byDay(commits, (c) => c.date, n);
+    const commitsReach = commits?.length && commits.length < 100 || (commits?.length && new Date(commits[commits.length - 1].date) < Date.now() - 2 * n * 864e5);
+    const tokDays = claudeUse ? claudeUse.dates.map((d) => claudeUse.people.reduce((k, p) => k + (p.by_day[d] || 0), 0)) : null;
+    const share = a.team.tasks_completed + a.team.tasks_open ? Math.round((a.team.tasks_completed / (a.team.tasks_completed + a.team.tasks_open)) * 100) : null;
+    const top = kpiRow([
+        kpi("Commits", live ? a.code.commits : null, { sub: live ? t("+{a} −{d} linhas", { a: fmt.int(a.code.added), d: fmt.int(a.code.deleted) }) : "", src: live ? "" : a.code.source, href: "#/codigo",
+          delta: live && commitsReach ? ui.delta(a.code.commits, series.inPeriod(commits, (c) => c.date, n, 2 * n), { label: t("contra os {n} dias antes", { n }) }) : "",
+          viz: live ? ui.cols(commitDays.slice(-12).map((d) => d.value)) : "" }),
+        kpi("Concluídas", a.team.tasks_completed, { sub: t("tarefas · {n} criadas", { n: a.team.tasks_created }), href: "#/tarefas",
+          delta: ui.delta(a.team.tasks_completed, series.inPeriod(tasks, doneAt, n, 2 * n), { label: t("contra os {n} dias antes", { n }) }),
+          viz: ui.spark(doneDays.map((d) => d.value)) }),
+        kpi("Tokens do Claude", claude == null ? null : tok(claude) || "0", { sub: cd && cd < n ? t("só os últimos {n} dias", { n: cd }) : t("janelas do Claude Code"), href: "#/uso",
+          viz: tokDays ? ui.spark(tokDays) : "" }),
+        kpi("Pessoas online", `${a.team.active_users}/${a.team.people}`, { sub: t("{n} tarefas abertas", { n: a.team.tasks_open }), href: "#/equipa",
+          viz: ui.ring(a.team.people ? (a.team.active_users / a.team.people) * 100 : null) })]);
+    // the heart of the page, as in theirs: how far the team got (gauge) beside what it did day by day (columns)
+    const heart = `<div class="pn-split" style="margin-top:14px">
+        <div class="panel pad"><div class="pn-card-h">${t("Ritmo da equipa")}<small>${t("últimos {n} dias", { n })}</small></div>
+          ${share == null ? ui.empty("tick", "Sem tarefas neste período") : ui.gauge(share, 100, { text: `${share}%`, of: t("das tarefas fechadas") })}
+          <p class="faint" style="margin:6px 0 0;text-align:center;font-size:12.5px">${share == null ? "" : t("{a} concluídas e {b} ainda abertas.", { a: a.team.tasks_completed, b: a.team.tasks_open })}</p></div>
+        <div class="panel pad"><div class="pn-card-h">${live ? t("Commits por dia") : t("Tarefas concluídas por dia")}
+          <small>${live ? t("{n} no período", { n: a.code.commits }) : t("{n} no período", { n: a.team.tasks_completed })}</small></div>
+          ${ui.bars((live ? commitDays : doneDays).slice(-14), { fmtV: (v) => (live ? t(v === 1 ? "1 commit" : "{n} commits", { n: v }) : t(v === 1 ? "1 tarefa" : "{n} tarefas", { n: v })) })}</div></div>`;
+    return top + heart
       + (people.length ? ui.sec(t(analyticsDays === 7 ? "Quem fez o quê · últimos 7 dias" : "Quem fez o quê · últimos {n} dias", { n: analyticsDays }),
         cd && cd < analyticsDays ? `<span class="faint vw-secnote">${t("O Claude só guarda {n} dias", { n: cd })}</span>` : "") + `<div class="vw-who">${people.map((p) => whoCard(p, people, cd)).join("")}</div>` : "");
   }, 6);
@@ -1476,9 +1577,14 @@ async function loadUsagePage() {
     const cost = ag ? ag.cost_usd : old?.cost_usd, costSrc = ag ? ag.cost_source : old?.cost_source;
     const maxDay = c ? Math.max(1, ...c.people.flatMap((p) => Object.values(p.by_day))) : 1;
     const people = c ? c.people.filter((p) => p.windows || p.agent_sessions) : [];
+    // tokens of every window, day by day (the Escritório keeps a week): the line in the figures and yesterday for the chip
+    const perDay = c ? c.dates.map((d) => c.people.reduce((n, p) => n + (p.by_day[d] || 0), 0)) : null;
     return kpiRow([
-        kpi("Tokens hoje", w ? tok(w.today) || "0" : null, { sub: t("janelas do Claude Code"), src: w ? "live" : "not_connected", href: "#/escritorio" }),
-        kpi("Tokens · 7 dias", w || agentTokens ? tok((w?.tokens || 0) + agentTokens) : null, { sub: w ? t("{a} janelas · {b} sessões do agente", { a: w.count, b: ag.sessions }) : "", src: w ? w.source : old?.source }),
+        kpi("Tokens hoje", w ? tok(w.today) || "0" : null, { sub: t("janelas do Claude Code"), src: w ? "live" : "not_connected", href: "#/escritorio",
+          delta: perDay && perDay.length > 1 ? ui.delta(w.today, perDay[perDay.length - 2], { label: t("contra ontem") }) : "",
+          viz: perDay ? ui.cols(perDay) : "" }),
+        kpi("Tokens · 7 dias", w || agentTokens ? tok((w?.tokens || 0) + agentTokens) : null, { sub: w ? t("{a} janelas · {b} sessões do agente", { a: w.count, b: ag.sessions }) : "", src: w ? w.source : old?.source,
+          viz: perDay ? ui.spark(perDay) : "" }),
         kpi("Janelas abertas", w ? w.working : null, { sub: w ? t("{n} subagentes esta semana", { n: w.subagents }) : "", href: "#/agentes" }),
         kpi("Custo do agente", cost == null ? null : fmt.usd(cost), { sub: t("7 dias · o Claude Code vai no plano"), src: costSrc })])
       + ui.sec("Limites do plano", `<span class="faint vw-secnote">${t("como cada PC os leu da última vez")}</span>`)
@@ -1526,7 +1632,14 @@ async function loadExpenses() {
     const monthName = new Date(`${e.month}-15T12:00:00`).toLocaleDateString("pt-PT", { month: "long" });
     const ai = e.ai_cost;
     const register = leadOnly(`<button class="btn sm" data-new-expense>${t("Registar despesa")}</button>`);
-    const top = kpiRow([kpi(`${t("Registado em")} ${monthName}`, month.length ? moneyText(moneyOf(month)) : null, { sub: t(month.length === 1 ? "1 movimento" : "{n} movimentos", { n: month.length }) }),
+    // month by month in the currency most used (sums of different currencies are not added up), the last 6 months
+    const cur = Object.entries(e.items.reduce((m, x) => ({ ...m, [x.currency]: (m[x.currency] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const months = Array.from({ length: 6 }, (_, i) => { const d = new Date(`${e.month}-15T12:00:00`); d.setMonth(d.getMonth() - 5 + i); return d.toISOString().slice(0, 7); });
+    const perMonth = months.map((m) => e.items.filter((x) => x.currency === cur && String(x.spent_on).startsWith(m)).reduce((n, x) => n + x.amount, 0));
+    const oneCur = cur && month.every((x) => x.currency === cur);
+    const top = kpiRow([kpi(`${t("Registado em")} ${monthName}`, month.length ? moneyText(moneyOf(month)) : null, { sub: t(month.length === 1 ? "1 movimento" : "{n} movimentos", { n: month.length }),
+        delta: oneCur && perMonth[4] ? ui.delta(perMonth[5], perMonth[4], { badUp: true, label: t("contra o mês antes") }) : "",
+        viz: cur && perMonth.some(Boolean) ? ui.cols(perMonth) : "" }),
       kpi("Desde sempre", e.items.length ? moneyText(moneyOf(e.items)) : null, { sub: t(e.items.length === 1 ? "1 movimento" : "{n} movimentos", { n: e.items.length }) }),
       kpi("Custo do agente", ai.total_usd == null ? null : fmt.usd(ai.total_usd), { src: ai.source, sub: t("7 dias · estimativa do SDK"), href: "#/uso" })]);
     const aiBlock = ui.sec("Custo de IA · 7 dias", ui.src(ai.source)) + (ai.people.length
@@ -1536,8 +1649,10 @@ async function loadExpenses() {
     if (!e.items.length) return top + ui.sec("Movimentos") + `<div class="panel">${ui.empty("wallet", "Ainda sem despesas registadas",
       "Regista o que a equipa paga: o plano do Claude, o Higgsfield, domínios, anúncios. Cada despesa fica com a data, a categoria e quem a registou. Não há ligação a bancos.", register)}</div>` + aiBlock;
     const sums = Object.keys(EXPENSE_CATS).map((cat) => [cat, month.filter((x) => x.category === cat)]);
+    const heart = cur && perMonth.some(Boolean) ? `<div class="panel pad" style="margin-top:14px"><div class="pn-card-h">${t("Mês a mês")}<small>${t("em {c}, os últimos 6 meses", { c: cur })}</small></div>
+      ${ui.bars(months.map((m, i) => ({ label: new Date(`${m}-15T12:00:00`).toLocaleDateString("pt-PT", { month: "short" }).replace(".", ""), value: perMonth[i], tip: fmt.money(perMonth[i], cur) })))}</div>` : "";
     const most = Math.max(1, ...sums.map(([, l]) => l.reduce((n, x) => n + x.amount, 0)));
-    return top + ui.sec(`${t("Por categoria")} · ${monthName}`) + `<div class="panel vw-cats">${sums.map(([cat, list]) => `<div class="vw-cat ${list.length ? "" : "none"}">
+    return top + heart + ui.sec(`${t("Por categoria")} · ${monthName}`) + `<div class="panel vw-cats">${sums.map(([cat, list]) => `<div class="vw-cat ${list.length ? "" : "none"}">
         <span class="vw-cat-ic">${icon(EXPENSE_ICON[cat])}</span><div><b>${t(EXPENSE_CATS[cat])}</b><span>${t(EXPENSE_HINT[cat])}</span></div>
         ${bar((list.reduce((n, x) => n + x.amount, 0) / most) * 100)}<em>${list.length ? esc(moneyText(moneyOf(list))) : "—"}</em></div>`).join("")}</div>`
       + ui.sec("Movimentos", `<span class="faint">${e.items.length}</span>`)
@@ -1638,7 +1753,23 @@ async function loadMemory() {
     for (const scope of new Set(memoryAll.filter((m) => m.scope_id).map((m) => m.scope))) for (const [id, name] of await memoryTargets(scope).catch(() => [])) memoryNames[`${scope}:${id}`] = name;
     return "";
   }, 5);
-  if (!$("memory")?.querySelector(".err")) renderMemory();   // a failed load keeps its error and Tentar outra vez
+  if (!$("memory")?.querySelector(".err")) { renderMemory(); paintMemoryKpis(); }   // a failed load keeps its error and Tentar outra vez
+}
+// the Painel over the notes (27 Oct): how many there are, what changed this week, and the themes they fall in
+function paintMemoryKpis() {
+  if (!$("memory-kpis") || !memoryAll.length) return paint($("memory-kpis"), "");
+  const at = (m) => m.updated_at, week = series.inPeriod(memoryAll, at, 0, 7);
+  const cats = Object.entries(memoryAll.reduce((o, m) => ({ ...o, [memCat(m)]: (o[memCat(m)] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1]);
+  const nice = (c) => c.charAt(0) + c.slice(1).toLowerCase();
+  const tasks = memoryAll.filter((m) => memCat(m) === "TAREFAS").length;
+  paint($("memory-kpis"), kpiRow([
+    kpi("Notas", memoryAll.length, { sub: t("o que a IA lê antes de cada tarefa"), viz: ui.spark(series.byDay(memoryAll, at, 14).map((d) => d.value)) }),
+    kpi("Mexidas · 7 dias", week, { sub: t("escritas ou reescritas"), delta: ui.delta(week, series.inPeriod(memoryAll, at, 7, 14), { label: t("contra a semana antes") }),
+      viz: ui.cols(series.byDay(memoryAll, at, 7).map((d) => d.value)) }),
+    kpi("Temas", cats.length, { sub: cats.slice(0, 3).map(([c, n]) => `${nice(c)} ${n}`).join(" · ") }),
+    kpi("Tarefas lembradas", tasks, { sub: t("notas TAREFAS dos agentes"), viz: ui.ring((tasks / memoryAll.length) * 100) })])
+    + `<div class="panel pad" style="margin:14px 0 18px"><div class="pn-card-h">${t("Notas por tema")}<small>${t("{n} temas", { n: cats.length })}</small></div>
+      ${ui.bars(cats.slice(0, 12).map(([c, n]) => ({ label: nice(c).slice(0, 10), value: n, tip: t("{n} notas", { n }) })), { hi: 0 })}</div>`);
 }
 async function editMemory(existing) {
   // where a new note goes: one list of every place, starting on the tab that is open
@@ -1664,7 +1795,7 @@ HUB_VIEWS.memoria = async function () {
   memoryScope = "team";   // where a new note goes by default
   pagesCss();
   page(`${ui.head("Sistema", t("Memória"), t("O que a IA deve saber antes de começar. As mais recentes em cima; clica numa nota para a abrir."), ui.btn("Adicionar à memória", "data-new-memory", "primary", "plus"))}
-    <div class="mem-bar"><div class="mem-seg" id="memory-view"><button class="chp" data-view="recent">${t("Mais recentes")}</button><button class="chp" data-view="topic">${t("Por tema")}</button></div>
+    <div id="memory-kpis" class="mem-kpis"></div><div class="mem-bar"><div class="mem-seg" id="memory-view"><button class="chp" data-view="recent">${t("Mais recentes")}</button><button class="chp" data-view="topic">${t("Por tema")}</button></div>
       <label class="mem-search">${icon("search")}<input id="memory-q" type="search" placeholder="${esc(t("Procurar na memória"))}" value="${esc(memoryQuery)}"></label></div>
     <div class="chipbar" id="memory-cats"></div><div class="mem" id="memory"></div>`);
   $("memory-q").oninput = (e) => { memoryQuery = e.target.value; renderMemory(); };
@@ -1700,10 +1831,20 @@ HUB_VIEWS.codigo = async function () {
     const today = (commits || []).filter((c) => sameDay(c.date));
     const branches = tasks.filter((x) => x.git_branch && x.stage !== "done");
     const src = commits ? "live" : "not_connected";
+    const days = commits ? series.byDay(commits, (c) => c.date, 14) : null;
+    const authors = commits ? Object.entries(commits.reduce((o, c) => ({ ...o, [c.author]: (o[c.author] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1]) : [];
+    const repoList = Object.values(repos).sort((a, b) => b.commits - a.commits);
     return kpiRow([kpi("Repositórios", commits ? Object.keys(repos).length : null, { src, sub: commits ? Object.keys(repos).slice(0, 3).join(", ") : "" }),
-        kpi("Commits recentes", commits ? commits.length : null, { src, sub: commits?.length ? t("o último {q}", { q: fmt.ago(commits[0].date) }) : "" }),
-        kpi("Commits hoje", commits ? today.length : null, { sub: today.length ? [...new Set(today.map((c) => c.author))].join(", ") : t("ainda nenhum") }),
+        kpi("Commits recentes", commits ? commits.length : null, { src, sub: commits?.length ? t("o último {q}", { q: fmt.ago(commits[0].date) }) : "", viz: days ? ui.spark(days.map((d) => d.value)) : "" }),
+        kpi("Commits hoje", commits ? today.length : null, { sub: today.length ? [...new Set(today.map((c) => c.author))].join(", ") : t("ainda nenhum"),
+          delta: days ? ui.delta(today.length, days[days.length - 2].value, { label: t("contra ontem") }) : "", viz: days ? ui.cols(days.slice(-7).map((d) => d.value)) : "" }),
         kpi("Branches abertos", branches.length, { sub: t("tarefas com um branch de git"), href: "#/tarefas" })])
+      + (commits?.length ? `<div class="pn-split" style="margin-top:14px">
+          <div class="panel pad"><div class="pn-card-h">${t("Quem e onde")}<small>${t("os últimos {n} commits", { n: commits.length })}</small></div>
+            ${authors.length > 1 ? ui.share({ label: authors[0][0], value: authors[0][1] }, { label: authors.length > 2 ? t("os outros") : authors[1][0], value: commits.length - authors[0][1] }) : ""}
+            <div style="margin-top:14px">${ui.bars(repoList.slice(0, 8).map((r) => ({ label: r.name.length > 11 ? `${r.name.slice(0, 10)}…` : r.name, value: r.commits, tip: `${r.name}: ${r.commits}` })), { hi: 0 })}</div></div>
+          <div class="panel pad"><div class="pn-card-h">${t("Commits por dia")}<small>${t("últimas 2 semanas")}</small></div>
+            ${ui.bars(days, { fmtV: (v) => t(v === 1 ? "1 commit" : "{n} commits", { n: v }) })}</div></div>` : "")
       + (branches.length ? `${ui.sec("Branches com trabalho")}<div class="panel rows">${branches.map((x) => `<a class="rw" href="#/tarefas/${x.id}"><span class="mono vw-branch">${esc(x.git_branch)}</span>
         <div class="rw-main"><b>${esc(x.title)}</b><span>${x.agent_role ? "Claude / " : ""}${esc(nameOf(x.assignee))}</span></div>${ui.tag(t(STAGE_LABEL[x.stage]), STAGE_TONE[x.stage])}</a>`).join("")}</div>` : "");
   }, 2);
@@ -1761,13 +1902,12 @@ HUB_VIEWS.empresas = async function (r) {
     anchor.insertAdjacentHTML("beforebegin", `<div id="co-over"></div>`);
     mount($("co-over"), async () => {
       const o = await api(`/api/companies/${company.id}/overview`);
-      const off = (label) => `<div class="panel statc"><span>${t(label)}</span><span class="num none">${t("Não ligado")}</span>${ui.src("not_connected")}</div>`;
-      return `<div class="co-over">${off("Receita")}${off("Encomendas")}${off("Tráfego")}${off("Conversão")}
-        <div class="panel statc"><span>${t("Anúncios (registado)")}</span>${ui.num(o.ad_spend.length ? o.ad_spend.map((s) => fmt.money(s.amount, s.currency)).join(" + ") : null, "sm")}</div>
-        <div class="panel statc"><span>${t("Custo de IA")}</span>${ui.num(o.ai_cost_usd == null ? null : fmt.usd(o.ai_cost_usd), "sm")}${o.ai_cost_usd == null ? "" : ui.src("estimated")}</div>
-        <a class="panel statc hover" href="#/tarefas"><span>${t("Tarefas abertas")}</span>${ui.num(o.open_tasks, "sm")}</a>
-        <a class="panel statc hover" href="#/projetos"><span>${t("Projetos")}</span>${ui.num(o.projects, "sm")}</a>
-        <a class="panel statc hover" href="#/memoria"><span>${t("Memória")}</span>${ui.num(o.memory, "sm")}</a></div>`;
+      // the Painel's row (27 Oct): what the Hub knows of the company; the shop's figures are said once as not connected
+      return kpiRow([kpi("Tarefas abertas", o.open_tasks, { href: "#/tarefas", go: "Ver" }), kpi("Projetos", o.projects, { href: "#/projetos", go: "Ver" }),
+          kpi("Memória", o.memory, { sub: t("notas desta empresa"), href: "#/memoria", go: "Ver" }),
+          kpi("Custo de IA", o.ai_cost_usd == null ? null : fmt.usd(o.ai_cost_usd), { src: o.ai_cost_usd == null ? "" : "estimated" }),
+          kpi("Anúncios", o.ad_spend.length ? o.ad_spend.map((s) => fmt.money(s.amount, s.currency)).join(" + ") : null, { sub: t("registado à mão") })])
+        + `<p class="faint" style="margin:10px 2px 18px;font-size:12px">${ui.src("not_connected")} ${t("Receita, encomendas, tráfego e conversão: a loja desta empresa ainda não está ligada ao Hub.")}</p>`;
     }, 2);
   }
   await done;
@@ -1845,7 +1985,7 @@ function pushHtml(c) {
 HUB_VIEWS.entregas = async function () {
   await pagesCss();
   page(`${ui.head("Trabalho", t("Entregas"), t("O que mudou em cada push: fotos, design, textos e código, cada coisa no seu sítio."))}
-    <div class="vw-filters"><div class="chipbar" id="push-who"></div><div class="chipbar" id="push-kind"></div></div>
+    <div id="push-kpis" class="push-kpis"></div><div class="vw-filters"><div class="chipbar" id="push-who"></div><div class="chipbar" id="push-kind"></div></div>
     <div class="push-list" id="push-list">${ui.skeleton(6)}</div>`);
   let all;
   try { all = await api("/api/commits?limit=60"); }
@@ -1854,6 +1994,15 @@ HUB_VIEWS.entregas = async function () {
     $("push-list").innerHTML = `<div class="panel">${ui.error(e.message)}</div>`;
     $("push-list").querySelector("[data-retry]").onclick = () => HUB_VIEWS.entregas();
     return;
+  }
+  // the Painel's figures (27 Oct): pushes day by day and what kind of thing they brought
+  if (all.length && $("push-kpis")) {
+    const n = (k) => all.filter((c) => c.kinds?.[k]).length, days = series.byDay(all, (c) => c.date, 14);
+    paint($("push-kpis"), kpiRow([
+      kpi("Pushes", all.length, { sub: t("o último {q}", { q: fmt.ago(all[0].date) }), viz: ui.spark(days.map((d) => d.value)) }),
+      kpi("Esta semana", series.inPeriod(all, (c) => c.date, 0, 7), { delta: ui.delta(series.inPeriod(all, (c) => c.date, 0, 7), series.inPeriod(all, (c) => c.date, 7, 14), { label: t("contra a semana antes") }),
+        sub: t("{n} hoje", { n: days[days.length - 1].value }), viz: ui.cols(days.slice(-7).map((d) => d.value)) }),
+      ...PUSH_KINDS.slice(0, 2).map(([k, label]) => kpi(`${t("Com")} ${t(label).toLowerCase()}`, n(k), { sub: t("dos últimos {n}", { n: all.length }), viz: ui.ring((n(k) / all.length) * 100) }))]));
   }
   const draw = () => {
     if (!$("push-list")) return;

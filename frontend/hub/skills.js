@@ -116,8 +116,29 @@
     paint($("sk-seg"), HALVES.map(([id, label]) => `<button type="button" data-half="${id}" class="${tab === id ? "on" : ""}">${esc(t(label))}<b>${S ? of(id).length : ""}</b></button>`).join(""));
     paint($("sk-by"), [["tema", "Tema"], ["dono", tab === "lib" ? "Agente" : "Origem"]].map(([id, label]) => `<button type="button" data-by="${id}" class="${by === id ? "on" : ""}">${esc(t(label))}</button>`).join(""));
     paint($("sk-sum"), S ? esc(summary()) : "");
+    paint($("sk-dash"), S ? dash() : "");
     paint($("sk-nav"), S ? themeNav(current()) : "");
     paint($("sk-body"), !S ? ui.skeleton(5) : tab === "lib" ? libPane() : morePane(tab));
+  }
+  // the Painel (hub/painel.css): the library in four figures, then the themes as columns beside who masters most
+  function dash() {
+    const lib = of("lib"), pc = of("pc"), shop = of("loja");
+    if (!lib.length) return "";
+    const owned = lib.filter((k) => (k.crew || []).length).length, themes = byTheme(lib);
+    const per = {};
+    lib.forEach((k) => (k.crew || []).forEach((id) => { per[id] = (per[id] || 0) + 1; }));
+    const ranked = Object.entries(per).sort((a, b) => b[1] - a[1]);
+    const theme = (g) => ({ label: g.name.split(" ")[0], value: g.list.length, tip: `${t(g.name)} · ${count(g.list.length)}` });
+    return ui.kpis([
+      ui.kpi({ label: "Na biblioteca", value: lib.length, sub: t("em {n} temas", { n: themes.length }), viz: ui.cols(themes.map((g) => g.list.length), { hi: 0 }) }),
+      ui.kpi({ label: "Com agente", value: owned, sub: owned === lib.length ? t("todas têm quem as domine") : t("{n} sem agente", { n: lib.length - owned }), viz: ui.ring((owned / lib.length) * 100) }),
+      ui.kpi({ label: "Neste PC", value: pc.length, sub: t("instaladas, por trazer"), href: "", cls: "sk-go", hint: t("Ver as deste PC") }).replace("<div ", '<div data-half="pc" '),
+      ui.kpi({ label: "Na loja", value: shop.length, sub: t("nos catálogos dos plugins"), cls: "sk-go" }).replace("<div ", '<div data-half="loja" '),
+    ]) + `<div class="pn-split sk-heart">
+      <div class="panel pad"><div class="pn-card-h">${esc(t("Quem domina mais"))}<small>${esc(t("skills por agente"))}</small></div>
+        ${ranked.length ? `<div class="sk-rank">${ranked.slice(0, 5).map(([id, n]) => { const c = castOf(id); return `<div><span class="ell">${esc(c ? c.name : id)}</span>
+          <i><u style="width:${(n / ranked[0][1]) * 100}%"></u></i><b>${n}</b></div>`; }).join("")}</div>` : ui.empty("users", "Nenhuma skill tem agente", "Abre uma skill e escolhe quem a domina.")}</div>
+      <div class="panel pad"><div class="pn-card-h">${esc(t("Skills por tema"))}<small>${esc(count(lib.length))}</small></div>${ui.bars(themes.map(theme), { hi: 0 })}</div></div>`;
   }
   function summary() {
     const lib = of("lib"), themes = new Set(lib.map((k) => k.tema));
@@ -253,6 +274,7 @@
     faces();
     page(`${ui.head("Empresa AMG", t("Skills"), "", `<form class="sk-get" id="sk-get" autocomplete="off"><label>${icon("link")}<input id="sk-url" placeholder="${esc(t("Cola um link do GitHub com skills"))}"></label><button class="btn primary" id="sk-go">${esc(t("Trazer"))}</button></form>`)}
       <p class="sk-sum" id="sk-sum"></p>
+      <div id="sk-dash"></div>
       <div class="sk-bar"><nav class="sk-seg" id="sk-seg"></nav><nav class="sk-seg sk-by" id="sk-by" aria-label="${esc(t("Arrumar por"))}"></nav><label class="sk-q">${icon("search")}<input id="sk-q" type="search" placeholder="${esc(t("Procurar skills"))}" value="${esc(q)}"></label></div>
       <nav class="sk-nav" id="sk-nav"></nav>
       <div class="sk-body" id="sk-body"></div>`);

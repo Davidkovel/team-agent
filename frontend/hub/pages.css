@@ -334,3 +334,7 @@ html.is-phone #worktree .file code { overflow-wrap: anywhere; font-size: 12px; }
 html.is-phone #worktree .file > span:last-child { font-size: 12px; }
 html.is-phone .vw-roles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 html.is-phone .vw-roles .panel { padding: 12px 14px; }
+
+/* the Painel rows put over a page (27 out): air under them */
+.tk-kpis, .mem-kpis, .push-kpis, .vw-feedkpis { margin-bottom: 18px; }
+.tk-kpis:empty, .mem-kpis:empty, .push-kpis:empty, .vw-feedkpis:empty { display: none; }

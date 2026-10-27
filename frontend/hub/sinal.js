@@ -111,6 +111,7 @@
       ${ui.head("Trading", t("Sinal na notícia"), t("BUY ou SELL em grande no segundo em que sai uma notícia de impacto alto, de qualquer moeda, comparada com a previsão do Forex Factory."),
         `<div class="sn-ctl" id="sn-ctl"></div>`)}
       <div class="sn-msg" id="sn-msg" hidden></div>
+      <div class="sn-kpis" id="sn-kpis"></div>
       <section class="sn-stage" id="sn-stage"></section>
       <div class="sn-grid">
         <section class="sn-card" id="sn-next"></section>
@@ -139,7 +140,7 @@
     try {
       S = await request("/api/sinal");   // not api(): its 3 s read cache would hide the figure
       at = Date.now();
-      paintStage(); paintNext(); paintDiary();
+      paintStage(); paintKpis(); paintNext(); paintDiary();
     } finally {
       if ($("sn")) timer = setTimeout(() => load().catch(() => {}), cadence());
     }
@@ -213,6 +214,26 @@
     }
   }
 
+  // The Painel's figures (hub/painel.css), from the diary of this PC: how many it read, how fast, which side, and the next one.
+  function paintKpis() {
+    const el = $("sn-kpis");
+    if (!el || !S) return;
+    const D = S.diary || [], at = (d) => d.t * 1000, nx = (S.next || [])[0];
+    const secs = D.filter((d) => d.sec != null).map((d) => d.sec).sort((p, q) => p - q);
+    const med = secs.length ? secs[Math.floor(secs.length / 2)] : null;
+    const above = D.filter((d) => d.outcome === "ABOVE").length, below = D.filter((d) => d.outcome === "BELOW").length;
+    const gold = D.filter((d) => d.move5 != null && (d.cur || "USD") === "USD"), right = gold.filter((d) => { const c = d.sides.GOLD; return c && (c === "BUY") === (d.move5 > 0); }).length;
+    paint(el, ui.kpis([
+      ui.kpi({ label: "Notícias lidas", value: D.length ? String(D.length) : null, delta: D.length ? ui.delta(series.inPeriod(D, at, 0, 7), series.inPeriod(D, at, 7, 14), { label: t("esta semana contra a anterior") }) : "",
+        viz: D.length ? ui.cols(series.byDay(D, at, 14).map((d) => d.value)) : "", sub: D.length ? t("neste PC, últimos 14 dias no gráfico") : t("Ainda nenhum sinal a sério neste PC.") }),
+      ui.kpi({ label: "Rapidez", value: med != null ? `${pt(med)}<small> s</small>` : null, viz: secs.length > 1 ? ui.spark(D.filter((d) => d.sec != null).map((d) => d.sec).reverse()) : "",
+        sub: med != null ? t("mediana do minuto até ao número") : "" }),
+      ui.kpi({ label: "Acima da previsão", value: above + below ? `${Math.round((above / (above + below)) * 100)}%` : null, viz: above + below ? ui.ring((above / (above + below)) * 100) : "",
+        sub: above + below ? t("{a} acima · {b} abaixo", { a: above, b: below }) : "" }),
+      gold.length ? ui.kpi({ label: "Ouro certo", value: `${right}/${gold.length}`, viz: ui.ring((right / gold.length) * 100), sub: t("o lado do sinal 5 min depois") })
+        : ui.kpi({ label: "Próxima", value: nx ? esc(when(nx.t)) : null, sub: nx ? `${nx.cur} · ${nx.label}` : t("Nada mais no calendário") }),
+    ]));
+  }
   function paintNext() {
     const rows = S.next.map((g) => {
       const s = asset(g), mini = (o) => { const c = side(g.scen[o][s]); return `<i class="${c}">${esc(t(o === "ABOVE" ? "acima" : "abaixo"))} → ${WORD[c]}</i>`; };

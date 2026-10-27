@@ -11,6 +11,8 @@
 .gp-ctl .st { margin-right: 4px; }
 .gp-msg { margin: 0 0 12px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .04); color: var(--text); font-size: 13px; }
 .gp-kpis .num small { color: var(--muted); font-size: .55em; }
+.gp-kpis { margin-bottom: 4px; }
+.gp-kpis .pn-kpis > :first-child .num small { color: var(--pn-ink-2); }
 
 /* ---------- today's gap */
 .gp-hero { padding: 18px 20px; min-width: 0; }
@@ -74,8 +76,7 @@ html.is-phone .gp .ph-actions, html.is-phone .gp-ctl { width: 100%; }
 html.is-phone .gp-ctl .st { flex-basis: 100%; margin: 0 0 2px; }
 html.is-phone .gp-ctl .btn { flex: 1; }
 html.is-phone .gp-sr { display: none; }
-html.is-phone .gp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-html.is-phone .gp-kpis .bd-kpi .num { font-size: 26px; }
+html.is-phone .gp-kpis .pn-kpi .num { font-size: 26px; }
 html.is-phone .gp .tbl.gp-table { display: table; }
 html.is-phone .gp-table td { white-space: normal; }
 html.is-phone .gp-hero { padding: 16px; }

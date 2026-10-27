@@ -36,7 +36,8 @@
       ${ui.head("Negócios", t("Fábrica Etsy"), t("Os agentes descobrem o que vende, desenham e escrevem o anúncio; tu aprovas e pões na Etsy. Nada é publicado sem ti."),
         `<div class="ey-ctl" id="ey-ctl"></div>`)}
       <div id="ey-body">
-        <section class="ey-kpis" id="ey-kpis">${ui.skeleton(2)}</section>
+        <section class="ey-kpis" id="ey-kpis"></section>
+        <section id="ey-heart"></section>
         <div id="ey-line-sec"></div>
         <section id="ey-line"></section>
         ${ui.sec("Desenhos", `<span class="ey-aside" id="ey-made"></span>`)}
@@ -105,14 +106,36 @@
   // os números de cima; carregar num deles mostra esses desenhos
   function paintKpis() {
     const n = S.counts, sales = S.sales.length;
-    const kpi = (label, value, sub, tab = "", tone = "") => `<div class="panel bd-kpi ey-kpi ${tab ? "hover" : ""} ${tone}" ${tab ? `data-tab="${tab}"` : ""}>
-      <span class="bd-l">${esc(t(label))}</span>${ui.num(value)}<small>${esc(sub)}</small></div>`;
+    // the Painel's figures (hub/painel.css); the dates of the fábrica are seconds
+    const ms = (x) => x.at * 1000, sold = (s) => s.amount;
+    const kpi = (label, value, sub, tab = "", tone = "", extra = {}) => ui.kpi({ label, value, sub, cls: `ey-kpi ${tab ? "hover" : ""} ${tone}`, ...extra })
+      .replace("<div ", `<div ${tab ? `data-tab="${tab}"` : ""} `);
+    const salesDays = series.byDay(S.sales, ms, 14, sold), madeDays = series.byDay(S.items, ms, 14);
     paint($("ey-kpis"), [
-      kpi("Vendas registadas", eur(S.revenue), sales ? t(sales === 1 ? "1 venda" : "{n} vendas", { n: sales }) : t("Ainda nenhuma venda registada"), "", S.revenue > 0 ? "money" : ""),
-      kpi("Para aprovar", n.new, n.new ? t("à espera da tua decisão") : t("nada à tua espera"), "new"),
+      kpi("Vendas registadas", eur(S.revenue), sales ? t(sales === 1 ? "1 venda" : "{n} vendas", { n: sales }) : t("Ainda nenhuma venda registada"), "", S.revenue > 0 ? "money" : "",
+        { delta: sales ? ui.delta(series.inPeriod(S.sales, ms, 0, 7, sold), series.inPeriod(S.sales, ms, 7, 14, sold), { label: t("últimos 7 dias contra os 7 antes") }) : "",
+          viz: sales ? ui.spark(salesDays.map((d) => d.value)) : "" }),
+      kpi("Para aprovar", n.new, n.new ? t("à espera da tua decisão") : t("nada à tua espera"), "new",
+        "", { viz: S.items.length ? ui.cols(madeDays.map((d) => d.value)) : "" }),
       kpi("Prontos a publicar", n.approved, t("aprovados, por pôr na Etsy"), "approved"),
-      kpi("Na Etsy", n.published, t("anúncios na loja"), "published"),
+      kpi("Na Etsy", n.published, t("anúncios na loja"), "published",
+        "", { viz: S.items.length ? ui.ring(((n.published || 0) / S.items.length) * 100) : "" }),
     ].join(""));
+    paintHeart(madeDays);
+  }
+
+  // the heart of the page: what the Revisão and you let through (gauge) beside the designs made day by day
+  function paintHeart(madeDays) {
+    const n = S.counts, good = (n.approved || 0) + (n.published || 0), bad = (n.blocked || 0) + (n.rejected || 0);
+    if (!S.items.length) { paint($("ey-heart"), ""); return; }
+    const cost = S.runs.reduce((k, r) => k + (r.cost || 0), 0), made = S.runs.reduce((k, r) => k + (r.made || 0), 0);
+    paint($("ey-heart"), `<div class="pn-split ey-heart">
+      <div class="panel pad"><div class="pn-card-h">${esc(t("Aproveitamento"))}<small>${esc(t("{n} desenhos decididos", { n: good + bad }))}</small></div>
+        ${good + bad ? ui.gauge(Math.round((good / (good + bad)) * 100), 100, { text: `${Math.round((good / (good + bad)) * 100)}%`, of: t("aprovados ou na Etsy") })
+          + `<div class="ey-heart-share">${ui.share({ label: t("passaram"), value: good }, { label: t("barrados ou recusados"), value: bad })}</div>`
+          : ui.empty("inbox", "Ainda nada decidido", "Aprova ou recusa os desenhos novos e o aproveitamento aparece aqui.", `<button type="button" class="btn sm" data-tab="new">${esc(t("Ver os desenhos"))}</button>`)}</div>
+      <div class="panel pad"><div class="pn-card-h">${esc(t("Desenhos por dia"))}<small>${esc(made ? t("{n} feitos · {c} estimados", { n: made, c: "$" + cost.toFixed(2) }) : t("últimos 14 dias"))}</small></div>
+        ${ui.bars(madeDays, { fmtV: (v) => t(v === 1 ? "1 desenho" : "{n} desenhos", { n: v }) })}</div></div>`);
   }
 
   // a linha de montagem: quem está a trabalhar agora, e o que cada um faz

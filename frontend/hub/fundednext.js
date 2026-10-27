@@ -155,14 +155,22 @@
     }
     const a = d.account, s = d.snap || {}, g = d.guard || {}, o = d.objectives || {};
     const size = o.size || a.size, total = s.equity - size;
-    const kpi = (l, v, sub = "", c = "") => `<div class="panel bd-kpi ${c}"><span class="bd-l">${esc(l)}</span>${ui.num(v)}${sub ? `<small class="fn-ksub">${sub}</small>` : ""}</div>`;
+    // the Painel's figures (hub/painel.css): equity lit, a chip with the change, the curve of the account in small
+    const chip = (v, text) => (v == null ? "" : `<span class="pn-delta ${v > 0 ? "up" : v < 0 ? "dn" : "eq"}">${esc(text)}</span>`);
+    const eqLine = (d.equity || []).map((p) => p[1]).concat((d.today || []).map((p) => p[1])).slice(-60);
+    const balLine = (d.curve || []).map((p) => p[1]).slice(-60);
+    const days = (d.days || []).slice(-10);
+    const daily = (o.items || []).find((i) => i.id === "daily");
     const tight = o.left_today != null && o.risk_money && o.left_today < o.risk_money;
-    paint($("fn-kpis"), kpi(t("Equity"), money(s.equity), `<span class="${cls(total)}">${signed(total)} · ${pct(size ? total / size * 100 : null)}</span> ${esc(t("desde o início"))}`)
-      + kpi(t("Saldo"), money(s.balance), `${esc(t("conta de"))} ${money(size, 0)} · 1:${esc(String(s.leverage || "—"))}`)
-      + kpi(t("Hoje"), `<span class="${cls(g.day_pnl)}">${signed(g.day_pnl)}</span>`, pct(size ? (g.day_pnl || 0) / size * 100 : null))
-      + kpi(t("Em aberto"), `<span class="${cls(s.open_pnl)}">${signed(s.open_pnl)}</span>`, `${(s.positions || []).length} ${esc(t("posições"))} · ${(s.orders || []).length} ${esc(t("ordens"))}`)
-      + kpi(t("Hoje ainda podes perder"), o.left_today != null ? money(o.left_today) : null,
-        g.why ? `<span class="warn">${esc(g.why)}</span>` : o.trades_left != null ? esc(t("{n} trades perdidas a {r}%", { n: o.trades_left, r: loc(risk, 2) })) : "", `fn-room ${tight ? "bad" : ""}`));
+    paint($("fn-kpis"), ui.kpi({ label: "Equity", value: money(s.equity), delta: chip(total, `${signed(total)} · ${pct(size ? total / size * 100 : null)}`),
+        viz: ui.spark(eqLine.length > 1 ? eqLine : balLine), sub: t("desde o início") })
+      + ui.kpi({ label: "Saldo", value: money(s.balance), viz: ui.spark(balLine), sub: `${t("conta de")} ${money(size, 0)} · 1:${s.leverage || "—"}` })
+      + ui.kpi({ label: "Hoje", value: `<span class="${cls(g.day_pnl)}">${signed(g.day_pnl)}</span>`, delta: chip(g.day_pnl, pct(size ? (g.day_pnl || 0) / size * 100 : null)),
+        viz: days.length > 1 ? ui.cols(days.map((x) => Math.abs(x.pnl))) : "", sub: days.length > 1 ? t("últimos {n} dias com trades", { n: days.length }) : "" })
+      + ui.kpi({ label: "Em aberto", value: `<span class="${cls(s.open_pnl)}">${signed(s.open_pnl)}</span>`, sub: `${(s.positions || []).length} ${t("posições")} · ${(s.orders || []).length} ${t("ordens")}` })
+      + ui.kpi({ label: "Hoje ainda podes perder", value: o.left_today != null ? money(o.left_today) : null, cls: `fn-room ${tight ? "bad" : ""}`,
+        viz: daily && daily.have != null && daily.left != null && daily.have + daily.left > 0 ? ui.ring((daily.left / (daily.have + daily.left)) * 100) : "",
+        sub: g.why ? g.why : o.trades_left != null ? t("{n} trades perdidas a {r}%", { n: o.trades_left, r: loc(risk, 2) }) : "" }));
   }
 
   // ---------------------------------------------------------------- objectives

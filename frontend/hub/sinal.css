@@ -172,3 +172,7 @@
   .sn-list .sn-imp { display: none; }
   .sn-mini, #sn-diary .sn-chip, .sn-mv { grid-column: 2; grid-row: 2 / 4; }
 }
+
+/* the Painel on top (27 out) */
+.sn-kpis { margin-bottom: 16px; }
+.sn-kpis .num small { color: var(--muted); font-size: .55em; }

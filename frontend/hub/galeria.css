@@ -38,3 +38,6 @@ html.is-phone .gl-grid { grid-template-columns: 1fr; gap: 12px; }
 html.is-phone .gl-seg { display: flex; width: 100%; }
 html.is-phone .gl-body { padding: 14px; }
 html.is-phone .gl-skill { margin-left: 0; width: 100%; }
+
+/* the Painel row on top (hub/painel.css) */
+#gl-kpis { margin-bottom: 18px; }

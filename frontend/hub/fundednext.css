@@ -37,7 +37,8 @@
 
 /* the figures on top */
 .fn-kpis { margin-bottom: 4px; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
-.fn-kpis .bd-kpi .num { font-size: 24px; }
+.fn-kpis .pn-kpi .num { font-size: 26px; }
+.fn-kpis .pn-kpi .num .up { color: var(--ok); } .fn-kpis .pn-kpi .num .down { color: var(--bad); }
 .fn-ksub { font-size: 11.5px; line-height: 1.4; }
 .fn-room { border-color: rgba(95, 207, 140, .22); }
 .fn-room.bad { border-color: rgba(239, 111, 94, .4); }
@@ -172,7 +173,7 @@ html.is-phone .fn .ph-actions, html.is-phone .fn-ctl { width: 100%; justify-cont
 html.is-phone .fn-ctl .st { flex-basis: 100%; }
 html.is-phone .fn-ctl .btn { flex: 1; }
 html.is-phone .fn-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-html.is-phone .fn-kpis .bd-kpi .num { font-size: 22px; }
+html.is-phone .fn-kpis .pn-kpi .num { font-size: 22px; }
 html.is-phone .fn-room { grid-column: 1 / -1; }
 html.is-phone .fn-sr small { display: none; }
 html.is-phone .fn-rw { grid-template-columns: 1fr 1fr; }

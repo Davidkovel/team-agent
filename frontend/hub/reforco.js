@@ -21,6 +21,7 @@
       ${ui.head("Trading", t("Reforço na notícia"), t("Numa notícia dos EUA tu abres a posição no MT5 e o Hub junta-lhe ordens limite até ao stop na banda da VWAP, com o TP da estatística."),
         `<div class="rf-ctl" id="rf-ctl"></div>`)}
       <div class="rf-msg" id="rf-msg" hidden></div>
+      <div class="rf-kpis" id="rf-kpis"></div>
       <section class="panel rf-state" id="rf-state"></section>
       <div class="rf-grid">
         <div>${sec("Notícia", esc(t("a próxima forte dos EUA em 2 horas")))}<section class="panel pad rf-card" id="rf-news"></section></div>
@@ -41,7 +42,7 @@
 
   async function load() {
     S = await api("/api/reforco");
-    paintCtl(); paintNews(); paintMarket(); paintRun(); paintLog();
+    paintCtl(); paintKpis(); paintNews(); paintMarket(); paintRun(); paintLog();
     if (!$("rf-cfg")._html) paintCfg();
   }
 
@@ -84,6 +85,24 @@
     $("rf-state").className = `panel rf-state ${st.tone}`;
   }
 
+  // The Painel's figures (hub/painel.css): the money at stake lit, the next news, the ladder and what it made.
+  function paintKpis() {
+    const c = S.cfg, n = S.news, r = S.run;
+    const lv = r ? r.levels.filter((l) => l.status !== "error" && l.status !== "cancelled") : [];
+    const filled = lv.filter((l) => l.status === "filled" || l.status === "closed").length;
+    const pnl = r ? r.levels.filter((l) => l.pnl != null).reduce((a, l) => a + l.pnl, 0) : null;
+    const dt = n ? (new Date(n.t) - Date.now()) / 1000 : null;
+    paint($("rf-kpis"), ui.kpis([
+      ui.kpi({ label: "Risco na notícia", value: usd((c.alloc * (c.main_pct + c.add_pct)) / 100),
+        sub: t("{a}% a tua posição + {b}% o reforço, em {m}", { a: num(c.main_pct, 1), b: num(c.add_pct, 1), m: usd(c.alloc) }) }),
+      ui.kpi({ label: "Próxima notícia", value: n ? hm(new Date(n.t) / 1000) : null,
+        sub: n ? `${n.name} · ${dt > 0 ? t("daqui a {m} min", { m: Math.ceil(dt / 60) }) : t("saiu há {m} min", { m: Math.floor(-dt / 60) })}` : t("Nenhuma forte dos EUA em 2 horas") }),
+      ui.kpi({ label: "Ordens cheias", value: r && lv.length ? `${filled}<small>/${lv.length}</small>` : null, viz: r && lv.length ? ui.ring((filled / lv.length) * 100) : "",
+        sub: r ? t("escada de ordens limite até à banda {b}σ", { b: r.band || c.band }) : t("Ainda sem reforço") }),
+      ui.kpi({ label: "Resultado do reforço", value: pnl != null && r.levels.some((l) => l.pnl != null) ? `<span class="${pnl > 0 ? "up" : pnl < 0 ? "down" : ""}">${usd(pnl)}</span>` : null,
+        sub: t("{s} · janela de {w} min", { s: c.symbol, w: c.window }) }),
+    ]));
+  }
   function paintNews() {
     const n = S.news;
     if (!n) return paint($("rf-news"), ui.empty("news", "Sem notícia forte em 2 horas", "Quando faltar pouco para uma notícia dos EUA de alto impacto, aparece aqui com a previsão e o que o ouro fez nas vezes anteriores.",

@@ -184,7 +184,8 @@ function render() {
   const views = { home: viewHome, semana: viewWeek, tarefas: viewTasks, aprovacoes: viewApprovals, empresas: viewCompanies, codigo: viewCode,
     historico: viewHistory, equipa: viewTeam, ...HUB_VIEWS };
   loadStats().catch(() => {}); // the sidebar was redrawn: put the counters back
-  views[r.tab](r).catch((e) => { if (e.message !== "unauthorized") $("view").innerHTML = `<p class="error">${esc(e.message)}</p>`; });
+  // a slow page that fails after somebody already moved on must not write its error over the next page
+  views[r.tab](r).catch((e) => { if (e.message !== "unauthorized" && route().tab === r.tab) $("view").innerHTML = `<p class="error">${esc(e.message)}</p>`; });
 }
 window.addEventListener("hashchange", render);
 
@@ -218,6 +219,7 @@ async function loadStats() {
 let hudData = null;
 function drawHud(team, active, pending, week) {
   if (team) hudData = { team, active, pending, week };
+  document.querySelectorAll("[data-pn-live]").forEach((el) => { el.outerHTML = ui.live(); });   // the «N de 3 online» beside every title
   if (!hudData || !$("hud")) return;
   const { team: t, active: a, pending: p, week: w } = hudData;
   paint($("hud"), `

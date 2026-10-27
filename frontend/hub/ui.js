@@ -175,7 +175,7 @@ const ui = {
     const where = typeof navOf === "function" && typeof route === "function" ? navOf(route().tab) : null;
     const above = where ? `${where.section[0]} · ${t(where.section[1])}` : eyebrow ? t(eyebrow) : "";
     return `<header class="ph"><div>${above ? `<div class="ph-eyebrow">${esc(above)}</div>` : ""}
-    <h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ""}</div><div class="ph-actions">${actions}</div></header>`;
+    <h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ""}</div><div class="ph-actions">${actions}${ui.live()}</div></header>`;
   },
   sec: (title, right = "") => `<div class="sec"><span>${esc(t(title))}</span>${right}</div>`,
   btn: (label, attrs = "", cls = "", ic = "") => `<button class="btn ${cls}" ${attrs}>${ic ? icon(ic) : ""}${esc(t(label))}</button>`,
@@ -185,7 +185,149 @@ const ui = {
     return items.map((a) => `<div class="fd ${a.tone || ""} ${a.fresh ? "new" : ""}"><time>${fmt.hhmm(a.at)}</time><i class="dot"></i>
       <p>${a.who ? `<b>${esc(a.who)}</b> ` : ""}${esc(a.text)}</p></div>`).join("");
   },
+
+  /* ---------- Painel (hub/painel.css, 27 out 2026): the dashboard pieces every page builds its figures from ----------
+     Only real series go in: a page with no history for a figure leaves the chart out instead of drawing a flat line. */
+  // how many people are on now, beside the title of every page («1 de 3 online»); app.js drawHud keeps it current
+  live() {
+    const team = typeof hudData !== "undefined" && hudData ? hudData.team : null;
+    if (!team) return `<span class="pn-live off" data-pn-live><i></i>${t("Equipa")}</span>`;
+    const on = team.filter((m) => m.status !== "OFFLINE").length;
+    return `<span class="pn-live ${on ? "" : "off"}" data-pn-live title="${esc(team.filter((m) => m.status !== "OFFLINE").map((m) => m.display_name).join(", "))}"><i></i><b>${on}</b>${t("de {n} online", { n: team.length })}</span>`;
+  },
+  // the change from the period before as a chip: ▲ 12% / ▼ 3%. badUp: a cost, where going up is the bad news
+  delta(now, before, { badUp = false, unit = "%", label = "" } = {}) {
+    if (now == null || before == null || !isFinite(now) || !isFinite(before)) return "";
+    let text, dir;
+    if (unit === "%") {
+      if (!before) { if (!now) return ""; dir = "up"; text = t("novo"); }
+      else { const p = ((now - before) / Math.abs(before)) * 100; dir = Math.abs(p) < 0.5 ? "eq" : p > 0 ? "up" : "dn"; text = `${Math.abs(p) >= 100 ? Math.round(Math.abs(p)) : Math.abs(p).toFixed(1).replace(".", ",")}%`; }
+    } else { const d = now - before; dir = d === 0 ? "eq" : d > 0 ? "up" : "dn"; text = `${Math.abs(d).toLocaleString("pt-PT")}${unit}`; }
+    const arrow = dir === "eq" ? '<path d="M5 12h14"/>' : dir === "up" ? '<path d="M12 19V5M6 11l6-6 6 6"/>' : '<path d="M12 5v14M6 13l6 6 6-6"/>';
+    return `<span class="pn-delta ${dir} ${badUp ? "bad-up" : ""}" ${label ? `title="${esc(label)}"` : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${arrow}</svg>${esc(text)}</span>`;
+  },
+  // a smooth line through the values (left to right, oldest first), with a soft area under it and a dot on the last one
+  spark(values, { prev = null, w = 116, h = 38, area = true } = {}) {
+    const vals = (values || []).map(Number).filter((v) => isFinite(v));
+    if (vals.length < 2) return "";
+    const all = prev ? vals.concat(prev.map(Number).filter(isFinite)) : vals;
+    const lo = Math.min(...all), hi = Math.max(...all), span = hi - lo || 1;
+    const pts = (list) => list.map((v, i) => [(i / (list.length - 1)) * w, h - 3 - ((v - lo) / span) * (h - 6)]);
+    const p = pts(vals), d = smoothPath(p);
+    return `<svg class="pn-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+      ${prev && prev.length > 1 ? `<path class="prev" d="${smoothPath(pts(prev))}"/>` : ""}
+      ${area ? `<path class="area" d="${d} L${w} ${h} L0 ${h} Z"/>` : ""}<path class="line" d="${d}"/>
+      <circle class="dot" cx="${p[p.length - 1][0].toFixed(1)}" cy="${p[p.length - 1][1].toFixed(1)}" r="2.6"/></svg>`;
+  },
+  // small columns, the last one (or hi) lit
+  cols(values, { hi = null, fat = false } = {}) {
+    const vals = (values || []).map((v) => Math.max(0, Number(v) || 0));
+    if (!vals.length) return "";
+    const max = Math.max(1e-9, ...vals), lit = hi == null ? vals.length - 1 : hi;
+    return `<span class="pn-cols ${fat ? "fat" : ""}" aria-hidden="true">${vals.map((v, i) => `<i class="${i === lit ? "hi" : ""}" style="height:${Math.max(6, (v / max) * 100).toFixed(1)}%"></i>`).join("")}</span>`;
+  },
+  // a ring with the share in the middle (0–100)
+  ring(pct, { text = null } = {}) {
+    if (pct == null || !isFinite(pct)) return "";
+    const p = Math.max(0, Math.min(100, pct)), c = 2 * Math.PI * 18;
+    return `<svg class="pn-ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18"/><circle cx="22" cy="22" r="18" stroke-dasharray="${((p / 100) * c).toFixed(1)} ${c.toFixed(1)}"/>
+      <text x="22" y="22">${esc(text ?? `${Math.round(p)}%`)}</text></svg>`;
+  },
+  /* A figure on top of a page: label, number, the change, a small chart, a line under it and where it goes.
+     ui.kpi({label, value, delta, viz, sub, src, href, go}); the first of a ui.kpis row is the lit one (chrome). */
+  kpi({ label, value, delta = "", viz = "", sub = "", src = "", href = "", go = "", cls = "", hint = "" } = {}) {
+    const tag = href ? "a" : "div";
+    return `<${tag} class="panel pn-kpi ${href ? "hover" : ""} ${cls}"${href ? ` href="${href}"` : ""}${hint ? ` title="${esc(hint)}"` : ""}>
+      <small>${esc(t(label))}</small>
+      <div class="pn-row"><div>${ui.num(value)}${delta ? `<span>${delta}</span>` : ""}</div>${viz ? `<span class="pn-viz">${viz}</span>` : ""}</div>
+      ${sub || src || go ? `<div class="pn-foot">${sub ? `<em>${esc(sub)}</em>` : ""}${src ? ui.src(src) : ""}${go ? `<span class="pn-go">${esc(t(go))} →</span>` : ""}</div>` : ""}</${tag}>`;
+  },
+  kpis: (cards) => `<div class="pn-kpis">${cards.filter(Boolean).join("")}</div>`,
+  /* The big pieces of a page. A gauge (0..max) with the ticks of theirs, lit up to the value; a trend line over time with the
+     period before dashed under it and the value of each point on hover; striped columns with the open period lit. */
+  gauge(value, max = 100, { label = "", text = "", of = null } = {}) {
+    if (value == null || !isFinite(value)) return "";
+    const p = Math.max(0, Math.min(1, value / (max || 1))), R = 104, cx = 130, cy = 128, a0 = Math.PI, at = (f) => a0 - f * Math.PI;
+    const xy = (f, r) => [cx + r * Math.cos(at(f)), cy - r * Math.sin(at(f))];
+    const ticks = Array.from({ length: 37 }, (_, i) => { const f = i / 36, [x1, y1] = xy(f, R + 16), [x2, y2] = xy(f, R + (i % 6 ? 22 : 26));
+      return `<line class="tick ${f <= p + 1e-6 ? "on" : ""}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }).join("");
+    const [sx, sy] = xy(0, R), [ex, ey] = xy(p, R), [fx, fy] = xy(1, R);
+    return `<div class="pn-gauge"><svg viewBox="0 0 260 150" aria-hidden="true"><defs><linearGradient id="pn-chrome" x1="0" x2="1">
+        <stop offset="0" stop-color="#7d858f"/><stop offset=".55" stop-color="#e9edf1"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>${ticks}
+      <path class="track" d="M${sx} ${sy} A${R} ${R} 0 0 1 ${fx.toFixed(1)} ${fy.toFixed(1)}"/>
+      ${p > 0 ? `<path class="fill" d="M${sx} ${sy} A${R} ${R} 0 0 1 ${ex.toFixed(1)} ${ey.toFixed(1)}"/>` : ""}
+      <circle class="knob" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="8"/>
+      <text class="val" x="${cx}" y="${cy - 12}">${esc(text || String(Math.round(value)))}</text>
+      <text class="of" x="${cx}" y="${cy + 10}">${esc(of ?? t("de {n}", { n: max }))}</text></svg>${label ? `<b>${esc(label)}</b>` : ""}</div>`;
+  },
+  // points: [{label, value, prev, tip}] oldest first; fmtY formats the axis and the tip
+  trend(points, { fmtY = (v) => fmt.int(v), height = 200, showPrev = true } = {}) {
+    if (!points || points.length < 2) return "";
+    const W = 600, H = height, vals = points.map((p) => p.value || 0), prevs = points.map((p) => p.prev).filter((v) => v != null);
+    const hi = Math.max(1e-9, ...vals, ...prevs) * 1.12, y = (v) => H - 4 - (v / hi) * (H - 14);
+    const xy = (list) => list.map((v, i) => [(i / (points.length - 1)) * W, y(v || 0)]);
+    const line = smoothPath(xy(vals)), prevOk = showPrev && prevs.length === points.length;
+    const grid = [0.25, 0.5, 0.75, 1].map((f) => `<line class="grid" x1="0" x2="${W}" y1="${y(hi / 1.12 * f).toFixed(1)}" y2="${y(hi / 1.12 * f).toFixed(1)}"/>`).join("");
+    const step = Math.max(1, Math.ceil(points.length / 8));
+    return `<div class="pn-trend"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px" aria-hidden="true"><defs><linearGradient id="pn-fade" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0" stop-color="#e9edf1" stop-opacity=".22"/><stop offset="1" stop-color="#e9edf1" stop-opacity="0"/></linearGradient></defs>${grid}
+      ${prevOk ? `<path class="prev" d="${smoothPath(xy(points.map((p) => p.prev)))}"/>` : ""}
+      <path class="area" d="${line} L${W} ${H} L0 ${H} Z"/><path class="line" d="${line}"/></svg>
+      <div class="pn-trend-hit">${points.map((p) => `<span><span class="pn-tip"><b>${esc(p.label)}</b>${esc(p.tip || fmtY(p.value))}${prevOk ? `<br><span style="opacity:.6">${t("antes")}: ${esc(fmtY(p.prev))}</span>` : ""}</span></span>`).join("")}</div>
+      <div class="pn-trend-x">${points.map((p, i) => (i % step === 0 || i === points.length - 1 ? `<span>${esc(p.label)}</span>` : "")).join("")}</div></div>`;
+  },
+  // bars: [{label, value, tip}] oldest first; hi = index lit (the last by default)
+  bars(items, { hi = null, fmtV = (v) => fmt.int(v) } = {}) {
+    if (!items || !items.length) return "";
+    const max = Math.max(1e-9, ...items.map((b) => b.value || 0)), lit = hi == null ? items.length - 1 : hi;
+    return `<div class="pn-bars">${items.map((b, i) => `<div class="${i === lit ? "hi" : ""}"><span class="pn-tip"><b>${esc(b.label)}</b>${esc(b.tip || fmtV(b.value))}</span>
+      <i style="height:${Math.max(3, ((b.value || 0) / max) * 100).toFixed(1)}%"></i><span>${esc(b.label)}</span></div>`).join("")}</div>`;
+  },
+  // two shares of one whole as a split bar with the two numbers over it («65% online · 34% in store» in theirs)
+  share(a, b) {
+    const total = (a.value || 0) + (b.value || 0);
+    if (!total) return "";
+    const pa = Math.round(((a.value || 0) / total) * 100);
+    return `<div class="pn-share"><div class="pn-share-top"><span><b>${pa}%</b><small>${esc(a.label)}</small></span><span><b>${100 - pa}%</b><small>${esc(b.label)}</small></span></div>
+      <div class="pn-share-bar"><i style="flex:${a.value || 0}"></i><i style="flex:${b.value || 0}"></i></div></div>`;
+  },
 };
+/* Day by day from a list of records, for the charts of the Painel: the last n days (oldest first), each with what fell
+   on it. byDay(tasks, (x) => x.completed_at, 7) → [{day: "2026-10-21", label: "ter", value: 2}, ...] (today last). */
+const series = {
+  days(n) {
+    const out = [], d = new Date(); d.setHours(12, 0, 0, 0);
+    for (let i = n - 1; i >= 0; i--) out.push(new Date(d.getTime() - i * 864e5));
+    return out;
+  },
+  key: (date) => { const d = new Date(date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; },
+  label(date, n) {
+    const d = new Date(date);
+    if (series.key(d) === series.key(new Date())) return t("Hoje");
+    return n <= 7 ? d.toLocaleDateString("pt-PT", { weekday: "short" }).replace(".", "") : String(d.getDate());
+  },
+  byDay(items, dateOf, n, valueOf = () => 1) {
+    const days = series.days(n), at = Object.fromEntries(days.map((d, i) => [series.key(d), i])), vals = days.map(() => 0);
+    for (const x of items || []) { const when = dateOf(x); if (!when) continue; const i = at[series.key(when)]; if (i != null) vals[i] += Number(valueOf(x)) || 0; }
+    return days.map((d, i) => ({ day: series.key(d), label: series.label(d, n), value: vals[i] }));
+  },
+  // how much fell in [from, to) days ago: inPeriod(items, dateOf, 7, 14) = the week before this one
+  inPeriod(items, dateOf, from, to, valueOf = () => 1) {
+    const now = Date.now(), a = now - to * 864e5, b = now - from * 864e5;
+    return (items || []).reduce((n, x) => { const w = dateOf(x) ? new Date(dateOf(x)).getTime() : NaN; return w >= a && w < b ? n + (Number(valueOf(x)) || 0) : n; }, 0);
+  },
+};
+// a smooth curve through the points (Catmull-Rom as cubic Béziers), for ui.spark and ui.trend
+function smoothPath(p) {
+  if (p.length < 3) return p.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  let d = `M${p[0][0].toFixed(1)} ${p[0][1].toFixed(1)}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1[0].toFixed(1)} ${c1[1].toFixed(1)} ${c2[0].toFixed(1)} ${c2[1].toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
 
 // The little markdown an AI answer comes with: bold and headings. Everything is escaped first.
 const md = (text) => esc(text).replace(/^#{1,4} +(.+)$/gm, "<b>$1</b>").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");

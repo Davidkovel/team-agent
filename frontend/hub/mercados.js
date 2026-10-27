@@ -303,7 +303,21 @@ async function mkLoadBoard() {
   const four = $("mk-four");
   if (four) four.innerHTML = b.focus.map(mkFourCard).join("");
   mkPaintAlerts();
+  mkSparks(b.focus);
   b.focus.forEach((q) => { if (q.price != null) MK.last[q.symbol] = q.price; });
+}
+
+// The Painel (hub/painel.css, 27 out): each of the four with its last 30 days in a small line and the change over them,
+// from the daily candles the backtests use (asked once per visit; GER40 has none there, so it shows none).
+async function mkSparks(focus) {
+  MK.spark ||= {};
+  await Promise.all(focus.map(async (q) => {
+    if (MK.spark[q.symbol] != null) return;
+    const h = await mkCandles(q.symbol, "1y");
+    const closes = (h.candles || []).slice(-30).map((c) => c[4]);
+    MK.spark[q.symbol] = closes.length > 1 ? `${ui.spark(closes, { w: 150, h: 34 })}<span>${ui.delta(closes[closes.length - 1], closes[0], { label: t("últimos 30 dias") })}<small>${t("30 dias")}</small></span>` : "";
+  }));
+  document.querySelectorAll("[data-spark]").forEach((el) => { el.innerHTML = MK.spark[el.dataset.spark] || ""; });
 }
 
 // a price that moved since the last look blinks green or red, once
@@ -319,6 +333,7 @@ function mkFourCard(q) {
   const span = q.high != null && q.low != null && q.high > q.low ? Math.max(0, Math.min(100, (q.price - q.low) / (q.high - q.low) * 100)) : null;
   return `<article class="panel mk-fc t-${q.topic}" data-sym="${esc(q.symbol)}" data-name="${esc(q.code)}">${head}
     <div class="mk-fc-p"><b class="mono ${mkFlashClass(q)}">${mkQuote(q)}</b>${mkChg(q)}</div>
+    <div class="mk-fc-spark" data-spark="${esc(q.symbol)}">${(MK.spark || {})[q.symbol] || ""}</div>
     <div class="mk-range" title="${esc(t("Hoje: mínimo {l} · máximo {h}", { l: mkPrice(q.low), h: mkPrice(q.high) }))}">${span == null ? "" : `<i style="left:${span}%"></i>`}<small>${mkPrice(q.low)}</small><small>${mkPrice(q.high)}</small></div>
     <div class="mk-fc-s">${[["1 h", q.r1h], ["4 h", q.r4h], ["Dia", q.rating]].map(([l, r]) => `<div><span>${t(l)}</span>${mkRate(r)}</div>`).join("")}</div></article>`;
 }

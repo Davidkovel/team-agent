@@ -27,8 +27,8 @@ for um mundo à parte. A procura (Ctrl+K) e o «Mais» do telemóvel leem a mesm
    diz para que serve a página, numa linha, em português de Portugal. À direita ficam as ações: no máximo uma `btn primary`
    (cromada) para a ação principal, as outras `btn` ou `btn quiet`, e o estado da página (ligado/desligado, ao vivo) como
    chip ao lado delas. **Nada de cabeçalhos dentro de cartões**, nem um título com outro estilo.
-2. **Números de cima** (se a página os tiver): uma fila de cartões `.panel.pad` com a etiqueta em maiúsculas pequenas e o
-   número em `.num` (serifa). Um número que não existe mostra «Sem dados» (`ui.num(null)`), nunca um zero inventado.
+2. **Números de cima** (o Painel, abaixo): `ui.kpis([ui.kpi({...}), ...])` (ou `kpiRow`/`kpi` no `pages.js`). Um número que
+   não existe mostra «Sem dados» (`ui.num(null)`), nunca um zero inventado.
 3. **Secções**: `ui.sec("Título", direita)` (maiúsculas espaçadas) e por baixo o conteúdo em `.panel` / `.cards`. Uma ideia
    por secção, pela ordem do que se usa mais.
 4. **Vazio**: `ui.empty(ícone, título, texto, ação)` com um botão que resolve (ligar, criar, trazer). Nunca uma página que só
@@ -48,6 +48,23 @@ for um mundo à parte. A procura (Ctrl+K) e o «Mais» do telemóvel leem a mesm
 - Botões: os da casa (`.btn`, `.btn.primary`, `.btn.quiet`, `.btn.sm`). Não inventar botões.
 - Classes de cada página com prefixo próprio (`ey-`, `gp-`, `rb-`...): o `design.css` tem classes genéricas.
 - Texto para o Marco: curto, português de Portugal, sem jargão. Uma frase completa é melhor do que três palavras soltas.
+
+## O Painel (27 out 2026)
+
+O Marco mandou um dashboard de vendas (vídeo da «Corbel Supply Co.») e pediu essa organização em todas as páginas: «algo que
+brilha, organizado, para empresas». Tirou-se a arrumação, não as cores (`hub/painel.css`, carregado por último; peças no `ui.js`):
+
+- **Fila de números** com `ui.kpi({ label, value, delta, viz, sub, src, href, go })` dentro de `ui.kpis([...])`. **O primeiro
+  cartão da fila fica aceso** (cromado, letra preta); para não o acender, `cls: "pn-plain"` ou um tom `bad`/`warn`.
+- `delta`: `ui.delta(agora, antes, { badUp })`, a variação contra o período anterior em chip verde/vermelho (`badUp` num custo).
+- `viz`: um gráfico pequeno com uma série real: `ui.spark(valores)` (linha), `ui.cols(valores)` (colunas, a última acesa),
+  `ui.ring(pct)` (anel). As séries saem dos registos com `series.byDay(lista, dataDe, dias)` e `series.inPeriod(...)`.
+  **Sem série verdadeira, sem gráfico**: nunca uma linha inventada.
+- **O coração da página**: `<div class="pn-split">` com dois `.panel.pad`, cada um com `.pn-card-h` (título e nota) e uma peça
+  grande: `ui.gauge(valor, máx)` (manómetro), `ui.bars(itens)` (colunas às riscas, a do período aberto acesa), `ui.trend(pontos)`
+  (linha com o período anterior a tracejado e o valor ao passar o rato) ou `ui.share(a, b)` (duas partes de um todo).
+- O `ui.head` mostra sozinho «N de 3 online» à direita (`ui.live`, atualizado pelo `drawHud`). As abas de cima são uma barra em
+  comprimido com a aberta acesa; os filtros (`.segx`) são comprimidos; os botões são redondos; a barra do lado flutua.
 
 ## Telemóvel
 

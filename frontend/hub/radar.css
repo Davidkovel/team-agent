@@ -42,7 +42,8 @@
 .rd-job p { margin: 0; color: var(--faint); font-size: 12px; }
 
 /* três números */
-.rd-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.rd-sum { margin-bottom: 18px; }
+.hub .rd-hot .num { color: #f3ab9f; }
 .rd-n { padding: 14px var(--pad); display: flex; align-items: baseline; gap: 10px; }
 .rd-n b { font: 400 30px/1 var(--serif); }
 .rd-n span { color: var(--muted); font-size: 13px; }
@@ -108,7 +109,7 @@
 @container rd (max-width: 760px) {
   .rd-f { grid-template-columns: 1fr 1fr; } .rd-zona { grid-column: 1 / -1; order: -1; } .rd-go { grid-column: 1 / -1; }
   .rd-how, .rd-zone, .rd-det { grid-template-columns: 1fr; }
-  .rd-sum { gap: 6px; } .rd-n { flex-direction: column; gap: 4px; padding: 12px; } .rd-n b { font-size: 24px; } .rd-n span { font-size: 11.5px; }
+  .rd-n { flex-direction: column; gap: 4px; padding: 12px; } .rd-n b { font-size: 24px; } .rd-n span { font-size: 11.5px; }
   .rd-line { grid-template-columns: minmax(0, 1fr) 16px; gap: 4px 10px; }
   .rd-line .rd-name { grid-column: 1; } .rd-chev { grid-column: 2; grid-row: 1 / 3; }
   .rd-v, .rd-line .st { grid-column: 1; } .rd-v { grid-row: 2; } .rd-line .st { grid-row: 3; }

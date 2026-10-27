@@ -132,11 +132,19 @@
     if (sc.erro && !negs.length) { paint($("rd-body"), html + `<div class="rd-msg">${esc(sc.erro)}</div>`); return; }
     const leads = (S.seguimento || []).filter((l) => l.estado !== "por_contactar");
     const todo = negs.filter((n) => n.nivel === "quente" && !(n.lead && n.lead.estado !== "por_contactar"));
-    html += `<div class="rd-sum">
-      <div class="panel rd-n"><b>${r.total ?? "—"}</b><span>${esc(t("encontrados"))}</span></div>
-      <div class="panel rd-n"><b>${r.sem_site ?? "—"}</b><span>${esc(t("sem site"))}</span></div>
-      <div class="panel rd-n hot"><b>${todo.length}</b><span>${esc(t("para ligar primeiro"))}</span></div>
-    </div>`;
+    // the Painel's row (hub/painel.css): how many, how many without a site, the median site, who to call first
+    const lvl = { quente: 0, morna: 0, fria: 0 };
+    negs.forEach((n) => { if (n.nivel in lvl) lvl[n.nivel]++; });
+    const pctOf = (k) => (r.total ? (k / r.total) * 100 : null);
+    html += `<div class="rd-sum">${ui.kpis([
+      ui.kpi({ label: "Encontrados", value: r.total ?? null, sub: t("{q} quentes · {m} mornos · {f} frios", { q: lvl.quente, m: lvl.morna, f: lvl.fria }),
+        viz: r.total ? ui.cols([lvl.fria, lvl.morna, lvl.quente], { fat: true }) : "" }),
+      ui.kpi({ label: "Sem site", value: r.sem_site ?? null, sub: t("{n} com o site em baixo", { n: r.em_baixo || 0 }), viz: ui.ring(pctOf(r.sem_site || 0)) }),
+      ui.kpi({ label: "Nota mediana do site", value: r.nota_mediana == null ? null : `${r.nota_mediana}/100`, sub: t("{n} sites vistos", { n: (r.com_site || 0) - (r.em_baixo || 0) }),
+        viz: r.nota_mediana == null ? "" : ui.ring(r.nota_mediana, { text: String(r.nota_mediana) }) }),
+      ui.kpi({ label: "Para ligar primeiro", value: todo.length, sub: leads.length ? t("{n} já em contacto", { n: leads.length }) : t("ainda ninguém contactado"),
+        viz: r.total ? ui.ring(pctOf(todo.length)) : "", cls: todo.length ? "rd-hot" : "" }),
+    ])}</div>`;
     const tabs = [["top", "Para contactar", todo.length], ["all", "Todos", negs.length], ["seg", "Em contacto", leads.length], ["zona", "Concorrência", ""]];
     html += `<div class="rd-tabs" role="tablist">${tabs.map(([k, l, n]) => `<button type="button" role="tab" class="${tab === k ? "on" : ""}" data-tab="${k}">${esc(t(l))}${n !== "" ? ` <small>${n}</small>` : ""}</button>`).join("")}</div>`;
     if (tab === "zona") html += market(sc);

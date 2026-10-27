@@ -100,12 +100,21 @@
     paint($("rb-state"), !S.accounts.length ? `<span class="st off"><i></i>${esc(t("Em papel · sem conta"))}</span>`
       : auto ? `<span class="st ok"><i></i>${esc(t("Automático: envia ordens"))}</span>`
       : `<span class="st ${live ? "ok" : "wait"}"><i></i>${esc(live ? t("Conta a observar") : t("Conta sem ligação"))}</span>`);
+    // the Painel's figures (hub/painel.css): today's result lit, each robot's day in small columns, the share that won
+    const wins = S.robots.reduce((n, r) => n + (r.wins || 0), 0), losses = S.robots.reduce((n, r) => n + (r.losses || 0), 0);
+    // the day of all the robots as one line: each robot's curve is its own running total, so join the steps in time
+    const steps = S.robots.flatMap((r) => (r.curve || []).map((pt, i, c) => [pt[0], pt[1] - (i ? c[i - 1][1] : 0)])).sort((p, q) => p[0] - q[0]);
+    let run = 0; const dayLine = [0, ...steps.map((x) => (run += x[1]))];
+    const dayChip = T.day ? `<span class="pn-delta ${T.day > 0 ? "up" : "dn"}">${esc(T.day > 0 ? t("a ganhar") : t("a perder"))}</span>` : "";
     paint($("rb-kpis"), [
-      [T.paper ? t("Saldo da conta") : t("Saldo total"), T.paper ? null : money(T.balance, cur), "", T.paper ? t("Sem conta ligada: os robôs negoceiam em papel.") : ""],
-      [t("Resultado hoje"), signed(T.day, cur), cls(T.day), T.paper ? t("Em papel, a 100 000 $ por robô") : ""],
-      [t("Operações hoje"), String(T.ops), "", ""],
-      [t("Robôs a operar"), `${T.working}<small>/${T.on}</small>`, "", t("{n} ligados de {m}", { n: T.on, m: T.n })],
-    ].map(([k, v, c, sub]) => `<div class="panel bd-kpi rb-kpi ${c}"><span class="bd-l">${esc(k)}</span>${ui.num(v, c)}${sub ? `<small class="faint">${esc(sub)}</small>` : ""}</div>`).join(""));
+      ui.kpi({ label: "Resultado hoje", value: `<span class="${cls(T.day)}">${signed(T.day, cur)}</span>`, delta: dayChip,
+        viz: steps.length ? ui.spark(dayLine) : "", sub: T.paper ? t("Em papel, a 100 000 $ por robô") : t("todos os robôs") }),
+      ui.kpi({ label: T.paper ? "Saldo da conta" : "Saldo total", value: T.paper ? null : money(T.balance, cur), sub: T.paper ? t("Sem conta ligada: os robôs negoceiam em papel.") : "" }),
+      ui.kpi({ label: "Operações hoje", value: String(T.ops), sub: t("{n} robôs com trades abertas", { n: S.robots.filter((r) => r.open).length }) }),
+      ui.kpi({ label: "Robôs a operar", value: `${T.working}<small>/${T.on}</small>`, viz: ui.ring(T.on ? (T.working / T.on) * 100 : null), sub: t("{n} ligados de {m}", { n: T.on, m: T.n }) }),
+      ui.kpi({ label: "Acerto hoje", value: wins + losses ? `${Math.round((wins / (wins + losses)) * 100)}%` : null, viz: wins + losses ? ui.ring((wins / (wins + losses)) * 100, { text: String(wins + losses) }) : "",
+        sub: wins + losses ? t("{w} ganhas · {l} perdidas", { w: wins, l: losses }) : t("Ainda sem trades fechadas hoje") }),
+    ].map((h) => h.replace('class="panel pn-kpi', 'class="panel pn-kpi rb-kpi')).join(""));
     paint($("rb-accline"), S.accounts.length ? S.accounts.map((a) => {
       const ok = a.snap && a.snap.ok, g = a.guard || {};
       return `<button type="button" class="panel rb-acc ${ok ? "ok" : "bad"} ${a.mode === "auto" ? "auto" : ""}" data-acc="${esc(a.id)}">

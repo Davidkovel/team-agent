@@ -44,18 +44,18 @@ function shOffline(s) {
   </section>`;
 }
 
-const shKpi = (label, value) => `<div class="panel bd-kpi"><span class="bd-l">${t(label)}</span>${ui.num(value)}</div>`;
+// a figure of the shop as the Painel draws it (hub/painel.css): the first of the row lit, a small chart where there is a series
+const shKpi = (label, value, extra = {}) => ui.kpi({ label, value, cls: "bd-kpi", ...extra });
 const shHead = (title, right = "") => `<header class="bd-ph"><b>${t(title)}</b>${right ? `<span>${right}</span>` : ""}</header>`;
 
 // sales per day, oldest first: the last bar is today
 function shBars(days, currency) {
-  const top = Math.max(1, ...days), now = new Date();
-  return `<div class="bd-bars">${days.map((v, i) => {
+  const now = new Date();
+  return ui.bars(days.map((v, i) => {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days.length - 1 - i));
-    const when = d.toLocaleDateString("pt-PT", { weekday: "short", day: "numeric", month: "short" });
-    return `<div class="bd-bar ${i === days.length - 1 ? "last" : ""}" title="${esc(when)} · ${shMoney(v, currency)}">
-      <i style="height:${v ? Math.max(5, v / top * 100) : 2}%"></i><span>${d.getDate()}</span></div>`;
-  }).join("")}</div>`;
+    return { label: i === days.length - 1 ? t("Hoje") : String(d.getDate()), value: v,
+      tip: `${d.toLocaleDateString("pt-PT", { weekday: "short", day: "numeric", month: "short" })} · ${shMoney(v, currency)}` };
+  }));
 }
 
 const shOrders = (shop) => (shop.recent.length
@@ -122,11 +122,11 @@ function drawShop(s, p) {
   const w = shopOn ? shop[p] : null, a = adsOn ? ads[p] : null;
   const missing = [shopOn ? "" : shLink("shopify", shop), adsOn ? "" : shLink("meta", ads)].join("");
   return `<div class="bd-kpis">
-      ${shKpi("Faturação", shopOn ? shMoney(w.revenue, shop.currency) : null)}
+      ${shKpi("Faturação", shopOn ? shMoney(w.revenue, shop.currency) : null, { viz: shopOn && shop.days?.length ? ui.spark(shop.days) : "", sub: shopOn ? t("loja Shopify") : "" })}
       ${shKpi("Vendas", shopOn ? w.orders : null)}
       ${shKpi("Ticket médio", shopOn && w.aov != null ? shMoney(w.aov, shop.currency) : null)}
       ${shKpi("Gasto em anúncios", adsOn ? shMoney(a.spend, "EUR") : null)}
-      ${shKpi("ROAS", adsOn && a.roas != null ? shRoas(a.roas) : null)}
+      ${shKpi("ROAS", adsOn && a.roas != null ? shRoas(a.roas) : null, { viz: adsOn && a.roas != null ? ui.ring(Math.min(100, (a.roas / 4) * 100), { text: shRoas(a.roas) }) : "", hint: t("O anel enche aos 4x.") })}
       ${shKpi("Faturação ÷ anúncios", shopOn && adsOn && a.spend ? shRoas(w.revenue / a.spend) : null)}</div>
     ${missing ? `<section class="panel bd-connect slim">${missing}</section>` : ""}
     ${shopOn ? `<div class="bd-cols">

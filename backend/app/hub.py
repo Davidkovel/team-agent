@@ -51,7 +51,8 @@ def companies() -> dict[str, dict]:
                 for section in data.get("sections", []):
                     section["_company"] = folder.name   # the plugins' trash is kept per company
                 out[folder.name] = data
-    return out
+    # the main company (`"main": true`, Ten Fold since 27 Oct) comes first everywhere: chips, folders, the phone
+    return dict(sorted(out.items(), key=lambda kv: not kv[1].get("main")))
 
 
 def get_section(company_id: str, section_id: str) -> tuple[dict, dict] | None:

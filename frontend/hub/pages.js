@@ -1865,12 +1865,13 @@ async function workOverview() {
       const open = cards.filter((x) => x.company === c.id && x.stage !== "done").length, done = cards.filter((x) => x.company === c.id && x.stage === "done").length;
       const top = works[i]?.people?.[0];
       const shop = c.id === "baredesk" ? `<a class="wf-fact ${live ? "ok" : "warn"}" href="#/baredesk">${live ? `● ${t("Loja ao vivo")}` : t("Loja por ligar")}</a>` : "";
-      return `<article class="wf">
-        <a class="wf-head" href="${c.id === "baredesk" ? "#/baredesk" : `#/empresas/${c.id}`}"><span class="wf-logo">${esc(c.short || c.name.slice(0, 3))}</span>
-          <div><b>${esc(c.name)}</b><span>${esc(c.tagline || "")}</span></div>${icon("chevron")}</a>
+      const home = c.main ? "#/tenfold" : c.id === "baredesk" ? "#/baredesk" : `#/empresas/${c.id}`; // the main company has its own page
+      return `<article class="wf ${c.main ? "tf-folder" : ""}">
+        <a class="wf-head" href="${home}"><span class="wf-logo">${esc(c.short || c.name.slice(0, 3))}</span>
+          <div>${c.main ? `<small class="tf-tag">${t("O trabalho principal")}</small>` : ""}<b>${esc(c.name)}</b><span>${esc(c.tagline || "")}</span></div>${icon("chevron")}</a>
         <div class="wf-facts"><span class="wf-fact"><b>${open}</b> ${t(open === 1 ? "tarefa aberta" : "tarefas abertas")}</span><span class="wf-fact"><b>${done}</b> ${t("feitas")}</span>${shop}
           ${top ? `<span class="wf-fact">${t("Mais ativo")}: ${esc(top.name)}</span>` : ""}</div>
-        <div class="wf-lib">${c.sections.map((x) => `<a href="${c.id === "baredesk" ? `#/baredesk/${x.id}` : `#/empresas/${c.id}/${x.id}`}">${icon(x.id)}<span>${esc(t(x.label))}</span>${x.count != null ? `<i>${x.count}</i>` : ""}</a>`).join("")}</div></article>`;
+        <div class="wf-lib">${c.sections.map((x) => `<a href="${c.main ? `#/tenfold/${x.id}` : c.id === "baredesk" ? `#/baredesk/${x.id}` : `#/empresas/${c.id}/${x.id}`}">${icon(x.id)}<span>${esc(t(x.label))}</span>${x.count != null ? `<i>${x.count}</i>` : ""}</a>`).join("")}</div></article>`;
     };
     const general = (href, ic, title, sub, body) => `<a class="in-card wg" href="${href}"><header class="ch">${icon(ic)}<div class="ch-t"><b>${esc(t(title))}</b><span>${esc(sub)}</span></div>${icon("chevron")}</header>${body}</a>`;
     const cline = (c) => `<div class="wg-row">${ui.avatar(c.author, "sm")}<div><b>${esc(c.message)}</b><span>${esc(c.author)} · ${esc(fmt.ago(c.date))}</span></div></div>`;
@@ -1895,6 +1896,7 @@ async function workOverview() {
 
 HUB_VIEWS.empresas = async function (r) {
   if (!r.company) return workOverview();
+  if (companies.find((c) => c.id === r.company)?.main) { location.replace(`#/tenfold${r.section ? `/${r.section}` : ""}`); return; } // old links
   const done = viewCompanies(r); // the older page: the company's library (theme, skills, videos, photos, docs)
   const company = companies.find((c) => c.id === r.company) || companies[0];
   const anchor = $("work");
@@ -1910,6 +1912,38 @@ HUB_VIEWS.empresas = async function (r) {
         + `<p class="faint" style="margin:10px 2px 18px;font-size:12px">${ui.src("not_connected")} ${t("Receita, encomendas, tráfego e conversão: a loja desta empresa ainda não está ligada ao Hub.")}</p>`;
     }, 2);
   }
+  await done;
+};
+
+/* Ten Fold, the main work (Marco, 27 Oct: «vai ser o trabalho principal… não é nada semelhante, é mesmo uma empresa»): the
+   agency has its own entry, first in Negócios, and its own colours (obsidian and gold, from its site), so it never reads like
+   one more shop. The hero, the production lines (one per section of the library, with what it holds), the numbers of the
+   work, then the library as every company has it, with the agency's own site first. */
+const TF_LINE = { sites: "no portefólio", marcas: "peças de marca", instagram: "prontas a publicar", videos: "reels", docs: "notas" };
+HUB_VIEWS.tenfold = async function (r) {
+  const c = companies.find((x) => x.main) || companies.find((x) => x.id === "tenfold");
+  if (!c) return page(ui.empty("building", "A Ten Fold não está neste PC", t("Faz git pull no team-agent.")));
+  const done = viewCompanies({ company: c.id, section: r.company, base: "#/tenfold" });
+  const shown = (r.company && c.sections.find((s) => s.id === r.company)) || c.sections[0];
+  const made = c.sections.filter((s) => s.id !== "docs").reduce((n, s) => n + (s.count || 0), 0);
+  $("view").innerHTML = `<div class="tf">
+    <section class="tf-hero">
+      <span class="tf-mark">${esc(c.short || "TF")}</span>
+      <div class="tf-id"><small>03 · ${t("Negócios")} · ${t("O trabalho principal")}</small><h1>${esc(c.name)}</h1><p>${esc(c.tagline || "")}</p></div>
+      <div class="tf-act"><a class="tf-btn gold" href="#/tenfold/sites">${icon("eye")}${t("Ver o site")}</a><button class="tf-btn" id="tf-task">${icon("plus")}${t("Nova tarefa")}</button></div>
+    </section>
+    <nav class="tf-lines">${c.sections.map((s) => `<a class="tf-line ${s.id === shown.id ? "on" : ""}" href="#/tenfold/${esc(s.id)}">
+      <span>${icon(s.id)}${esc(t(s.label))}</span><b>${s.count ?? "—"}</b><small>${t(TF_LINE[s.id] || "")}</small></a>`).join("")}</nav>
+    <div id="tf-nums"></div>
+    ${$("view").innerHTML}</div>`;
+  $("tf-task").onclick = () => newTask({ company: c.id });
+  mount($("tf-nums"), async () => {
+    const o = await api(`/api/companies/${c.id}/overview`);
+    return kpiRow([kpi("Em produção", o.open_tasks, { sub: t("tarefas abertas"), href: "#/tarefas", go: "Ver" }),
+      kpi("Entregues", o.done_tasks, { sub: t("tarefas feitas") }),
+      kpi("Portefólio", made, { sub: t("sites, marcas, posts e vídeos") }),
+      kpi("Custo de IA", o.ai_cost_usd == null ? null : fmt.usd(o.ai_cost_usd), { src: o.ai_cost_usd == null ? "" : "estimated" })]);
+  }, 1);
   await done;
 };
 

@@ -1,19 +1,25 @@
 {
   "name": "Ten Fold",
   "short": "TF",
-  "tagline": "A nossa agência · exemplos de projetos para mostrar a clientes",
+  "main": true,
+  "tagline": "A nossa agência · sites, marcas e vídeos para fazer crescer negócios",
   "sections": [
     {
       "id": "sites",
       "label": "Sites",
       "icon": "🌐",
       "kind": "sites",
-      "description": "Sites feitos pela equipa. Abrem aqui dentro, como no PC ou como no telemóvel. O original do site da agência está no repositório apex-agents (davidkovel.github.io/apex-agents).",
+      "description": "O site da Ten Fold primeiro, depois os sites feitos para clientes. Abrem aqui dentro, como no PC ou como no telemóvel. O original do site da agência está no repositório apex-agents (davidkovel.github.io/apex-agents).",
       "sources": [
         {
           "source": "library",
-          "path": "companies/tenfold/sites",
-          "label": "Exemplos"
+          "path": "companies/tenfold/sites/tenfold-site",
+          "label": "Site da Ten Fold"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/sites/maison-verde",
+          "label": "Maison Verde"
         }
       ]
     },

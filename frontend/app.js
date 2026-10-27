@@ -142,6 +142,7 @@ const NAV = [
   ["Empresa AMG", "grid", [["empresa", "Empresa AMG"]], "agentes"],
   ["Skills", "layers", [["skills", "Skills"], ["galeria", "Galeria"]], "agentes"],
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes"], ["historico", "Histórico"]], "agentes"],
+  ["Ten Fold", "spark", [["tenfold", "Ten Fold"]], "negocios"], // the main work (Marco, 27 Oct): its own entry, first in Negócios
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]], "negocios"],
   ["Radar", "target", [["radar", "Radar"]], "negocios"],
   ["Fábrica Etsy", "bag", [["etsy", "Fábrica Etsy"]], "negocios"],
@@ -730,12 +731,13 @@ async function viewCompanies(r) {
   if (!companies.length) { $("view").innerHTML = '<div class="empty">Ainda não há empresas.</div>'; return; }
   const company = companies.find((c) => c.id === r.company) || companies[0];
   const section = company.sections.find((s) => s.id === r.section) || company.sections[0];
+  const base = r.base || `#/empresas/${esc(company.id)}`; // a company with a page of its own (#/tenfold) keeps its links there
   $("view").innerHTML = `
-    <div class="chips">${companies.map((c) => `<a class="chip ${c.id === company.id ? "active" : ""}" href="#/empresas/${esc(c.id)}">${esc(c.short)} · ${esc(c.name)}</a>`).join("")}</div>
+    ${r.base ? "" : `<div class="chips">${companies.map((c) => `<a class="chip ${c.id === company.id ? "active" : ""}" href="#/empresas/${esc(c.id)}">${esc(c.short)} · ${esc(c.name)}</a>`).join("")}</div>`}
     <div id="work"></div>
     <div class="split">
       <nav class="side">${company.sections.map((s) => `
-        <a class="${s.id === section.id ? "active" : ""}" href="#/empresas/${esc(company.id)}/${esc(s.id)}">${icon(s.id)}${esc(s.label)}<span class="n">${s.count}</span></a>`).join("")}</nav>
+        <a class="${s.id === section.id ? "active" : ""}" href="${base}/${esc(s.id)}">${icon(s.id)}${esc(s.label)}<span class="n">${s.count}</span></a>`).join("")}</nav>
       <section><div class="page-head"><div><h2>${esc(section.label)}</h2><p>${esc(section.description)}</p></div></div><div id="section-body"><p class="muted">A carregar…</p></div></section>
     </div>`;
   api(`/api/work/${company.id}`).then((w) => {

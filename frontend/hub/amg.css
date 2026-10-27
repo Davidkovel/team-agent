@@ -347,6 +347,54 @@ button.tl-check { cursor: pointer; } button.tl-check:hover { border-color: #f4f6
 .wf-lib svg.i { width: 15px; height: 15px; color: #9aa1aa; }
 .wf-lib span { flex: 1; }
 .wf-lib i { color: #8f969f; font: 500 11px var(--mono); font-style: normal; }
+/* ---------- Ten Fold, the main work (27 Oct): its own colours, obsidian and gold from its site, so it never looks like a shop ---------- */
+.tf { --tf-gold: #d4ab43; --tf-champ: #e9d7ab; --tf-bronze: #6e5f47; --tf-ouro: linear-gradient(100deg, #b8892c 0%, #e9d7ab 38%, #d4ab43 62%, #9c7424 100%);
+  display: flex; flex-direction: column; gap: 14px; }
+.tf-hero { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 22px; padding: 28px 30px; overflow: hidden;
+  border-radius: 16px; border: 1px solid rgba(212, 171, 67, .28); background: radial-gradient(120% 140% at 100% 0%, rgba(212, 171, 67, .16), transparent 55%), linear-gradient(160deg, #15140f, #0b0c0f 70%);
+  box-shadow: inset 0 1px 0 rgba(233, 215, 171, .12), 0 30px 60px -34px rgba(0, 0, 0, .95); }
+.tf-hero::before { content: ""; position: absolute; left: 30px; right: 30px; top: 0; height: 1px; background: var(--tf-ouro); }
+.tf-mark { display: grid; place-items: center; width: 78px; height: 78px; border-radius: 18px; background: var(--tf-ouro); color: #0b0c0f;
+  font: 800 24px var(--display); letter-spacing: .04em; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 10px 26px rgba(212, 171, 67, .22); }
+.tf-id small { display: block; color: var(--tf-gold); font: 700 10px var(--ui); letter-spacing: .2em; text-transform: uppercase; }
+.tf-id h1 { margin: 6px 0 4px; font: 800 46px/1 var(--display); letter-spacing: -.035em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff6e2, var(--tf-champ) 55%, #b8892c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tf-id p { margin: 0; color: #b9ad94; font-size: 14px; }
+.tf-act { display: flex; gap: 8px; }
+.tf-btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(212, 171, 67, .4); background: rgba(212, 171, 67, .06);
+  color: var(--tf-champ); font: 600 13px var(--display); text-decoration: none; cursor: pointer; transition: background .15s, border-color .15s; }
+.tf-btn:hover { background: rgba(212, 171, 67, .14); border-color: var(--tf-gold); }
+.tf-btn.gold { background: var(--tf-ouro); border-color: transparent; color: #0b0c0f; }
+.tf-btn svg.i { width: 15px; height: 15px; }
+.tf-lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.tf-line { display: grid; gap: 2px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .07); background: linear-gradient(160deg, #1b1a16, #101113 70%);
+  color: inherit; text-decoration: none; transition: border-color .15s, background .15s; }
+.tf-line span { display: flex; align-items: center; gap: 8px; color: #cfc4ad; font: 600 12.5px var(--display); }
+.tf-line span svg.i { width: 15px; height: 15px; color: var(--tf-bronze); }
+.tf-line b { margin-top: 6px; color: #f6efe0; font: 700 30px/1 var(--display); letter-spacing: -.03em; }
+.tf-line small { color: #8a8170; font-size: 11.5px; }
+.tf-line:hover { border-color: rgba(212, 171, 67, .35); }
+.tf-line.on { border-color: rgba(212, 171, 67, .6); background: linear-gradient(160deg, #2a2416, #121110 70%); box-shadow: inset 0 1px 0 rgba(233, 215, 171, .14); }
+.tf-line.on span svg.i, .tf-line.on b { color: var(--tf-gold); }
+.tf .pn-kpis { margin: 0; }
+.tf .split { grid-template-columns: minmax(0, 1fr); }   /* the production lines above are the menu */
+.tf .split > .side { display: none; }
+.tf #work { order: 9; }
+.tf .page-head h2 { color: #f6efe0; }
+/* the folder in Trabalho: gold, first and across the whole row */
+.wf.tf-folder { grid-column: 1 / -1; border-color: rgba(212, 171, 67, .3); background: radial-gradient(90% 160% at 100% 0%, rgba(212, 171, 67, .13), transparent 55%), linear-gradient(160deg, #1a1812, #0d0e10 65%); }
+.wf.tf-folder::before { background: linear-gradient(100deg, #b8892c, #e9d7ab 38%, #d4ab43 62%, #9c7424); opacity: 1; }
+.wf.tf-folder .wf-logo { background: linear-gradient(100deg, #b8892c 0%, #e9d7ab 38%, #d4ab43 62%, #9c7424 100%); }
+.wf.tf-folder .wf-head b { color: #f6efe0; }
+.wf.tf-folder .wf-lib { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.tf-tag { display: block; margin-bottom: 5px; color: #d4ab43; font: 700 9.5px var(--ui); letter-spacing: .2em; text-transform: uppercase; }
+html.is-phone .tf-hero { grid-template-columns: auto minmax(0, 1fr); padding: 20px; gap: 14px; }
+html.is-phone .tf-mark { width: 56px; height: 56px; font-size: 18px; border-radius: 14px; }
+html.is-phone .tf-id h1 { font-size: 32px; }
+html.is-phone .tf-act { grid-column: 1 / -1; }
+html.is-phone .tf-act > * { flex: 1; justify-content: center; }
+html.is-phone .tf-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.is-phone .wf.tf-folder .wf-lib { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .wg-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 1500px) { .wg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1150px) { .wg-grid { grid-template-columns: minmax(0, 1fr); } }

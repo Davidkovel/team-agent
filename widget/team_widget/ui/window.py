@@ -234,8 +234,36 @@ def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
     badge.star(p, rect, opacity, shadow)
 
 
+GLASS_ROOM = ASSETS / "glass-room.jpg"
+_room: dict[tuple, QPixmap] = {}
+
+
+def room(size) -> QPixmap | None:
+    """The glass look's scene (a room with a view at dusk), cut to cover `size` and softened once; cached per size."""
+    key = (round(size.width()), round(size.height()))
+    if key not in _room:
+        src = QPixmap(str(GLASS_ROOM))
+        if src.isNull() or not key[0] or not key[1]:
+            return None
+        cover = src.scaled(key[0], key[1], Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        cover = cover.copy((cover.width() - key[0]) // 2, (cover.height() - key[1]) // 2, key[0], key[1])
+        small = cover.scaled(max(1, key[0] // 3), max(1, key[1] // 3), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        _room[key] = small.scaled(key[0], key[1], Qt.IgnoreAspectRatio, Qt.SmoothTransformation)   # cheap blur
+    return _room[key]
+
+
 def studio(p: QPainter, rect: QRectF):
-    """The background: black glass with a light from above and a faint floor, the corners falling into dark."""
+    """The background: a softened room with a view (glassmorphism, 28 Oct), under a dark veil so white text reads.
+    Without the picture it falls back to the old black glass."""
+    pic = room(rect.size())
+    if pic is not None:
+        p.drawPixmap(rect.topLeft(), pic)
+        veil = QLinearGradient(0, rect.top(), 0, rect.bottom())
+        veil.setColorAt(0, QColor(10, 12, 18, 70))
+        veil.setColorAt(0.5, QColor(10, 12, 18, 105))
+        veil.setColorAt(1, QColor(6, 7, 10, 165))
+        p.fillRect(rect, veil)
+        return
     w, h = rect.width(), rect.height()
     body = QLinearGradient(0, rect.top(), 0, rect.bottom())
     body.setColorAt(0, QColor(13, 13, 15))
@@ -278,10 +306,23 @@ class Glide:
 
 
 def platter(p: QPainter, rect: QRectF, radius=18.0):
-    """The iOS module look: a dark rounded plate with a hairline edge."""
-    p.setPen(QPen(QColor(255, 255, 255, 13), 1))
-    p.setBrush(QColor(24, 24, 26, 215))
-    p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius)
+    """Frosted glass: a translucent white plate, a light top edge and a faint sheen, the room showing through."""
+    r = rect.adjusted(0.5, 0.5, -0.5, -0.5)
+    fill = QLinearGradient(0, r.top(), 0, r.bottom())
+    fill.setColorAt(0, QColor(255, 255, 255, 40))
+    fill.setColorAt(1, QColor(255, 255, 255, 18))
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(12, 14, 20, 95))                      # body, so text keeps its contrast
+    p.drawRoundedRect(r, radius, radius)
+    p.setBrush(fill)
+    p.drawRoundedRect(r, radius, radius)
+    rim = QLinearGradient(r.left(), r.top(), r.right(), r.bottom())
+    rim.setColorAt(0, QColor(255, 255, 255, 110))
+    rim.setColorAt(0.45, QColor(255, 255, 255, 28))
+    rim.setColorAt(1, QColor(255, 255, 255, 60))
+    p.setPen(QPen(rim, 1))
+    p.setBrush(Qt.NoBrush)
+    p.drawRoundedRect(r, radius, radius)
 
 
 class Card(QWidget):

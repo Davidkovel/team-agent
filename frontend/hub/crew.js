@@ -1234,7 +1234,9 @@
   let timer = 0, raf = 0, last = 0, onScreen = true, hovered = null, focus = null, hoverCar = null, vignette = null;
   let caveOpen = false; // the cave is entered from the board: until then nothing is drawn and nothing moves
   let panel = null; // what the mission panel shows: { kind: "agent" | "car", ref }
-  let view = sessionStorage.getItem("crew.view") || "office";
+  // the widget's clock opens the mini window on one camera (?mini=1&cam=trading): a room of VIEWS
+  const CAM = MINI ? ((location.search.match(/[?&]cam=([a-z]+)(&|$)/) || [])[1] || "") : "";
+  let view = VIEWS[CAM] ? CAM : sessionStorage.getItem("crew.view") || "office";
   if (!VIEWS[view]) view = "office";
   const cam = { ...VIEWS[view], h: VIEWS[view].w / ASPECT }, camAnim = { from: null, to: null, t: 0 };
   const SX = (x) => (x - cam.x) * S, SY = (y) => (y - cam.y) * S;

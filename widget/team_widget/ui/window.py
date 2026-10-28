@@ -33,6 +33,7 @@ from ..state.store import StateStore
 from . import badge, prefs
 from .motion import clock
 from .notice import Notices, Presence
+from .photos import photos
 
 TEXT, MUTED, FAINT = "#f2f3f5", "#8d9198", "#4e5258"
 WHITE, RED = "#ffffff", "#e5534b"
@@ -58,6 +59,7 @@ RINGS, RING = 3, 1.8        # three sonar rings leave an online teammate's dot, 
 BREATHS, BREATH = 2, 2 * math.pi / 2.4   # two breaths of the ring round their picture, 2.6 s each
 NOTES_IN_WIDGET = False     # the list of notifications inside the widget: off since 6 Oct, nobody read it there (they are in the Hub's bell)
 CLOCK_PILL = 74             # width of the Parar / Retomar button in your own row
+WINDOWS_EACH = 2            # Claude windows shown under each partner in the central (the rest: the count, and the Escritório)
 COMMITS_EVERY = 8           # Hub polls (4 s each) between two looks at the last commits: every half minute
 ACCOUNT_EVERY = 75          # Hub polls (4 s each) between two looks at the Claude account's usage: every 5 minutes
 FN_EVERY = 3                # Hub polls (4 s each) between two looks at the FundedNext card: every 12 s
@@ -652,163 +654,93 @@ class Badge(QWidget):
 
 
 class Hero(QWidget):
-    """The main card: the time, the date and how things are on the left; the star on the right, with a slow
-    glint of light passing over it.
+    """The central's top card: the time in chrome on the left and, on the right, three figures that open their page:
+    the team's Claudes working, this person's unread messages, their open tasks.
 
-    The glint passes once, and the dot pulses while the agent works or waits, only after a change: the cockpit opens or
-    the state on the card changes. Then the card rests and draws nothing until the minute on the clock turns. While it
-    moves, each frame repaints only the star and the dot."""
+    28 Oct, Marco, about the card that was only the time and the star: «aquele não dá para clicar em nada, não faz nada,
+    fica igual às horas ali ao lado do símbolo». Painted by hand; repaints when the minute or a figure changes, and under
+    the mouse."""
     H = 68
-    DOT = QRect(28, 89, 11, 11)    # the pulsing dot on the chip (paintEvent: 13 px into the chip at x 20, y 82..106)
 
     def __init__(self):
         super().__init__()
         self.setFixedSize(INNER, self.H)
-        self._status, self._status_colour, self._pulse = "Tudo bem", QColor(COLORS["ONLINE"]), False
-        self._note = ""
-        self._f_time, self._f_date, self._f_state, self._f_note = (font(30, QFont.DemiBold, DISPLAY), font(9, QFont.Normal, UI),
-                                                                   font(8.5, QFont.DemiBold, UI), font(8, QFont.Normal, UI))
-        self._card = None
-        self._from = -math.inf         # when the last change set the card moving (perf_counter seconds)
-        self._shown = self._moving = self._glinting = False   # shown: between showEvent and hideEvent (minimized counts as hidden)
+        self.setMouseTracking(True)
+        self.on_stat = lambda key: None
+        self.stats: list = []   # [(key, figure, name, colour, tip)]
+        self._hot = None
+        self._f_time = font(26, QFont.DemiBold, DISPLAY)
+        self._f_figure, self._f_name = font(15, QFont.DemiBold, DISPLAY), font(7.5, QFont.DemiBold, UI)
         self._minute = QTimer(self)    # the time on the card changes once a minute: one repaint then
         self._minute.setSingleShot(True)
         self._minute.timeout.connect(self._next_minute)
-        clock().frame.connect(self._frame)
 
-    def set_status(self, text, colour, pulse=False, note=""):
-        if (text, QColor(colour), pulse, note) == (self._status, self._status_colour, self._pulse, self._note):
-            return   # asked again every few seconds with nothing new: no repaint
-        self._status, self._status_colour, self._pulse, self._note = text, QColor(colour), pulse, note
-        self.update()
-        self._play()
+    def set_status(self, *_args, **_kw):
+        """Kept for the callers of before: how things are is said by the figures now."""
+
+    def set_stats(self, stats: list):
+        if stats != self.stats:
+            self.stats = stats
+            self.update()
 
     def showEvent(self, e):
         super().showEvent(e)
-        self._shown = True
         self._next_minute()
-        self._settle()   # opening the central is not a change: nothing glints (24 Oct, it made every opening stutter)
 
     def hideEvent(self, e):
         super().hideEvent(e)
-        self._shown = False
         self._minute.stop()
-        self._settle()
-
-    def _play(self):
-        """Something changed: the glint passes over the star once and the agent's dot pulses, from rest back to rest."""
-        self._from, self._drawn_at = time.perf_counter(), -1.0
-        self._settle()
-
-    def _motion(self) -> float:
-        """Seconds the card moves after a change."""
-        return GLINT   # the status dot left the card on 23 Oct: only the glint moves
-
-    def _settle(self):
-        """Frames while the motion after the last change lasts and the card is on the screen; none after that."""
-        self._moving = self._shown and time.perf_counter() - self._from < self._motion()
-        clock().need(self, self._moving)
 
     def _next_minute(self):
         self.update()
-        if self._shown:
+        if self.isVisible():
             self._minute.start(int((60 - time.time() % 60) * 1000) + 20)
 
-    def _frame(self, _):
-        if not self._moving:
-            return
-        t = time.perf_counter() - self._from
-        if t < self._motion() and t - getattr(self, "_drawn_at", -1.0) < DECOR_DT:
-            return   # a slow glint needs no 165 frames a second: 30 are enough, and the rest of the PC breathes
-        self._drawn_at = t
-        glint = t < GLINT
-        if glint or self._glinting:   # only what moves is repainted; once more after the glint, to leave the star clean
-            self.update(self._star_rect().toAlignedRect())
-        self._glinting = glint
-        if t >= self._motion():
-            self._settle()   # this frame paints the card at rest: no more frames until the next change
+    def _rects(self) -> list:
+        each, gap = 62, 4
+        x = self.width() - 6 - len(self.stats) * each - (len(self.stats) - 1) * gap
+        return [(st, QRectF(x + i * (each + gap), 7, each, self.H - 14)) for i, st in enumerate(self.stats)]
 
-    def _star_rect(self) -> QRectF:
-        s = self.H - 12
-        return QRectF(self.width() - s - 8, (self.H - s) / 2, s, s)
+    def _at(self, pos):
+        return next((st[0] for st, r in self._rects() if r.contains(QPointF(pos))), None)
 
-    def _build_card(self) -> QPixmap:
-        dpr = self.devicePixelRatioF()
-        pix = QPixmap(int(self.width() * dpr), int(self.H * dpr))
-        pix.setDevicePixelRatio(dpr)
-        pix.fill(Qt.transparent)
-        p = QPainter(pix)
-        p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(0, 0, self.width(), self.H)
-        shape = QPainterPath()
-        shape.addRoundedRect(r, 20, 20)
-        p.setClipPath(shape)
-        p.fillRect(r, QColor(0, 0, 0))
-        paint_star(p, self._star_rect())
-        fade = QLinearGradient(0, 0, self.width(), 0)     # the star fades into black behind the text
-        fade.setColorAt(0.0, QColor(0, 0, 0, 255))
-        fade.setColorAt(0.45, QColor(0, 0, 0, 200))
-        fade.setColorAt(0.6, QColor(0, 0, 0, 0))
-        p.fillRect(r, fade)
-        p.setClipping(False)
-        p.setPen(QPen(QColor(255, 255, 255, 16), 1))
-        p.setBrush(Qt.NoBrush)
-        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), 20, 20)
-        p.end()
-        return pix
+    def mouseMoveEvent(self, e):
+        hot = self._at(e.position())
+        if hot != self._hot:
+            self._hot = hot
+            self.setCursor(Qt.PointingHandCursor if hot else Qt.ArrowCursor)
+            st = next((s for s in self.stats if s[0] == hot), None)
+            self.setToolTip(st[4] if st else "")
+            self.update()
 
-    def resizeEvent(self, e):
-        self._card = None
-        super().resizeEvent(e)
+    def leaveEvent(self, e):
+        self._hot = None
+        self.update()
+        super().leaveEvent(e)
+
+    def mousePressEvent(self, e):
+        key = self._at(e.position())
+        if key and e.button() == Qt.LeftButton:
+            self.on_stat(key)
 
     def paintEvent(self, _):
-        if self._card is None:
-            self._card = self._build_card()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.drawPixmap(0, 0, self._card)
-        t = time.perf_counter() - self._from   # seconds since the last change set the card moving
-        # after a change a glint passes over the star once, slowly
-        phase = t / GLINT
-        if phase < 1:
-            sr = self._star_rect()
-            x = sr.left() - 60 + (sr.width() + 120) * (phase * phase * (3 - 2 * phase))
-            # the slanted band already touches the star where the sweep begins and ends: it comes in and leaves softly
-            k = min(1.0, phase / 0.2, (1 - phase) / 0.2)
-            glint = QLinearGradient(QPointF(x - 40, sr.bottom()), QPointF(x + 40, sr.top()))
-            glint.setColorAt(0, QColor(255, 255, 255, 0))
-            glint.setColorAt(0.5, QColor(255, 255, 255, round(34 * k * k * (3 - 2 * k))))
-            glint.setColorAt(1, QColor(255, 255, 255, 0))
-            ring = QPainterPath()
-            ring.addEllipse(sr.adjusted(sr.width() * 0.09, sr.height() * 0.09, -sr.width() * 0.09, -sr.height() * 0.09))
-            p.save()
-            p.setClipPath(ring)
-            p.fillRect(sr, glint)
-            p.restore()
-        now = datetime.now()
-        chrome_text(p, QPointF(22, self.H / 2 + QFontMetricsF(self._f_time).capHeight() / 2), self._f_time, now.strftime("%H:%M"))
-        return   # 23 Oct, Marco: only the time (no date, no «Tudo bem», no note); 24 Oct: in chrome, like the minimized clock
-        p.setPen(QColor(MUTED))
-        p.setFont(self._f_date)
-        p.drawText(QRectF(21, 58, 220, 18), Qt.AlignLeft | Qt.AlignVCenter,
-                   f"{WEEKDAYS[now.weekday()].capitalize()}, {now.day} de {MONTHS[now.month - 1]}")
-        f = self._f_state
-        w = QFontMetricsF(f).horizontalAdvance(self._status) + 30
-        chip = QRectF(20, 82, w, 24)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, 20))
-        p.drawRoundedRect(chip, 12, 12)
-        # while the agent works or waits the dot pulses after a change, from fully lit back to fully lit
-        glow = 0.5 + 0.5 * math.cos(min(t, PULSES * PULSE) * 2 * math.pi / PULSE) if self._pulse else 1.0
-        p.setBrush(rgba(self._status_colour.name(), 0.4 + 0.6 * glow))
-        p.drawEllipse(QPointF(chip.left() + 13, chip.center().y()), 3.2, 3.2)
-        p.setPen(QColor(TEXT))
-        p.setFont(f)
-        p.drawText(chip.adjusted(22, 0, -8, 0), Qt.AlignVCenter | Qt.AlignLeft, self._status)
-        if self._note:
-            p.setPen(QColor(FAINT))
-            p.setFont(self._f_note)
-            p.drawText(QRectF(21, 110, 220, 16), Qt.AlignLeft | Qt.AlignVCenter, self._note)
+        r = QRectF(0, 0, self.width(), self.H)
+        p.setPen(QPen(QColor(255, 255, 255, 16), 1))
+        p.setBrush(QColor(0, 0, 0))
+        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), 20, 20)
+        chrome_text(p, QPointF(20, self.H / 2 + QFontMetricsF(self._f_time).capHeight() / 2), self._f_time, datetime.now().strftime("%H:%M"))
+        for (key, figure, name, colour, _tip), sr in self._rects():
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 255, 255, 30 if key == self._hot else 13))
+            p.drawRoundedRect(sr, 14, 14)
+            p.setFont(self._f_figure)
+            p.setPen(QColor(colour))
+            p.drawText(QRectF(sr.left(), sr.top() + 4, sr.width(), 26), Qt.AlignCenter, figure)
+            p.setFont(self._f_name)
+            p.setPen(QColor(TEXT if key == self._hot else MUTED))
+            p.drawText(QRectF(sr.left(), sr.top() + 30, sr.width(), 16), Qt.AlignCenter, name)
 
 
 class Line(QWidget):
@@ -922,6 +854,7 @@ class Member(Hover):
         self._minute.setSingleShot(True)
         self._minute.timeout.connect(self._next_minute)
         clock().frame.connect(self._frame)
+        photos().ready.connect(self.update)
         self.setEnabled(False)
 
     def _clock_pill(self) -> QRectF:
@@ -1010,7 +943,14 @@ class Member(Hover):
             p.setPen(QPen(QColor(255, 255, 255, 16), 1))
             p.drawLine(QPointF(48, h - 0.5), QPointF(w, h - 0.5))
         av = QRectF(0, h / 2 - 18, 36, 36)
-        p.drawPixmap(av.topLeft(), avatar(bool(online), self.devicePixelRatioF()))
+        pic = photos().photo(person.get("user", ""), 36, self.devicePixelRatioF())   # their GitHub photo (28 Oct), else the star
+        if pic is not None:
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            p.setOpacity(1.0 if online else 0.45)
+            p.drawPixmap(av.topLeft(), pic)
+            p.setOpacity(1.0)
+        else:
+            p.drawPixmap(av.topLeft(), avatar(bool(online), self.devicePixelRatioF()))
         breath = 0.5 + 0.5 * math.sin(min(self._t, BREATHS * BREATH) * 2.4)   # whole breaths, so it rests where it began
         p.setPen(QPen(rgba(COLORS["ONLINE"], 0.45 + 0.4 * breath) if online else QColor(255, 255, 255, 26), 1.3))
         p.setBrush(Qt.NoBrush)
@@ -1177,22 +1117,49 @@ class AppIcon(Hover):
         p.drawText(QRectF(0, icon.bottom() + 5, self.width(), 14), Qt.AlignHCenter | Qt.AlignTop, self.name)
 
 
+def window_doing(w: dict, me=True) -> str:
+    """What one Claude window is doing, in a few words: its action, or what it waits for."""
+    if w.get("state") == "working":
+        what = w.get("action") or "a trabalhar"
+    elif w.get("wait") == "permission":
+        what = "Precisa da tua autorização" if me else "Precisa da autorização dele"
+    elif w.get("wait") == "answer":
+        what = "Fez-te uma pergunta" if me else "Fez-lhe uma pergunta"
+    else:
+        what = "Acabou, à espera do próximo pedido"
+    if w.get("project"):
+        what = f"{w['project']} · {what}"
+    return what[0].upper() + what[1:]
+
+
+def live_windows(live: dict) -> list:
+    """A partner's Claude windows working or waiting, the ones waiting for an answer first, then the ones working."""
+    rank = {"permission": 0, "answer": 0}
+    return sorted(live.get("windows") or [], key=lambda w: rank.get(w.get("wait"), 1 if w.get("state") == "working" else 2))
+
+
+def window_colour(w: dict) -> str:
+    return (COLORS["WORKING"] if w.get("state") == "working" else COLORS["WAITING"] if w.get("wait") in ("permission", "answer")
+            else MUTED)
+
+
 class ClaudeRow(Hover):
-    """One of this person's Claude windows that is working or waiting: a dot in the state's colour, what it is about, and
-    what it is doing right now (or what it waits for), with how long it has been like that. A click opens the Escritório.
+    """One Claude window working or waiting, under its partner in the central's Equipa (28 Oct, Marco: «controlar o meu, o
+    do Kovel e o do David»): a dot in the state's colour, what it is about, and what it is doing right now (or what it
+    waits for), with how long it has been like that. A click opens the Escritório.
     Not a stream: it changes when the Hub's reading changes (every 8 s), and draws nothing in between."""
-    H = 44
+    H = 34
 
     def __init__(self):
         super().__init__()
         self.setFixedHeight(self.H)
-        self.window_ = None
+        self.window_, self.me = None, True
         self.setToolTip("Abrir no Escritório")
-        self._f_topic, self._f_action, self._f_time = font(9, QFont.DemiBold, UI), font(8, QFont.Normal, UI), font(7.5, QFont.Normal, UI)
+        self._f_topic, self._f_action, self._f_time = font(8.5, QFont.DemiBold, UI), font(7.5, QFont.Normal, UI), font(7, QFont.Normal, UI)
 
-    def show_window(self, w: dict):
-        if w != self.window_:
-            self.window_ = w
+    def show_window(self, w: dict, me=True):
+        if (w, me) != (self.window_, self.me):
+            self.window_, self.me = w, me
             self.update()
 
     def paintEvent(self, _):
@@ -1201,43 +1168,34 @@ class ClaudeRow(Hover):
             return
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect()).adjusted(0, 1, 0, -1)
+        r = QRectF(self.rect()).adjusted(44, 1, 0, -1)   # under the partner's name, past their photo
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, int(8 + 14 * self.hover)))
-        p.drawRoundedRect(r, 11, 11)
+        p.setBrush(QColor(255, 255, 255, int(6 + 14 * self.hover)))
+        p.drawRoundedRect(r, 9, 9)
         shape = QPainterPath()
-        shape.addRoundedRect(r, 11, 11)
+        shape.addRoundedRect(r, 9, 9)
         self.paint_wave(p, shape)
         asks = w.get("wait") in ("permission", "answer")
-        colour = COLORS["WORKING"] if w.get("state") == "working" else COLORS["WAITING"] if asks else MUTED
-        dot = QPointF(14, r.center().y())
-        glow_disc(p, dot, 8, 8, colour, 0.35)
+        colour = window_colour(w)
+        dot = QPointF(r.left() + 10, r.center().y())
+        glow_disc(p, dot, 7, 7, colour, 0.35)
         p.setBrush(QColor(colour))
-        p.drawEllipse(dot, 3.4, 3.4)
+        p.drawEllipse(dot, 3, 3)
         since = ago_iso(w.get("since"))
         p.setFont(self._f_time)
         tw = QFontMetricsF(self._f_time).horizontalAdvance(since) + 4
         p.setPen(QColor(FAINT))
-        p.drawText(QRectF(r.right() - tw - 10, r.top() + 5, tw, 16), Qt.AlignRight | Qt.AlignVCenter, since)
+        p.drawText(QRectF(r.right() - tw - 8, r.top() + 2, tw, 15), Qt.AlignRight | Qt.AlignVCenter, since)
         topic = w.get("topic") or w.get("project") or "Janela do Claude"
+        left = r.left() + 20
         p.setPen(QColor(TEXT))
         p.setFont(self._f_topic)
-        p.drawText(QRectF(28, r.top() + 5, r.width() - 40 - tw, 16), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(self._f_topic).elidedText(topic, Qt.ElideRight, r.width() - 42 - tw))
-        if w.get("state") == "working":
-            what = w.get("action") or "a trabalhar"
-        elif w.get("wait") == "permission":
-            what = "Precisa da tua autorização"
-        elif w.get("wait") == "answer":
-            what = "Fez-te uma pergunta"
-        else:
-            what = "Acabou, à espera do próximo pedido"
-        if w.get("project"):
-            what = f"{w['project']} · {what}"
+        p.drawText(QRectF(left, r.top() + 2, r.right() - left - tw - 10, 15), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetricsF(self._f_topic).elidedText(topic, Qt.ElideRight, r.right() - left - tw - 12))
         p.setPen(QColor(COLORS["WAITING"] if asks else MUTED))
         p.setFont(self._f_action)
-        p.drawText(QRectF(28, r.top() + 21, r.width() - 38, 16), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(self._f_action).elidedText(what[0].upper() + what[1:], Qt.ElideRight, r.width() - 40))
+        p.drawText(QRectF(left, r.top() + 16, r.right() - left - 8, 14), Qt.AlignLeft | Qt.AlignVCenter,
+                   QFontMetricsF(self._f_action).elidedText(window_doing(w, self.me), Qt.ElideRight, r.right() - left - 10))
 
 
 def tokens_text(n) -> str:
@@ -1584,8 +1542,10 @@ def activity(person: dict) -> tuple[str, str]:
     they said they are doing, else whether they are here."""
     live = person.get("live") or {}
     topic = live.get("topic") or ""
-    if live.get("working"):
-        return f"Claude a trabalhar · {topic}" if topic else "Claude a trabalhar", COLORS["WORKING"]
+    n = live.get("working") or 0
+    if n:   # 28 Oct, Marco: «podia estar a dizer: dois Claudes a trabalhar... o Kovel: três agentes a trabalhar»
+        what = "1 Claude a trabalhar" if n == 1 else f"{n} Claudes a trabalhar"
+        return f"{what} · {topic}" if topic and n == 1 else what, COLORS["WORKING"]
     if live.get("waiting") and live.get("wait") in ("permission", "answer"):
         return f"O Claude espera por {'ti' if person.get('_me') else 'ele'} · {topic}", COLORS["WAITING"]
     if person.get("doing"):
@@ -2001,10 +1961,7 @@ class WidgetWindow(QWidget):
             app.setStyleSheet(app.styleSheet() + "QToolTip { background: #141518; color: #f2f3f5; border: 1px solid #34373c;"
                               " border-radius: 8px; padding: 5px 8px; font-family: 'Segoe UI Variable Text'; font-size: 9pt; }")
         self.gauges = {key: Gauge() for key, _ in GAUGES}   # what each complication under the minimized clock says
-        self._ponto_armed = False   # the Ponto gauge was clicked once: a second click within a few seconds starts or stops it
-        self._ponto_disarm = QTimer(self)
-        self._ponto_disarm.setSingleShot(True)
-        self._ponto_disarm.timeout.connect(self._disarm_ponto)
+        self._spot = None           # the destaque of an icon of the clock (spotlight.py), made the first time one is clicked
         self._asking = False        # one of this person's Claude windows waits for them
         self.panel = Panel(self)
         self.panel.setFixedWidth(WIDTH)
@@ -2054,6 +2011,7 @@ class WidgetWindow(QWidget):
 
         self.hero = Hero()
         col.addWidget(self.hero)
+        self.hero.on_stat = lambda key: self._open_notice({"claudes": "#/escritorio", "mensagens": "#/mensagens", "tarefas": "#/tarefas"}[key])
 
         # the team right under the time, each with their Claude 5 h and week (24 Oct, Marco: the 24 h tokens in thousands and
         # millions were «texto desnecessário... devia ser só os tokens semanais, diários, etc. do pessoal»)
@@ -2063,8 +2021,17 @@ class WidgetWindow(QWidget):
         team.note.setToolTip("Os tokens de cada janela do Claude, ao vivo")
         team.note.mousePressEvent = lambda e: self._open_tokens()
         self.members = [Member() for _ in range(3)]
+        # under each partner, their Claude windows working or waiting (28 Oct, Marco: «de forma organizada, para eu conseguir
+        # controlar o meu, o do Kovel e o do David»); «Claude agora», which was only this person's, is these rows now
+        self.member_rows = []
         for m in self.members:
             team.box.addWidget(m)
+            rows = [ClaudeRow() for _ in range(WINDOWS_EACH)]
+            for row in rows:
+                row.clicked.connect(lambda: self._open_notice("#/escritorio"))
+                row.hide()
+                team.box.addWidget(row)
+            self.member_rows.append(rows)
         self.members[-1].last = True
         self.hub_note = label("O Hub não está a responder.", 8.5, FAINT)
         self.hub_note.hide()
@@ -2097,18 +2064,6 @@ class WidgetWindow(QWidget):
         prefs.save(pins=[k for k, pin in self.pins.items() if pin.on])
         side.box.addLayout(tiles)
         col.addWidget(side)
-
-        # «Claude agora»: this person's Claude windows working or waiting, what each is doing
-        self.claude_now = Platter("Claude agora")
-        self.claude_now.box.setSpacing(4)
-        self.claude_rows = [ClaudeRow() for _ in range(3)]   # never more: the rest is in the Escritório
-        for row in self.claude_rows:
-            row.clicked.connect(lambda: self._open_notice("#/escritorio"))
-            self.claude_now.box.addWidget(row)
-        self.claude_none = label("Nenhuma janela tua a trabalhar agora.", 8.5, FAINT)
-        self.claude_now.box.addWidget(self.claude_none)
-        self.claude_now.box.addSpacing(4)
-        col.addWidget(self.claude_now)
 
         # «Controlo»: the buttons that were only in the tray menu, as the iPhone's Control Centre
         controls = Platter("Controlo")
@@ -2332,26 +2287,153 @@ class WidgetWindow(QWidget):
             self._layout_orb()
 
     def _gauge_clicked(self, key: str):
-        """A complication clicked on the minimized card does what it is for, without the Hub when it can."""
-        if key == "camaras":
-            self._open_cave()
-        elif key == "ponto":
-            if self._ponto_armed:   # the second click: started or stopped for real
-                self._disarm_ponto()
-                self.punch_ponto()
-            else:                   # the first click only asks, so a stray click never stops the hours
-                self._ponto_armed = True
-                self._ponto_disarm.start(3500)
-                self._render_ponto()
-        elif key in ("mensagens", "tarefas", "trading"):
-            self._open_notice({"mensagens": "#/mensagens", "tarefas": "#/tarefas", "trading": "#/fundednext"}[key])
-        else:
-            self.expand()
+        """An icon of the minimized clock clicked: its destaque opens beside the clock (28 Oct, Marco: «preciso de utilizar
+        para ver rápido»); the same icon again closes it."""
+        from .spotlight import Spotlight
+        if self._spot is None:
+            self._spot = Spotlight()
+        if self._spot.isVisible() and self._spot.key == key:
+            self._spot.hide()
+            return
+        face = QRect(self.pos() + self.orb.pos() + self.orb.FACE.topLeft(), self.orb.FACE.size())
+        self._spot.show_for(key, self._spot_content(key), face, self.orb.flip)
+        self._fast = True   # the Hub is asked every 4 s while it is open
 
-    def _disarm_ponto(self):
-        self._ponto_armed = False
-        self._ponto_disarm.stop()
-        self._render_ponto()
+    def _refresh_spot(self):
+        if self._spot is not None and self._spot.isVisible() and self._spot.key:
+            self._spot.show_content(self._spot_content(self._spot.key))
+
+    TASK_STATUS = {"TODO": "Por fazer", "ASSIGNED": "Atribuída", "IN_PROGRESS": "Em curso", "RUNNING": "Em curso", "BLOCKED": "Bloqueada",
+                   "REVIEW": "Em revisão", "WAITING_APPROVAL": "À espera de aprovação", "PAUSED": "Em pausa", "FAILED": "Falhou"}
+    ROOMS = (("Escritório", "office"), ("Trading", "trading"), ("Etsy", "etsy"), ("Cofre", "vault"), ("Stand", "garage"), ("Tudo", "all"))
+
+    def _spot_content(self, key: str) -> dict:
+        """What the destaque of `key` says, from what the widget already read of the Hub (nothing more is asked for it)."""
+        team = self._team or self._last_team or []
+        live = {p["user"]: p for p in (self._live or {}).get("people", [])}
+        people = [{**p, "live": live.get(p["user"]) or {}} for p in team]
+        me = self._identity(team) if team else None
+        mine = next((p for p in people if p["user"] == me), {"live": {}})
+        ml, go = mine["live"], self._open_notice
+        name = lambda p: f"{p['name']} · tu" if p["user"] == me else p["name"]
+        dot = lambda p: COLORS["ONLINE"] if p.get("online") else COLORS["OFFLINE"]
+        office = lambda: go("#/escritorio")
+        working = sum(p["live"].get("working") or 0 for p in people)
+        off = "O Hub não está a responder." if self._team is None else ""
+
+        if key == "claude":
+            ws = live_windows(ml)
+            asking = sum(1 for w in ws if w.get("wait") in ("permission", "answer"))
+            n = ml.get("working") or 0
+            return {"title": "Os teus Claudes", "note": f"{asking} à tua espera" if asking else "o que cada janela está a fazer",
+                    "figure": str(n), "colour": COLORS["WAITING"] if asking else COLORS["WORKING"] if n else TEXT,
+                    "rows": [{"title": w.get("topic") or w.get("project") or "Janela do Claude", "sub": window_doing(w),
+                              "right": ago_iso(w.get("since")), "colour": window_colour(w), "action": office, "tip": "Abrir no Escritório",
+                              "sub_colour": COLORS["WAITING"] if w.get("wait") in ("permission", "answer") else None} for w in ws],
+                    "empty": off or "Nenhuma janela tua a trabalhar agora.",
+                    "buttons": [("Escritório ›", office, False, None)]}
+
+        if key == "tokens":
+            rows = []
+            for p in people:
+                plan = p["live"].get("limits") or {}
+                rows.append({"user": p["user"], "online": p.get("online"), "colour": dot(p), "title": name(p),
+                             "right": until(plan.get("five_reset")).replace("renova em ", "5 h renova em ") if plan.get("five_reset") else "",
+                             "bars": [(plan.get("five"), "Claude 5 h"), (plan.get("week"), "Semana")], "action": self._open_tokens,
+                             "tip": "Os tokens de cada janela, ao vivo"})
+            five = (ml.get("limits") or {}).get("five")
+            return {"title": "Tokens do Claude", "note": "o limite de 5 h e o da semana de cada um",
+                    "figure": "—" if five is None else f"{round(five)}%", "colour": meter_color(five or 0),
+                    "rows": rows, "empty": off or "Sem números do Claude ainda.",
+                    "buttons": [("Tokens por janela ›", self._open_tokens, False, None)]}
+
+        if key == "equipa":
+            rows = []
+            for p in people:
+                doing, colour = activity({**p, "_me": p["user"] == me})
+                rows.append({"user": p["user"], "online": p.get("online"), "colour": dot(p), "title": name(p), "sub": doing,
+                             "sub_colour": colour, "action": office, "tip": "Abrir o Escritório"})
+                for w in live_windows(p["live"])[:3]:
+                    rows.append({"indent": True, "title": w.get("topic") or w.get("project") or "Janela do Claude",
+                                 "sub": window_doing(w, p["user"] == me), "right": ago_iso(w.get("since")), "colour": window_colour(w),
+                                 "action": office, "tip": "Abrir no Escritório"})
+            return {"title": "Equipa", "note": "Claudes a trabalhar, de cada um", "figure": str(working),
+                    "colour": COLORS["WORKING"] if working else TEXT, "rows": rows, "empty": off,
+                    "buttons": [("Escritório ›", office, False, None)]}
+
+        if key == "mensagens":
+            items = ml.get("message_list") or []
+            n = ml.get("messages") or 0
+            return {"title": "Mensagens", "note": "por ler" if n else "tudo lido", "figure": str(n), "colour": "#ff453a" if n else TEXT,
+                    "rows": [{"title": m.get("title") or "Mensagem", "sub": m.get("body") or "", "right": ago_iso(m.get("at")),
+                              "colour": "#ff453a", "action": lambda href=m.get("href") or "#/mensagens": go(href), "tip": "Abrir a conversa"}
+                             for m in items],
+                    "empty": off or "Sem mensagens por ler.",
+                    "buttons": [("Abrir as Mensagens ›", lambda: go("#/mensagens"), False, None)]}
+
+        if key == "tarefas":
+            items = ml.get("task_list") or []
+            n = ml.get("tasks") or 0
+            others = " · ".join(f"{p['name']} {p['live'].get('tasks') or 0}" for p in people if p["user"] != me)
+            rows = []
+            for t in items:
+                urgent = t.get("priority") in ("urgent", "high")
+                sub = "A fazer agora" if t.get("doing") else self.TASK_STATUS.get(t.get("status"), (t.get("status") or "").capitalize())
+                if urgent:
+                    sub = f"{'Urgente' if t['priority'] == 'urgent' else 'Prioridade alta'} · {sub}"
+                rows.append({"title": t.get("title") or "Tarefa", "sub": sub, "action": lambda i=t["id"]: go(f"#/tarefas/{i}"),
+                             "colour": COLORS["WORKING"] if t.get("doing") else COLORS["WAITING"] if urgent else WHITE,
+                             "sub_colour": COLORS["WAITING"] if urgent else None, "tip": "Abrir a tarefa"})
+            return {"title": "As tuas tarefas", "note": f"abertas para ti{' · ' + others if others else ''}", "figure": str(n),
+                    "colour": TEXT, "rows": rows, "empty": off or "Nenhuma tarefa aberta para ti.",
+                    "buttons": [("Ver todas ›", lambda: go("#/tarefas"), False, None)]}
+
+        if key == "ponto":
+            rows = []
+            for p in people:
+                runs = clock_runs(p)
+                sub = (f"A contar · {worked_of(p)} hoje" if runs else f"Parado · {worked_of(p)} hoje") if p.get("ponto") else "Por bater hoje"
+                rows.append({"user": p["user"], "online": p.get("online"), "colour": COLORS["WORKING"] if runs else COLORS["OFFLINE"],
+                             "title": name(p), "sub": sub, "right": f"desde {hhmm(p['ponto'])}" if p.get("ponto") else ""})
+            runs = clock_runs(mine)
+            button = ("Parar o ponto", "#ff8a80") if runs else ("Retomar o ponto", None) if mine.get("ponto") else ("Bater o ponto", None)
+            return {"title": "Ponto", "note": "a contar" if runs else "parado" if mine.get("ponto") else "por bater hoje",
+                    "figure": worked_of(mine).replace(" ", "") if mine.get("ponto") else "—",
+                    "colour": COLORS["WORKING"] if runs else TEXT, "rows": rows, "empty": off,
+                    "buttons": [(button[0], self.punch_ponto, True, button[1])] if me else []}
+
+        if key == "camaras":
+            rows = [{"user": p["user"], "online": p.get("online"), "colour": COLORS["WORKING"], "title": name(p),
+                     "sub": activity({**p, "_me": p["user"] == me})[0], "sub_colour": COLORS["WORKING"],
+                     "action": lambda: self._open_cave("office"), "tip": "Ver o Escritório da cave"}
+                    for p in people if p["live"].get("working")]
+            return {"title": "Câmaras", "note": "Empresa AMG ao vivo · escolhe a câmara", "figure": str(working),
+                    "colour": COLORS["WORKING"] if working else TEXT,
+                    "grid": [(room, lambda cam=cam: self._open_cave(cam), f"Abrir a câmara «{room}» numa janela pequena") for room, cam in self.ROOMS],
+                    "rows": rows, "empty": off or "Ninguém a trabalhar agora.",
+                    "buttons": [("Parede de câmaras ›", office, False, None)]}
+
+        # FundedNext
+        f = self._fn or {}
+        page = lambda: go("#/fundednext")
+        out = {"title": "FundedNext", "note": f.get("phase") or "a conta da prop", "buttons": [("Abrir FundedNext ›", page, False, None)]}
+        if not f.get("accounts"):
+            return {**out, "figure": "—", "empty": off or "Nenhuma conta ligada. Abre o painel e liga a conta do MT5."}
+        if not f.get("ok"):
+            return {**out, "figure": "!", "colour": COLORS["WAITING"], "empty": f.get("error") or "Sem ligação à conta: abre o MT5."}
+        day = f.get("day_pnl") or 0
+        items = {i["id"]: i for i in f.get("items", [])}
+        daily, target = items.get("daily") or {}, items.get("target")
+        rows = [{"title": "Hoje", "right": f"{'+' if day > 0 else ''}{usd(day)}", "action": page,
+                 "right_colour": COLORS["ONLINE"] if day > 0 else RED if day < 0 else TEXT, "colour": COLORS["ONLINE"] if day >= 0 else RED},
+                {"title": "Podes perder hoje", "right": usd(f.get("left_today")), "right_colour": TEXT, "action": page,
+                 "sub": f"{round(daily.get('pct') or 0)}% do limite diário usado", "colour": meter_color(daily.get("pct") or 0)}]
+        if target:
+            rows.append({"title": "Objetivo da fase", "right": f"{round(target.get('pct') or 0)}%", "right_colour": TEXT, "action": page,
+                         "sub": f"falta {usd(target.get('left'))}", "colour": COLORS["ONLINE"]})
+        if f.get("why"):
+            rows.append({"title": "Atenção", "sub": f["why"], "colour": COLORS["WAITING"], "action": page})
+        return {**out, "figure": usd(f.get("equity")), "rows": rows}
 
     def _render_gauges(self, shown: list, mine_live: dict, windows: list):
         """The complications that come from the Hub's look at the team (every 8 s). Only a real change repaints the card."""
@@ -2371,7 +2453,8 @@ class WidgetWindow(QWidget):
         for person in shown:
             live = person.get("live") or {}
             if live.get("working"):
-                colour, what = COLORS["WORKING"], "Claude a trabalhar"
+                n = live["working"]
+                colour, what = COLORS["WORKING"], "1 Claude a trabalhar" if n == 1 else f"{n} Claudes a trabalhar"
             elif live.get("waiting") and live.get("wait") in ("permission", "answer"):
                 colour, what = COLORS["WAITING"], "Claude à espera"
             elif person.get("online"):
@@ -2382,8 +2465,9 @@ class WidgetWindow(QWidget):
             plan = live.get("limits") or {}
             use = " · ".join(f"{name} {round(plan[k])}%" for k, name in (("five", "5 h"), ("week", "semana")) if plan.get(k) is not None)
             lines.append(f"{person['name']}: {what}" + (f" · {use}" if use else ""))
-        online = sum(1 for p in shown if p.get("online"))
-        changed |= g["equipa"].set([], str(online), "\n".join(lines) or "Sem notícias da equipa", segments or None)
+        # the figure is the team's Claudes working (28 Oct, Marco: «dá para ver a quantidade de Claudes em que estamos a trabalhar»)
+        team_working = sum((p.get("live") or {}).get("working") or 0 for p in shown)
+        changed |= g["equipa"].set([], str(team_working), "\n".join(lines) or "Sem notícias da equipa", segments or None)
         n = mine_live.get("messages") or 0
         changed |= g["mensagens"].set([(1, "#ff453a")] if n else [], str(n),
                                       "1 mensagem por ler" if n == 1 else f"{n} mensagens por ler" if n else "Sem mensagens por ler")
@@ -2401,17 +2485,13 @@ class WidgetWindow(QWidget):
         me = self._identity(self._team or [])
         mine = next((p for p in self._team or [] if p.get("user") == me), {})
         runs = clock_runs(mine)
-        if self._ponto_armed:
-            ask = "Parar?" if runs else "Retomar?" if mine.get("ponto") else "Iniciar?"
-            changed = self.gauges["ponto"].set([(1, COLORS["WAITING"])], ask, "Clica outra vez para confirmar", ink=COLORS["WAITING"])
-        elif not mine.get("ponto"):
-            changed = self.gauges["ponto"].set([], "—", "Ponto por bater hoje · dois cliques para começar")
+        if not mine.get("ponto"):
+            changed = self.gauges["ponto"].set([], "—", "Ponto por bater hoje")
         else:
             s = worked_s(mine)
             hours = f"{s // 3600}h{s % 3600 // 60:02d}"
             changed = self.gauges["ponto"].set([(s / (8 * 3600), COLORS["WORKING"] if runs else WHITE)], hours,
-                                               f"Ponto a contar · {hours} hoje · dois cliques para parar" if runs
-                                               else f"Ponto parado · {hours} hoje · dois cliques para retomar")
+                                               f"Ponto a contar · {hours} hoje" if runs else f"Ponto parado · {hours} hoje")
         if changed:
             self._refresh_orb()
 
@@ -2531,14 +2611,15 @@ class WidgetWindow(QWidget):
             self.orb.show()
         self.update()
 
-    def _open_cave(self):
-        """The cameras clicked: the cave of Empresa AMG live, in its mini window over everything (mini.py), signed in."""
+    def _open_cave(self, cam: str = ""):
+        """The cameras clicked: the cave of Empresa AMG live, in its mini window over everything (mini.py), signed in, on
+        the room `cam` asks for (one of the cave's VIEWS: office, trading, vault, garage, etsy, all)."""
         who = self._identity(self._team or [])
 
         def work():
             url = hub.hub_url()
             session = self.client.hub_session() or (hub.session(url, who) if who else None)
-            self.cave_ready.emit(f"{url}/?mini=1#login={session or ''}&to=/empresa")
+            self.cave_ready.emit(f"{url}/?mini=1{'&cam=' + cam if cam else ''}#login={session or ''}&to=/empresa")
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -2768,24 +2849,28 @@ class WidgetWindow(QWidget):
         self.apps["escritorio"].set_count(sum((p.get("live") or {}).get("working") or 0 for p in shown), "#2f9e57")
         # the red count on the card: what waits in the Hub (the messages have their own gauge when it is on the card)
         self.orb.set_count((0 if self.pins["mensagens"].on else mine_live.get("messages") or 0) + (mine.get("approvals") or 0))
-        rank = {"permission": 0, "answer": 0}   # the ones waiting for this person first, then the ones working
-        windows = sorted(mine_live.get("windows") or [], key=lambda w: rank.get(w.get("wait"), 1 if w.get("state") == "working" else 2))
-        room = 2 if self.fn.isVisible() else 3   # the central has to fit the screen
-        for i, (row, w) in enumerate(zip(self.claude_rows, windows + [None] * len(self.claude_rows))):
-            w = w if i < room else None
-            row.setVisible(w is not None)
-            if w:
-                row.show_window(w)
-        asking = sum(1 for w in windows if w.get("wait") in ("permission", "answer"))
-        self.claude_now.note.setText(f"{asking} à tua espera" if asking else "")
-        recolour(self.claude_now.note, COLORS["WAITING"] if asking else MUTED)
-        self.claude_none.setVisible(not windows)
+        windows = live_windows(mine_live)
+        # each partner's windows under their row (the ones waiting first, then the ones working)
+        for i, rows in enumerate(self.member_rows):
+            person = shown[i] if i < len(shown) else {}
+            theirs = live_windows(person.get("live") or {})[:WINDOWS_EACH]
+            for row, w in zip(rows, theirs + [None] * len(rows)):
+                row.setVisible(w is not None)
+                if w:
+                    row.show_window(w, person.get("user") == me)
+        working = sum((p.get("live") or {}).get("working") or 0 for p in shown)
+        msgs, tasks = mine_live.get("messages") or 0, mine_live.get("tasks") or 0
+        self.hero.set_stats([
+            ("claudes", str(working), "Claudes", COLORS["WORKING"] if working else TEXT, "Claudes da equipa a trabalhar agora · abrir o Escritório"),
+            ("mensagens", str(msgs), "Mensagens", "#ff453a" if msgs else TEXT, "Mensagens por ler · abrir as Mensagens"),
+            ("tarefas", str(tasks), "Tarefas", TEXT, "Tarefas abertas para ti · abrir as Tarefas")])
         self._render_gauges(shown, mine_live, windows)
         self._render_ponto()
         self._render_controls()
         self.hub_note.setVisible(team is None)
         self._render_doing(team or [], me)
         self._render_state()
+        self._refresh_spot()
 
     def _render_doing(self, team, me):
         from html import escape
@@ -2919,6 +3004,7 @@ class WidgetWindow(QWidget):
         """The FundedNext card: equity and today, what can still be lost today and the phase target. With no account it is
         there only on the PC with the MT5, to say how to link it."""
         self._render_trading(f)
+        self._refresh_spot()
         if not f.get("accounts"):   # with no account the FundedNext app icon is enough: its page says how to link it
             self.fn.hide()
             return
@@ -3199,7 +3285,8 @@ class WidgetWindow(QWidget):
                 self._token_center.show_data(self._live, self.tracker)
             self._live_seen = self._live
         # look at the Hub every 4 s while the tokens are on the screen, every 8 s otherwise
-        self._fast = self.mode == "panel" or bool(self._token_center and self._token_center.isVisible())
+        self._fast = (self.mode == "panel" or bool(self._token_center and self._token_center.isVisible())
+                      or bool(self._spot and self._spot.isVisible()))
         if self._fn is not None and self._fn is not self._fn_seen:
             if self._fn != self._fn_seen:
                 self._render_fn(self._fn)

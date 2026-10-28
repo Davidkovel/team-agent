@@ -148,7 +148,9 @@ const GITHUB = { kovel: "Davidkovel", "david kovel": "Davidkovel", davidkovel: "
   david: "Daviddsstt", daviddsstt: "Daviddsstt" };
 const githubPhoto = (name) => {
   const login = GITHUB[(name || "").trim().toLowerCase()];
-  return login ? `<img src="https://github.com/${login}.png?size=96" alt="" loading="lazy" onerror="this.remove()">` : "";
+  // the hour in the address: a page left open for days (the Hub, the phone app) still picks up a new GitHub picture (28 Oct,
+  // Marco: «a nossa foto tem ainda a do Volvo... a gente já trocou de foto lá no GitHub»)
+  return login ? `<img src="https://github.com/${login}.png?size=96&h=${Math.floor(Date.now() / 3.6e6)}" alt="" loading="lazy" onerror="this.remove()">` : "";
 };
 
 const ui = {

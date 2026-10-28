@@ -20,6 +20,17 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
   o AMG com a data (ou, a âmbar/vermelho, «O Claude espera por ti», «Hub desligado»). Até 4 pílulas por fila (5 = 3+2); o
   cartão ajusta a largura e a altura ao que tem. Cada pílula faz a sua coisa ao clicar (`_gauge_clicked`): Ponto com dois
   cliques, Câmaras abre a cave, Mensagens/Tarefas/FundedNext a página, o resto a central; o rato mostra o detalhe.
+  **Desde 28 out cada pílula abre o seu destaque** (`ui/spotlight.py`, conteúdo em `_spot_content` no `window.py`; Marco: «aquele não
+  faz nada... preciso de utilizar para ver rápido»): um cartão preto ao lado do relógio com as coisas mesmo — Claude (as tuas janelas e o
+  que fazem), Tokens (5 h e semana de cada um), Equipa (quantos Claudes cada um tem a trabalhar e em quê), Mensagens e Tarefas (as
+  próprias, vindas de `message_list`/`task_list` do `/api/local/live`), Ponto (as horas e o botão), Câmaras (um botão por sala da cave:
+  abre a mini janela com `?mini=1&cam=office|trading|etsy|vault|garage|all`), FundedNext. Clicar numa linha faz o que diz e fecha.
+  A pílula Equipa mostra os Claudes da equipa a trabalhar.
+- **A central** (28 out): em cima a hora e, ao lado, Claudes · Mensagens · Tarefas clicáveis (o cartão só com a hora e a estrela
+  «não faz nada»). Na Equipa, cada sócio com a foto do GitHub (`ui/photos.py`, a mesma conta do `GITHUB` do `ui.js`), «N Claudes a
+  trabalhar» e até 2 janelas dele por baixo (o «Claude agora», que era só o teu, passou para aqui).
+- **Três tamanhos, uma coisa só** (28 out, Marco: «quando eu digo para atualizares uma cena no widget, tens que atualizar todas as
+  páginas»): relógio, destaque e central mostram os mesmos números. Mudar um = mudar os três (e o Escritório/3D se for o vídeo).
 - **A central** (24 out): Equipa logo por baixo da hora com o 5 h e a semana de cada um (o número grande de tokens em
   milhares/milhões saiu: «texto desnecessário»), «No relógio» (8 opções), Claude agora, **Controlo** (os botões que só
   estavam no menu da bandeja: ponto, pausar/retomar, parar, por cima, invisível, Hub) e as apps com ícones cromados.

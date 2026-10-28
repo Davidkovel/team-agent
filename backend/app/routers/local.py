@@ -101,6 +101,18 @@ async def local_live(request: Request, db: AsyncSession = Depends(get_db)):
         Task.status.not_in(("COMPLETED", "CANCELLED")), Task.trashed_at.is_(None)).group_by(Task.assignee_id))).all())
     messages = dict((await db.execute(select(Notification.user_id, func.count(Notification.id)).where(
         Notification.kind == "message", Notification.read_at.is_(None)).group_by(Notification.user_id))).all())
+    # what the minimized clock shows when its Tarefas or Mensagens is clicked (28 Oct, Marco: «como é que uma pessoa vai ver as
+    # tarefas ou a quantidade de tarefas?»): the newest few of each, the urgent tasks first
+    rank = {"urgent": 0, "high": 1, "normal": 2, "low": 3}
+    task_list: dict[int, list] = {}
+    for t in (await db.execute(select(Task).where(Task.status.not_in(("COMPLETED", "CANCELLED")), Task.trashed_at.is_(None))
+                               .order_by(Task.updated_at.desc()))).unique().scalars():
+        task_list.setdefault(t.assignee_id, []).append(t)
+    message_list: dict[int, list] = {}
+    for n in (await db.execute(select(Notification).where(Notification.kind == "message", Notification.read_at.is_(None))
+                               .order_by(Notification.created_at.desc()))).scalars():
+        if len(message_list.setdefault(n.user_id, [])) < 4:
+            message_list[n.user_id].append({"title": n.title, "body": (n.body or "")[:140], "href": n.href, "at": iso(n.created_at)})
     midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     done_today = (await db.execute(select(func.count(Task.id)).where(Task.completed_at >= midnight))).scalar() or 0
     from .. import limits
@@ -122,6 +134,10 @@ async def local_live(request: Request, db: AsyncSession = Depends(get_db)):
                        "action": latest.action if latest and state == "working" else "",
                        "at": iso(latest.updated_at) if latest else None,
                        "tasks": open_tasks.get(u.id, 0), "messages": messages.get(u.id, 0), "limits": plan.get(u.username),
+                       "task_list": [{"id": t.id, "title": t.title, "status": t.status, "priority": t.priority,
+                                      "doing": t.doing_since is not None}
+                                     for t in sorted(task_list.get(u.id, []), key=lambda t: (t.doing_since is None, rank.get(t.priority, 2)))[:5]],
+                       "message_list": message_list.get(u.id, []),
                        # the tokens of each window of the last day, the biggest first (Marco: «quero ter sempre o controlo dos
                        # tokens que tu gastares»)
                        "tokens": sum(r.tokens or 0 for r in rows),

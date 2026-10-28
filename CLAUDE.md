@@ -642,6 +642,27 @@ GER40 ou GBP/USD (`localStorage`). Aviso grande em qualquer página (`sinal-aler
 telemóvel** (`room.phones`). **Ensaio**: o último CPI core com o relógio deslocado (sai 15 s depois do botão). Diário em
 `~/.team-agent/trading-room/sinal.json`, nada vai por sync.
 
+### Radar: encontrar clientes (refeito a 28 out, pedido do Marco)
+
+`#/radar` (03 · Negócios; `frontend/hub/radar.js` + `.css`), `backend/app/radar.py` (pesquisa e veredicto), `radar_ficha.py` (a ficha
+completa de uma empresa) e `routers/radar.py`. «Todas as empresas, não só as escolas de condução... diz-me esta vale a pena, esta não.»
+
+- **Três perguntas**: o que procuras (qualquer texto; `TIPOS` + `_filtros()` passam-no a filtros do OpenStreetMap, o mais exato
+  ganha, e o que não tem tipo procura-se pelo nome com acentos tolerados), onde (qualquer sítio do mundo: `_geocode` sem país,
+  Portugal ganha num nome repetido) e quantos km (5 a 100; «distrito inteiro» só nas escolas, pelo diretório português).
+  Os ramos antigos (`RAMOS`) continuam com o mesmo id, por isso o seguimento antigo não se perde; um ramo novo é `t-<slug>`.
+- **Fontes**: Overpass (4 servidores, vivem cheios), senão Nominatim + Photon; e ao mesmo tempo **a pesquisa da IA**
+  (`_ia_lista`: o Claude deste PC com WebSearch, Sonnet, até 60 empresas com contacto público; `RADAR_IA=0` no `.env` desliga);
+  Google Places só com `GOOGLE_PLACES_KEY`. O site de cada uma dá também emails e telefones (`audit.telefones`).
+- **Veredicto** (`veredicto()`, calculado no `GET /api/radar/{id}`, por isso as pesquisas antigas também o têm): Vale a pena /
+  Talvez / Não vale, com o porquê e o primeiro passo (ligar, email, Facebook). Junta a oportunidade do site, sinais de que já paga
+  por digital e se há como lhe chegar (sem contacto tira 25).
+- **Página**: separadores Valem a pena · Talvez · Todas · Em contacto · Concorrência, filtros (nome, com telefone, com email, sem site)
+  e ordem. Clicar numa empresa abre **a ficha ao lado** como a do Google (`paintDr`): ligar, WhatsApp, email já escrito
+  (`mailto` com assunto e texto), site, Google, mapa, o veredicto, contactos, mapa OSM, seguimento e notas, o que está mal e a
+  ficha completa. ←/→ passam de empresa, Esc fecha. Abrir o WhatsApp ou o email marca «Contactado». Com resultados, as perguntas
+  encolhem num botão «Nova pesquisa».
+
 ### Testar uma mudança no Hub
 
 1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".

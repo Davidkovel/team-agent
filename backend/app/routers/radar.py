@@ -14,7 +14,7 @@ from .. import radar_doc
 from ..radar_ficha import FICHAS, custo
 from ..db import get_db
 from ..models import User
-from ..radar import ESTADOS, RADAR, RAMOS
+from ..radar import ESTADOS, RADAR, RAMOS, veredicto
 from ..security import user_from_jwt
 from .tradingroom import viewer
 
@@ -46,11 +46,11 @@ async def export(sid: str, token: str = Query(...), db: AsyncSession = Depends(g
         raise HTTPException(404, str(e))
     out = io.StringIO()
     w = csv.writer(out, delimiter=";")
-    w.writerow(["Posição", "Nome", "Localidade", "Telefone", "Email", "Site", "Facebook", "Plataforma", "Quem fez o site", "Nota do site",
+    w.writerow(["Posição", "Vale a pena?", "Nome", "Localidade", "Telefone", "Email", "Site", "Facebook", "Plataforma", "Quem fez o site", "Nota do site",
                 "Oportunidade", "Nível", "Gasto estimado €/mês", "Custo do site €", "Anúncios", "Principal problema", "O que fazemos", "Seguimento", "Notas"])
     for i, n in enumerate(sc["negocios"], 1):
         a, g, p, ld = n.get("audit") or {}, n.get("gasto") or {}, (n.get("problemas") or [{}])[0], n.get("lead") or {}
-        w.writerow([i, n["nome"], n.get("morada", ""), n.get("telefone", ""), n.get("email") or ", ".join(a.get("emails") or []),
+        w.writerow([i, veredicto(n)["titulo"] if "oportunidade" in n else "", n["nome"], n.get("morada", ""), n.get("telefone", ""), n.get("email") or ", ".join(a.get("emails") or []),
                     n.get("site", ""), n.get("facebook", ""), a.get("plataforma", ""), a.get("agencia", ""), n.get("nota_site"),
                     n.get("oportunidade"), n.get("nivel", ""), f"{g.get('min', 0)}-{g.get('max', 0)}" if g.get("max") else "",
                     (lambda k: f"{k['min']}-{k['max']}" if k else "")(custo(n)), "sim" if g.get("anuncios") else "", p.get("problema", ""), p.get("solucao", ""),
@@ -95,7 +95,7 @@ async def pdf(sid: str, nid: str, token: str = Query(...), db: AsyncSession = De
 @router.post("")
 async def start(body: dict, user: User = Depends(viewer)):
     try:
-        return RADAR.start(body.get("ramo", "escolas"), body.get("local", ""), body.get("raio", 15), body.get("lista", ""), user.username)
+        return RADAR.start(body.get("ramo") or "", body.get("local", ""), body.get("raio", 15), body.get("lista", ""), user.username, body.get("termo") or "")
     except (ValueError, TypeError) as e:
         raise HTTPException(400, str(e))
 
@@ -108,6 +108,7 @@ def one(sid: str, user: User = Depends(viewer)):
         raise HTTPException(404, str(e))
     for n in sc.get("negocios", []):
         n["custo_site"] = custo(n)  # quanto custou o site, pelo que o scan viu (a ficha completa afina)
+        n["vale"] = veredicto(n) if "oportunidade" in n else None  # vale a pena ou não, com o porquê
     return sc
 
 

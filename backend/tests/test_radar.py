@@ -77,3 +77,15 @@ def test_ofertas_tem_sempre_preco_e_porque():
     ids = [o["id"] for o in of]
     assert ids[0] == "site" and "redes" in ids and "google" in ids and "acompanhamento" in ids
     assert all(o["porque"] and (o["unico"] or o["mensal"]) for o in of)
+
+
+def test_qualquer_ramo_e_veredicto():
+    from app.radar import _filtros, veredicto
+    assert _filtros("clínicas dentárias") == ['nwr["amenity"="dentist"]']  # a mais exata ganha à «clínica»
+    assert _filtros("restaurantes de sushi") == ['nwr["amenity"="restaurant"]["cuisine"~"sushi|japanese"]']
+    assert any('"name"~' in f for f in _filtros("empresas de software"))  # o que não tem tipo procura-se também pelo nome
+    assert _filtros("xy") == []
+    sim = veredicto({"nome": "A", "site": "", "telefone": "912345678", "oportunidade": 70})
+    assert sim["v"] == "sim" and sim["passo"] == "Ligar" and sim["porque"]
+    nao = veredicto({"nome": "B", "site": "https://b.pt", "nota_site": 90, "audit": {}, "oportunidade": 10})
+    assert nao["v"] == "nao" and "difícil" in nao["porque"][0] or "bom" in " ".join(nao["porque"])

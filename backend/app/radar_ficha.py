@@ -676,7 +676,7 @@ class Fichas:
                         f["redes"]["facebook"] = {"url": n["facebook"], "perfil": m.group(1).strip("/"), "fonte": "diretório"}
                 self.jobs[p.stem] = "a procurar as redes sociais"
                 try:
-                    for k, v in (await _find_redes(n, local, f["redes"], RAMOS.get(scan.get("ramo"), ("", [], ""))[2])).items():
+                    for k, v in (await _find_redes(n, local, f["redes"], scan.get("termo") or RAMOS.get(scan.get("ramo"), ("", [], ""))[2])).items():
                         f["redes"][k] = {**f["redes"].get(k, {}), **v}
                 except Exception as e:  # noqa: BLE001  a pesquisa corta quem pede muito: fica o que o site liga
                     f["redes_falhou"] = True

@@ -37,12 +37,75 @@ RAMOS = {
     "oficinas": ("Oficinas", ['nwr["shop"="car_repair"]'], "oficina automóvel"),
 }
 
+# qualquer ramo escrito à mão (28 out, Marco: «todas as empresas, não só as escolas de condução»): palavra -> filtros do mapa.
+# O que não estiver aqui procura-se pelo nome; o que estiver junta as duas coisas.
+TIPOS = {
+    "escola de conducao": RAMOS["escolas"][1], "auto escola": RAMOS["escolas"][1], "driving school": RAMOS["escolas"][1],
+    "ginasio": RAMOS["ginasios"][1], "academia": RAMOS["ginasios"][1], "fitness": RAMOS["ginasios"][1], "crossfit": RAMOS["ginasios"][1],
+    "gym": RAMOS["ginasios"][1], "pilates": ['nwr["name"~"pilates",i]'], "yoga": ['nwr["name"~"yoga",i]', 'nwr["sport"="yoga"]'],
+    "restaurante": ['nwr["amenity"="restaurant"]'], "restaurant": ['nwr["amenity"="restaurant"]'], "pizzaria": ['nwr["amenity"="restaurant"]["cuisine"~"pizza"]'],
+    "hamburgueria": ['nwr["amenity"~"restaurant|fast_food"]["cuisine"~"burger"]'], "sushi": ['nwr["amenity"="restaurant"]["cuisine"~"sushi|japanese"]'],
+    "cafe": ['nwr["amenity"="cafe"]'], "snack": ['nwr["amenity"~"cafe|fast_food"]'], "bar": ['nwr["amenity"~"^(bar|pub)$"]'],
+    "pastelaria": ['nwr["shop"~"pastry|bakery"]', 'nwr["amenity"="cafe"]["name"~"pastelaria",i]'], "padaria": ['nwr["shop"="bakery"]'], "bakery": ['nwr["shop"="bakery"]'],
+    "cabeleireiro": RAMOS["cabeleireiros"][1], "barbearia": ['nwr["shop"="hairdresser"]'], "barber": ['nwr["shop"="hairdresser"]'],
+    "estetica": ['nwr["shop"="beauty"]'], "beleza": ['nwr["shop"="beauty"]'], "unhas": ['nwr["shop"="beauty"]'], "spa": ['nwr["leisure"="spa"]', 'nwr["shop"="beauty"]["beauty"~"spa"]'],
+    "tatuagem": ['nwr["shop"="tattoo"]'], "tattoo": ['nwr["shop"="tattoo"]'],
+    "dentista": ['nwr["amenity"="dentist"]'], "dentaria": ['nwr["amenity"="dentist"]'], "dentist": ['nwr["amenity"="dentist"]'],
+    "clinica dentaria": ['nwr["amenity"="dentist"]'], "clinica veterinaria": ['nwr["amenity"="veterinary"]'],
+    "clinica": ['nwr["amenity"~"^(clinic|doctors|dentist)$"]', 'nwr["healthcare"]'], "medico": ['nwr["amenity"~"^(clinic|doctors)$"]'],
+    "fisioterapia": ['nwr["healthcare"="physiotherapist"]'], "psicologo": ['nwr["healthcare"="psychotherapist"]'], "nutricionista": ['nwr["healthcare"="nutrition_counselling"]'],
+    "farmacia": ['nwr["amenity"="pharmacy"]'], "veterinario": ['nwr["amenity"="veterinary"]'], "optica": ['nwr["shop"="optician"]'],
+    "imobiliaria": RAMOS["imobiliarias"][1], "real estate": RAMOS["imobiliarias"][1], "advogado": ['nwr["office"="lawyer"]'], "lawyer": ['nwr["office"="lawyer"]'],
+    "contabilista": ['nwr["office"~"accountant|tax_advisor"]'], "contabilidade": ['nwr["office"~"accountant|tax_advisor"]'], "seguros": ['nwr["office"="insurance"]'],
+    "arquiteto": ['nwr["office"="architect"]'], "arquitecto": ['nwr["office"="architect"]'], "construcao": ['nwr["craft"="builder"]', 'nwr["office"="construction_company"]'],
+    "construtora": ['nwr["craft"="builder"]', 'nwr["office"="construction_company"]'], "remodelacoes": ['nwr["craft"="builder"]'],
+    "canalizador": ['nwr["craft"="plumber"]'], "eletricista": ['nwr["craft"="electrician"]'], "carpintaria": ['nwr["craft"="carpenter"]'],
+    "serralharia": ['nwr["craft"="metal_construction"]'], "pintor": ['nwr["craft"="painter"]'], "jardinagem": ['nwr["craft"="gardener"]'],
+    "oficina": RAMOS["oficinas"][1], "mecanico": RAMOS["oficinas"][1], "stand": ['nwr["shop"="car"]'], "carros usados": ['nwr["shop"="car"]'],
+    "pneus": ['nwr["shop"="tyres"]'], "lavagem": ['nwr["amenity"="car_wash"]'], "rent a car": ['nwr["amenity"="car_rental"]'],
+    "hotel": ['nwr["tourism"="hotel"]'], "alojamento": ['nwr["tourism"~"guest_house|hostel|apartment|hotel"]'], "hostel": ['nwr["tourism"="hostel"]'],
+    "turismo rural": ['nwr["tourism"~"guest_house|chalet"]'],
+    "roupa": ['nwr["shop"~"clothes|boutique"]'], "boutique": ['nwr["shop"~"clothes|boutique"]'], "sapataria": ['nwr["shop"="shoes"]'],
+    "florista": ['nwr["shop"="florist"]'], "moveis": ['nwr["shop"="furniture"]'], "mobiliario": ['nwr["shop"="furniture"]'], "decoracao": ['nwr["shop"~"interior_decoration|furniture"]'],
+    "eletrodomesticos": ['nwr["shop"~"electronics|appliance"]'], "telemoveis": ['nwr["shop"="mobile_phone"]'], "informatica": ['nwr["shop"="computer"]'],
+    "joalharia": ['nwr["shop"="jewelry"]'], "ourivesaria": ['nwr["shop"="jewelry"]'], "supermercado": ['nwr["shop"="supermarket"]'], "mercearia": ['nwr["shop"~"convenience|greengrocer"]'],
+    "talho": ['nwr["shop"="butcher"]'], "garrafeira": ['nwr["shop"="wine"]'], "vinhos": ['nwr["shop"="wine"]', 'nwr["craft"="winery"]'], "adega": ['nwr["craft"="winery"]'],
+    "pet shop": ['nwr["shop"="pet"]'], "animais": ['nwr["shop"="pet"]', 'nwr["amenity"="veterinary"]'],
+    "agencia de viagens": ['nwr["shop"="travel_agency"]'], "lavandaria": ['nwr["shop"~"laundry|dry_cleaning"]'],
+    "creche": ['nwr["amenity"~"kindergarten|childcare"]'], "infantario": ['nwr["amenity"~"kindergarten|childcare"]'],
+    "explicacoes": ['nwr["amenity"="prep_school"]'], "escola de linguas": ['nwr["amenity"="language_school"]'], "danca": ['nwr["amenity"="dancing_school"]', 'nwr["leisure"="dance"]'],
+    "software": ['nwr["office"~"^(it|software|telecommunication)$"]'], "tecnologia": ['nwr["office"~"^(it|software)$"]'],
+    "marketing": ['nwr["office"~"advertising_agency|marketing"]'], "publicidade": ['nwr["office"="advertising_agency"]'], "consultoria": ['nwr["office"="consulting"]'],
+    "transporte": ['nwr["office"~"logistics|courier|moving_company"]'], "mudancas": ['nwr["office"="moving_company"]'], "limpeza": ['nwr["office"="cleaning"]', 'nwr["craft"="cleaning"]'],
+    "musica": ['nwr["amenity"="music_school"]'], "fotografo": ['nwr["craft"="photographer"]', 'nwr["shop"="photo"]'], "grafica": ['nwr["shop"="copyshop"]', 'nwr["craft"="printer"]'],
+}
+
+
+def _filtros(termo: str) -> list[str]:
+    """Os filtros do mapa para um ramo escrito à mão: os tipos que a frase menciona e o nome (a palavra mais própria)."""
+    t = _norm(termo)
+    t1 = re.sub(r"s\b", "", t)  # «ginásios» -> «ginasio», «clínicas dentárias» -> «clinica dentaria»
+    keys = [k for k in TIPOS if re.search(rf"\b{k}", t) or re.search(rf"\b{k}", t1)]
+    keys = [k for k in keys if not any(k != o and k in o for o in keys)]  # «clínica dentária» ganha à «clínica»
+    out = []
+    for k in keys:
+        out += [f for f in TIPOS[k] if f not in out]
+    words = [w for w in t1.split() if len(w) > 3 and w not in GENERIC | {"loja", "lojas", "empresa", "empresas", "servico", "servicos"}]
+    out = [f for f in out if not any(g != f and g.startswith(f) for g in out)]  # «restaurantes de sushi»: só os de sushi
+    tagged = bool(out)
+    if words and (not tagged or len(max(words, key=len)) >= 7):  # com tipo achado, uma palavra curta pelo nome só traz ruído («roupa» -> «Garoupa»)
+        w = max(words, key=len)[:-1]  # sem a última letra: apanha plural e masculino/feminino
+        acc = {"a": "[aáàâã]", "e": "[eéê]", "i": "[ií]", "o": "[oóôõ]", "u": "[uú]", "c": "[cç]"}  # o mapa escreve com acentos
+        out.append('nwr["name"~"' + "".join(acc.get(ch, ch) for ch in w) + '",i]')
+    return out
+
+
 # o caminho de um contacto, por ordem
 ESTADOS = {"por_contactar": "Por contactar", "contactado": "Contactado", "respondeu": "Respondeu", "reuniao": "Reunião marcada",
            "fechou": "Fechou", "nao": "Não quer"}
 
 # resultados de pesquisa que não são o site do negócio (diretórios, redes, mapas)
-NOT_SITE = re.compile(r"facebook|instagram|youtube|linkedin|tiktok|twitter|x\.com|google\.|bomcondutor|escolasconducao|drivingschools|"
+NOT_SITE = re.compile(r"facebook|instagram|crossfit\.com|treatwell|fresha|booksy|linktr\.ee|youtube|linkedin|tiktok|twitter|x\.com|google\.|bomcondutor|escolasconducao|drivingschools|"
                       r"escola-de-conducao\.pt|schoolandcollege|pai\.pt|paginasamarelas|tripadvisor|zomato|cylex|infoempresas|racius|einforma|"
                       r"guiaempresas|yelp|booking\.com|olx\.|wikipedia|portugalio|kompass|nif\.pt|empresite|guia-empresas|maps\.|waze|"
                       r"theFork|thefork|uber|glovo|imt-ip|dre\.pt|sapo\.pt/|cmjornal|jn\.pt|publico\.pt|noticias", re.I)
@@ -155,16 +218,25 @@ class Radar:
         self._path(sid).unlink(missing_ok=True)
 
     # ---------- arrancar ----------
-    def start(self, ramo: str, local: str, raio: int, lista: str = "", owner: str = "") -> dict:
-        if ramo not in RAMOS:
-            raise ValueError("ramo desconhecido")
+    def start(self, ramo: str, local: str, raio: int, lista: str = "", owner: str = "", termo: str = "") -> dict:
+        termo = re.sub(r"\s+", " ", termo or "").strip()[:60]
+        if ramo not in RAMOS:  # um ramo escrito à mão: qualquer tipo de empresa
+            if not termo:
+                raise ValueError("diz o que procuras (ex.: ginásios, clínicas, restaurantes)")
+            hit = next((k for k, v in RAMOS.items() if _norm(v[0]) == _norm(termo)), None)
+            ramo = hit or "t-" + re.sub(r"[^a-z0-9]+", "-", _norm(termo)).strip("-")[:40]
         local = (local or "").strip()[:80]
         if not local and not lista.strip():
             raise ValueError("diz a zona (ex.: Leiria) ou cola uma lista")
         raio = int(raio if raio not in (None, "") else 15)
-        raio = 0 if raio == 0 and ramo == "escolas" else max(2, min(raio or 50, 60))  # 0 = o distrito inteiro (pelo diretório)
+        raio = 0 if raio == 0 and ramo == "escolas" else max(2, min(raio or 50, 100))  # 0 = o distrito inteiro (pelo diretório)
+        preset = RAMOS.get(ramo)
+        filtros = preset[1] if preset else _filtros(termo)
+        if not filtros and not lista.strip():
+            raise ValueError("escreve o tipo de empresa com mais uma palavra (ex.: «lojas de roupa», «clínicas dentárias»)")
         sid = uuid.uuid4().hex[:12]
-        scan = {"id": sid, "ramo": ramo, "ramo_nome": RAMOS[ramo][0], "local": local, "raio": raio, "at": time.time(), "fim": None,
+        scan = {"id": sid, "ramo": ramo, "ramo_nome": preset[0] if preset else termo[:1].upper() + termo[1:], "termo": preset[2] if preset else termo,
+                "filtros": filtros, "local": local, "raio": raio, "at": time.time(), "fim": None,
                 "owner": owner, "fontes": [], "negocios": [], "mercado": {}, "resumo": {}, "erro": ""}
         self._save(scan)
         self.jobs[sid] = {"fase": "a localizar a zona", "feitos": 0, "total": 0}
@@ -178,26 +250,32 @@ class Radar:
         try:
             async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={"User-Agent": UA_BOT}) as c:
                 found: list[dict] = []
+                ia = None
                 if scan["local"]:
                     geo = await self._geocode(c, scan["local"])
                     scan["geo"] = geo
+                    ia = asyncio.create_task(self._ia_lista(scan, geo))  # corre ao mesmo tempo que o mapa
                     if scan["raio"]:
                         job["fase"] = "a procurar no mapa"
                         try:
-                            found += await self._osm(c, scan["ramo"], geo, scan["raio"])
+                            found += await self._osm(c, scan["filtros"], geo, scan["raio"])
+                            scan["fontes"].append("OpenStreetMap")
                         except RuntimeError:  # o Overpass vive cheio: o Nominatim e o Photon leem o mesmo mapa
-                            found += await self._osm_lite(c, scan["ramo"], geo, scan["raio"])
-                        scan["fontes"].append("OpenStreetMap")
+                            try:
+                                found += await self._osm_lite(c, scan["filtros"], scan["termo"], geo, scan["raio"])
+                                scan["fontes"].append("OpenStreetMap")
+                            except RuntimeError as e:  # sem mapa fica a pesquisa da IA; sem as duas, o erro aparece no fim
+                                scan["erro"] = str(e)
                     else:  # o distrito inteiro: o mapa num raio largo, só o que é desse distrito
                         scan["distrito"] = geo.get("distrito", "")
                         job["fase"] = "a procurar no mapa"
                         try:
-                            got = await self._osm_lite(c, scan["ramo"], geo, 60)
+                            got = await self._osm_lite(c, scan["filtros"], scan["termo"], geo, 60)
                             found += [x for x in got if _norm(x.get("distrito", "")) == _norm(scan["distrito"])]
                             scan["fontes"].append("OpenStreetMap")
                         except RuntimeError:
                             pass
-                    if scan["ramo"] == "escolas":
+                    if scan["ramo"] == "escolas" and geo.get("pais", "pt") == "pt":
                         job["fase"] = "a ler o diretório das escolas"
                         try:
                             got = await self._directory(c, geo, scan["raio"], job)
@@ -206,10 +284,19 @@ class Radar:
                                 scan["fontes"].append("escolasconducao.com")
                         except (httpx.HTTPError, ValueError, KeyError):
                             pass
+                    if ia:
+                        job["fase"] = "a procurar na web com a IA"
+                        try:
+                            got = await ia
+                            if got:
+                                found += got
+                                scan["fontes"].append("pesquisa web (IA)")
+                        except Exception as e:  # noqa: BLE001  a IA é extra: o mapa chega
+                            scan["erro"] = f"pesquisa da IA: {str(e)[:100]}"
                     if os.environ.get("GOOGLE_PLACES_KEY"):
                         job["fase"] = "a procurar no Google"
                         try:
-                            found += await self._google(c, scan["ramo"], scan["local"], geo, scan["raio"])
+                            found += await self._google(c, scan["termo"], scan["local"], geo, scan["raio"])
                             scan["fontes"].append("Google Places")
                         except Exception as e:  # noqa: BLE001  o Google é extra; o mapa chega
                             scan["erro"] = f"Google Places: {str(e)[:100]}"
@@ -257,13 +344,18 @@ class Radar:
 
     # ---------- encontrar ----------
     async def _geocode(self, c: httpx.AsyncClient, local: str) -> dict:
-        r = await c.get("https://nominatim.openstreetmap.org/search", params={"q": local, "format": "json", "limit": 1, "countrycodes": "pt", "addressdetails": 1})
+        """Qualquer sítio do mundo; num nome que existe em vários países ganha Portugal se for quase tão conhecido."""
+        r = await c.get("https://nominatim.openstreetmap.org/search", params={"q": local, "format": "json", "limit": 5, "addressdetails": 1,
+                                                                              "accept-language": "pt-PT,pt,en"})
         r.raise_for_status()
         js = r.json()
         if not js:
             raise ValueError(f"não encontrei «{local}» no mapa")
-        return {"lat": float(js[0]["lat"]), "lon": float(js[0]["lon"]), "nome": js[0].get("display_name", local)[:120],
-                "distrito": (js[0].get("address") or {}).get("county", "")}
+        top = float(js[0].get("importance") or 0)
+        x = next((y for y in js if (y.get("address") or {}).get("country_code") == "pt" and float(y.get("importance") or 0) >= top * 0.6), js[0])
+        ad = x.get("address") or {}
+        return {"lat": float(x["lat"]), "lon": float(x["lon"]), "nome": x.get("display_name", local)[:120],
+                "distrito": ad.get("county") or ad.get("state", ""), "pais": ad.get("country_code", "pt")}
 
     async def _where(self, c: httpx.AsyncClient, q: str) -> tuple[float, float] | None:
         """Coordenadas de uma localidade, guardadas em disco (o Nominatim aceita um pedido por segundo)."""
@@ -322,13 +414,14 @@ class Radar:
             await asyncio.sleep(0.3)
         return out
 
-    async def _osm(self, c: httpx.AsyncClient, ramo: str, geo: dict, raio: int) -> list[dict]:
+    async def _osm(self, c: httpx.AsyncClient, filtros: list[str], geo: dict, raio: int) -> list[dict]:
         around = f"(around:{raio * 1000},{geo['lat']},{geo['lon']})"
-        q = "[out:json][timeout:60];(" + "".join(f"{f}{around};" for f in RAMOS[ramo][1]) + ");out center tags;"
+        q = "[out:json][timeout:60];(" + "".join(f"{f}{around};" for f in filtros) + ");out center tags;"
         r = None
-        for url in ("https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"):
+        for url in ("https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter",
+                    "https://overpass.kumi.systems/api/interpreter", "https://overpass-api.de/api/interpreter"):  # vivem cheios: tenta-se outra vez
             try:
-                r = await c.post(url, data={"data": q}, timeout=25)
+                r = await c.post(url, data={"data": q}, timeout=45)
                 if r.status_code == 200:
                     break
             except httpx.HTTPError:
@@ -347,30 +440,36 @@ class Radar:
                         "lat": e.get("lat") or e.get("center", {}).get("lat"), "lon": e.get("lon") or e.get("center", {}).get("lon")})
         return out
 
-    async def _osm_lite(self, c: httpx.AsyncClient, ramo: str, geo: dict, raio: int) -> list[dict]:
-        tags = [m.groups() for f in RAMOS[ramo][1] for m in [re.match(r'nwr\["(\w+)"="(\w+)"\]', f)] if m]
+    async def _osm_lite(self, c: httpx.AsyncClient, filtros: list[str], termo: str, geo: dict, raio: int) -> list[dict]:
+        tags = [m.groups() for f in filtros for m in [re.match(r'nwr\["(\w+)"="(\w+)"\]$', f)] if m] or [("", "")]
         lat, lon, d = geo["lat"], geo["lon"], raio / 111
         out = []
         for k, v in tags:
             try:
+                # o Nominatim só aceita «amenity» como etiqueta; o resto vai pelo nome, dentro da caixa da zona
                 r = await c.get("https://nominatim.openstreetmap.org/search", params={
-                    k: v, "format": "jsonv2", "limit": 50, "extratags": 1, "addressdetails": 1, "countrycodes": "pt", "bounded": 1,
+                    **({k: v} if k == "amenity" else {"q": termo}), "format": "jsonv2", "limit": 50, "extratags": 1, "addressdetails": 1, "bounded": 1,
                     "viewbox": f"{lon - d * 1.3},{lat + d},{lon + d * 1.3},{lat - d}"})
-                for x in r.json() if r.status_code == 200 else []:
+                js = r.json() if r.status_code == 200 else []
+                for x in js if isinstance(js, list) else []:
+                    if not x.get("name"):
+                        continue
                     et, ad = x.get("extratags") or {}, x.get("address") or {}
                     out.append({"nome": (x.get("name") or "")[:90], "site": et.get("website") or et.get("contact:website") or "",
                                 "telefone": et.get("phone") or et.get("contact:phone") or "", "email": et.get("email") or "",
                                 "morada": " ".join(filter(None, (ad.get("road"), ad.get("house_number"), ad.get("city") or ad.get("town") or ad.get("village")))),
                                 "fonte": "OpenStreetMap", "lat": float(x["lat"]), "lon": float(x["lon"]), "distrito": ad.get("county", "")})
                 await asyncio.sleep(1)  # a regra do Nominatim: um pedido por segundo
-                r = await c.get("https://photon.komoot.io/api/", params={"q": RAMOS[ramo][2], "osm_tag": f"{k}:{v}", "lat": lat, "lon": lon, "limit": 80})
+                r = await c.get("https://photon.komoot.io/api/", params={"q": termo, **({"osm_tag": f"{k}:{v}"} if k else {}), "lat": lat, "lon": lon, "limit": 80})
                 for f in r.json().get("features", []) if r.status_code == 200 else []:
                     p, (x_lon, x_lat) = f["properties"], f["geometry"]["coordinates"]
+                    if not k and p.get("osm_key") not in ("shop", "amenity", "office", "craft", "leisure", "tourism", "healthcare"):
+                        continue  # sem etiqueta a pesquisa também devolve ruas e terras com a mesma palavra
                     if ((x_lat - lat) ** 2 + ((x_lon - lon) * 0.77) ** 2) ** 0.5 * 111 > raio:
                         continue
                     out.append({"nome": (p.get("name") or "")[:90], "morada": " ".join(filter(None, (p.get("street"), p.get("housenumber"), p.get("city")))),
                                 "fonte": "OpenStreetMap", "lat": x_lat, "lon": x_lon, "distrito": p.get("county", "")})
-            except (httpx.HTTPError, ValueError):
+            except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
                 continue
         if not out:
             raise RuntimeError("o mapa não respondeu; tenta daqui a um minuto")
@@ -423,10 +522,10 @@ class Radar:
                 n["site"], n["site_achado"] = f"{u.scheme}://{u.host}/", True
                 return
 
-    async def _google(self, c: httpx.AsyncClient, ramo: str, local: str, geo: dict, raio: int) -> list[dict]:
+    async def _google(self, c: httpx.AsyncClient, termo: str, local: str, geo: dict, raio: int) -> list[dict]:
         out, token = [], None
         for _ in range(3):  # até 60 resultados
-            body = {"textQuery": f"{RAMOS[ramo][2]} {local}", "languageCode": "pt-PT", "regionCode": "PT",
+            body = {"textQuery": f"{termo} {local}", "languageCode": "pt-PT", "regionCode": (geo.get("pais") or "pt").upper(),
                     "locationBias": {"circle": {"center": {"latitude": geo["lat"], "longitude": geo["lon"]}, "radius": min(raio * 1000, 50000)}}}
             if token:
                 body["pageToken"] = token
@@ -447,6 +546,31 @@ class Radar:
             await asyncio.sleep(2)
         return out
 
+    async def _ia_lista(self, scan: dict, geo: dict) -> list[dict]:
+        """As empresas que a pesquisa web encontra (28 out, Marco: «procura tudo o que é possível»): o mapa não tem todas, e
+        fora de Portugal tem menos ainda. O Claude deste PC pesquisa e devolve só o que viu, com o contacto público."""
+        from .tradingroom.council import ask_claude, claude_exe
+        if not claude_exe() or os.environ.get("RADAR_IA") == "0":
+            return []
+        zona = f"{scan['local']} ({geo.get('nome', '')})" + (f", até {scan['raio']} km à volta" if scan["raio"] else ", o distrito inteiro")
+        text, _ = await ask_claude(
+            "Encontras empresas para uma agência que lhes vai propor sites, redes sociais e IA. Respondes só com JSON. Nunca inventas: "
+            "só empresas e contactos que viste nas páginas da pesquisa.",
+            f"Pesquisa na web (6 a 10 pesquisas curtas, em várias formas e na língua do país) e lista o máximo de empresas reais deste tipo: "
+            f"«{scan['termo']}» em {zona}. Procura em diretórios, Google Maps, páginas amarelas, redes sociais e nos sites delas. "
+            "Devolve só isto, até 60 empresas: "
+            '[{"nome": "", "morada": "rua e localidade", "telefone": "", "email": "", "site": "https://...", "facebook": "https://...", "instagram": "https://..."}]. '
+            "Campo que não viste fica vazio.", "sonnet", DIR / "work", timeout=420, tools="WebSearch")
+        m = re.search(r"\[.*\]", text, re.S)
+        out = []
+        for x in json.loads(m.group(0)) if m else []:
+            if isinstance(x, dict) and str(x.get("nome") or "").strip():
+                g = lambda k: str(x.get(k) or "").strip()[:200]  # noqa: E731
+                out.append({"nome": g("nome")[:90], "morada": g("morada"), "telefone": g("telefone")[:40], "email": g("email")[:80] if "@" in g("email") else "",
+                            "site": g("site") if g("site").startswith("http") else "", "facebook": g("facebook") if "facebook.com/" in g("facebook") else "",
+                            "fonte": "pesquisa web (IA)"})
+        return out[:80]
+
     @staticmethod
     def _merge(found: list[dict], local: str = "") -> list[dict]:
         by: dict[str, dict] = {}
@@ -454,6 +578,8 @@ class Radar:
         for n in found:
             if re.search(r"facebook\.com|instagram\.com", n.get("site") or ""):  # uma rede social não é um site
                 n["facebook"], n["site"] = n.get("facebook") or n["site"], ""
+            if NOT_SITE.search(re.sub(r"^https?://(www\.)?|/.*$", "", n.get("site") or "")):  # diretório ou rede, não o site deles
+                n["site"] = ""
             if n.get("site") and not n["site"].startswith("http"):
                 n["site"] = "https://" + n["site"].lstrip("/")
             key = " ".join(sorted(w for w in _norm(n["nome"]).split() if w not in skip)) or _norm(n["nome"])
@@ -520,6 +646,10 @@ class Radar:
         yrs = [int(y) for y in re.findall(r"(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-–]\s*)?(20\d\d)", s, re.I)]
         o["copyright"] = max(yrs) if yrs else None
         o["emails"] = sorted({e.lower() for e in re.findall(r"mailto:([\w.+-]+@[\w-]+\.[\w.]+)", s)})[:3]
+        if not o["emails"]:  # escrito no texto, sem link
+            o["emails"] = sorted({e.lower() for e in re.findall(r"\b[\w.+-]+@[\w-]+\.(?:pt|com|net|org|eu|es|fr|br)\b", s)
+                                  if not re.search(r"\.(png|jpg|webp|svg)$|sentry|wixpress|example|domain\.", e)})[:3]
+        o["telefones"] = list(dict.fromkeys(re.sub(r"[^\d+]", "", x) for x in re.findall(r"href=[\"']tel:([^\"']+)", s)))[:3]
         # quem fez o site: o crédito no rodapé, lido no texto visível (sem scripts nem estilos)
         txt = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", " ", s, flags=re.S | re.I)
         txt = html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", txt)))
@@ -552,10 +682,10 @@ class Radar:
                 (10, a.get("https"), "Sem cadeado (HTTPS): o Chrome marca o site como «não seguro».", "Certificado SSL e endereço https em todo o site."),
                 (10, a.get("segundos", 9) < 3, f"Demora {a.get('segundos')} s a abrir; acima de 3 s metade das pessoas desiste.", "Site leve, com imagens otimizadas, a abrir em menos de 2 s."),
                 (10, a.get("whatsapp") or a.get("telefone_link"), "Não há botão para ligar ou falar no WhatsApp.", "Botão fixo de WhatsApp e de chamada em todas as páginas."),
-                (10, a.get("inscricao_online") or a.get("formulario"), "Não dá para se inscrever ou pedir contacto no site.", "Formulário de inscrição curto que chega ao telemóvel da escola."),
+                (10, a.get("inscricao_online") or a.get("formulario"), "Não dá para marcar, inscrever-se ou pedir contacto no site.", "Formulário curto de contacto ou marcação que chega ao telemóvel do dono."),
                 (8, a.get("titulo") and a.get("descricao"), "O Google não tem título e descrição bons para mostrar.", "SEO local: título, descrição e ficha Google afinados para a zona."),
                 (6, a.get("schema"), "Faltam os dados estruturados que o Google usa no mapa e nas estrelas.", "Dados estruturados de negócio local (morada, horário, opiniões)."),
-                (6, a.get("opinioes"), "Não mostra opiniões de alunos/clientes.", "Bloco de opiniões do Google no site."),
+                (6, a.get("opinioes"), "Não mostra opiniões de clientes.", "Bloco de opiniões do Google no site."),
                 (6, a.get("precos"), "Não mostra preços: as pessoas vão perguntar a quem mostra.", "Página de preços e pacotes clara."),
                 (6, a.get("instagram") or a.get("facebook") or a.get("tiktok"), "Não liga às redes sociais.", "Redes ligadas e conteúdo mensal (Reels, carrosséis)."),
                 (6, a.get("analytics"), "Não mede visitas: não sabe o que funciona.", "Google Analytics e relatório mensal simples."),
@@ -648,6 +778,42 @@ class Radar:
                 "quentes": sum(n["nivel"] == "quente" for n in negs), "anuncios": sum(n["gasto"]["anuncios"] for n in negs),
                 "nota_mediana": notas[len(notas) // 2] if notas else None,
                 "gasto_zona": [sum(n["gasto"]["min"] for n in negs), sum(n["gasto"]["max"] for n in negs)]}
+
+
+
+def veredicto(n: dict) -> dict:
+    """Vale a pena ou não, numa palavra e com o porquê (28 out, Marco: «diz-me esta vale a pena, esta não vale; orienta-me»).
+    Junta o que falta no digital (o que lhe vendemos), sinais de que já paga por isso (tem orçamento) e se há como lhe chegar."""
+    a, op = n.get("audit") or {}, n.get("oportunidade") or 0
+    tel = bool(n.get("telefone") or a.get("telefones"))
+    mail = bool(n.get("email") or a.get("emails"))
+    sim, nao = [], []
+    if not n.get("site"):
+        sim.append("Não tem site: é a venda mais fácil" + (" (já se mexe no Facebook)" if n.get("facebook") else ""))
+    elif a.get("erro"):
+        sim.append("O site está em baixo: está a perder clientes hoje")
+    elif (n.get("nota_site") or 0) < 50:
+        sim.append(f"Site fraco ({n.get('nota_site')}/100): há muito para melhorar")
+    elif (n.get("nota_site") or 0) >= 80:
+        nao.append(f"O site já é bom ({n.get('nota_site')}/100): pouco para lhe vender")
+    if a.get("google_ads") or a.get("meta_pixel") or a.get("tiktok_pixel"):
+        sim.append("Já paga publicidade: tem orçamento para o digital")
+    if a.get("agencia"):
+        sim.append(f"Já paga a quem lhe faz o site ({a['agencia']})")
+    if n.get("nota") and n.get("opinioes"):
+        (sim if n["nota"] >= 4.3 and n["opinioes"] >= 30 else nao if n["nota"] < 3.8 else sim).append(
+            f"{str(n['nota']).replace('.', ',')} ★ com {n['opinioes']} opiniões no Google")
+    if tel or mail:
+        sim.append("Dá para falar já: " + " e ".join(x for x, ok in (("telefone", tel), ("email", mail)) if ok))
+    elif n.get("facebook"):
+        nao.append("Sem telefone nem email público: só pelo Facebook")
+    else:
+        nao.append("Sem telefone, email nem redes: difícil de contactar")
+    pontos = op + (10 if tel or mail else -25)
+    v = "sim" if pontos >= 60 else "talvez" if pontos >= 40 else "nao"
+    passo = ("Ligar" if tel else "Mandar email" if mail else "Mensagem no Facebook" if n.get("facebook") else "Ir lá ou procurar o contacto") if v != "nao" else "Deixar para depois"
+    return {"v": v, "titulo": {"sim": "Vale a pena", "talvez": "Talvez", "nao": "Não vale a pena"}[v],
+            "porque": (sim + nao) if v != "nao" else (nao + sim), "passo": passo, "pontos": max(0, min(100, round(pontos)))}
 
 
 RADAR = Radar()

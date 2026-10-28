@@ -21,6 +21,18 @@ from PySide6.QtWidgets import QWidget
 
 from . import badge
 
+
+def cut_path(rect, r=0.0, _ry=None) -> QPainterPath:
+    """The shape of every plate and button: rounded like an iPhone button (David, 28 Oct: «mantém ângulos redondos»)."""
+    rect = QRectF(rect)
+    path = QPainterPath()
+    path.addRoundedRect(rect, float(r), float(r if _ry is None else _ry))
+    return path
+
+
+def cut(p, rect, r=0.0, _ry=None):
+    p.drawPath(cut_path(rect, r))
+
 TEXT, MUTED = QColor("#f2f3f5"), QColor("#a3a7ae")
 AMBER, WHITE, ONLINE, OFFLINE = QColor("#e3bd6b"), QColor("#f2f3f5"), QColor("#4ee07a"), QColor("#8a8f98")
 QUIET = QColor("#9fb4d6")                   # a teammate working or sending a change: pale, so it does not shout
@@ -133,9 +145,9 @@ class Card(QWidget):
         p.setPen(Qt.NoPen)
         for i in range(16, 0, -2):   # a soft shadow, so the card stands off whatever is behind it
             p.setBrush(QColor(0, 0, 0, 9))
-            p.drawRoundedRect(rect.adjusted(-i, -i + 2, i, i + 2), RADIUS + i, RADIUS + i)
+            cut(p, rect.adjusted(-i, -i + 2, i, i + 2), RADIUS + i, RADIUS + i)
         path = QPainterPath()
-        path.addRoundedRect(rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS)
+        path.addPath(cut_path(rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS))
         body = QLinearGradient(rect.topLeft(), rect.bottomLeft())
         body.setColorAt(0, QColor(38, 38, 43))
         body.setColorAt(1, QColor(18, 18, 21))
@@ -218,9 +230,9 @@ class NoticeCard(Card):
         p.setPen(Qt.NoPen)
         for i in range(16, 0, -2):
             p.setBrush(QColor(0, 0, 0, 10))
-            p.drawRoundedRect(rect.adjusted(-i, -i + 3, i, i + 3), M_RADIUS + i, M_RADIUS + i)
+            cut(p, rect.adjusted(-i, -i + 3, i, i + 3), M_RADIUS + i, M_RADIUS + i)
         path = QPainterPath()
-        path.addRoundedRect(rect.adjusted(.5, .5, -.5, -.5), M_RADIUS, M_RADIUS)
+        path.addPath(cut_path(rect.adjusted(.5, .5, -.5, -.5), M_RADIUS, M_RADIUS))
         body = QLinearGradient(rect.topLeft(), rect.bottomLeft())
         body.setColorAt(0, QColor(44, 44, 48))
         body.setColorAt(1, QColor(30, 30, 33))
@@ -236,7 +248,7 @@ class NoticeCard(Card):
         av = QRectF(PAD, M_PAD, ICON, ICON)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(0, 0, 0))
-        p.drawRoundedRect(av, 9, 9)   # the app icon: a rounded square, like every icon on a Mac
+        cut(p, av, 9, 9)   # the app icon: a rounded square, like every icon on a Mac
         inset = av.width() * 0.16
         badge.star(p, av.adjusted(inset, inset, -inset, -inset))
         x, y = self._text_x, float(M_PAD)
@@ -344,12 +356,12 @@ class PresenceCard(Card):
         wash.setColorAt(0.75, _tint(self._colour, 0.0))
         p.setPen(Qt.NoPen)
         p.setBrush(wash)
-        p.drawRoundedRect(rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS)
+        cut(p, rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS)
         if self._beat < 1.0:   # the ring that beats out of the card: movement is what the eye catches in a corner
             grow = 2 + 9 * self._beat
             p.setPen(QPen(_tint(self._colour, 0.8 * (1 - self._beat)), 2))
             p.setBrush(Qt.NoBrush)
-            p.drawRoundedRect(rect.adjusted(-grow, -grow, grow, grow), RADIUS + grow, RADIUS + grow)
+            cut(p, rect.adjusted(-grow, -grow, grow, grow), RADIUS + grow, RADIUS + grow)
         av = QRectF(16, (P_HEIGHT - 3) / 2 - 18, 36, 36)
         self._star(p, av)
         dot = av.bottomRight() - QRectF(0, 0, 5, 5).bottomRight()

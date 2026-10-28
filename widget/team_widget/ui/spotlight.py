@@ -19,7 +19,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QLinear
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLayout, QVBoxLayout, QWidget
 
 from .photos import photos
-from .window import (DISPLAY, FAINT, MUTED, SHADOW, TEXT, UI, WHITE, Hover, WidgetWindow, avatar, font, glow_disc,
+from .window import (cut, cut_path, DISPLAY, FAINT, MUTED, SHADOW, TEXT, UI, WHITE, Hover, WidgetWindow, avatar, font, glow_disc,
                      glyph, label, meter_color)
 
 W = 312   # the card; the window adds SHADOW on every side
@@ -98,7 +98,7 @@ class Row(Hover):
         r = QRectF(self.rect()).adjusted(0, 1, 0, -1)
         if it.get("action"):
             shape = QPainterPath()
-            shape.addRoundedRect(r, 11, 11)
+            shape.addPath(cut_path(r, 11, 11))
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(255, 255, 255, int(7 + 15 * self.hover)))
             p.drawPath(shape)
@@ -159,10 +159,10 @@ class Row(Hover):
                 bar = QRectF(bx, r.top() + 36, each, 4)
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(255, 255, 255, 22))
-                p.drawRoundedRect(bar, 2, 2)
+                cut(p, bar, 2, 2)
                 if pct:
                     p.setBrush(QColor(meter_color(pct)))
-                    p.drawRoundedRect(QRectF(bx, bar.top(), max(4.0, each * min(100, pct) / 100), 4), 2, 2)
+                    cut(p, QRectF(bx, bar.top(), max(4.0, each * min(100, pct) / 100), 4), 2, 2)
 
 
 class Pill(Hover):
@@ -183,7 +183,7 @@ class Pill(Hover):
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(0.5 + self.press, 0.5 + self.press, -0.5 - self.press, -0.5 - self.press)
         shape = QPainterPath()
-        shape.addRoundedRect(r, r.height() / 2, r.height() / 2)
+        shape.addPath(cut_path(r, r.height() / 2, r.height() / 2))
         if self.primary:
             body = QLinearGradient(0, r.top(), 0, r.bottom())
             body.setColorAt(0, QColor(self.colour) if self.colour else QColor(238, 240, 244))

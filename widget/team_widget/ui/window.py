@@ -36,8 +36,8 @@ from .notice import Notices, Presence
 from .photos import photos
 
 TEXT, MUTED, FAINT = "#f2f3f5", "#8d9198", "#4e5258"
-WHITE, RED = "#ffffff", "#e5534b"
-AMBIENT_REST = "#6fa8ff"   # the bubble's ambient light at rest: the blue of a Mercedes cabin at night
+WHITE, RED = "#ffffff", "#e10600"   # AMG red
+AMBIENT_REST = "#ff2a1a"   # the bubble's ambient light at rest: AMG red (28 Oct, «estilo AMG agressivo»)
 ACCENT = WHITE
 COLORS = {"WORKING": "#7fd492", "ONLINE": "#7fd492", "IDLE": "#c8ccce", "WAITING": "#e3bd6b",
           "PAUSED": "#e3bd6b", "ERROR": RED, "OFFLINE": "#5b5f65"}
@@ -162,6 +162,21 @@ def clip(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
+AMG_RED = "#e10600"
+
+
+def cut_path(rect, r=0.0, _ry=None) -> QPainterPath:
+    """The shape of every plate and button: rounded like an iPhone button (David, 28 Oct: «mantém ângulos redondos»)."""
+    rect = QRectF(rect)
+    path = QPainterPath()
+    path.addRoundedRect(rect, float(r), float(r if _ry is None else _ry))
+    return path
+
+
+def cut(p: QPainter, rect, r=0.0, _ry=None):
+    p.drawPath(cut_path(rect, r))
+
+
 def rgba(colour: str, alpha: float) -> QColor:
     c = QColor(colour)
     c.setAlphaF(alpha)
@@ -234,7 +249,7 @@ def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
     badge.star(p, rect, opacity, shadow)
 
 
-GLASS_ROOM = ASSETS / "glass-room.jpg"
+GLASS_ROOM = ASSETS / "amg-tunnel.jpg"   # 28 Oct: a black AMG GT in a tunnel of red light (was glass-room.jpg)
 _room: dict[tuple, QPixmap] = {}
 
 
@@ -247,21 +262,21 @@ def room(size) -> QPixmap | None:
             return None
         cover = src.scaled(key[0], key[1], Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
         cover = cover.copy((cover.width() - key[0]) // 2, (cover.height() - key[1]) // 2, key[0], key[1])
-        small = cover.scaled(max(1, key[0] // 3), max(1, key[1] // 3), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        small = cover.scaled(max(1, key[0] // 2), max(1, key[1] // 2), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         _room[key] = small.scaled(key[0], key[1], Qt.IgnoreAspectRatio, Qt.SmoothTransformation)   # cheap blur
     return _room[key]
 
 
 def studio(p: QPainter, rect: QRectF):
-    """The background: a softened room with a view (glassmorphism, 28 Oct), under a dark veil so white text reads.
+    """The background: the AMG tunnel scene, softened, under a dark veil so white text reads (28 Oct).
     Without the picture it falls back to the old black glass."""
     pic = room(rect.size())
     if pic is not None:
         p.drawPixmap(rect.topLeft(), pic)
         veil = QLinearGradient(0, rect.top(), 0, rect.bottom())
-        veil.setColorAt(0, QColor(10, 12, 18, 70))
-        veil.setColorAt(0.5, QColor(10, 12, 18, 105))
-        veil.setColorAt(1, QColor(6, 7, 10, 165))
+        veil.setColorAt(0, QColor(8, 6, 6, 95))
+        veil.setColorAt(0.5, QColor(8, 6, 6, 120))
+        veil.setColorAt(1, QColor(4, 4, 5, 150))
         p.fillRect(rect, veil)
         return
     w, h = rect.width(), rect.height()
@@ -305,24 +320,55 @@ class Glide:
             self._anim.start()
 
 
+_carbon: list[QPixmap] = []
+
+
+def carbon() -> QPixmap:
+    """A tile of carbon-fibre weave (2x2 twill), drawn once: the AMG plates are smoked carbon."""
+    if not _carbon:
+        tile = QPixmap(8, 8)
+        tile.fill(QColor(18, 18, 20))
+        q = QPainter(tile)
+        for x in range(0, 8, 4):
+            for y in range(0, 8, 4):
+                g = QLinearGradient(x, y, x + 4, y + 4)
+                light = (x + y) % 8 == 0
+                g.setColorAt(0, QColor(46, 46, 50) if light else QColor(26, 26, 29))
+                g.setColorAt(1, QColor(22, 22, 25) if light else QColor(36, 36, 40))
+                q.fillRect(x, y, 4, 4, g)
+        q.end()
+        _carbon.append(tile)
+    return _carbon[0]
+
+
 def platter(p: QPainter, rect: QRectF, radius=18.0):
-    """Frosted glass: a translucent white plate, a light top edge and a faint sheen, the room showing through."""
+    """The AMG plate (28 Oct, «estilo Mercedes AMG agressivo», with iPhone-round corners): smoked carbon glass over
+    the scene, a silver rim lit from the top-left and a short AMG-red stripe along the top edge."""
     r = rect.adjusted(0.5, 0.5, -0.5, -0.5)
-    fill = QLinearGradient(0, r.top(), 0, r.bottom())
-    fill.setColorAt(0, QColor(255, 255, 255, 40))
-    fill.setColorAt(1, QColor(255, 255, 255, 18))
-    p.setPen(Qt.NoPen)
-    p.setBrush(QColor(12, 14, 20, 95))                      # body, so text keeps its contrast
-    p.drawRoundedRect(r, radius, radius)
-    p.setBrush(fill)
-    p.drawRoundedRect(r, radius, radius)
+    shape = cut_path(r, radius)
+    p.save()
+    p.setClipPath(shape)
+    p.setOpacity(0.78)
+    p.fillRect(r, carbon())
+    p.setOpacity(1)
+    sheen = QLinearGradient(0, r.top(), 0, r.bottom())
+    sheen.setColorAt(0, QColor(255, 255, 255, 26))
+    sheen.setColorAt(0.35, QColor(255, 255, 255, 6))
+    sheen.setColorAt(1, QColor(0, 0, 0, 60))
+    p.fillRect(r, sheen)
+    if r.width() > 60 and r.height() > 30:                  # the red stripe, only on real plates, not on small keys
+        stripe = QLinearGradient(r.left(), 0, r.left() + min(120, r.width() * 0.5), 0)
+        stripe.setColorAt(0, rgba(AMG_RED, 0.95))
+        stripe.setColorAt(1, rgba(AMG_RED, 0))
+        p.fillRect(QRectF(r.left(), r.top(), min(120, r.width() * 0.5), 2.2), stripe)
+    p.restore()
     rim = QLinearGradient(r.left(), r.top(), r.right(), r.bottom())
-    rim.setColorAt(0, QColor(255, 255, 255, 110))
-    rim.setColorAt(0.45, QColor(255, 255, 255, 28))
-    rim.setColorAt(1, QColor(255, 255, 255, 60))
+    rim.setColorAt(0, QColor(235, 238, 242, 120))
+    rim.setColorAt(0.4, QColor(255, 255, 255, 22))
+    rim.setColorAt(1, QColor(255, 255, 255, 46))
     p.setPen(QPen(rim, 1))
     p.setBrush(Qt.NoBrush)
-    p.drawRoundedRect(r, radius, radius)
+    p.drawPath(shape)
 
 
 class Card(QWidget):
@@ -342,7 +388,7 @@ class Card(QWidget):
             r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
             p.setBrush(rgba(self.tint, 0.09))
             p.setPen(QPen(rgba(self.tint, 0.28), 1))
-            p.drawRoundedRect(r, 18, 18)
+            cut(p, r, 18, 18)
         else:
             platter(p, QRectF(self.rect()))
 
@@ -494,7 +540,7 @@ class Platter(QWidget):
             head = QHBoxLayout()
             head.setSpacing(7)
             if num:
-                head.addWidget(label(num, 7.5, FAINT, QFont.DemiBold, MONO))
+                head.addWidget(label(num, 7.8, AMG_RED, QFont.Bold, MONO))   # AMG red numbers
             head.addWidget(label(title.upper(), 7.8, "#d5d8dc", QFont.Bold, UI, spacing=1.8))
             self.sub = label("", 7.8, MUTED)
             head.addWidget(self.sub)
@@ -531,10 +577,10 @@ class Meter(QWidget):
         p.setPen(Qt.NoPen)
         h = self.height()
         p.setBrush(QColor(255, 255, 255, 18))
-        p.drawRoundedRect(QRectF(0, 0, self.width(), h), h / 2, h / 2)
+        cut(p, QRectF(0, 0, self.width(), h), h / 2, h / 2)
         if self._glide.value > 0:
             p.setBrush(self._colour)
-            p.drawRoundedRect(QRectF(0, 0, max(h, self.width() * self._glide.value), h), h / 2, h / 2)
+            cut(p, QRectF(0, 0, max(h, self.width() * self._glide.value), h), h / 2, h / 2)
 
 
 class Hover(QAbstractButton):
@@ -651,9 +697,9 @@ class TextButton(Hover):
         r = QRectF(self.rect()).adjusted(.5, .5, -.5, -.5)
         p.setPen(pen(rgba(self._colour, .28), 1))
         p.setBrush(rgba(self._colour, .07 + .09 * self.hover + .08 * self.press))
-        p.drawRoundedRect(r, 12, 12)
+        cut(p, r, 12, 12)
         pill = QPainterPath()
-        pill.addRoundedRect(r, 12, 12)
+        pill.addPath(cut_path(r, 12, 12))
         self.paint_wave(p, pill, self._colour)
         p.setPen(QColor(self._colour))
         p.setFont(self._font)
@@ -739,7 +785,7 @@ class Hero(QWidget):
         r = QRectF(0, 0, self.width(), self.H)
         p.setPen(QPen(QColor(255, 255, 255, 18), 1))
         p.setBrush(QColor(0, 0, 0))
-        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), 20, 20)
+        cut(p, r.adjusted(0.5, 0.5, -0.5, -0.5), 20, 20)
         glow_disc(p, QPointF(r.width() * 0.3, -10), r.width() * 0.5, 40, "#ffffff", 0.05)
         now = datetime.now()
         chrome_text(p, QPointF(20, self.H / 2 + QFontMetricsF(self._f_time).capHeight() / 2), self._f_time, now.strftime("%H:%M"))
@@ -786,10 +832,10 @@ class Line(QWidget):
         bar = QRectF(0, 25, w, 3)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 255, 255, 18))
-        p.drawRoundedRect(bar, 1.5, 1.5)
+        cut(p, bar, 1.5, 1.5)
         if self._glide.value > 0.002:
             p.setBrush(QColor(getattr(self, "_colour", None) or meter_color(self._pct or 0)))
-            p.drawRoundedRect(QRectF(0, bar.top(), max(3, w * self._glide.value), 3), 1.5, 1.5)
+            cut(p, QRectF(0, bar.top(), max(3, w * self._glide.value), 3), 1.5, 1.5)
 
 
 class Dial(QWidget):
@@ -985,7 +1031,7 @@ class Member(Hover):
             tag = QRectF(48 + QFontMetricsF(self._f_name).horizontalAdvance(person["name"]) + 7, 6, 22, 13)
             p.setPen(Qt.NoPen)
             p.setBrush(rgba(COLORS["ONLINE"] if online else MUTED, 0.2))
-            p.drawRoundedRect(tag, 6.5, 6.5)
+            cut(p, tag, 6.5, 6.5)
             p.setPen(QColor(COLORS["ONLINE"] if online else MUTED))
             p.setFont(self._f_tag)
             p.drawText(tag, Qt.AlignCenter, "TU")
@@ -1045,19 +1091,19 @@ def app_icon(glyph: str, size: int, dpr: float) -> QPixmap:
         body.setColorAt(1, QColor(9, 9, 11) if glyph != "hub" else QColor(0, 0, 0))
         p.setPen(Qt.NoPen)
         p.setBrush(body)
-        p.drawRoundedRect(r, radius, radius)
+        cut(p, r, radius, radius)
         sheen = QLinearGradient(0, 0, 0, size * 0.55)
         sheen.setColorAt(0, QColor(255, 255, 255, 30))
         sheen.setColorAt(1, QColor(255, 255, 255, 0))
         p.setBrush(sheen)
-        p.drawRoundedRect(r.adjusted(1, 1, -1, -size * 0.45), radius - 1, radius - 1)
+        cut(p, r.adjusted(1, 1, -1, -size * 0.45), radius - 1, radius - 1)
         rim = QLinearGradient(0, 0, size, size)
         rim.setColorAt(0, QColor(255, 255, 255, 120))
         rim.setColorAt(0.45, QColor(255, 255, 255, 22))
         rim.setColorAt(1, QColor(255, 255, 255, 60))
         p.setBrush(Qt.NoBrush)
         p.setPen(QPen(rim, 1))
-        p.drawRoundedRect(r, radius, radius)
+        cut(p, r, radius, radius)
         if glyph == "hub":
             paint_star(p, QRectF(size * 0.14, size * 0.14, size * 0.72, size * 0.72))
         else:
@@ -1103,7 +1149,7 @@ class AppIcon(Hover):
         glow_disc(p, QPointF(c.x(), icon.bottom() - 2), self.ICON * 0.42, 7, "#000000", 0.6)   # its shadow on the glass
         p.drawPixmap(icon.topLeft(), app_icon(self.glyph, self.ICON, self.devicePixelRatioF()))
         shape = QPainterPath()
-        shape.addRoundedRect(icon, self.ICON * 0.27, self.ICON * 0.27)
+        shape.addPath(cut_path(icon, self.ICON * 0.27, self.ICON * 0.27))
         self.paint_wave(p, shape, WHITE, 0.22)
         if self.hover > 0.01:
             p.setPen(Qt.NoPen)
@@ -1115,7 +1161,7 @@ class AppIcon(Hover):
             pill = QRectF(icon.right() - w + 7, icon.top() - 6, w, 18)
             p.setPen(QPen(QColor(9, 9, 10), 2))
             p.setBrush(QColor(self.count_colour))
-            p.drawRoundedRect(pill, 9, 9)
+            cut(p, pill, 9, 9)
             p.setPen(QColor(WHITE))
             p.setFont(self._f_count)
             p.drawText(pill, Qt.AlignCenter, text)
@@ -1180,9 +1226,9 @@ class ClaudeRow(Hover):
         r = QRectF(self.rect()).adjusted(self.indent, 1, 0, -1)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 255, 255, int(6 + 14 * self.hover)))
-        p.drawRoundedRect(r, 9, 9)
+        cut(p, r, 9, 9)
         shape = QPainterPath()
-        shape.addRoundedRect(r, 9, 9)
+        shape.addPath(cut_path(r, 9, 9))
         self.paint_wave(p, shape)
         asks = w.get("wait") in ("permission", "answer")
         colour = window_colour(w)
@@ -1232,7 +1278,7 @@ class Kpi(Hover):
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(self.rect()).adjusted(0.5 + self.press, 0.5 + self.press, -0.5 - self.press, -0.5 - self.press)
         shape = QPainterPath()
-        shape.addRoundedRect(r, 16, 16)
+        shape.addPath(cut_path(r, 16, 16))
         if self.lit:
             body = QLinearGradient(0, r.top(), 0, r.bottom())
             body.setColorAt(0, QColor(50, 52, 58))
@@ -1321,7 +1367,7 @@ class TeamPick(QWidget):
             if picked or person["user"] == self._hot:
                 p.setPen(QPen(QColor(255, 255, 255, 34 if picked else 16), 1))
                 p.setBrush(QColor(255, 255, 255, 14 if picked else 7))
-                p.drawRoundedRect(cell.adjusted(3, 0, -3, 0), 16, 16)
+                cut(p, cell.adjusted(3, 0, -3, 0), 16, 16)
             s = self.PHOTO
             box = QRectF(cell.center().x() - s / 2, 8, s, s)
             online = bool(person.get("online"))
@@ -1524,7 +1570,7 @@ def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, d
     p.save()
     p.setPen(QPen(QColor(255, 255, 255, 70 if hot else 34), 1))
     p.setBrush(QColor(28, 29, 33, 225) if hot else QColor(10, 10, 12, 190))   # its own dark capsule: reads on any desktop
-    p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
+    cut(p, r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
     c = QPointF(r.left() + 12.5, r.center().y())
     ring = QRectF(c.x() - 8, c.y() - 8, 16, 16)
     p.setBrush(Qt.NoBrush)
@@ -1596,7 +1642,7 @@ class Toggle(Hover):
         body.setColorAt(1, blend(QColor(22, 23, 26), QColor(166, 171, 179), lit))
         p.setPen(QPen(QColor(255, 255, 255, int(30 + 50 * lit + 30 * self.hover)), 1))
         p.setBrush(body)
-        p.drawRoundedRect(r, 14, 14)
+        cut(p, r, 14, 14)
         icon = glyph(self.key, 17, "#0b0b0d" if lit > 0.5 else "#aeb3ba", self.devicePixelRatioF())
         p.drawPixmap(QPointF(r.center().x() - 8.5, r.top() + 6), icon)
         v = int(170 + (11 - 170) * lit)
@@ -2033,7 +2079,7 @@ class Orb(QWidget):
             pill = QRectF(face.right() - w + 6, face.top() - 6, w, 18)
             p.setPen(QPen(QColor(0, 0, 0, 200), 2))
             p.setBrush(QColor("#ff3b30"))
-            p.drawRoundedRect(pill, 9, 9)
+            cut(p, pill, 9, 9)
             p.setPen(QColor(WHITE))
             p.setFont(self._f_count)
             p.drawText(pill, Qt.AlignCenter, text)
@@ -2285,7 +2331,7 @@ class WidgetWindow(QWidget):
         head = QHBoxLayout()
         head.setContentsMargins(14, 4, 14, 0)
         head.setSpacing(7)
-        head.addWidget(label("04", 7.5, FAINT, QFont.DemiBold, MONO))
+        head.addWidget(label("04", 7.8, AMG_RED, QFont.Bold, MONO))
         head.addWidget(label("ATALHOS", 7.8, "#d5d8dc", QFont.Bold, UI, spacing=1.8))
         head.addWidget(label("o Hub, página a página", 7.8, MUTED))
         head.addStretch(1)
@@ -2873,9 +2919,9 @@ class WidgetWindow(QWidget):
         if shadow:
             for i in range(SHADOW, 0, -1):
                 p.setBrush(QColor(0, 0, 0, int(42 * (1 - i / SHADOW) ** 2)))
-                p.drawRoundedRect(rect.adjusted(-i, -i + 6, i, i + 6), radius + i, radius + i)
+                cut(p, rect.adjusted(-i, -i + 6, i, i + 6), radius + i, radius + i)
         shape = QPainterPath()
-        shape.addRoundedRect(rect, radius, radius)
+        shape.addPath(cut_path(rect, radius, radius))
         p.save()
         p.setClipPath(shape)
         if scene:
@@ -2890,7 +2936,7 @@ class WidgetWindow(QWidget):
         edge.setColorAt(1, QColor(255, 255, 255, 8))
         p.setBrush(Qt.NoBrush)
         p.setPen(QPen(edge, 1.2))
-        p.drawRoundedRect(rect.adjusted(0.6, 0.6, -0.6, -0.6), radius, radius)
+        cut(p, rect.adjusted(0.6, 0.6, -0.6, -0.6), radius, radius)
 
     def _paint_backdrop(self) -> QPixmap:
         """Shadow and cockpit, painted once per size."""
@@ -2925,9 +2971,9 @@ class WidgetWindow(QWidget):
             p.setPen(Qt.NoPen)
             for i in (14, 9, 5):   # a soft shadow that grows with it (three passes, cheap)
                 p.setBrush(QColor(0, 0, 0, int(16 * k)))
-                p.drawRoundedRect(rect.adjusted(-i, -i + 6, i, i + 6), radius + i, radius + i)
+                cut(p, rect.adjusted(-i, -i + 6, i, i + 6), radius + i, radius + i)
             shape = QPainterPath()
-            shape.addRoundedRect(rect, radius, radius)
+            shape.addPath(cut_path(rect, radius, radius))
             p.save()
             p.setClipPath(shape)
             # the clock is transparent: the black glass comes in with the growth instead of popping up behind it

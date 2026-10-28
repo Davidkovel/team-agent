@@ -12,7 +12,7 @@ from PySide6.QtCore import QPointF, QRectF, QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QIcon, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
-from .window import (COLORS, DISPLAY, FAINT, LOGO, MUTED, TEXT, UI, badge, font, glow_disc, meter_color, pen, platter, rgba, studio,
+from .window import (cut, cut_path, COLORS, DISPLAY, FAINT, LOGO, MUTED, TEXT, UI, badge, font, glow_disc, meter_color, pen, platter, rgba, studio,
                      tokens_text)
 
 GREEN = COLORS["WORKING"]
@@ -127,10 +127,10 @@ class Header(QWidget):
                 track = QRectF(card.left() + 84, y + 5, cw - 84 - 62, 4)
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(255, 255, 255, 18))
-                p.drawRoundedRect(track, 2, 2)
+                cut(p, track, 2, 2)
                 if pct:
                     p.setBrush(QColor(meter_color(pct)))
-                    p.drawRoundedRect(QRectF(track.left(), track.top(), max(4.0, track.width() * min(1.0, pct / 100)), 4), 2, 2)
+                    cut(p, QRectF(track.left(), track.top(), max(4.0, track.width() * min(1.0, pct / 100)), 4), 2, 2)
 
 
 class WindowList(QWidget):
@@ -177,7 +177,7 @@ class WindowList(QWidget):
             rate = tr.rate(r.get("key")) if tr else 0
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(255, 255, 255, 14 if working else 7))
-            p.drawRoundedRect(row, 12, 12)
+            cut(p, row, 12, 12)
             colour = GREEN if working else COLORS["WAITING"] if r.get("state") == "waiting" else "#5b5f65"
             dot = QPointF(row.left() + 20, row.center().y())
             if working:

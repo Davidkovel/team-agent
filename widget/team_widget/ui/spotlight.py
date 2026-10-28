@@ -12,9 +12,11 @@ anywhere else closes it too.
 The window (window.py, `_spot_content`) says what goes in it as a plain dict; this file only draws it. It is black glass
 with the chrome rim of the central, never repaints by itself, and is made the first time an icon is clicked.
 """
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
+import time
+
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QLinearGradient, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLayout, QVBoxLayout, QWidget
 
 from .photos import photos
 from .window import (DISPLAY, FAINT, MUTED, SHADOW, TEXT, UI, WHITE, Hover, WidgetWindow, avatar, font, glow_disc,
@@ -203,15 +205,18 @@ class Spotlight(QWidget):
     window calls it when the Hub's numbers change while it is open)."""
 
     def __init__(self):
-        super().__init__(None, Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        # a tool window, not a popup: a popup holds the mouse, and the press that closed it never reached the clock, so
+        # the clock could not be dragged with a destaque open (28 Oct, Marco: «sempre que arrasto... já tá lá no relógio»)
+        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.key = None
-        self._anchor, self._flip = QRect(), False
+        self._anchor, self._flip, self._beside = QRect(), False, None
+        self._closed_key, self._closed_at = None, 0.0
         self.setFixedWidth(W + 2 * SHADOW)
         col = QVBoxLayout(self)
         col.setContentsMargins(SHADOW + 14, SHADOW + 12, SHADOW + 14, SHADOW + 14)
         col.setSpacing(6)
-        col.setSizeConstraint(QVBoxLayout.SetFixedSize)
+        col.setSizeConstraint(QLayout.SetFixedSize)
         self.head = Head()
         self.head.setFixedWidth(W - 28)
         col.addWidget(self.head)
@@ -290,24 +295,47 @@ class Spotlight(QWidget):
                 item.widget().deleteLater()
 
     # ---- where it opens
-    def show_for(self, key: str, content: dict, anchor: QRect, flip: bool):
+    def toggled_off(self, key: str) -> bool:
+        """The same icon clicked again closes its card: it is open, or the press of this very click just closed it."""
+        if self.isVisible() and self.key == key:
+            self.hide()
+            return True
+        return self._closed_key == key and time.monotonic() - self._closed_at < 0.4
+
+    def show_for(self, key: str, content: dict, anchor: QRect, flip: bool, beside: QRect | None = None):
         """Opens the card for `key` beside the clock's face (`anchor`, on the screen): under it, its edge on the star's
-        side; above it when there is no room under it."""
-        self.key, self._anchor, self._flip = key, anchor, flip
+        side; above it when there is no room under it. From the central (`beside`: the central on the screen) it opens
+        outside the central, level with the figure clicked."""
+        self.key, self._anchor, self._flip, self._beside = key, anchor, flip, beside
         self._grid_sig = self._foot_sig = None
         self.show_content(content)
         self._place()
         self.show()
         self.raise_()
+        self.activateWindow()   # so a click anywhere else takes it away (changeEvent)
+
+    def hideEvent(self, e):
+        self._closed_key, self._closed_at = self.key, time.monotonic()
+        super().hideEvent(e)
+
+    def changeEvent(self, e):
+        if e.type() == QEvent.ActivationChange and not self.isActiveWindow() and self.isVisible():
+            self.hide()   # clicked elsewhere: the clock, the central, another window
+        super().changeEvent(e)
 
     def _place(self):
         a = self._anchor
         screen = (QGuiApplication.screenAt(a.center()) or self.screen()).availableGeometry()
         w, h = self.width(), self.height()
-        x = a.right() + SHADOW - w if self._flip else a.left() - SHADOW
-        y = a.bottom() + 6 - SHADOW + 4
-        if y + h - SHADOW > screen.bottom():
-            y = a.top() - h + SHADOW - 6
+        if self._beside is not None:   # from the central: on its outer side, the side with room
+            b = self._beside
+            x = b.left() - w + SHADOW - 8 if b.left() - (w - 2 * SHADOW) - 8 >= screen.left() else b.right() - SHADOW + 8
+            y = a.top() - SHADOW
+        else:
+            x = a.right() + SHADOW - w if self._flip else a.left() - SHADOW
+            y = a.bottom() + 6 - SHADOW + 4
+            if y + h - SHADOW > screen.bottom():
+                y = a.top() - h + SHADOW - 6
         x = max(screen.left() - SHADOW, min(x, screen.right() + SHADOW - w))
         y = max(screen.top() - SHADOW, min(y, screen.bottom() + SHADOW - h))
         self.move(QPoint(x, y))

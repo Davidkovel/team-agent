@@ -26,9 +26,12 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
   próprias, vindas de `message_list`/`task_list` do `/api/local/live`), Ponto (as horas e o botão), Câmaras (um botão por sala da cave:
   abre a mini janela com `?mini=1&cam=office|trading|etsy|vault|garage|all`), FundedNext. Clicar numa linha faz o que diz e fecha.
   A pílula Equipa mostra os Claudes da equipa a trabalhar.
-- **A central** (28 out): em cima a hora e, ao lado, Claudes · Mensagens · Tarefas clicáveis (o cartão só com a hora e a estrela
-  «não faz nada»). Na Equipa, cada sócio com a foto do GitHub (`ui/photos.py`, a mesma conta do `GITHUB` do `ui.js`), «N Claudes a
-  trabalhar» e até 2 janelas dele por baixo (o «Claude agora», que era só o teu, passou para aqui).
+- **A central** (28 out, 2.ª volta: «tá tudo igual», queria-a mudada a sério) segue o **Painel do Hub** (o dashboard do
+  vídeo, `frontend/hub/painel.css`): a hora com o dia escrito por extenso («quarta-feira / 28 de outubro», tem de se ler);
+  a fila de números `Kpi` (Claudes aceso, Mensagens, Tarefas, Ponto), cada um abre o mesmo destaque do relógio ao lado da
+  central; módulos numerados como no Hub (`Platter(title, note, num)`: «01 EQUIPA», «02 NO RELÓGIO», «03 CONTROLO»,
+  «04 ATALHOS»). Na Equipa, `TeamPick`: as três fotos do GitHub grandes (`ui/photos.py`), anel verde/âmbar pelo Claude;
+  clicar numa mostra o 5 h e a semana dessa pessoa e as janelas dela (`pick_rows`), guardado em `team_pick`.
 - **Três tamanhos, uma coisa só** (28 out, Marco: «quando eu digo para atualizares uma cena no widget, tens que atualizar todas as
   páginas»): relógio, destaque e central mostram os mesmos números. Mudar um = mudar os três (e o Escritório/3D se for o vídeo).
 - **A central** (24 out): Equipa logo por baixo da hora com o 5 h e a semana de cada um (o número grande de tokens em
@@ -54,6 +57,9 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 | Cartão 200 × 86: estrela, hora, AMG e ícones minúsculos com um ponto (23 out) | «as horas bué feio», as opções «nem vale a pena» |
 | Ecrã bloqueado do iPhone: estrela pequena, hora ao centro e mostradores redondos grandes por baixo (24 out) | «não é objeto assim tão grande», «mete o símbolo da Mercedes», «os ícones mete acima» |
 | Cartão de vidro escuro com estrela grande, pílulas por cima e hora cromada (24 out, 4fa0a67) | «não curti», «tá grande», quer transparente como antes |
+| Central igual com só uma linha nova (28 out, 1.ª volta) | «tá tudo igual... só meteste tudo por fora» |
+| Data do relógio a 7 pt cinzenta | «quase nem consigo ver o que dia é nem o mês» (por cima de vídeo): 8 pt quase branca com contorno escuro |
+| Destaque como `Qt.Popup` | segurava o rato: o clique que o fechava não chegava ao relógio e arrastar falhava; agora `Qt.Tool`, fecha ao arrastar e ao clicar fora |
 | Encaixar sozinho no canto do ecrã | não era isso: quer mexer à vontade e que o resto se ajuste |
 | Data, «Tudo bem», ponto e o módulo Limites na central | tralha |
 | Hora branca fixa sem olhar para o fundo | em fundos brancos deixa de se ler |
@@ -77,7 +83,10 @@ abrem na mini janela (`ui/mini.py`) só quando se pedem.
    **escuro, cinzento médio e branco** (o fundo do Marco é cinzento-claro). Tem de se ler igual nos três.
 3. Guardar e repor `~/.team-agent/widget-prefs.json` à volta do teste (o teste muda os pins).
 4. Testar o cartão largado fora do ecrã (`win._layout_orb(QPoint(...))`): tem de voltar para dentro.
-5. Antes de dizer que está bom, tirar uma captura do ecrã verdadeiro (`QGuiApplication.primaryScreen().grabWindow(0)`) e
+5. **Arrastar com eventos de rato a sério** (QMouseEvent enviado ao `orb`): para a metade direita de cada monitor (o Marco tem
+   dois, lado a lado), com um destaque aberto, e para um canto. E pôr o relógio por cima de um frame de vídeo claro, não só
+   cores lisas. Mexer numa coisa = testar o resto todo do widget, não só o que mudou.
+6. Antes de dizer que está bom, tirar uma captura do ecrã verdadeiro (`QGuiApplication.primaryScreen().grabWindow(0)`) e
    ver o widget no fundo que o Marco tem mesmo.
 
 ## Publicar

@@ -249,7 +249,7 @@ def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
     badge.star(p, rect, opacity, shadow)
 
 
-GLASS_ROOM = ASSETS / "glass-room.jpg"   # 28 Oct: a room with a view at dusk (the AMG red tunnel was not liked)
+GLASS_ROOM = ASSETS / "classic-300sl.jpg"   # 28 Oct: a silver 300 SL Gullwing at a villa, blue hour (David: «mais clássico»)
 _room: dict[tuple, QPixmap] = {}
 
 
@@ -262,13 +262,13 @@ def room(size) -> QPixmap | None:
             return None
         cover = src.scaled(key[0], key[1], Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
         cover = cover.copy((cover.width() - key[0]) // 2, (cover.height() - key[1]) // 2, key[0], key[1])
-        small = cover.scaled(max(1, key[0] // 3), max(1, key[1] // 3), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        small = cover.scaled(max(1, key[0] // 2), max(1, key[1] // 2), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         _room[key] = small.scaled(key[0], key[1], Qt.IgnoreAspectRatio, Qt.SmoothTransformation)   # cheap blur
     return _room[key]
 
 
 def studio(p: QPainter, rect: QRectF):
-    """The background: a softened room with a view (glassmorphism, 28 Oct), under a dark veil so white text reads.
+    """The background: a classic silver 300 SL at blue hour (glassmorphism, 28 Oct), softened, under a dark veil so white text reads.
     Without the picture it falls back to the old black glass."""
     pic = room(rect.size())
     if pic is not None:

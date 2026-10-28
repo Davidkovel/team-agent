@@ -249,7 +249,7 @@ def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
     badge.star(p, rect, opacity, shadow)
 
 
-GLASS_ROOM = ASSETS / "classic-300sl.jpg"   # 28 Oct: a silver 300 SL Gullwing at a villa, blue hour (David: «mais clássico»)
+GLASS_ROOM = ASSETS / "classic-interior.jpg"   # 28 Oct: a classic interior, walnut dash, chrome dials, cream leather (David: «mais clássico», sem carro)
 _room: dict[tuple, QPixmap] = {}
 
 
@@ -268,15 +268,15 @@ def room(size) -> QPixmap | None:
 
 
 def studio(p: QPainter, rect: QRectF):
-    """The background: a classic silver 300 SL at blue hour (glassmorphism, 28 Oct), softened, under a dark veil so white text reads.
+    """The background: a classic interior (walnut, chrome, cream leather; glassmorphism, 28 Oct), softened, under a dark veil so white text reads.
     Without the picture it falls back to the old black glass."""
     pic = room(rect.size())
     if pic is not None:
         p.drawPixmap(rect.topLeft(), pic)
         veil = QLinearGradient(0, rect.top(), 0, rect.bottom())
-        veil.setColorAt(0, QColor(10, 12, 18, 70))
-        veil.setColorAt(0.5, QColor(10, 12, 18, 105))
-        veil.setColorAt(1, QColor(6, 7, 10, 165))
+        veil.setColorAt(0, QColor(14, 10, 8, 135))
+        veil.setColorAt(0.5, QColor(14, 10, 8, 150))
+        veil.setColorAt(1, QColor(8, 6, 5, 185))
         p.fillRect(rect, veil)
         return
     w, h = rect.width(), rect.height()

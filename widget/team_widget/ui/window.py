@@ -36,8 +36,8 @@ from .notice import Notices, Presence
 from .photos import photos
 
 TEXT, MUTED, FAINT = "#f2f3f5", "#8d9198", "#4e5258"
-WHITE, RED = "#ffffff", "#e10600"   # AMG red
-AMBIENT_REST = "#ff2a1a"   # the bubble's ambient light at rest: AMG red (28 Oct, «estilo AMG agressivo»)
+WHITE, RED = "#ffffff", "#e5534b"
+AMBIENT_REST = "#6fa8ff"   # the bubble's ambient light at rest: the blue of a Mercedes cabin at night
 ACCENT = WHITE
 COLORS = {"WORKING": "#7fd492", "ONLINE": "#7fd492", "IDLE": "#c8ccce", "WAITING": "#e3bd6b",
           "PAUSED": "#e3bd6b", "ERROR": RED, "OFFLINE": "#5b5f65"}
@@ -249,7 +249,7 @@ def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
     badge.star(p, rect, opacity, shadow)
 
 
-GLASS_ROOM = ASSETS / "amg-tunnel.jpg"   # 28 Oct: a black AMG GT in a tunnel of red light (was glass-room.jpg)
+GLASS_ROOM = ASSETS / "glass-room.jpg"   # 28 Oct: a room with a view at dusk (the AMG red tunnel was not liked)
 _room: dict[tuple, QPixmap] = {}
 
 
@@ -262,21 +262,21 @@ def room(size) -> QPixmap | None:
             return None
         cover = src.scaled(key[0], key[1], Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
         cover = cover.copy((cover.width() - key[0]) // 2, (cover.height() - key[1]) // 2, key[0], key[1])
-        small = cover.scaled(max(1, key[0] // 2), max(1, key[1] // 2), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        small = cover.scaled(max(1, key[0] // 3), max(1, key[1] // 3), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         _room[key] = small.scaled(key[0], key[1], Qt.IgnoreAspectRatio, Qt.SmoothTransformation)   # cheap blur
     return _room[key]
 
 
 def studio(p: QPainter, rect: QRectF):
-    """The background: the AMG tunnel scene, softened, under a dark veil so white text reads (28 Oct).
+    """The background: a softened room with a view (glassmorphism, 28 Oct), under a dark veil so white text reads.
     Without the picture it falls back to the old black glass."""
     pic = room(rect.size())
     if pic is not None:
         p.drawPixmap(rect.topLeft(), pic)
         veil = QLinearGradient(0, rect.top(), 0, rect.bottom())
-        veil.setColorAt(0, QColor(8, 6, 6, 95))
-        veil.setColorAt(0.5, QColor(8, 6, 6, 120))
-        veil.setColorAt(1, QColor(4, 4, 5, 150))
+        veil.setColorAt(0, QColor(10, 12, 18, 70))
+        veil.setColorAt(0.5, QColor(10, 12, 18, 105))
+        veil.setColorAt(1, QColor(6, 7, 10, 165))
         p.fillRect(rect, veil)
         return
     w, h = rect.width(), rect.height()
@@ -320,52 +320,23 @@ class Glide:
             self._anim.start()
 
 
-_carbon: list[QPixmap] = []
-
-
-def carbon() -> QPixmap:
-    """A tile of carbon-fibre weave (2x2 twill), drawn once: the AMG plates are smoked carbon."""
-    if not _carbon:
-        tile = QPixmap(8, 8)
-        tile.fill(QColor(18, 18, 20))
-        q = QPainter(tile)
-        for x in range(0, 8, 4):
-            for y in range(0, 8, 4):
-                g = QLinearGradient(x, y, x + 4, y + 4)
-                light = (x + y) % 8 == 0
-                g.setColorAt(0, QColor(46, 46, 50) if light else QColor(26, 26, 29))
-                g.setColorAt(1, QColor(22, 22, 25) if light else QColor(36, 36, 40))
-                q.fillRect(x, y, 4, 4, g)
-        q.end()
-        _carbon.append(tile)
-    return _carbon[0]
-
-
 def platter(p: QPainter, rect: QRectF, radius=18.0):
-    """The AMG plate (28 Oct, «estilo Mercedes AMG agressivo», with iPhone-round corners): smoked carbon glass over
-    the scene, a silver rim lit from the top-left and a short AMG-red stripe along the top edge."""
+    """Frosted glass (28 Oct, as in the «Glassy Dashboard» reel): a translucent white plate with iPhone-round corners,
+    a light rim from the top-left and a faint sheen, the room showing through."""
     r = rect.adjusted(0.5, 0.5, -0.5, -0.5)
     shape = cut_path(r, radius)
-    p.save()
-    p.setClipPath(shape)
-    p.setOpacity(0.78)
-    p.fillRect(r, carbon())
-    p.setOpacity(1)
-    sheen = QLinearGradient(0, r.top(), 0, r.bottom())
-    sheen.setColorAt(0, QColor(255, 255, 255, 26))
-    sheen.setColorAt(0.35, QColor(255, 255, 255, 6))
-    sheen.setColorAt(1, QColor(0, 0, 0, 60))
-    p.fillRect(r, sheen)
-    if r.width() > 60 and r.height() > 30:                  # the red stripe, only on real plates, not on small keys
-        stripe = QLinearGradient(r.left(), 0, r.left() + min(120, r.width() * 0.5), 0)
-        stripe.setColorAt(0, rgba(AMG_RED, 0.95))
-        stripe.setColorAt(1, rgba(AMG_RED, 0))
-        p.fillRect(QRectF(r.left(), r.top(), min(120, r.width() * 0.5), 2.2), stripe)
-    p.restore()
+    fill = QLinearGradient(0, r.top(), 0, r.bottom())
+    fill.setColorAt(0, QColor(255, 255, 255, 46))
+    fill.setColorAt(1, QColor(255, 255, 255, 20))
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(12, 14, 20, 90))                      # body, so text keeps its contrast
+    p.drawPath(shape)
+    p.setBrush(fill)
+    p.drawPath(shape)
     rim = QLinearGradient(r.left(), r.top(), r.right(), r.bottom())
-    rim.setColorAt(0, QColor(235, 238, 242, 120))
-    rim.setColorAt(0.4, QColor(255, 255, 255, 22))
-    rim.setColorAt(1, QColor(255, 255, 255, 46))
+    rim.setColorAt(0, QColor(255, 255, 255, 120))
+    rim.setColorAt(0.45, QColor(255, 255, 255, 30))
+    rim.setColorAt(1, QColor(255, 255, 255, 64))
     p.setPen(QPen(rim, 1))
     p.setBrush(Qt.NoBrush)
     p.drawPath(shape)
@@ -540,7 +511,7 @@ class Platter(QWidget):
             head = QHBoxLayout()
             head.setSpacing(7)
             if num:
-                head.addWidget(label(num, 7.8, AMG_RED, QFont.Bold, MONO))   # AMG red numbers
+                head.addWidget(label(num, 7.5, FAINT, QFont.DemiBold, MONO))
             head.addWidget(label(title.upper(), 7.8, "#d5d8dc", QFont.Bold, UI, spacing=1.8))
             self.sub = label("", 7.8, MUTED)
             head.addWidget(self.sub)
@@ -1085,10 +1056,13 @@ def app_icon(glyph: str, size: int, dpr: float) -> QPixmap:
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(0.5, 0.5, size - 1, size - 1)
         radius = size * 0.27
-        body = QLinearGradient(0, 0, 0, size)   # black lacquer with a graphite top, like the car's trim
-        body.setColorAt(0, QColor(46, 48, 54) if glyph != "hub" else QColor(22, 23, 26))
-        body.setColorAt(0.55, QColor(20, 21, 24) if glyph != "hub" else QColor(6, 6, 7))
-        body.setColorAt(1, QColor(9, 9, 11) if glyph != "hub" else QColor(0, 0, 0))
+        body = QLinearGradient(0, 0, 0, size)   # frosted glass (28 Oct, as in the «Glassy Dashboard» reel)
+        body.setColorAt(0, QColor(255, 255, 255, 78))
+        body.setColorAt(0.55, QColor(255, 255, 255, 34))
+        body.setColorAt(1, QColor(255, 255, 255, 22))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(14, 16, 22, 70))
+        cut(p, r, radius, radius)
         p.setPen(Qt.NoPen)
         p.setBrush(body)
         cut(p, r, radius, radius)
@@ -1638,8 +1612,8 @@ class Toggle(Hover):
         r = r.adjusted(self.press, self.press, -self.press, -self.press)
         lit = self._lit
         body = QLinearGradient(0, r.top(), 0, r.bottom())
-        body.setColorAt(0, blend(QColor(44, 46, 51), QColor(236, 238, 242), lit))
-        body.setColorAt(1, blend(QColor(22, 23, 26), QColor(166, 171, 179), lit))
+        body.setColorAt(0, blend(QColor(255, 255, 255, 64), QColor(244, 246, 250, 235), lit))   # glass, white when lit
+        body.setColorAt(1, blend(QColor(255, 255, 255, 22), QColor(200, 205, 214, 225), lit))
         p.setPen(QPen(QColor(255, 255, 255, int(30 + 50 * lit + 30 * self.hover)), 1))
         p.setBrush(body)
         cut(p, r, 14, 14)
@@ -1688,9 +1662,9 @@ class Control(Hover):
         c = QPointF(self.width() / 2, self.D / 2 + 1)
         rad = self.D / 2 - 1 - 1.5 * self.press
         body = QLinearGradient(0, c.y() - rad, 0, c.y() + rad)
-        body.setColorAt(0, blend(QColor(52, 54, 60), QColor(238, 240, 244), lit))
-        body.setColorAt(1, blend(QColor(20, 21, 24), QColor(160, 166, 174), lit))
-        p.setPen(QPen(QColor(255, 255, 255, int(34 + 50 * lit + 40 * self.hover)), 1))
+        body.setColorAt(0, blend(QColor(255, 255, 255, 70), QColor(244, 246, 250, 235), lit))   # glass, white when lit
+        body.setColorAt(1, blend(QColor(255, 255, 255, 24), QColor(200, 205, 214, 225), lit))
+        p.setPen(QPen(QColor(255, 255, 255, int(70 + 50 * lit + 40 * self.hover)), 1))
         p.setBrush(body)
         p.drawEllipse(c, rad, rad)
         disc = QPainterPath()
@@ -2331,7 +2305,7 @@ class WidgetWindow(QWidget):
         head = QHBoxLayout()
         head.setContentsMargins(14, 4, 14, 0)
         head.setSpacing(7)
-        head.addWidget(label("04", 7.8, AMG_RED, QFont.Bold, MONO))
+        head.addWidget(label("04", 7.5, FAINT, QFont.DemiBold, MONO))
         head.addWidget(label("ATALHOS", 7.8, "#d5d8dc", QFont.Bold, UI, spacing=1.8))
         head.addWidget(label("o Hub, página a página", 7.8, MUTED))
         head.addStretch(1)

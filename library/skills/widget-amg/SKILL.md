@@ -60,6 +60,7 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 | Central igual com só uma linha nova (28 out, 1.ª volta) | «tá tudo igual... só meteste tudo por fora» |
 | Data do relógio a 7 pt cinzenta | «quase nem consigo ver o que dia é nem o mês» (por cima de vídeo): 8 pt quase branca com contorno escuro |
 | Destaque como `Qt.Popup` | segurava o rato: o clique que o fechava não chegava ao relógio e arrastar falhava; agora `Qt.Tool`, fecha ao arrastar e ao clicar fora |
+| Fundo da central com um 300 SL numa villa, depois um interior clássico em nogueira (28 out, David) | «não quero uma imagem de um carro», «não quero interiores antigos»: ficou um C63 S preto num palco preto, desfocado (`c63s-black.jpg`), minimalista para os ícones de vidro |
 | Encaixar sozinho no canto do ecrã | não era isso: quer mexer à vontade e que o resto se ajuste |
 | Data, «Tudo bem», ponto e o módulo Limites na central | tralha |
 | Hora branca fixa sem olhar para o fundo | em fundos brancos deixa de se ler |

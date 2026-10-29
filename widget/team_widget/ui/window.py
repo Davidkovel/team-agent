@@ -253,24 +253,25 @@ GLASS_ROOM = ASSETS / "c63s-black.jpg"   # 29 Oct: a black C63 S lit from the fr
 _room: dict[tuple, QPixmap] = {}
 
 
-def room(size) -> QPixmap | None:
-    """The glass look's scene (a room with a view at dusk), cut to cover `size` and softened once; cached per size."""
-    key = (round(size.width()), round(size.height()))
+def room(size, dpr: float = 1.0) -> QPixmap | None:
+    """The glass look's scene, cut to cover `size` at the screen's real pixel density (sharp on Retina); cached per size."""
+    key = (round(size.width()), round(size.height()), round(dpr * 100))
     if key not in _room:
         src = QPixmap(str(GLASS_ROOM))
         if src.isNull() or not key[0] or not key[1]:
             return None
-        cover = src.scaled(key[0], key[1], Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-        cover = cover.copy((cover.width() - key[0]) // 2, (cover.height() - key[1]) // 2, key[0], key[1])
-        small = cover.scaled(max(1, key[0] // 4), max(1, key[1] // 4), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-        _room[key] = small.scaled(key[0], key[1], Qt.IgnoreAspectRatio, Qt.SmoothTransformation)   # cheap blur
+        w, h = round(key[0] * dpr), round(key[1] * dpr)
+        cover = src.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        cover = cover.copy((cover.width() - w) // 2, (cover.height() - h) // 2, w, h)
+        cover.setDevicePixelRatio(dpr)   # 29 Oct: no more cheap blur (David: «máxima qualidade», parecia pixelizado)
+        _room[key] = cover
     return _room[key]
 
 
 def studio(p: QPainter, rect: QRectF):
     """The background: a black C63 S on a black stage (minimal, 29 Oct), softened, under a light veil (the picture is already dark).
     Without the picture it falls back to the old black glass."""
-    pic = room(rect.size())
+    pic = room(rect.size(), p.device().devicePixelRatioF())
     if pic is not None:
         p.drawPixmap(rect.topLeft(), pic)
         veil = QLinearGradient(0, rect.top(), 0, rect.bottom())

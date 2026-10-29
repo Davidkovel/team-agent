@@ -249,7 +249,7 @@ def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
     badge.star(p, rect, opacity, shadow)
 
 
-GLASS_ROOM = ASSETS / "classic-interior.jpg"   # 28 Oct: a classic interior, walnut dash, chrome dials, cream leather (David: «mais clássico», sem carro)
+GLASS_ROOM = ASSETS / "c63s-black.jpg"   # 29 Oct: a black C63 S lit from the front on an all-black stage (David: «minimalista», «só o carro a aparecer mais desfocado»)
 _room: dict[tuple, QPixmap] = {}
 
 
@@ -262,21 +262,21 @@ def room(size) -> QPixmap | None:
             return None
         cover = src.scaled(key[0], key[1], Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
         cover = cover.copy((cover.width() - key[0]) // 2, (cover.height() - key[1]) // 2, key[0], key[1])
-        small = cover.scaled(max(1, key[0] // 2), max(1, key[1] // 2), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        small = cover.scaled(max(1, key[0] // 4), max(1, key[1] // 4), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
         _room[key] = small.scaled(key[0], key[1], Qt.IgnoreAspectRatio, Qt.SmoothTransformation)   # cheap blur
     return _room[key]
 
 
 def studio(p: QPainter, rect: QRectF):
-    """The background: a classic interior (walnut, chrome, cream leather; glassmorphism, 28 Oct), softened, under a dark veil so white text reads.
+    """The background: a black C63 S on a black stage (minimal, 29 Oct), softened, under a light veil (the picture is already dark).
     Without the picture it falls back to the old black glass."""
     pic = room(rect.size())
     if pic is not None:
         p.drawPixmap(rect.topLeft(), pic)
         veil = QLinearGradient(0, rect.top(), 0, rect.bottom())
-        veil.setColorAt(0, QColor(14, 10, 8, 135))
-        veil.setColorAt(0.5, QColor(14, 10, 8, 150))
-        veil.setColorAt(1, QColor(8, 6, 5, 185))
+        veil.setColorAt(0, QColor(0, 0, 0, 40))
+        veil.setColorAt(0.5, QColor(0, 0, 0, 55))
+        veil.setColorAt(1, QColor(0, 0, 0, 90))
         p.fillRect(rect, veil)
         return
     w, h = rect.width(), rect.height()

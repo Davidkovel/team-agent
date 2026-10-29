@@ -321,26 +321,41 @@ class Glide:
             self._anim.start()
 
 
-def platter(p: QPainter, rect: QRectF, radius=18.0):
-    """Frosted glass (28 Oct, as in the «Glassy Dashboard» reel): a translucent white plate with iPhone-round corners,
-    a light rim from the top-left and a faint sheen, the room showing through."""
-    r = rect.adjusted(0.5, 0.5, -0.5, -0.5)
-    shape = cut_path(r, radius)
-    fill = QLinearGradient(0, r.top(), 0, r.bottom())
-    fill.setColorAt(0, QColor(255, 255, 255, 46))
-    fill.setColorAt(1, QColor(255, 255, 255, 20))
+def clear_glass(p: QPainter, shape: QPainterPath, r: QRectF):
+    """Clear glass (29 Oct, David: o vidro parecia «sujo», quer «mesmo transparente bonito»): almost no fill, so the car
+    behind reads clean; a thin dark tint keeps the text's contrast, a reflection on the top third and a sharp rim of
+    light, brightest along the top edge."""
+    p.save()
     p.setPen(Qt.NoPen)
-    p.setBrush(QColor(12, 14, 20, 90))                      # body, so text keeps its contrast
+    p.setBrush(QColor(0, 0, 0, 34))
     p.drawPath(shape)
+    fill = QLinearGradient(0, r.top(), 0, r.bottom())
+    fill.setColorAt(0, QColor(255, 255, 255, 16))
+    fill.setColorAt(0.5, QColor(255, 255, 255, 5))
+    fill.setColorAt(1, QColor(255, 255, 255, 9))
     p.setBrush(fill)
     p.drawPath(shape)
-    rim = QLinearGradient(r.left(), r.top(), r.right(), r.bottom())
-    rim.setColorAt(0, QColor(255, 255, 255, 120))
-    rim.setColorAt(0.45, QColor(255, 255, 255, 30))
-    rim.setColorAt(1, QColor(255, 255, 255, 64))
+    p.setClipPath(shape)
+    sheen = QLinearGradient(0, r.top(), 0, r.top() + r.height() * 0.42)
+    sheen.setColorAt(0, QColor(255, 255, 255, 30))
+    sheen.setColorAt(1, QColor(255, 255, 255, 0))
+    p.fillRect(QRectF(r.left(), r.top(), r.width(), r.height() * 0.42), sheen)
+    p.setClipping(False)
+    rim = QLinearGradient(0, r.top(), 0, r.bottom())
+    rim.setColorAt(0, QColor(255, 255, 255, 175))
+    rim.setColorAt(0.25, QColor(255, 255, 255, 55))
+    rim.setColorAt(0.7, QColor(255, 255, 255, 20))
+    rim.setColorAt(1, QColor(255, 255, 255, 70))
     p.setPen(QPen(rim, 1))
     p.setBrush(Qt.NoBrush)
     p.drawPath(shape)
+    p.restore()
+
+
+def platter(p: QPainter, rect: QRectF, radius=18.0):
+    """A module's plate in clear glass, iPhone-round corners, the car showing through."""
+    r = rect.adjusted(0.5, 0.5, -0.5, -0.5)
+    clear_glass(p, cut_path(r, radius), r)
 
 
 class Card(QWidget):
@@ -1057,28 +1072,7 @@ def app_icon(glyph: str, size: int, dpr: float) -> QPixmap:
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(0.5, 0.5, size - 1, size - 1)
         radius = size * 0.27
-        body = QLinearGradient(0, 0, 0, size)   # frosted glass (28 Oct, as in the «Glassy Dashboard» reel)
-        body.setColorAt(0, QColor(255, 255, 255, 78))
-        body.setColorAt(0.55, QColor(255, 255, 255, 34))
-        body.setColorAt(1, QColor(255, 255, 255, 22))
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(14, 16, 22, 70))
-        cut(p, r, radius, radius)
-        p.setPen(Qt.NoPen)
-        p.setBrush(body)
-        cut(p, r, radius, radius)
-        sheen = QLinearGradient(0, 0, 0, size * 0.55)
-        sheen.setColorAt(0, QColor(255, 255, 255, 30))
-        sheen.setColorAt(1, QColor(255, 255, 255, 0))
-        p.setBrush(sheen)
-        cut(p, r.adjusted(1, 1, -1, -size * 0.45), radius - 1, radius - 1)
-        rim = QLinearGradient(0, 0, size, size)
-        rim.setColorAt(0, QColor(255, 255, 255, 120))
-        rim.setColorAt(0.45, QColor(255, 255, 255, 22))
-        rim.setColorAt(1, QColor(255, 255, 255, 60))
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(rim, 1))
-        cut(p, r, radius, radius)
+        clear_glass(p, cut_path(r, radius), r)   # clear glass (29 Oct)
         if glyph == "hub":
             paint_star(p, QRectF(size * 0.14, size * 0.14, size * 0.72, size * 0.72))
         else:
@@ -1254,15 +1248,9 @@ class Kpi(Hover):
         r = QRectF(self.rect()).adjusted(0.5 + self.press, 0.5 + self.press, -0.5 - self.press, -0.5 - self.press)
         shape = QPainterPath()
         shape.addPath(cut_path(r, 16, 16))
-        if self.lit:
-            body = QLinearGradient(0, r.top(), 0, r.bottom())
-            body.setColorAt(0, QColor(50, 52, 58))
-            body.setColorAt(1, QColor(26, 27, 31))
-            p.setPen(QPen(QColor(255, 255, 255, 46 + int(30 * self.hover)), 1))
-            p.setBrush(body)
-        else:
-            p.setPen(QPen(QColor(255, 255, 255, 16 + int(26 * self.hover)), 1))
-            p.setBrush(QColor(255, 255, 255, 8 + int(10 * self.hover)))
+        clear_glass(p, shape, r)   # clear glass (29 Oct); the lit one a touch brighter
+        p.setPen(QPen(QColor(255, 255, 255, int(60 * self.hover)), 1) if self.hover else Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 14 if self.lit else 0))
         p.drawPath(shape)
         self.paint_wave(p, shape)
         disc = QRectF(r.left() + 10, r.top() + 10, 26, 26)
@@ -1612,12 +1600,19 @@ class Toggle(Hover):
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         r = r.adjusted(self.press, self.press, -self.press, -self.press)
         lit = self._lit
-        body = QLinearGradient(0, r.top(), 0, r.bottom())
-        body.setColorAt(0, blend(QColor(255, 255, 255, 64), QColor(244, 246, 250, 235), lit))   # glass, white when lit
-        body.setColorAt(1, blend(QColor(255, 255, 255, 22), QColor(200, 205, 214, 225), lit))
-        p.setPen(QPen(QColor(255, 255, 255, int(30 + 50 * lit + 30 * self.hover)), 1))
-        p.setBrush(body)
-        cut(p, r, 14, 14)
+        shape = cut_path(r, 14)
+        clear_glass(p, shape, r)   # clear glass; white when lit
+        if lit > 0:
+            body = QLinearGradient(0, r.top(), 0, r.bottom())
+            body.setColorAt(0, QColor(250, 251, 253, int(240 * lit)))
+            body.setColorAt(1, QColor(222, 226, 233, int(232 * lit)))
+            p.setPen(Qt.NoPen)
+            p.setBrush(body)
+            p.drawPath(shape)
+        if self.hover:
+            p.setPen(QPen(QColor(255, 255, 255, int(60 * self.hover)), 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(shape)
         icon = glyph(self.key, 17, "#0b0b0d" if lit > 0.5 else "#aeb3ba", self.devicePixelRatioF())
         p.drawPixmap(QPointF(r.center().x() - 8.5, r.top() + 6), icon)
         v = int(170 + (11 - 170) * lit)
@@ -1662,14 +1657,20 @@ class Control(Hover):
         lit = self._lit
         c = QPointF(self.width() / 2, self.D / 2 + 1)
         rad = self.D / 2 - 1 - 1.5 * self.press
-        body = QLinearGradient(0, c.y() - rad, 0, c.y() + rad)
-        body.setColorAt(0, blend(QColor(255, 255, 255, 70), QColor(244, 246, 250, 235), lit))   # glass, white when lit
-        body.setColorAt(1, blend(QColor(255, 255, 255, 24), QColor(200, 205, 214, 225), lit))
-        p.setPen(QPen(QColor(255, 255, 255, int(70 + 50 * lit + 40 * self.hover)), 1))
-        p.setBrush(body)
-        p.drawEllipse(c, rad, rad)
         disc = QPainterPath()
         disc.addEllipse(c, rad, rad)
+        clear_glass(p, disc, disc.boundingRect())   # clear glass; white when lit
+        if lit > 0:
+            body = QLinearGradient(0, c.y() - rad, 0, c.y() + rad)
+            body.setColorAt(0, QColor(250, 251, 253, int(240 * lit)))
+            body.setColorAt(1, QColor(222, 226, 233, int(232 * lit)))
+            p.setPen(Qt.NoPen)
+            p.setBrush(body)
+            p.drawPath(disc)
+        if self.hover:
+            p.setPen(QPen(QColor(255, 255, 255, int(70 * self.hover)), 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(disc)
         self.paint_wave(p, disc)
         ink = "#0b0b0d" if lit > 0.5 else "#ff6961" if self.danger else "#eef0f3"
         p.drawPixmap(QPointF(c.x() - 9, c.y() - 9), glyph(self.key, 18, ink, self.devicePixelRatioF()))

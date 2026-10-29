@@ -29,3 +29,68 @@ body::before {
 /* as janelas que abrem por cima (modais, menus, Ctrl+K) precisam de se ler sobre a página: um pouco de desfoque */
 .vidro.vidro-flutua { backdrop-filter: blur(22px) saturate(1.3); -webkit-backdrop-filter: blur(22px) saturate(1.3);
   background-color: rgba(10, 10, 12, .55) !important; }
+
+/* ---------------------------------------------------------------- as duas barras (29 out, David: «as cenas da esquerda...
+   e as mais à direita não mudaram... quero tudo muito bonito»). Ao lado do carro o fundo é preto, por isso o vidro das
+   barras traz a luz dele: um brilho de estúdio por cima, um reflexo na diagonal e um aro de cromado. */
+html:not(.is-phone) .hside, html:not(.is-phone) .hub.paneled #hpanel {
+  background:
+    radial-gradient(120% 38% at 30% 0%, rgba(225, 233, 245, .16), transparent 70%),
+    linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .055) 46%, transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .02) 40%, rgba(255, 255, 255, .045)),
+    rgba(14, 15, 18, .42) !important;
+  backdrop-filter: blur(26px) saturate(1.4); -webkit-backdrop-filter: blur(26px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, .12) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 1px 0 0 rgba(255, 255, 255, .06), inset 0 0 0 1px rgba(255, 255, 255, .05),
+    inset 0 -30px 60px -40px rgba(255, 255, 255, .08), 0 24px 60px rgba(0, 0, 0, .55) !important;
+}
+
+/* a pesquisa: uma pastilha de vidro */
+html:not(.is-phone) .side-search { background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03)) !important;
+  border: 1px solid rgba(255, 255, 255, .1) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22); color: #b9c0c9; }
+html:not(.is-phone) .side-search:hover { background: linear-gradient(180deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .05)) !important; color: #fff; }
+
+/* os títulos dos grupos: o número em cromado e um fio que se apaga */
+.hside .side-group { padding-top: 11px; padding-bottom: 4px; display: flex; align-items: center; gap: 8px; color: rgba(214, 220, 229, .55); letter-spacing: .16em; }
+.hside .side-group::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255, 255, 255, .14), transparent); }
+
+/* as ligações: o ícone numa pedra de vidro, a aberta acesa como os botões ligados do widget */
+html:not(.is-phone) .hside .side-link { gap: 10px; padding: 3px 8px 3px 4px; border-radius: 11px; color: #aab1ba;
+  transition: background .2s, color .2s, box-shadow .2s, transform .2s; }
+html:not(.is-phone) .hside .side-link svg.i { box-sizing: content-box; padding: 4px; border-radius: 8px; width: 14px; height: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 0 0 1px rgba(255, 255, 255, .06);
+  color: #cfd5dc; transition: background .2s, color .2s, box-shadow .2s; }
+html:not(.is-phone) .hside .side-link:hover { color: #fff; background: linear-gradient(90deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .02)); transform: translateX(2px); }
+html:not(.is-phone) .hside .side-link:hover svg.i { color: #fff; background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .05)); }
+html:not(.is-phone) .hside .side-link.active { color: #fff; font-weight: 600;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, .06) 55%, rgba(255, 255, 255, .1)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 0 0 1px rgba(255, 255, 255, .13), 0 8px 22px -10px rgba(220, 230, 245, .35) !important; }
+html:not(.is-phone) .hside .side-link.active svg.i { color: #0b0c0e; background: linear-gradient(180deg, #ffffff, #c9ced6);
+  box-shadow: inset 0 1px 0 #fff, 0 0 14px rgba(230, 238, 250, .45); }
+html:not(.is-phone) .hside .side-link.active::before { left: -10px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0;
+  background: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, .9), 0 0 22px rgba(200, 215, 240, .55); }
+.hside .side-link .badge { background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .1)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3); color: #fff; }
+
+/* o rodapé: limites num cartão de vidro, os botões em vidro */
+.hside .hside-foot { border-top: 0 !important; position: relative; }
+.hside .hside-foot::before { content: ""; position: absolute; top: 0; left: 6px; right: 6px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .18), transparent); }
+html:not(.is-phone) .hside .side-lim { border-radius: 14px; border: 1px solid rgba(255, 255, 255, .1) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .085), rgba(255, 255, 255, .025)) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25) !important; }
+.hside .side-me .av { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .35), 0 0 14px rgba(255, 255, 255, .12); border-radius: 50%; }
+.hside .side-tools .tool, #hpanel > header .tool { border-radius: 10px; background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.hside .side-tools .tool:hover, #hpanel > header .tool:hover { background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .05)); }
+
+/* o painel da direita: cada bloco é uma placa de vidro mais clara, os números em branco grande */
+html:not(.is-phone) #hpanel > header b { color: rgba(225, 231, 240, .7); letter-spacing: .24em; }
+html:not(.is-phone) #hpanel section {
+  background:
+    radial-gradient(90% 60% at 20% 0%, rgba(255, 255, 255, .08), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .025) 45%, rgba(255, 255, 255, .05)) !important;
+  border: 1px solid rgba(255, 255, 255, .1) !important; border-radius: 18px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 0 0 1px rgba(255, 255, 255, .04), 0 12px 30px -14px rgba(0, 0, 0, .7) !important;
+  transition: transform .25s, box-shadow .25s; }
+html:not(.is-phone) #hpanel section:hover { transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 0 0 1px rgba(255, 255, 255, .08), 0 16px 34px -14px rgba(0, 0, 0, .8) !important; }
+#hpanel h4 svg.i { color: #e6ebf1 !important; filter: drop-shadow(0 0 6px rgba(255, 255, 255, .35)); }

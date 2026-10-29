@@ -1,0 +1,31 @@
+/* Vidro (29 out, David: «quero essas cenas de vidro em todo o lado... e a mesma imagem do C63 no fundo»).
+   O mesmo vidro limpo da central do widget (clear_glass em widget/team_widget/ui/window.py): quase sem enchimento,
+   um véu escuro fino para o texto, um reflexo no terço de cima e um aro de luz mais forte no topo.
+   O vidro.js marca com .vidro cada superfície escura e opaca de qualquer página, por isso as salas novas ficam
+   em vidro sem mexer no CSS delas. Este ficheiro carrega em último. */
+
+html, body {
+  background: #000 url("../assets/c63s-black.jpg") 50% 74% / auto 175% no-repeat fixed !important;
+}
+html.is-phone, html.is-phone body { background-size: cover !important; background-position: 50% 60% !important; }
+/* um véu leve por cima do carro, mais escuro em baixo, como o studio() do widget */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .16), rgba(0, 0, 0, .22) 50%, rgba(0, 0, 0, .36));
+}
+#app, #login { position: relative; z-index: 1; }
+#app, #app.hub, .page, main { background: transparent !important; }
+
+.vidro {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, .063), rgba(255, 255, 255, .02) 50%, rgba(255, 255, 255, .035)),
+    rgba(0, 0, 0, .22) !important;
+  border-color: rgba(255, 255, 255, .1) !important;
+  box-shadow: var(--vidro-keep, 0 0 #0000), inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 0 0 1px rgba(255, 255, 255, .09), 0 10px 30px rgba(0, 0, 0, .28) !important;
+}
+/* vidro dentro de vidro: sem sombra por fora e um reflexo mais curto, senão as camadas pesam */
+.vidro .vidro { box-shadow: var(--vidro-keep, 0 0 #0000), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 0 0 1px rgba(255, 255, 255, .07) !important; }
+/* as janelas que abrem por cima (modais, menus, Ctrl+K) precisam de se ler sobre a página: um pouco de desfoque */
+.vidro.vidro-flutua { backdrop-filter: blur(22px) saturate(1.3); -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  background-color: rgba(10, 10, 12, .55) !important; }

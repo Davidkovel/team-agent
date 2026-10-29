@@ -51,6 +51,9 @@ def own_hub():
     os.environ.setdefault("SYNC_NODE", "3")  # o número de um computador que não está no Radmin
     if config.get("sync_peers"):
         os.environ.setdefault("SYNC_PEERS", config["sync_peers"])
+    # O relay (SYNC_RELAYS, por omissão o próprio Mac pelo Funnel) é para os PCs do Marco e do Kovel chegarem aqui: o Mac
+    # não fala consigo mesmo.
+    os.environ.setdefault("SYNC_RELAYS", "")
     hub.hub_url = lambda: hub.DEFAULT_URL
     # O hub.py arranca o Hub com .venv/Scripts/python.exe: aqui é um script que passa para este venv (.venv não vai para o git).
     python = REPO / ".venv" / "Scripts" / "python.exe"

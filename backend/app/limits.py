@@ -179,7 +179,7 @@ async def refresh_team(db=None) -> dict:
 
     async def ask(client, ip):
         try:
-            res = await client.post(f"http://{ip if ':' in ip else f'{ip}:{settings.sync_port}'}/api/sync/limits", headers={"X-Team-Key": settings.team_key})
+            res = await client.post(f"{sync._base(ip)}/api/sync/limits", headers={"X-Team-Key": settings.team_key})
             return res.status_code == 200
         except (httpx.HTTPError, OSError):
             return False

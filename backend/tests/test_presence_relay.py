@@ -24,3 +24,22 @@ def test_passed_on_is_not_passed_again():
 def test_old_hubs_without_hops_count_as_one():
     assert _pass_on({"status": "ONLINE", "remote": True})["hops"] == 2
     assert _pass_on(None) is None
+
+
+def _req(host, headers=()):
+    from starlette.requests import Request
+    return Request({"type": "http", "client": (host, 1), "headers": [(k.encode(), v.encode()) for k, v in headers]})
+
+
+def test_the_funnel_always_needs_the_key():
+    import pytest
+    from fastapi import HTTPException
+    from app import claude_kit, sync
+    radmin = sync.team_ips()[0][0]
+    sync.team_only(_req(radmin))                                      # a PC on Radmin, as before
+    for host in (radmin, "127.0.0.1"):                                # through the Funnel, whatever address it claims
+        with pytest.raises(HTTPException):
+            sync.team_only(_req(host, [("tailscale-funnel-request", "?1")]))
+        with pytest.raises(HTTPException):
+            claude_kit._team_only(_req(host, [("tailscale-funnel-request", "?1")]))
+    claude_kit._team_only(_req("127.0.0.1"))                          # this computer itself, as before

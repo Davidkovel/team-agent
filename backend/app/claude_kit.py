@@ -23,7 +23,6 @@ plugins and skills each one has.
 """
 import asyncio
 import hashlib
-import hmac
 import io
 import json
 import logging
@@ -296,7 +295,7 @@ def _save(state: dict) -> None:
 
 
 def _url(peer: str, path: str) -> str:
-    return f"http://{peer if ':' in peer else f'{peer}:{settings.sync_port}'}/api/sync/kit{path}"
+    return f"{sync._base(peer)}/api/sync/kit{path}"
 
 
 async def learn(client: httpx.AsyncClient, state: dict) -> None:
@@ -374,12 +373,12 @@ router = APIRouter(prefix="/api/sync/kit")
 
 
 def _team_only(request: Request) -> None:
+    """The team's computers (sync.team_only), and this computer itself, but never what came through the Funnel: there the
+    Mac's own proxy is the 127.0.0.1 the request seems to come from."""
     host = request.client.host if request.client else ""
-    key = request.headers.get("x-team-key", "")
-    team = [ip for ip, _ in sync.team_ips()]
-    if host not in team and host not in ("127.0.0.1", "::1") and not (
-            settings.team_key and hmac.compare_digest(key.encode(), settings.team_key.encode())):
-        raise HTTPException(403, "Only the team's computers")
+    if host in ("127.0.0.1", "::1") and not request.headers.get("tailscale-funnel-request"):
+        return
+    sync.team_only(request)
 
 
 @router.get("")

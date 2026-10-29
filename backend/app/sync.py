@@ -87,10 +87,30 @@ def whoami() -> tuple[int, str] | None:
 
 
 def peers() -> list[str]:
+    relays = [r.strip().rstrip("/") for r in settings.sync_relays.split(",") if r.strip()]
     if settings.sync_peers:
-        return [p.strip() for p in settings.sync_peers.split(",") if p.strip()]
+        return [p.strip() for p in settings.sync_peers.split(",") if p.strip()] + relays
     mine = local_ips()
-    return [ip for ip, _ in team_ips() if ip not in mine]
+    return [ip for ip, _ in team_ips() if ip not in mine] + relays
+
+
+def _base(ip: str) -> str:
+    """http://ip:port for a VPN address, or the address itself for a relay given in full (https://…)."""
+    if ip.startswith(("http://", "https://")):
+        return ip
+    return f"http://{ip if ':' in ip else f'{ip}:{settings.sync_port}'}"
+
+
+def team_only(request: Request):
+    """Only the team's computers: their VPN address, or the team key. What comes through the Funnel (the internet) always
+    needs the key, whatever address it claims to come from."""
+    host = request.client.host if request.client else ""
+    key = request.headers.get("x-team-key", "")
+    if settings.team_key and hmac.compare_digest(key.encode(), settings.team_key.encode()):
+        return
+    if host in [ip for ip, _ in team_ips()] and not request.headers.get("tailscale-funnel-request"):
+        return
+    raise HTTPException(403, "Only the team's computers")
 
 
 # ------------------------------------------------------------------ noting what changes here
@@ -338,7 +358,7 @@ async def _round(client: httpx.AsyncClient, ip: str) -> bool:
     async with engine.begin() as conn:
         body, upto, more = await conn.run_sync(_outgoing, ip)
     body["present"] = await _present()
-    res = await client.post(f"http://{ip if ':' in ip else f'{ip}:{settings.sync_port}'}/api/sync/exchange", json=body, headers={"X-Team-Key": settings.team_key})
+    res = await client.post(f"{_base(ip)}/api/sync/exchange", json=body, headers={"X-Team-Key": settings.team_key})
     res.raise_for_status()
     reply = res.json()
     await _hear(reply.get("present", []))
@@ -369,10 +389,7 @@ async def exchange(body: Exchange, request: Request):
     """Another computer of the team hands over what changed there and takes what changed here."""
     if not ACTIVE:
         raise HTTPException(404, "Sync is off")
-    host = request.client.host if request.client else ""
-    key = request.headers.get("x-team-key", "")
-    if host not in [ip for ip, _ in team_ips()] and not (settings.team_key and hmac.compare_digest(key.encode(), settings.team_key.encode())):
-        raise HTTPException(403, "Only the team's computers")
+    team_only(request)
     async with engine.begin() as conn:
         reply = await conn.run_sync(_answer, body)
     if body.epoch != reply["epoch"]:
@@ -398,9 +415,6 @@ async def refresh_limits(request: Request):
     """Another computer of the team asks this one to read its person's Claude windows again and write them for everybody."""
     if not ACTIVE:
         raise HTTPException(404, "Sync is off")
-    host = request.client.host if request.client else ""
-    key = request.headers.get("x-team-key", "")
-    if host not in [ip for ip, _ in team_ips()] and not (settings.team_key and hmac.compare_digest(key.encode(), settings.team_key.encode())):
-        raise HTTPException(403, "Only the team's computers")
+    team_only(request)
     from . import limits   # here, not on top: limits imports this module
     return await limits.refresh_here()

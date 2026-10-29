@@ -50,6 +50,16 @@ P_WIDTH, P_HEIGHT, P_EDGE, P_GAP, P_HOLD = 300, 72, 22, 10, 6000
 BEAT, BEATS = 1100, 3                       # ms of one ring beating out of a presence card, and how many
 
 
+def _glass(p: QPainter, path: QPainterPath, rect: QRectF):
+    """The plate: the C63 S behind clear glass, the same look as the central (29 Oct, David: «tudo em vidro»)."""
+    from .window import clear_glass, studio   # here, not at the top: window.py imports this module
+    p.save()
+    p.setClipPath(path)
+    studio(p, rect)
+    p.restore()
+    clear_glass(p, path, rect)
+
+
 def here():
     """The screen being looked at: the one under the mouse, so the cards come up where the person is, not on the other monitor."""
     screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
@@ -148,10 +158,7 @@ class Card(QWidget):
             cut(p, rect.adjusted(-i, -i + 2, i, i + 2), RADIUS + i, RADIUS + i)
         path = QPainterPath()
         path.addPath(cut_path(rect.adjusted(.5, .5, -.5, -.5), RADIUS, RADIUS))
-        body = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-        body.setColorAt(0, QColor(38, 38, 43))
-        body.setColorAt(1, QColor(18, 18, 21))
-        p.fillPath(path, body)
+        _glass(p, path, rect)
         p.save()
         p.setClipPath(path)
         p.fillRect(QRectF(0, 0, 4, self._h), self._accent)                                      # the coloured edge
@@ -233,13 +240,7 @@ class NoticeCard(Card):
             cut(p, rect.adjusted(-i, -i + 3, i, i + 3), M_RADIUS + i, M_RADIUS + i)
         path = QPainterPath()
         path.addPath(cut_path(rect.adjusted(.5, .5, -.5, -.5), M_RADIUS, M_RADIUS))
-        body = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-        body.setColorAt(0, QColor(44, 44, 48))
-        body.setColorAt(1, QColor(30, 30, 33))
-        p.fillPath(path, body)
-        p.setPen(QPen(QColor(255, 255, 255, 30), 1))
-        p.setBrush(Qt.NoBrush)
-        p.drawPath(path)
+        _glass(p, path, rect)
         return rect
 
     def paintEvent(self, _):

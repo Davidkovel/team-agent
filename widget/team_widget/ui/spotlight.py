@@ -19,7 +19,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QLinear
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLayout, QVBoxLayout, QWidget
 
 from .photos import photos
-from .window import (cut, cut_path, DISPLAY, FAINT, MUTED, SHADOW, TEXT, UI, WHITE, Hover, WidgetWindow, avatar, font, glow_disc,
+from .window import (clear_glass, cut, cut_path, DISPLAY, FAINT, MUTED, SHADOW, TEXT, UI, WHITE, Hover, WidgetWindow, avatar, font, glow_disc,
                      glyph, label, meter_color)
 
 W = 312   # the card; the window adds SHADOW on every side
@@ -99,9 +99,11 @@ class Row(Hover):
         if it.get("action"):
             shape = QPainterPath()
             shape.addPath(cut_path(r, 11, 11))
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(255, 255, 255, int(7 + 15 * self.hover)))
-            p.drawPath(shape)
+            clear_glass(p, shape, r)   # the same clear glass as the central (29 Oct), the car through it
+            if self.hover:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(255, 255, 255, int(16 * self.hover)))
+                p.drawPath(shape)
             self.paint_wave(p, shape)
         x = 10.0
         if it.get("indent"):
@@ -190,10 +192,13 @@ class Pill(Hover):
             body.setColorAt(1, QColor(self.colour).darker(130) if self.colour else QColor(166, 171, 179))
             p.setPen(QPen(QColor(255, 255, 255, 90), 1))
             p.setBrush(body)
-        else:
-            p.setPen(QPen(QColor(255, 255, 255, int(30 + 40 * self.hover)), 1))
-            p.setBrush(QColor(255, 255, 255, int(10 + 16 * self.hover)))
-        p.drawPath(shape)
+            p.drawPath(shape)
+        else:   # clear glass, a touch brighter under the mouse
+            clear_glass(p, shape, r)
+            if self.hover:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(255, 255, 255, int(16 * self.hover)))
+                p.drawPath(shape)
         self.paint_wave(p, shape, "#000000" if self.primary else WHITE)
         p.setPen(QColor("#0b0b0d") if self.primary else QColor(TEXT))
         p.setFont(self._f)

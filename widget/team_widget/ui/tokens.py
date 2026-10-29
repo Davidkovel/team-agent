@@ -12,7 +12,7 @@ from PySide6.QtCore import QPointF, QRectF, QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QIcon, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
-from .window import (cut, cut_path, COLORS, DISPLAY, FAINT, LOGO, MUTED, TEXT, UI, badge, font, glow_disc, meter_color, pen, platter, rgba, studio,
+from .window import (clear_glass, cut, cut_path, COLORS, DISPLAY, FAINT, LOGO, MUTED, TEXT, UI, badge, font, glow_disc, meter_color, pen, platter, rgba, studio,
                      tokens_text)
 
 GREEN = COLORS["WORKING"]
@@ -72,9 +72,11 @@ class Header(QWidget):
         total = sum((x.get("tokens") or 0) for x in self.people)
         speed = sum(tr.rate(win.get("key")) for x in self.people for win in x.get("token_windows") or []) if tr else 0
         # the two big figures
+        third = (w - 48 - 24) / 3
         for i, (cap, value, colour) in enumerate((("EQUIPA · ÚLTIMAS 24 H", tokens_text(total), TEXT),
                                                    ("A GASTAR AGORA", rate_text(speed), GREEN if speed >= 1 else MUTED))):
-            box = QRectF(24 + i * 250, 16, 240, 70)
+            box = QRectF(24 + i * (third + 12) + 14, 16, third - 28, 70)   # three plates of glass in line with the cards
+            platter(p, box.adjusted(-14, -8, 14, 8), 16)
             p.setPen(QColor(MUTED))
             p.setFont(self._f_cap)
             p.drawText(QRectF(box.left(), box.top(), box.width(), 14), Qt.AlignLeft | Qt.AlignVCenter, cap)
@@ -82,15 +84,16 @@ class Header(QWidget):
             p.setFont(self._f_big)
             p.drawText(QRectF(box.left(), box.top() + 14, box.width(), 48), Qt.AlignLeft | Qt.AlignVCenter, value)
             if i == 1 and speed >= 1:   # the live light
-                glow_disc(p, QPointF(box.left() - 10, box.top() + 7), 7, 7, GREEN, 0.5)
+                glow_disc(p, QPointF(box.right() - 18, box.top() + 7), 7, 7, GREEN, 0.5)
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(GREEN))
-                p.drawEllipse(QPointF(box.left() - 10, box.top() + 7), 3, 3)
+                p.drawEllipse(QPointF(box.right() - 18, box.top() + 7), 3, 3)
         # the team's curve since this central has been watching
-        chart = QRectF(524, 22, w - 548, 62)
+        chart = QRectF(24 + 2 * (third + 12) + 14, 32, third - 28, 50)
+        platter(p, QRectF(chart.left() - 14, 8, chart.width() + 28, 86), 16)
         p.setPen(QColor(MUTED))
         p.setFont(self._f_cap)
-        p.drawText(QRectF(chart.left(), 4, chart.width(), 14), Qt.AlignLeft | Qt.AlignVCenter, "TOKENS DESDE QUE A CENTRAL ABRIU")
+        p.drawText(QRectF(chart.left(), 14, chart.width(), 14), Qt.AlignLeft | Qt.AlignVCenter, "TOKENS DESDE QUE A CENTRAL ABRIU")
         spark(p, chart, list(tr.team) if tr else [], "#f2f3f5")
         # one card per partner
         n = max(1, len(self.people))
@@ -157,11 +160,11 @@ class WindowList(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w = self.width()
-        cols = {"spark": w - 400, "rate": w - 270, "delta": w - 180, "total": w - 24}
+        cols = {"spark": w - 400, "rate": w - 270, "delta": w - 180, "total": w - 40}
         p.setPen(QColor(FAINT))
         p.setFont(self._f_head)
         for text, x, align in (("JANELA", 64, Qt.AlignLeft), ("ÚLTIMOS MINUTOS", cols["spark"], Qt.AlignLeft),
-                               ("AGORA", cols["rate"], Qt.AlignLeft), ("ACABOU DE GASTAR", cols["delta"], Qt.AlignLeft)):
+                               ("AGORA", cols["rate"], Qt.AlignLeft), ("ÚLTIMO GASTO", cols["delta"], Qt.AlignLeft)):
             p.drawText(QRectF(x, 4, 160, 16), align | Qt.AlignVCenter, text)
         p.drawText(QRectF(cols["total"] - 100, 4, 100, 16), Qt.AlignRight | Qt.AlignVCenter, "24 H")
         if not self.rows:
@@ -172,12 +175,15 @@ class WindowList(QWidget):
         tr = self.tracker
         for i, r in enumerate(self.rows):
             y = 28 + i * self.ROW
-            row = QRectF(16, y + 3, w - 32, self.ROW - 6)
+            row = QRectF(24, y + 3, w - 48, self.ROW - 6)
             working = r.get("state") == "working"
             rate = tr.rate(r.get("key")) if tr else 0
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(255, 255, 255, 14 if working else 7))
-            cut(p, row, 12, 12)
+            glass = cut_path(row, 12, 12)
+            clear_glass(p, glass, row)   # clear glass (29 Oct), like the central; a working window a touch brighter
+            if working:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(255, 255, 255, 10))
+                p.drawPath(glass)
             colour = GREEN if working else COLORS["WAITING"] if r.get("state") == "waiting" else "#5b5f65"
             dot = QPointF(row.left() + 20, row.center().y())
             if working:

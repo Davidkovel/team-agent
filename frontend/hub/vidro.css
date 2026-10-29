@@ -8,10 +8,15 @@ html, body {
   background: #000 url("../assets/c63s-black.jpg") 50% 74% / auto 175% no-repeat fixed !important;
 }
 html.is-phone, html.is-phone body { background-size: cover !important; background-position: 50% 60% !important; }
-/* um véu leve por cima do carro, mais escuro em baixo, como o studio() do widget */
+/* um véu por cima do carro, mais escuro em baixo. 29 out, David: «o carro parece a principal atenção da página... quero
+   que seja o plano secundário, visível mas menos destacado»: o véu apaga-o para metade, tira-lhe o contraste e
+   desfoca-o um pouco, e escurece mais por trás das letras do meio do que nos cantos */
 body::before {
   content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0, 0, 0, .16), rgba(0, 0, 0, .22) 50%, rgba(0, 0, 0, .36));
+  backdrop-filter: blur(2px) brightness(.74) contrast(.85) saturate(.75); -webkit-backdrop-filter: blur(2px) brightness(.74) contrast(.85) saturate(.75);
+  background:
+    radial-gradient(70% 55% at 50% 45%, rgba(0, 0, 0, .18), transparent 75%),
+    linear-gradient(180deg, rgba(0, 0, 0, .2), rgba(0, 0, 0, .26) 50%, rgba(0, 0, 0, .42));
 }
 #app, #login { position: relative; z-index: 1; }
 #app, #app.hub, .page, main { background: transparent !important; }
@@ -94,3 +99,7 @@ html:not(.is-phone) #hpanel section {
 html:not(.is-phone) #hpanel section:hover { transform: translateY(-1px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 0 0 1px rgba(255, 255, 255, .08), 0 16px 34px -14px rgba(0, 0, 0, .8) !important; }
 #hpanel h4 svg.i { color: #e6ebf1 !important; filter: drop-shadow(0 0 6px rgba(255, 255, 255, .35)); }
+
+/* o carro do cabeçalho do Início também desce para segundo plano: as letras ganham, ele fica a acompanhar */
+.hero-car { opacity: .55 !important; filter: contrast(.9) brightness(.85); }
+html.is-phone .m-amg-car { opacity: .4 !important; }

@@ -298,13 +298,26 @@ PRESENCE_TTL = 20  # a few exchanges: a computer that goes off stops being heard
 HEARD: dict[int, float] = {}  # user id -> last time another computer said they were online there (for "visto há")
 
 
+MAX_HOPS = 2  # own people go one hop; what was heard goes one more (the Mac reaches the Radmin PCs only through David's PC)
+
+
 async def _present() -> list[dict]:
-    """Who is online through this computer (its widget, Hub page or agent). What was heard from another computer is
-    not passed on: each computer speaks only for its own people, so nobody stays online by echo."""
+    """Who is online through this computer (its widget, Hub page or agent), and who it heard from a computer one hop away.
+    29 out: the Mac speaks only to David's PC over Tailscale and the PCs of Marco and Kovel only over Radmin, so David on
+    the Mac never showed online for them. A heard person is passed on once (hops 2) and never again, so nobody stays
+    online by echo: when the Mac stops, the PC's copy runs out in PRESENCE_TTL and nothing brings it back."""
     async with SessionLocal() as db:
         ids = (await db.execute(select(Base.metadata.tables["users"].c.id))).scalars().all()
     found = [(i, await rt.store.get_presence(i)) for i in ids]
-    return [{"user": i, "data": d} for i, d in found if d is not None and not d.get("remote")]
+    return [{"user": i, "data": out} for i, d in found if (out := _pass_on(d)) is not None]
+
+
+def _pass_on(d: dict | None) -> dict | None:
+    """What this computer tells the next one about a presence it holds, or None when it is too far to pass on."""
+    if d is None:
+        return None
+    hops = d.get("hops", 1) + 1 if d.get("remote") else 1
+    return {k: v for k, v in d.items() if k != "remote"} | {"hops": hops} if hops <= MAX_HOPS else None
 
 
 async def _hear(present: list[dict]):
@@ -314,6 +327,8 @@ async def _hear(present: list[dict]):
         current = await rt.store.get_presence(p["user"])
         if current is not None and not current.get("remote"):
             continue  # that person is at this computer: what is known here is better
+        if current is not None and current.get("hops", 1) < p["data"].get("hops", 1) and current.get("status") == "ONLINE":
+            continue  # heard closer to where they are: that copy is better than one passed on
         await rt.store.set_presence(p["user"], {**p["data"], "remote": True}, PRESENCE_TTL)
         if current is None or current.get("status") != p["data"].get("status"):
             await rt.publish("presence", p["user"], "team")

@@ -2111,6 +2111,153 @@ class Orb(QWidget):
         p.drawPixmap(0, 0, self._face)
 
 
+class MacOrb(Orb):
+    """The widget at rest on the Mac (30 Oct, David: «só quero uma estrelinha... o horário embaixo e... a data assim
+    pequenino; quando eu meter lá o rato que apareça os outros»): a small star, the time under it and the date under
+    that, nothing else. The chips wait out of sight and slide in, in one row beside the clock, while the mouse is on
+    it. The row sits on the side facing the screen (flip), so the clock keeps to the edge it was dragged to."""
+    STAR, PAD, M = 26, 4, 10
+    CHIP_GAP, GAP = 5, 12   # between chips; between the row and the clock
+
+    def __init__(self, on_click):
+        self._reveal = 0.0
+        super().__init__(on_click)
+        self._f_time = font(17, QFont.DemiBold, DISPLAY)
+        self._f_date = font(7, QFont.Bold, UI, spacing=1.2)
+        self._reveal_anim = animate(self, 260, lambda v: self._set("_reveal", v))
+        self._linger = QTimer(self)          # leaving the clock for the row crosses a gap: wait before hiding it
+        self._linger.setSingleShot(True)
+        self._linger.timeout.connect(lambda: self._to(self._reveal_anim, self._reveal, 0))
+        self._layout()
+
+    def _stack_w(self) -> float:
+        if not hasattr(self, "_f_date"):
+            return 60.0
+        fm, fd = QFontMetricsF(self._f_time), QFontMetricsF(self._f_date)
+        return max(fm.horizontalAdvance("00:00"), fd.horizontalAdvance("SÁB 24 MMM") + 4, self.STAR) + 2
+
+    def _row_w(self) -> float:
+        n = len(self.items)
+        return sum(self._chip_w(g) for _, g in self.items) + self.CHIP_GAP * (n - 1) if n else 0.0
+
+    def _layout(self):
+        if not hasattr(self, "_f_date"):   # Orb.__init__ lays out before this class has its fonts
+            return super()._layout()
+        fm, fd = QFontMetricsF(self._f_time), QFontMetricsF(self._f_date)
+        self._stack_h = self.STAR + 5 + fm.capHeight() + 7 + fd.capHeight()
+        row = self._row_w()
+        self.CW = round(self._stack_w() + (self.GAP + row if row else 0) + 2 * self.PAD)
+        self.CH = round(max(self._stack_h, self.CHIP_H) + 2 * self.PAD)
+        self._colw, self._rows, self._rows_items = self._stack_w(), (1 if self.items else 0), [self.items]
+        size = (self.CW + 2 * self.M, self.CH + 2 * self.M)
+        if size != (getattr(self, "W", 0), getattr(self, "H", 0)):
+            self.W, self.H = size
+            self.FACE = QRect(self.M, self.M, self.CW, self.CH)
+            self.setFixedSize(self.W, self.H)
+        self._face_key = None
+
+    def _stack_x(self) -> float:
+        """The clock's column: on the outer edge, the row of chips on the side facing the screen."""
+        return self.CW - self.PAD - self._stack_w() if self.flip else float(self.PAD)
+
+    def _star_x(self) -> float:
+        return self._stack_x() + (self._stack_w() - self.STAR) / 2
+
+    def _gauge_rects(self) -> list:
+        out = []
+        if not self.items:
+            return out
+        y = (self.CH - self._stack_h) / 2 + self.STAR + 5 + QFontMetricsF(self._f_time).capHeight() / 2 - self.CHIP_H / 2
+        slide = (1 - self._reveal) * 14    # they come out from behind the clock
+        if self.flip:
+            x = self._stack_x() - self.GAP - self._row_w() + slide
+        else:
+            x = self._stack_x() + self._stack_w() + self.GAP - slide
+        for key, g in self.items:
+            w = self._chip_w(g)
+            out.append((key, g, QRectF(x, y, w, self.CHIP_H)))
+            x += w + self.CHIP_GAP
+        return out
+
+    def _gauge_at(self, pos: QPointF):
+        if self._reveal < 0.6:   # out of sight: nothing to click
+            return None, None
+        return super()._gauge_at(pos)
+
+    def _on_content(self, pos: QPointF) -> bool:
+        local = pos - QPointF(self.FACE.topLeft())
+        top = (self.CH - self._stack_h) / 2
+        return QRectF(self._stack_x() - 4, top - 4, self._stack_w() + 8, self._stack_h + 8).contains(local)
+
+    def enterEvent(self, e):
+        self._linger.stop()
+        self._to(self._reveal_anim, self._reveal, 1)
+
+    def leaveEvent(self, e):
+        self._hot = None
+        QToolTip.hideText()
+        self._linger.start(700)
+
+    def paint_face(self, p: QPainter, face: QRectF, hhmm_now: str, shadow=True):
+        p.save()
+        p.translate(face.topLeft())
+        p.scale(face.width() / self.CW, face.height() / self.CH)
+        sx, sw = self._stack_x(), self._stack_w()
+        top = (self.CH - self._stack_h) / 2
+        paint_star(p, QRectF(self._star_x(), top, self.STAR, self.STAR), shadow=True)
+        fm = QFontMetricsF(self._f_time)
+        base = top + self.STAR + 5 + fm.capHeight()
+        at = QPointF(sx + (sw - fm.horizontalAdvance(hhmm_now)) / 2, base)
+        _text_shadow(p, at, self._f_time, hhmm_now)
+        chrome_text(p, at, self._f_time, hhmm_now)
+        now = datetime.now()
+        text = self.line.upper() if self.line else f"{DAYS[now.weekday()]} {now.day} {MONTHS_SHORT[now.month - 1]}"
+        fd = QFontMetricsF(self._f_date)
+        text = fd.elidedText(text, Qt.ElideRight, sw + 40)
+        path = QPainterPath()
+        path.addText(QPointF(sx + (sw - fd.horizontalAdvance(text)) / 2, base + 7 + fd.capHeight()), self._f_date, text)
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(0, 0, 0, 160), 2.6, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.drawPath(path)
+        p.setPen(Qt.NoPen)
+        p.fillPath(path, QColor(self.line_colour if self.line else "#e4e6ea"))
+        if self._reveal > 0.01:
+            dpr = self.devicePixelRatioF()
+            p.setOpacity(p.opacity() * self._reveal)
+            for key, g, cr in self._gauge_rects():
+                paint_chip(p, cr, key, g, self._f_value, key == self._hot, dpr)
+        p.restore()
+
+    def _build_face(self, hhmm_now: str) -> QPixmap:
+        """As Orb's, with the red count on the star's shoulder instead of the far corner of the (hidden) row."""
+        count, self._count = self._count, 0
+        pix = super()._build_face(hhmm_now)
+        self._count = count
+        if count:
+            p = QPainter(pix)
+            p.setRenderHint(QPainter.Antialiasing)
+            text = str(count) if count < 100 else "99+"
+            w = max(16.0, QFontMetricsF(self._f_count).horizontalAdvance(text) + 9)
+            top = self.FACE.top() + (self.CH - self._stack_h) / 2
+            pill = QRectF(self.FACE.left() + self._star_x() + self.STAR - w / 2, top - 4, w, 16)
+            p.setPen(QPen(QColor(0, 0, 0, 200), 2))
+            p.setBrush(QColor("#ff3b30"))
+            cut(p, pill, 8, 8)
+            p.setPen(QColor(WHITE))
+            p.setFont(self._f_count)
+            p.drawText(pill, Qt.AlignCenter, text)
+            p.end()
+        return pix
+
+    def paintEvent(self, e):
+        self._face_key = None if 0 < self._reveal < 1 else self._face_key   # mid-slide: paint every frame
+        key = (self._reveal >= 1, self._reveal <= 0)
+        if getattr(self, "_reveal_key", None) != key:
+            self._reveal_key, self._face_key = key, None
+        self._hover = 0.0   # no swelling under the mouse: the row coming out is the answer
+        super().paintEvent(e)
+
+
 class Panel(QWidget):
     """The cockpit's content; tells the window when its size changes."""
     resized = Signal()
@@ -2180,7 +2327,7 @@ class WidgetWindow(QWidget):
         self.setWindowIcon(QIcon(str(LOGO)))
         self.setAttribute(Qt.WA_TranslucentBackground)
 
-        self.orb = Orb(self.expand)
+        self.orb = (MacOrb if MAC else Orb)(self.expand)
         self.orb.setParent(self)
         self.orb.on_icon = self._gauge_clicked
         self.orb.on_drag = self._hide_spot

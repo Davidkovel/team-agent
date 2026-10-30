@@ -1547,18 +1547,14 @@ def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, d
     """An option on the minimized card, small: a capsule of glass with a tiny ring (the gauge's arc, or one piece per
     partner) round the option's glyph, and the figure beside it in the gauge's colour."""
     p.save()
-    if glass:   # 30 Oct, David on the Mac: «estilo de vidro» — clear glass with a lit rim, not a dark pill
+    if glass:   # 30 Oct, David on the Mac: «um vidro muito transparente como... com o widget» — the central's clear glass
         body = r.adjusted(0.5, 0.5, -0.5, -0.5)
-        fill = QLinearGradient(body.topLeft(), body.bottomLeft())
-        fill.setColorAt(0, QColor(255, 255, 255, 62 if hot else 44))
-        fill.setColorAt(0.5, QColor(150, 155, 165, 40 if hot else 28))
-        fill.setColorAt(1, QColor(20, 22, 26, 120))
-        rim = QLinearGradient(body.topLeft(), body.bottomLeft())
-        rim.setColorAt(0, QColor(255, 255, 255, 150 if hot else 110))
-        rim.setColorAt(1, QColor(255, 255, 255, 30))
-        p.setPen(QPen(rim, 1))
-        p.setBrush(fill)
-        cut(p, body, r.height() / 2, r.height() / 2)
+        shape = cut_path(body, r.height() / 2)
+        clear_glass(p, shape, body)
+        if hot:
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 255, 255, 22))
+            p.drawPath(shape)
     else:
         p.setPen(QPen(QColor(255, 255, 255, 70 if hot else 34), 1))
         p.setBrush(QColor(28, 29, 33, 225) if hot else QColor(10, 10, 12, 190))   # its own dark capsule: reads on any desktop
@@ -2197,8 +2193,26 @@ class MacOrb(Orb):
         return QRectF(self._stack_x() - 4, top - 4, self._stack_w() + 8, self._stack_h + 8).contains(local)
 
     def enterEvent(self, e):
-        self._linger.stop()
-        self._to(self._reveal_anim, self._reveal, 1)
+        self._hover_at(e.position())   # 30 Oct, David: only the star or the time open the column, not the air under them
+
+    def _hover_at(self, pos: QPointF) -> bool:
+        over = self._on_content(pos) or (self._reveal > 0.5 and self._gauge_at(pos)[0] is not None)
+        if over:
+            self._linger.stop()
+            if self._reveal < 1:
+                self._to(self._reveal_anim, self._reveal, 1)
+        elif self._reveal > 0 and not self._linger.isActive():
+            self._linger.start(700)
+        return over
+
+    def mouseMoveEvent(self, e):
+        if self._press_at is None:
+            if not self._hover_at(e.position()):
+                self._hot = None
+                QToolTip.hideText()
+                self.setToolTip("")
+                return
+        super().mouseMoveEvent(e)
 
     def leaveEvent(self, e):
         self._hot = None

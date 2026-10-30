@@ -146,8 +146,11 @@ async def local_live(request: Request, db: AsyncSession = Depends(get_db)):
                                          for r, st in sorted(zip(rows, states), key=lambda rs: -(rs[0].tokens or 0))[:8]],
                        # each window working or waiting, for the widget's «Claude agora» (Marco: «quero ter controlo... não
                        # quero uma stream, mas quando estás a mexer no widget quero saber»)
-                       "windows": [{"topic": _topic(r), "project": r.project, "state": s, "wait": _wait(r, s),
-                                    "action": r.action if s == "working" else "", "since": iso(r.since)} for r, s in live[:4]]})
+                       # with what it was asked and its last answer, so the widget shows the prompt in its own card instead of
+                       # opening the Escritório (30 Oct, Marco: «quando eu clico ali para ver o prompt... maximiza logo e buga»)
+                       "windows": [{"key": r.key, "topic": _topic(r), "project": r.project, "state": s, "wait": _wait(r, s),
+                                    "action": r.action if s == "working" else "", "since": iso(r.since),
+                                    "ask": (r.request or r.prompt or "")[:1500], "result": r.result or ""} for r, s in live[:4]]})
     return {"people": people, "done_today": done_today}
 
 

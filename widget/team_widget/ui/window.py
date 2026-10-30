@@ -1185,7 +1185,8 @@ def window_colour(w: dict) -> str:
 class ClaudeRow(Hover):
     """One Claude window working or waiting, under its partner in the central's Equipa (28 Oct, Marco: «controlar o meu, o
     do Kovel e o do David»): a dot in the state's colour, what it is about, and what it is doing right now (or what it
-    waits for), with how long it has been like that. A click opens the Escritório.
+    waits for), with how long it has been like that. A click opens its card beside the central: the prompt, what it does
+    now, its last answer (30 Oct; it opened the Escritório, and the Hub growing in the window «buga tudo»).
     Not a stream: it changes when the Hub's reading changes (every 8 s), and draws nothing in between."""
     H = 34
 
@@ -1194,7 +1195,7 @@ class ClaudeRow(Hover):
         self.setFixedHeight(self.H)
         self.window_, self.me = None, True
         self.indent = 0   # px from the left (44: under a partner's name, past their photo)
-        self.setToolTip("Abrir no Escritório")
+        self.setToolTip("Ver o pedido e o que está a fazer")
         self._f_topic, self._f_action, self._f_time = font(8.5, QFont.DemiBold, UI), font(7.5, QFont.Normal, UI), font(7, QFont.Normal, UI)
 
     def show_window(self, w: dict, me=True):
@@ -1448,6 +1449,7 @@ class TokenTracker:
 
 GAUGE_GLYPHS = {   # the clock's complications and the central's controls (24-unit strokes, like the apps)
     "claude": '<rect x="3" y="4.5" width="18" height="15" rx="3.5"/><path d="M7.5 9.8l2.8 2.4-2.8 2.4M13 14.8h3.5"/>',
+    "janela": '<rect x="3" y="4.5" width="18" height="15" rx="3.5"/><path d="M7.5 9.8l2.8 2.4-2.8 2.4M13 14.8h3.5"/>',
     "tokens": '<path d="M13.2 2.8L5.5 13.2h5.8l-1 8 7.7-10.4h-5.8z"/>',
     "equipa": ('<circle cx="9" cy="8.6" r="3.1"/><path d="M3.6 19.4a5.4 5.4 0 0110.8 0"/><circle cx="16.6" cy="9.6" r="2.5"/>'
                '<path d="M15.8 14.3a4.5 4.5 0 014.6 5.1"/>'),
@@ -2478,8 +2480,8 @@ class WidgetWindow(QWidget):
         limits.addWidget(self.pick_week)
         team.box.addLayout(limits)
         self.pick_rows = [ClaudeRow() for _ in range(3)]   # never more: the rest is in the Escritório
-        for row in self.pick_rows:
-            row.clicked.connect(lambda: self._open_notice("#/escritorio"))
+        for row in self.pick_rows:   # a click: that window's prompt in a card beside the central, not the Escritório
+            row.clicked.connect(lambda _=False, row=row: row.window_ and self._show_window(row.window_, row, self._picked_user()))
             row.hide()
             team.box.addWidget(row)
         self.pick_none = label("", 8.5, FAINT)
@@ -2783,6 +2785,11 @@ class WidgetWindow(QWidget):
         office = lambda: go("#/escritorio")
         working = sum(p["live"].get("working") or 0 for p in people)
         off = "O Hub não está a responder." if self._team is None else ""
+        # a window of a destaque clicked: its own card, where this one is (never the Escritório growing in the window)
+        open_w = lambda w, user: (lambda: QTimer.singleShot(0, lambda: self._show_window(w, None, user)))
+
+        if key == "janela":
+            return self._window_content(people, me)
 
         if key == "claude":
             ws = live_windows(ml)
@@ -2791,7 +2798,8 @@ class WidgetWindow(QWidget):
             return {"title": "Os teus Claudes", "note": f"{asking} à tua espera" if asking else "o que cada janela está a fazer",
                     "figure": str(n), "colour": COLORS["WAITING"] if asking else COLORS["WORKING"] if n else TEXT,
                     "rows": [{"title": w.get("topic") or w.get("project") or "Janela do Claude", "sub": window_doing(w),
-                              "right": ago_iso(w.get("since")), "colour": window_colour(w), "action": office, "tip": "Abrir no Escritório",
+                              "right": ago_iso(w.get("since")), "colour": window_colour(w), "action": open_w(w, me),
+                              "tip": "Ver o pedido e o que está a fazer",
                               "sub_colour": COLORS["WAITING"] if w.get("wait") in ("permission", "answer") else None} for w in ws],
                     "empty": off or "Nenhuma janela tua a trabalhar agora.",
                     "buttons": [("Escritório ›", office, False, None)]}
@@ -2819,7 +2827,7 @@ class WidgetWindow(QWidget):
                 for w in live_windows(p["live"])[:3]:
                     rows.append({"indent": True, "title": w.get("topic") or w.get("project") or "Janela do Claude",
                                  "sub": window_doing(w, p["user"] == me), "right": ago_iso(w.get("since")), "colour": window_colour(w),
-                                 "action": office, "tip": "Abrir no Escritório"})
+                                 "action": open_w(w, p["user"]), "tip": "Ver o pedido e o que está a fazer"})
             return {"title": "Equipa", "note": "Claudes a trabalhar, de cada um", "figure": str(working),
                     "colour": COLORS["WORKING"] if working else TEXT, "rows": rows, "empty": off,
                     "buttons": [("Escritório ›", office, False, None)]}
@@ -3332,10 +3340,62 @@ class WidgetWindow(QWidget):
         prefs.save(team_pick=user)
         self._render_pick()
 
-    def _render_pick(self):
+    def _picked_user(self):
         shown, me = getattr(self, "_shown", []), getattr(self, "_me", None)
         users = [p["user"] for p in shown]
-        picked = self._picked if self._picked in users else me if me in users else users[0] if users else None
+        return self._picked if self._picked in users else me if me in users else users[0] if users else None
+
+    def _show_window(self, w: dict, widget: QWidget | None, user):
+        """One Claude window's card: from a row of the central (`widget`, beside the central) or from a row of a destaque
+        (`widget` None, where that destaque was). It stays current: `_spot_content("janela")` finds the window again."""
+        from .spotlight import Spotlight
+        if self._spot is None:
+            self._spot = Spotlight()
+        self._spot_win = (user, w.get("key"), w)
+        if widget is not None:
+            if self._spot.toggled_off("janela") and getattr(self, "_spot_win_shown", None) == self._spot_win[:2]:
+                return
+            anchor = QRect(widget.mapToGlobal(QPoint(0, 0)), widget.size())
+            self._spot.show_for("janela", self._spot_content("janela"), anchor, False,
+                                beside=self.geometry().adjusted(SHADOW, SHADOW, -SHADOW, -SHADOW) if self.mode == "panel" else None)
+        else:
+            s = self._spot
+            s.show_for("janela", self._spot_content("janela"), s._anchor, s._flip, s._beside)
+        self._spot_win_shown = self._spot_win[:2]
+        self._fast = True
+
+    def _window_content(self, people: list, me) -> dict:
+        user, key, last = getattr(self, "_spot_win", (None, None, {}))
+        person = next((p for p in people if p["user"] == user), {})
+        w = next((x for x in (person.get("live") or {}).get("windows") or [] if key and x.get("key") == key), None)
+        gone = w is None and bool(person)
+        w = w or last or {}
+        mine = user == me
+        who = "Tu" if mine else person.get("name") or user or ""
+        asks = w.get("wait") in ("permission", "answer")
+        state = ("Acabou" if gone else "A trabalhar" if w.get("state") == "working" else
+                 window_doing(w, mine) if asks else "À espera do próximo pedido")
+        ask = (w.get("ask") or "").strip()
+        blocks = []
+        if ask:
+            blocks.append(("O que pediu" if not mine else "O que pediste", ask if len(ask) <= 700 else ask[:700].rstrip() + "…", None))
+        elif not w.get("ask") and w:
+            blocks.append(("O que pediu", "O Hub deste PC ainda não manda o pedido (atualiza quando ele fizer pull).", FAINT))
+        if not gone:
+            blocks.append(("Agora", window_doing(w, mine), COLORS["WAITING"] if asks else None))
+        if w.get("result"):
+            blocks.append(("A última resposta", w["result"], MUTED))
+        office = lambda: self._open_notice("#/escritorio")
+        buttons = [("Copiar o pedido", lambda: QGuiApplication.clipboard().setText(w.get("ask") or ""), False, None)] if ask else []
+        buttons.append(("Escritório ›", office, False, None))
+        return {"title": w.get("topic") or w.get("project") or "Janela do Claude",
+                "note": f"{who} · {state} · {ago_iso(w.get('since'))}" if w.get("since") else f"{who} · {state}",
+                "figure": "", "colour": window_colour(w), "blocks": blocks, "rows": [],
+                "empty": "" if blocks else "Sem nada desta janela ainda.", "buttons": buttons}
+
+    def _render_pick(self):
+        shown, me = getattr(self, "_shown", []), getattr(self, "_me", None)
+        picked = self._picked_user()
         self.pick.set(shown, picked, me)
         person = next((p for p in shown if p["user"] == picked), {})
         live = person.get("live") or {}

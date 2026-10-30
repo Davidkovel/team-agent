@@ -225,6 +225,12 @@ class Spotlight(QWidget):
         self.head = Head()
         self.head.setFixedWidth(W - 28)
         col.addWidget(self.head)
+        # blocks of text: one Claude window's prompt, what it does now and its last answer (30 Oct, `blocks` in the content)
+        self.blocks = QVBoxLayout()
+        self.blocks.setSpacing(8)
+        self.blocks.setContentsMargins(0, 2, 0, 2)
+        col.addLayout(self.blocks)
+        self._blocks_sig = None
         self.grid = QGridLayout()
         self.grid.setSpacing(6)
         self.grid.setContentsMargins(0, 2, 0, 2)
@@ -245,6 +251,19 @@ class Spotlight(QWidget):
     # ---- what it says
     def show_content(self, c: dict):
         self.head.set(self.key, c.get("title", ""), c.get("note", ""), c.get("figure", ""), c.get("colour") or TEXT)
+        blocks = tuple(c.get("blocks", []))   # [(caption, text, colour or None)]
+        if blocks != self._blocks_sig:
+            self._blocks_sig = blocks
+            self._clear(self.blocks)
+            for cap, text, colour in blocks:
+                box = QVBoxLayout()
+                box.setSpacing(3)
+                box.addWidget(label(cap.upper(), 7, MUTED, QFont.Bold, UI, spacing=1.4))
+                body = label(text, 8.5, colour or TEXT, wrap=True)
+                body.setFixedWidth(W - 28)
+                body.setTextInteractionFlags(Qt.TextSelectableByMouse)   # the prompt can be selected and copied
+                box.addWidget(body)
+                self.blocks.addLayout(box)
         sig = tuple((label_, tip) for label_, _, tip in c.get("grid", []))
         if sig != self._grid_sig:
             self._grid_sig = sig
@@ -298,6 +317,9 @@ class Spotlight(QWidget):
             item = layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+            elif item.layout():
+                Spotlight._clear(item.layout())
+                item.layout().deleteLater()
 
     # ---- where it opens
     def toggled_off(self, key: str) -> bool:
@@ -312,7 +334,7 @@ class Spotlight(QWidget):
         side; above it when there is no room under it. From the central (`beside`: the central on the screen) it opens
         outside the central, level with the figure clicked."""
         self.key, self._anchor, self._flip, self._beside = key, anchor, flip, beside
-        self._grid_sig = self._foot_sig = None
+        self._grid_sig = self._foot_sig = self._blocks_sig = None
         self.show_content(content)
         self._place()
         self.show()

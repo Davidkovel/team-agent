@@ -721,7 +721,10 @@ Mac-only fixes go in `widget_mac.py`, not in `widget/`.
 1. Same Radmin network? Each side must see the other in the Radmin VPN window. Ping can fail even when it works (Windows blocks ICMP), so test `http://26.68.80.191:8000/api/hub/companies` instead: 401 means the Hub answers.
 2. Host: `netstat -ano | findstr :8000` must show `0.0.0.0:8000`. `127.0.0.1:8000` means the Hub started without the team key: run `configurar_widget.ps1` on the host again, then `iniciar.ps1`.
 3. Host firewall: rule "Agente AMG Hub" must exist (TCP 8000, remote `26.0.0.0/8`). The broad `python.exe` allow rules that Windows creates stay disabled: the host has a public IP on its network adapter and those rules open the Hub to the internet.
-4. After editing `backend/.env`, the Hub must be restarted: stop the `uvicorn app.main:app` process, then `iniciar.ps1`. If it was started from an administrator window, only an administrator can stop it.
+4. David's Mac (no Radmin): the PCs reach it only through its Funnel (`sync_relays`), which always needs the team key. Its
+   `~/.team-agent/widget.json` must have `"key"`; without it the Mac turns every PC away and nobody sees anybody (30 Oct).
+   After adding it, restart the widget (it starts the Hub with `TEAM_KEY`).
+5. After editing `backend/.env`, the Hub must be restarted: stop the `uvicorn app.main:app` process, then `iniciar.ps1`. If it was started from an administrator window, only an administrator can stop it.
 
 ## The Team AI Hub (what is where)
 

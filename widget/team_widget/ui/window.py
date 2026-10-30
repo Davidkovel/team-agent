@@ -1768,19 +1768,30 @@ def activity(person: dict) -> tuple[str, str]:
 
 
 class TitleBar(QWidget):
-    """Drag the cockpit by its top; double-click opens the Hub (what maximizing did before)."""
+    """The cockpit's top: a tap shrinks it back to the star, as an iOS app goes home (30 Oct, Marco: «quando eu clico
+    por lá em cima, na barra preta, aquilo tem que minimizar automaticamente»); dragging it still moves the window. The
+    Hub has its own button, so there is no double-click any more (its first click would already have shrunk it)."""
 
-    def __init__(self, on_double_click):
+    def __init__(self, on_tap):
         super().__init__()
-        self._on_double_click = on_double_click
+        self._on_tap = on_tap
+        self._press_at = None
+        self.setToolTip("Tocar para encolher · arrastar para mover")
 
     def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton and self.window().windowHandle():
-            self.window().windowHandle().startSystemMove()
-
-    def mouseDoubleClickEvent(self, e):
         if e.button() == Qt.LeftButton:
-            self._on_double_click()
+            self._press_at = e.globalPosition().toPoint()
+
+    def mouseMoveEvent(self, e):
+        if self._press_at is not None and (e.globalPosition().toPoint() - self._press_at).manhattanLength() > 4:
+            self._press_at = None
+            if self.window().windowHandle():
+                self.window().windowHandle().startSystemMove()
+
+    def mouseReleaseEvent(self, e):
+        pressed, self._press_at = self._press_at, None
+        if pressed is not None and e.button() == Qt.LeftButton:
+            self._on_tap()
 
 
 DAYS = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"]
@@ -2411,7 +2422,7 @@ class WidgetWindow(QWidget):
         self._tick()
 
     def _build(self, col: QVBoxLayout):
-        bar = TitleBar(self._open_hub)
+        bar = TitleBar(self.collapse)
         row = QHBoxLayout(bar)
         row.setContentsMargins(2, 0, 0, 0)
         row.setSpacing(2)

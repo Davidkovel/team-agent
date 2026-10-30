@@ -2182,9 +2182,14 @@ class StarOrb(Orb):
             return None, None
         return super()._gauge_at(pos)
 
+    def _grip(self) -> QRectF:
+        """The box around the star that takes the mouse (30 Oct, Marco: «estou a clicar nos buracos»): a translucent
+        window lets a click fall through every pixel left fully clear, the gaps between the star's arms too."""
+        return self._star_rect().adjusted(-7, -7, 7, 7)
+
     def _on_content(self, pos: QPointF) -> bool:
         local = pos - QPointF(self.FACE.topLeft())
-        return self._star_rect().adjusted(-6, -6, 6, 6).contains(local)
+        return self._grip().contains(local)
 
     # ---- the mouse
     def showEvent(self, e):
@@ -2241,6 +2246,10 @@ class StarOrb(Orb):
         p.scale(face.width() / self.CW, face.height() / self.CH)
         sr = self._star_rect()
         dpr = self.devicePixelRatioF()
+        # the grip: alpha 2 of 255 is invisible on any wallpaper but is not clear, so the whole box catches the click
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 2))
+        p.drawRoundedRect(self._grip(), 10, 10)
         # the star in dark chrome: painted, then smoked over its own shape; it lights up while the column is out
         layer = QPixmap(int((sr.width() + 12) * dpr), int((sr.height() + 12) * dpr))
         layer.setDevicePixelRatio(dpr)

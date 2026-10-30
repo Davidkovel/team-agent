@@ -136,7 +136,7 @@ const SECTIONS = { comando: ["01", "Comando"], agentes: ["02", "Agentes"], negoc
 const NAV = [
   ["Início", "home", [["home", "Início"]], "comando"],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]], "comando"],
-  ["Mensagens", "chat", [["mensagens", "Mensagens"]], "comando"],
+  ["Chat", "chat", [["mensagens", "Chat"]], "comando"],
   ["Novidades", "spark", [["novidades", "Novidades"]], "comando"],
   ["Escritório", "bot", [["escritorio", "Escritório"]], "agentes"],
   ["Empresa AMG", "grid", [["empresa", "Empresa AMG"]], "agentes"],

@@ -378,14 +378,15 @@ button.tl-check { cursor: pointer; } button.tl-check:hover { border-color: #f4f6
 .tf-line.on span svg.i, .tf-line.on b { color: var(--tf-gold); }
 .tf .pn-kpis { margin: 0; }
 .tf .split { grid-template-columns: minmax(0, 1fr); }   /* the production lines above are the menu */
-/* «Chat da equipa»: the team's conversation of Mensagens (mensagens.css), one column, framed in the house's gold */
-.tf .tf-chat { grid-template-columns: minmax(0, 1fr); height: max(480px, calc(100vh - 370px)); border-color: rgba(212, 171, 67, .28); }
-.tf .tf-chat .ms-list { display: none; }
-.tf .tf-chat .ms-thread { display: grid; }
-.tf-chat-more { margin: 10px 2px 0; text-align: right; }
-.tf-chat-more a { color: #8a8170; font: 600 12.5px var(--ui); text-decoration: none; }
-.tf-chat-more a:hover { color: var(--tf-gold); }
-html.is-phone .tf .tf-chat { height: calc(100dvh - 260px); }
+/* the agency's Chat app (mensagens.js), as an app icon on the iPhone's home screen: a black rounded square, the bubble in gold */
+.tf-act { align-items: center; }
+.tf-app { display: grid; justify-items: center; gap: 4px; margin-left: 6px; color: var(--tf-champ); font: 600 11.5px var(--ui); text-decoration: none; }
+.tf-app i { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; background: linear-gradient(180deg, #232326, #0d0d0f);
+  box-shadow: inset 0 0 0 1px rgba(212, 171, 67, .4), 0 8px 20px rgba(0, 0, 0, .5); color: var(--tf-gold); transition: transform .15s; }
+.tf-app i svg.i { width: 22px; height: 22px; }
+.tf-app:hover i { transform: translateY(-2px); }
+.tf-app em { position: absolute; top: -6px; right: -7px; min-width: 20px; padding: 2px 6px; border-radius: 999px; background: #ff3b30; color: #fff; font: 700 11px var(--ui);
+  font-style: normal; text-align: center; box-shadow: 0 0 0 2px #0b0c0f; }
 .tf .split > .side { display: none; }
 .tf #work { order: 9; }
 .tf .page-head h2 { color: #f6efe0; }

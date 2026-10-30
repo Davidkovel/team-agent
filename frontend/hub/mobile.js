@@ -59,7 +59,7 @@
     if (r.tab === "codigo" || r.tab === "entregas" || r.tab === "kit") return ["#/empresas", "Trabalho"];
     if (r.tab === "aprovacoes" || r.tab === "semana") return ["#/tarefas", "Tarefas"];
     if (r.tab === "agentes" && r.company) return ["#/equipa", "Equipa"];
-    if (r.tab === "mensagens" && r.company) return ["#/mensagens", "Mensagens"];   // a conversation goes back to the list
+    if (r.tab === "mensagens" && r.company) return ["#/mensagens", "Chat"];   // a conversation goes back to the list
     if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
     return null;
   };

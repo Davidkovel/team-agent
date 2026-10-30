@@ -7,7 +7,7 @@
 // What is written between ``` is a block with its own «Copiar» (a command, an account), `like this` is code inside a line,
 // and every message copies whole. A message that arrives shows a card on any page (shell.js, msgNews) and in the widget.
 (function () {
-  let S = null, peer = null, msgs = [], timer = null, sending = false, asking = null, photo = null;
+  let S = null, peer = null, msgs = [], timer = null, sending = false, asking = null, photo = null, tab = "chat", find = "";
   const phone = () => document.documentElement.classList.contains("is-phone");
   const conv = (id) => (S ? S.conversations.find((c) => c.peer === id) : null);
   const short = (text, n = 70) => { const s = String(text || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
@@ -45,13 +45,19 @@
   }
   const lastText = (m) => short(String(m.body || "").replace(/```[a-z0-9_-]*/gi, " ")) || (m.image ? "📷 " + t("Foto") : "");
   function listHtml() {
-    return `<div class="ms-list-h">${esc(t("Conversas"))}</div>` + S.conversations.map((c) => {
+    const q = find.trim().toLowerCase();
+    const shown = S.conversations.filter((c) => !q || t(c.name).toLowerCase().includes(q) || (c.last && String(c.last.body || "").toLowerCase().includes(q)));
+    return (shown.map((c) => {
       const last = c.last ? `${c.last.from === S.me ? t("Tu: ") : c.peer === "team" ? `${c.last.from_name}: ` : ""}${lastText(c.last)}` : t("Ainda sem mensagens");
       return `<a class="ms-conv ${c.peer === peer ? "on" : ""} ${c.unread ? "unread" : ""}" href="#/mensagens/${c.peer}">
         ${face(c)}<span class="ms-conv-m"><span class="ms-conv-t"><b>${esc(t(c.name))}</b>${c.last ? `<time>${esc(fmt.ago(c.last.at))}</time>` : ""}</span>
         <span class="ms-conv-b"><small>${esc(last)}</small>${c.unread ? `<i>${c.unread}</i>` : ""}</span></span></a>`;
-    }).join("");
+    }).join("") || `<p class="ms-none">${esc(t("Nada com «{q}».", { q: find.trim() }))}</p>`);
   }
+  // the app's own top: the agency's seal, its name, the search (30 Oct, Marco: «o chat de equipa é uma aplicação... da
+  // agência»: not a tile inside the Ten Fold page, an app of its own)
+  const railTop = () => `<header class="ms-rail-h"><span class="ms-seal">TF</span><div><b>${esc(t("Chat"))}</b><small>Ten Fold</small></div></header>
+    <label class="ms-find">${icon("search")}<input id="ms-find" type="search" placeholder="${esc(t("Procurar"))}" value="${esc(find)}" autocomplete="off"></label>`;
 
   // ---------------------------------------------------------------- the open conversation
   function bubble(m, prev, next) {
@@ -79,8 +85,11 @@
       : `<div class="ms-first">${face(c, "lg")}<b>${esc(t(c.name))}</b><p>${esc(c.peer === "team"
         ? t("O que escreveres aqui chega a {p}. Cada um vê um aviso no Hub, no widget e no telemóvel.", { p: others.join(" e ") })
         : t("Só tu e {p} veem esta conversa. A mensagem chega num aviso no Hub, no widget e no telemóvel.", { p: c.name }))}</p></div>`;
-    return `<header class="ms-head">${phone() ? "" : face(c)}<div><b>${esc(t(c.name))}</b><small>${esc(c.peer === "team" ? others.concat(t("tu")).join(", ") : t("Só vocês os dois"))}</small></div></header>
-      <div class="ms-body" id="ms-body">${body}</div>
+    const pics = msgs.filter((m) => m.image), links = linksOf(msgs);
+    const tabs = [["chat", "Conversa", 0], ["fotos", "Fotos", pics.length], ["links", "Links", links.length]];
+    return `<header class="ms-head">${face(c)}<div class="ms-who-h"><b>${esc(t(c.name))}</b><small>${esc(c.peer === "team" ? others.concat(t("tu")).join(", ") : t("Só vocês os dois"))}</small></div>
+        <nav class="ms-tabs">${tabs.map(([k, l, n]) => `<button type="button" class="${tab === k ? "on" : ""}" data-tab="${k}">${esc(t(l))}${n ? `<i>${n}</i>` : ""}</button>`).join("")}</nav></header>
+      <div class="ms-body ${tab !== "chat" ? "ms-shelf" : ""}" id="ms-body">${tab === "fotos" ? photosHtml(pics) : tab === "links" ? linksHtml(links) : body}</div>
       <form class="ms-send" id="ms-send" autocomplete="off">
         <div class="ms-preview" id="ms-preview">${photoHtml()}</div>
         <div class="ms-bar">
@@ -91,6 +100,17 @@
         </div>
       </form>`;
   }
+  // what was shared in the conversation, to find an idea again: the photos in a grid, the links with who sent them
+  function linksOf(list) {
+    const out = [];
+    for (const m of list) for (const u of String(m.body || "").match(/https?:\/\/[^\s<]+[^\s<.,;:!?)»"']/g) || []) out.push({ u, m });
+    return out.reverse();
+  }
+  const photosHtml = (pics) => (pics.length ? `<div class="ms-grid">${[...pics].reverse().map((m) => `<button type="button" class="ms-tile" data-photo="${m.id}" title="${esc(`${m.from === S.me ? t("Tu") : m.from_name}, ${fmt.day(m.at)}`)}"><img src="${imgUrl(m.id)}" alt="" loading="lazy"></button>`).join("")}</div>`
+    : `<p class="ms-none">${esc(t("Ainda ninguém mandou fotos aqui. Usa o + em baixo, cola uma imagem ou larga-a na conversa."))}</p>`);
+  const linksHtml = (links) => (links.length ? `<ul class="ms-links">${links.map(({ u, m }) => { let host = u; try { host = new URL(u).hostname.replace(/^www\./, ""); } catch {}
+      return `<li><a href="${esc(u)}" target="_blank" rel="noopener"><b>${esc(host)}</b><span>${esc(u)}</span></a><small>${esc(m.from === S.me ? t("Tu") : m.from_name)}, ${esc(fmt.ago(m.at))}</small></li>`; }).join("")}</ul>`
+    : `<p class="ms-none">${esc(t("Os links que mandarem ficam aqui, para encontrar uma ideia depois."))}</p>`);
   const photoHtml = () => (photo ? `<span class="ms-thumb"><img src="${photo}" alt=""><button type="button" id="ms-unpic" title="${esc(t("Tirar a foto"))}">${icon("x")}</button></span>` : "");
   function ready() {   // the send arrow lights up when there is something to send, as on the iPhone
     const go = $("ms-go");
@@ -131,20 +151,7 @@
   }
 
   // ---------------------------------------------------------------- drawing and loading
-  function drawList() { if ($("ms-list")) paint($("ms-list"), listHtml()); drawDash(); }
-  // the Painel's row (hub/painel.css), small so the conversation keeps the screen: what waits for you and how the open one goes
-  function drawDash() {
-    if (!$("ms-dash") || !S) return;
-    const c = conv(peer), days = series.byDay(msgs, (m) => m.at, 14), mine = msgs.filter((m) => m.from === S.me).length;
-    const newest = S.conversations.filter((x) => x.last).sort((a, b) => String(b.last.at).localeCompare(String(a.last.at)))[0];
-    paint($("ms-dash"), ui.kpis([
-      ui.kpi({ label: "Por ler", value: S.unread || 0, sub: S.unread ? t("em {n} conversas", { n: S.conversations.filter((x) => x.unread).length }) : t("estás em dia") }),
-      ui.kpi({ label: c ? t("Com {n}", { n: c.name }) : "Esta conversa", value: msgs.length, sub: t("mensagens · {n} tuas", { n: mine }),
-        viz: msgs.length ? ui.cols(days.map((d) => d.value)) : "", delta: msgs.length ? ui.delta(series.inPeriod(msgs, (m) => m.at, 0, 7), series.inPeriod(msgs, (m) => m.at, 7, 14), { label: t("últimos 7 dias contra os 7 antes") }) : "" }),
-      ui.kpi({ label: "Última mensagem", value: newest ? fmt.ago(newest.last.at) : null, sub: newest ? t("de {n}", { n: newest.last.from === S.me ? t("ti") : newest.last.from_name }) : "" }),
-      ui.kpi({ label: "Fotos", value: msgs.filter((m) => m.image).length, sub: t("nesta conversa") }),
-    ]));
-  }
+  function drawList() { if ($("ms-conv-list")) paint($("ms-conv-list"), listHtml()); }
   function drawThread(keepInput = true) {
     const box = $("ms-thread");
     if (!box) return;
@@ -159,7 +166,6 @@
       nb.scrollTop = nb.scrollHeight;
       nb.querySelectorAll("img").forEach((im) => { if (!im.complete) im.addEventListener("load", () => { nb.scrollTop = nb.scrollHeight; }, { once: true }); });
     }
-    drawDash();
   }
   function grow(input) { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; }
   async function loadList() {
@@ -212,6 +218,7 @@
     else if ((b = e.target.closest("[data-copy-msg]"))) { const m = msgs.find((x) => x.id === Number(b.dataset.copyMsg)); if (m) copy(m.body.replace(/```[a-z0-9_-]*\n?/gi, ""), null), flash(t("Mensagem copiada")); }
     else if ((b = e.target.closest("[data-del]"))) remove(Number(b.dataset.del), b);
     else if ((b = e.target.closest("[data-photo]"))) viewer(Number(b.dataset.photo));
+    else if ((b = e.target.closest("[data-tab]"))) { tab = b.dataset.tab; drawThread(); }
     else if (e.target.closest("#ms-plus")) $("ms-file").click();
     else if (e.target.closest("#ms-unpic")) { photo = null; paint($("ms-preview"), ""); ready(); }
     else if (asking !== null && !e.target.closest(".ms-act")) { asking = null; drawThread(); }
@@ -220,13 +227,11 @@
   onLive(["notification", "message", "tick"], () => ($("ms") ? refresh().catch(() => {}) : Promise.resolve()));
 
   HUB_VIEWS.mensagens = async function (r) {
-    page(`${ui.head("", t("Mensagens"), t("Fala com a equipa: fotos, contas, comandos, o que for. Quem recebe vê logo um aviso no Hub, no widget e no telemóvel."))}
-      <div class="ms-dash" id="ms-dash"></div>
-      <div class="ms ${r.company ? "has-peer" : ""}" id="ms"><nav class="ms-list" id="ms-list">${ui.skeleton(4)}</nav><section class="ms-thread" id="ms-thread"></section></div>`);
+    if (peer !== (r.company || null)) tab = "chat";   // another conversation opens on its messages
+    page(`<div class="ms ${r.company ? "has-peer" : ""}" id="ms"><nav class="ms-list" id="ms-list">${railTop()}<div class="ms-convs" id="ms-conv-list">${ui.skeleton(4)}</div></nav><section class="ms-thread" id="ms-thread"></section></div>`);
+    $("ms-find").addEventListener("input", (e) => { find = e.target.value; drawList(); });
     await mount(r.company || null);
   };
-  // the same conversation inside another page (the Ten Fold's «Chat da equipa», 30 Oct): that page draws the #ms box
-  window.msMount = mount;
 
   async function mount(start) {
     clearInterval(timer);

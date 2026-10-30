@@ -548,7 +548,15 @@ window.CrewBoard = (function () {
   // No lists, no forms: the only buttons are the ones that do something (open a task, «Continuar» one of your windows).
   // At the bottom the ten departments, lit when busy, with whom they work. Never a scroll: what does not fit is «+N».
   const bvCap = {};   // partner id -> how many jobs fit in their column, measured after painting
-  const ring = (label, pct) => (pct == null ? "" : `<span class="bv-ring" style="--v:${Math.min(100, pct)};--c:${pct >= 90 ? RED : pct >= 70 ? AMBER : COLD}"><i><b>${Math.round(pct)}%</b></i><small>${esc(t(label))}</small></span>`);
+  // each partner's Claude limits as two wide bars under the name, always in sight (30 Oct, Marco: «tens que pôr uma barra...
+  // da semanal... toda a gente logo, para não estarmos sempre a ir para cada página»); the rings of before hid on a narrow screen
+  const lim = (label, pct, reset, week) => {
+    const c = pct == null ? GREY : pct >= 90 ? RED : pct >= 70 ? AMBER : GREEN, d = reset ? new Date(reset * 1000) : null;
+    const when = !d ? "" : week ? d.toLocaleDateString("pt-PT", { weekday: "short" }).replace(".", "") + " " + d.toTimeString().slice(0, 5) : d.toTimeString().slice(0, 5);
+    return `<div class="bv-lim" style="--c:${c}"><span>${esc(t(label))}</span><i><b style="width:${pct == null ? 0 : Math.max(2, Math.min(100, pct))}%"></b></i>
+      <em>${pct == null ? "—" : Math.round(pct) + "%"}</em>${when ? `<small>${esc(t("renova {w}", { w: when }))}</small>` : ""}</div>`;
+  };
+  const lims = (l) => `<div class="bv-lims">${lim("Claude 5 h", l && l.five, l && l.five_reset)}${lim("Semana", l && l.week, l && l.week_reset, true)}</div>`;
   function bvJob(it, p) {
     const need = p.needs.includes(it), task = it.kind === "task", s = it.s, x = it.x, a = it.agent;
     const c = need ? (task && x.status === "NEEDS_HELP" ? RED : AMBER) : GREEN;
@@ -579,7 +587,7 @@ window.CrewBoard = (function () {
       p.needs.length ? t(p.me ? "{n} à tua espera" : "{n} à espera dele", { n: p.needs.length }) : "", p.idle ? t(p.idle === 1 ? "1 parada" : "{n} paradas", { n: p.idle }) : ""].filter(Boolean);
     return `<header class="bv-who"><span class="bv-av ${on ? "on" : ""}">${ui.avatar(p.name)}</span>
         <div><b>${esc(p.name)}${p.me ? ` <small>${esc(t("tu"))}</small>` : ""}</b><span>${esc([place, p.tokens ? t("{k} hoje", { k: tok(p.tokens) }) : ""].filter(Boolean).join(" · "))}</span></div>
-        <div class="bv-rings">${p.limits ? ring("5 h", p.limits.five) + ring("semana", p.limits.week) : ""}</div></header>
+      </header>${lims(p.limits)}
       <p class="bv-tally">${tally.map((x, k) => `<span class="${k === 0 ? "big" : ""}">${esc(x)}</span>`).join("")}</p>
       <div class="bv-jobs" id="bv-jobs-${p.id}">${shown.map((it) => bvJob(it, p)).join("")}
         ${jobs.length > shown.length ? `<div class="bv-more">${esc(t("+ {n} a trabalhar com o {p}", { n: jobs.length - shown.length, p: p.name }))}</div>` : ""}

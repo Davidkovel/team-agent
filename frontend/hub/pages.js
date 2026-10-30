@@ -1923,8 +1923,11 @@ const TF_LINE = { sites: "no portefólio", marcas: "peças de marca", instagram:
 HUB_VIEWS.tenfold = async function (r) {
   const c = companies.find((x) => x.main) || companies.find((x) => x.id === "tenfold");
   if (!c) return page(ui.empty("building", "A Ten Fold não está neste PC", t("Faz git pull no team-agent.")));
-  const done = viewCompanies({ company: c.id, section: r.company, base: "#/tenfold" });
-  const shown = (r.company && c.sections.find((s) => s.id === r.company)) || c.sections[0];
+  // «Chat da equipa» (30 Oct, Marco: «na cena da empresa tem que ter uma cena de mensagens... fotos... estilo WhatsApp, mas
+  // iOS»): the team's conversation of Mensagens, drawn here instead of a library section
+  const chat = r.company === "chat";
+  const done = chat ? null : viewCompanies({ company: c.id, section: r.company, base: "#/tenfold" });
+  const shown = chat ? { id: "chat" } : (r.company && c.sections.find((s) => s.id === r.company)) || c.sections[0];
   const made = c.sections.filter((s) => s.id !== "docs").reduce((n, s) => n + (s.count || 0), 0);
   $("view").innerHTML = `<div class="tf">
     <section class="tf-hero">
@@ -1933,17 +1936,24 @@ HUB_VIEWS.tenfold = async function (r) {
       <div class="tf-act"><a class="tf-btn gold" href="#/tenfold/sites">${icon("eye")}${t("Ver o site")}</a><button class="tf-btn" id="tf-task">${icon("plus")}${t("Nova tarefa")}</button></div>
     </section>
     <nav class="tf-lines">${c.sections.map((s) => `<a class="tf-line ${s.id === shown.id ? "on" : ""}" href="#/tenfold/${esc(s.id)}">
-      <span>${icon(s.id)}${esc(t(s.label))}</span><b>${s.count ?? "—"}</b><small>${t(TF_LINE[s.id] || "")}</small></a>`).join("")}</nav>
+      <span>${icon(s.id)}${esc(t(s.label))}</span><b>${s.count ?? "—"}</b><small>${t(TF_LINE[s.id] || "")}</small></a>`).join("")}
+      <a class="tf-line ${chat ? "on" : ""}" href="#/tenfold/chat"><span>${icon("chat")}${esc(t("Chat da equipa"))}</span><b id="tf-unread">—</b><small>${t("mensagens e fotos")}</small></a></nav>
     <div id="tf-nums"></div>
-    ${$("view").innerHTML}</div>`;
+    ${chat ? `<div class="ms tf-chat has-peer" id="ms"><nav class="ms-list" id="ms-list"></nav><section class="ms-thread" id="ms-thread"></section></div>
+      <p class="tf-chat-more"><a href="#/mensagens">${esc(t("Todas as conversas, também a dois"))} ›</a></p>` : $("view").innerHTML}</div>`;
   $("tf-task").onclick = () => newTask({ company: c.id });
-  mount($("tf-nums"), async () => {
+  if (!chat) mount($("tf-nums"), async () => {   // on the chat the conversation keeps the room
     const o = await api(`/api/companies/${c.id}/overview`);
     return kpiRow([kpi("Em produção", o.open_tasks, { sub: t("tarefas abertas"), href: "#/tarefas", go: "Ver" }),
       kpi("Entregues", o.done_tasks, { sub: t("tarefas feitas") }),
       kpi("Portefólio", made, { sub: t("sites, marcas, posts e vídeos") }),
       kpi("Custo de IA", o.ai_cost_usd == null ? null : fmt.usd(o.ai_cost_usd), { src: o.ai_cost_usd == null ? "" : "estimated" })]);
   }, 1);
+  api("/api/messages").then((m) => { const team = m.conversations.find((x) => x.peer === "team"); if ($("tf-unread")) $("tf-unread").textContent = team && team.unread ? team.unread : "✓"; }).catch(() => {});
+  if (chat) {
+    await Promise.all([lazyFile("hub/mensagens.css"), lazyFile("hub/mensagens.js")]);
+    await window.msMount("team");
+  }
   await done;
 };
 

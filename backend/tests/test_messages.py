@@ -82,3 +82,25 @@ def test_bad_conversations_and_empty_messages_are_refused(client):
     assert client.post("/api/messages/9999", headers=owner, json={"body": "olá"}).status_code == 404
     assert client.post("/api/messages/abc", headers=owner, json={"body": "olá"}).status_code == 404
     assert client.post("/api/messages/team", headers=owner, json={"body": "   "}).status_code == 400
+
+
+PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+
+def test_a_photo_goes_alone_and_only_its_people_open_it(client):
+    """30 Oct: a photo can go without text; the conversation says there is one and never carries it; only the two people
+    of a private conversation (with their token in the address, as an <img>) can open it."""
+    owner, mark, david = (login(client, u) for u in ("owner", "mark", "david"))
+    to_mark = ids(client, owner)["mark"]
+    r = client.post(f"/api/messages/{to_mark}", headers=owner, json={"body": "", "image": PIXEL})
+    assert r.status_code == 200 and r.json()["image"] is True
+    mid = r.json()["id"]
+    thread = client.get(f"/api/messages/{ids(client, mark)['owner']}", headers=mark).json()["messages"]
+    assert thread[-1]["image"] is True and "base64" not in str(thread)
+    token = lambda h: h["Authorization"].split()[1]
+    got = client.get(f"/api/messages/img/{mid}?token={token(mark)}")
+    assert got.status_code == 200 and got.headers["content-type"] == "image/png" and got.content[:4] == b"\x89PNG"
+    assert client.get(f"/api/messages/img/{mid}?token={token(david)}").status_code == 404
+    assert client.get(f"/api/messages/img/{mid}?token=nope").status_code == 401
+    # what is not a photo is refused
+    assert client.post(f"/api/messages/{to_mark}", headers=owner, json={"body": "", "image": "data:text/html;base64,PGI+"}).status_code == 400

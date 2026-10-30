@@ -38,6 +38,7 @@ ACTIVE = False
 NODE = UNKNOWN_NODE
 _last_id: dict[str, int] = {}
 _last_mt = 0
+_came: set[str] = set()   # the tables that rows from another computer just changed here (see _ring)
 
 
 class SyncLog(Base):
@@ -219,8 +220,19 @@ def _apply(conn, changes: list[dict]) -> int:
                         _stamp(conn, table.name, old_pk, c["mt"], c["node"], True)
             conn.execute(insert(table).values(**values))
         _stamp(conn, c["tbl"], c["pk"], c["mt"], c["node"], c["deleted"])
+        _came.add(c["tbl"])
         done += 1
     return done
+
+
+async def _ring():
+    """A message that came from another computer tells the open pages here at once (30 Oct, Marco: «os chats nem
+    atualizam»): before, an open Hub page only saw it at its next look, since sync told no page."""
+    if "messages" in _came:
+        await rt.publish("message", 0, "team")
+    if "notifications" in _came:   # the card of a message (or a task) made on another computer pops up here too
+        await rt.publish("notification", 0, "team")
+    _came.clear()
 
 
 def _adopt(conn, origin: str):
@@ -363,7 +375,9 @@ async def _round(client: httpx.AsyncClient, ip: str) -> bool:
     reply = res.json()
     await _hear(reply.get("present", []))
     async with engine.begin() as conn:
-        return await conn.run_sync(_incoming, ip, upto, more, reply)
+        again = await conn.run_sync(_incoming, ip, upto, more, reply)
+    await _ring()
+    return again
 
 
 async def loop():
@@ -392,6 +406,7 @@ async def exchange(body: Exchange, request: Request):
     team_only(request)
     async with engine.begin() as conn:
         reply = await conn.run_sync(_answer, body)
+    await _ring()
     if body.epoch != reply["epoch"]:
         await _hear(body.present)
     return {**reply, "present": await _present()}

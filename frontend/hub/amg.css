@@ -366,7 +366,7 @@ button.tl-check { cursor: pointer; } button.tl-check:hover { border-color: #f4f6
 .tf-btn:hover { background: rgba(212, 171, 67, .14); border-color: var(--tf-gold); }
 .tf-btn.gold { background: var(--tf-ouro); border-color: transparent; color: #0b0c0f; }
 .tf-btn svg.i { width: 15px; height: 15px; }
-.tf-lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.tf-lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; }
 .tf-line { display: grid; gap: 2px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .07); background: linear-gradient(160deg, #1b1a16, #101113 70%);
   color: inherit; text-decoration: none; transition: border-color .15s, background .15s; }
 .tf-line span { display: flex; align-items: center; gap: 8px; color: #cfc4ad; font: 600 12.5px var(--display); }
@@ -378,6 +378,14 @@ button.tl-check { cursor: pointer; } button.tl-check:hover { border-color: #f4f6
 .tf-line.on span svg.i, .tf-line.on b { color: var(--tf-gold); }
 .tf .pn-kpis { margin: 0; }
 .tf .split { grid-template-columns: minmax(0, 1fr); }   /* the production lines above are the menu */
+/* «Chat da equipa»: the team's conversation of Mensagens (mensagens.css), one column, framed in the house's gold */
+.tf .tf-chat { grid-template-columns: minmax(0, 1fr); height: max(480px, calc(100vh - 370px)); border-color: rgba(212, 171, 67, .28); }
+.tf .tf-chat .ms-list { display: none; }
+.tf .tf-chat .ms-thread { display: grid; }
+.tf-chat-more { margin: 10px 2px 0; text-align: right; }
+.tf-chat-more a { color: #8a8170; font: 600 12.5px var(--ui); text-decoration: none; }
+.tf-chat-more a:hover { color: var(--tf-gold); }
+html.is-phone .tf .tf-chat { height: calc(100dvh - 260px); }
 .tf .split > .side { display: none; }
 .tf #work { order: 9; }
 .tf .page-head h2 { color: #f6efe0; }

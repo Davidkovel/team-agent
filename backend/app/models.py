@@ -253,6 +253,9 @@ class Message(Base):
     sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     to_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     body: Mapped[str] = mapped_column(Text, default="")
+    # a photo (30 Oct, Marco: «fotos e caralho»): a JPEG as a data URL, made small in the browser (≤ 1600 px), so it travels
+    # by sync like the rest of the row; the API never sends it with the conversation, only from /api/messages/img/<id>
+    image: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

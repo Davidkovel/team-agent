@@ -1,13 +1,21 @@
 // Mensagens (#/mensagens, 01 · Comando): the team writes to each other inside the Hub (21 Oct, Marco: «quando quiser passar
 // contas, comandos e tal, o pop-up abre; consigo mandar como se fossem mensagens lá no widget»). backend/app/routers/messages.py.
-// The conversations on the left (the whole team, then each person), the open one on the right; on the phone one at a time.
+// 30 Oct, Marco: «mete estilo WhatsApp, mas iOS... tem que ficar bonito», with photos, and «os chats nem atualizam»: it reads
+// like the iPhone's Messages now (my bubbles blue, the others' graphite, a tail on the last of each run), a photo goes with
+// the + (or pasted, or dropped on the conversation), and a message from another PC shows at once (the Hub's live event
+// `message`, which sync rings too), with the 4 s look kept as a safety net.
 // What is written between ``` is a block with its own «Copiar» (a command, an account), `like this` is code inside a line,
 // and every message copies whole. A message that arrives shows a card on any page (shell.js, msgNews) and in the widget.
 (function () {
-  let S = null, peer = null, msgs = [], timer = null, sending = false, asking = null;
+  let S = null, peer = null, msgs = [], timer = null, sending = false, asking = null, photo = null;
   const phone = () => document.documentElement.classList.contains("is-phone");
   const conv = (id) => (S ? S.conversations.find((c) => c.peer === id) : null);
   const short = (text, n = 70) => { const s = String(text || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+  // the iPhone's arrow up in a round button, and the save of the photo viewer (not in HUB_ICONS)
+  const UP = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/></svg>';
+  const SAVE = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>';
+  const imgUrl = (id) => `/api/messages/img/${id}?token=${encodeURIComponent(token)}`;
+  const run = (a, b) => a && b && a.from === b.from && Math.abs(new Date(b.at) - new Date(a.at)) < 5 * 60000 && fmt.day(a.at) === fmt.day(b.at);
 
   // ---------------------------------------------------------------- a message's text: code blocks, `code`, links, lines
   function rich(text) {
@@ -35,22 +43,25 @@
   function face(c, cls = "") {
     return c.peer === "team" ? `<span class="av ms-team ${cls}">${icon("users")}</span>` : ui.avatar(c.name, cls);
   }
+  const lastText = (m) => short(String(m.body || "").replace(/```[a-z0-9_-]*/gi, " ")) || (m.image ? "📷 " + t("Foto") : "");
   function listHtml() {
     return `<div class="ms-list-h">${esc(t("Conversas"))}</div>` + S.conversations.map((c) => {
-      const last = c.last ? `${c.last.from === S.me ? t("Tu: ") : c.peer === "team" ? `${c.last.from_name}: ` : ""}${short(c.last.body)}` : t("Ainda sem mensagens");
+      const last = c.last ? `${c.last.from === S.me ? t("Tu: ") : c.peer === "team" ? `${c.last.from_name}: ` : ""}${lastText(c.last)}` : t("Ainda sem mensagens");
       return `<a class="ms-conv ${c.peer === peer ? "on" : ""} ${c.unread ? "unread" : ""}" href="#/mensagens/${c.peer}">
-        ${face(c)}<span class="ms-conv-m"><b>${esc(t(c.name))}</b><small>${esc(last)}</small></span>
-        <span class="ms-conv-r">${c.last ? `<time>${esc(fmt.ago(c.last.at))}</time>` : ""}${c.unread ? `<i>${c.unread}</i>` : ""}</span></a>`;
+        ${face(c)}<span class="ms-conv-m"><span class="ms-conv-t"><b>${esc(t(c.name))}</b>${c.last ? `<time>${esc(fmt.ago(c.last.at))}</time>` : ""}</span>
+        <span class="ms-conv-b"><small>${esc(last)}</small>${c.unread ? `<i>${c.unread}</i>` : ""}</span></span></a>`;
     }).join("");
   }
 
   // ---------------------------------------------------------------- the open conversation
-  function bubble(m, prev) {
-    const mine = m.from === S.me, joined = prev && prev.from === m.from && new Date(m.at) - new Date(prev.at) < 5 * 60000;
-    const who = !mine && peer === "team" && !joined ? `<b class="ms-who">${esc(m.from_name)}</b>` : "";
-    return `<div class="ms-msg ${mine ? "mine" : ""} ${joined ? "joined" : ""}" data-id="${m.id}">
-      ${!mine && !joined ? ui.avatar(m.from_name, "sm") : '<span class="ms-gap"></span>'}
-      <div class="ms-bub">${who}<div class="ms-text">${rich(m.body)}</div>
+  function bubble(m, prev, next) {
+    const mine = m.from === S.me, first = !run(prev, m), tail = !run(m, next);
+    const who = !mine && peer === "team" && first ? `<b class="ms-who">${esc(m.from_name)}</b>` : "";
+    const pic = m.image ? `<button type="button" class="ms-pic" data-photo="${m.id}"><img src="${imgUrl(m.id)}" alt="" loading="lazy"></button>` : "";
+    const text = m.body ? `<div class="ms-text">${rich(m.body)}</div>` : "";
+    return `<div class="ms-msg ${mine ? "mine" : ""} ${first ? "first" : ""} ${tail ? "tail" : ""} ${m.image && !m.body ? "only-pic" : ""}" data-id="${m.id}">
+      ${!mine ? (tail ? ui.avatar(m.from_name, "sm") : '<span class="ms-gap"></span>') : ""}
+      <div class="ms-col">${who}<div class="ms-bub">${pic}${text}</div>
         <div class="ms-meta"><time>${esc(fmt.hhmm(m.at))}</time>
           <button type="button" class="ms-act" data-copy-msg="${m.id}" title="${esc(t("Copiar a mensagem"))}">${icon("doc")}</button>
           ${mine ? `<button type="button" class="ms-act ${asking === m.id ? "ask" : ""}" data-del="${m.id}" title="${esc(t("Apagar"))}">${asking === m.id ? esc(t("Apagar?")) : icon("trash")}</button>` : ""}</div></div></div>`;
@@ -59,24 +70,64 @@
     const c = conv(peer);
     if (!c) return ui.empty("chat", "Escolhe uma conversa", "Fala com a equipa toda ou com uma pessoa.");
     const others = S.conversations.filter((x) => x.peer !== "team").map((x) => x.name);
-    let day = "", prev = null;
-    const body = msgs.length ? msgs.map((m) => {
+    let day = "";
+    const body = msgs.length ? msgs.map((m, i) => {
       const d = fmt.day(m.at), head = d !== day ? `<div class="ms-day"><span>${esc(d)}</span></div>` : "";
-      if (head) prev = null;
       day = d;
-      const html = head + bubble(m, prev);
-      prev = m;
-      return html;
-    }).join("") : `<div class="ms-first">${face(c, "lg")}<b>${esc(t(c.name))}</b><p>${esc(c.peer === "team"
-      ? t("O que escreveres aqui chega a {p}. Cada um vê um aviso no Hub, no widget e no telemóvel.", { p: others.join(" e ") })
-      : t("Só tu e {p} veem esta conversa. A mensagem chega num aviso no Hub, no widget e no telemóvel.", { p: c.name }))}</p></div>`;
-    return `<header class="ms-head">${phone() ? "" : face(c)}<div><b>${esc(t(c.name))}</b><small>${esc(c.peer === "team" ? others.concat(t("tu")).join(" · ") : t("Conversa só entre vocês os dois"))}</small></div></header>
+      return head + bubble(m, msgs[i - 1], msgs[i + 1]);
+    }).join("") + (msgs[msgs.length - 1].from === S.me ? `<div class="ms-sent">${esc(t("Entregue"))}</div>` : "")
+      : `<div class="ms-first">${face(c, "lg")}<b>${esc(t(c.name))}</b><p>${esc(c.peer === "team"
+        ? t("O que escreveres aqui chega a {p}. Cada um vê um aviso no Hub, no widget e no telemóvel.", { p: others.join(" e ") })
+        : t("Só tu e {p} veem esta conversa. A mensagem chega num aviso no Hub, no widget e no telemóvel.", { p: c.name }))}</p></div>`;
+    return `<header class="ms-head">${phone() ? "" : face(c)}<div><b>${esc(t(c.name))}</b><small>${esc(c.peer === "team" ? others.concat(t("tu")).join(", ") : t("Só vocês os dois"))}</small></div></header>
       <div class="ms-body" id="ms-body">${body}</div>
       <form class="ms-send" id="ms-send" autocomplete="off">
-        <textarea id="ms-in" rows="1" placeholder="${esc(t(c.peer === "team" ? "Escreve à equipa…" : "Escreve a {p}…", { p: c.name }))}"></textarea>
-        <button class="btn primary" id="ms-go" ${sending ? "disabled" : ""}>${icon("arrow")}${esc(t("Enviar"))}</button>
-        <small class="ms-hint">${esc(t("Enter envia · Shift+Enter muda de linha · entre ``` fica um bloco com botão Copiar"))}</small>
+        <div class="ms-preview" id="ms-preview">${photoHtml()}</div>
+        <div class="ms-bar">
+          <button type="button" class="ms-plus" id="ms-plus" title="${esc(t("Mandar uma foto"))}">${icon("plus")}</button>
+          <input type="file" id="ms-file" accept="image/*" hidden>
+          <div class="ms-field"><textarea id="ms-in" rows="1" placeholder="${esc(t("Mensagem"))}"></textarea>
+            <button class="ms-go" id="ms-go" title="${esc(t("Enviar"))}" ${sending ? "disabled" : ""}>${UP}</button></div>
+        </div>
       </form>`;
+  }
+  const photoHtml = () => (photo ? `<span class="ms-thumb"><img src="${photo}" alt=""><button type="button" id="ms-unpic" title="${esc(t("Tirar a foto"))}">${icon("x")}</button></span>` : "");
+  function ready() {   // the send arrow lights up when there is something to send, as on the iPhone
+    const go = $("ms-go");
+    if (go) go.classList.toggle("on", !!(photo || ($("ms-in") && $("ms-in").value.trim())));
+  }
+
+  // ---------------------------------------------------------------- a photo: made small here, so it travels light
+  function shrink(file) {
+    return new Promise((ok, fail) => {
+      if (!file || !file.type.startsWith("image/")) return fail(new Error(t("Isso não é uma foto.")));
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        const g = c.getContext("2d");
+        g.fillStyle = "#000"; g.fillRect(0, 0, c.width, c.height);   // a transparent PNG would turn black-on-black otherwise
+        g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        ok(c.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); fail(new Error(t("Não consegui abrir essa foto."))); };
+      img.src = url;
+    });
+  }
+  async function pick(file) {
+    try { photo = await shrink(file); } catch (err) { flash(err.message); return; }
+    if ($("ms-preview")) paint($("ms-preview"), photoHtml());
+    ready();
+    if ($("ms-in")) $("ms-in").focus();
+  }
+  function viewer(id) {   // a photo opened big, on black; a click or Esc closes it
+    const box = Object.assign(document.createElement("div"), { className: "ms-view" });
+    box.innerHTML = `<img src="${imgUrl(id)}" alt=""><a class="ms-view-dl" href="${imgUrl(id)}" download="foto-${id}.jpg" title="${esc(t("Guardar"))}">${SAVE}</a>`;
+    const close = (e) => { if (e.type === "keydown" && e.key !== "Escape") return; if (e.target.closest && e.target.closest(".ms-view-dl")) return; box.remove(); document.removeEventListener("keydown", close); };
+    box.addEventListener("click", close);
+    document.addEventListener("keydown", close);
+    document.body.append(box);
   }
 
   // ---------------------------------------------------------------- drawing and loading
@@ -91,21 +142,26 @@
       ui.kpi({ label: c ? t("Com {n}", { n: c.name }) : "Esta conversa", value: msgs.length, sub: t("mensagens · {n} tuas", { n: mine }),
         viz: msgs.length ? ui.cols(days.map((d) => d.value)) : "", delta: msgs.length ? ui.delta(series.inPeriod(msgs, (m) => m.at, 0, 7), series.inPeriod(msgs, (m) => m.at, 7, 14), { label: t("últimos 7 dias contra os 7 antes") }) : "" }),
       ui.kpi({ label: "Última mensagem", value: newest ? fmt.ago(newest.last.at) : null, sub: newest ? t("de {n}", { n: newest.last.from === S.me ? t("ti") : newest.last.from_name }) : "" }),
-      ui.kpi({ label: "Conversas", value: S.conversations.length, sub: t("a equipa e cada pessoa"), viz: ui.ring(S.conversations.length ? (S.conversations.filter((x) => x.last).length / S.conversations.length) * 100 : null) }),
+      ui.kpi({ label: "Fotos", value: msgs.filter((m) => m.image).length, sub: t("nesta conversa") }),
     ]));
   }
   function drawThread(keepInput = true) {
     const box = $("ms-thread");
     if (!box) return;
-    const typed = keepInput && $("ms-in") ? $("ms-in").value : "";
+    const typed = keepInput && $("ms-in") ? $("ms-in").value : "", focused = document.activeElement && document.activeElement.id === "ms-in";
     const body = $("ms-body"), atEnd = !body || body.scrollHeight - body.scrollTop - body.clientHeight < 80;
     box.innerHTML = threadHtml();
     const input = $("ms-in");
-    if (input) { input.value = typed; grow(input); }
-    if (atEnd && $("ms-body")) $("ms-body").scrollTop = $("ms-body").scrollHeight;
+    if (input) { input.value = typed; grow(input); if (focused) input.focus(); }
+    ready();
+    const nb = $("ms-body");
+    if (atEnd && nb) {
+      nb.scrollTop = nb.scrollHeight;
+      nb.querySelectorAll("img").forEach((im) => { if (!im.complete) im.addEventListener("load", () => { nb.scrollTop = nb.scrollHeight; }, { once: true }); });
+    }
     drawDash();
   }
-  function grow(input) { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 200) + "px"; }
+  function grow(input) { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; }
   async function loadList() {
     S = await api("/api/messages");
     drawList();
@@ -120,18 +176,18 @@
     if (changed) loadList().catch(() => {});
   }
   async function refresh() {
-    if (!$("ms") || document.hidden || sending) return;
+    if (!$("ms") || sending) return;
     await loadList();
     await loadThread(true);
   }
   async function send(e) {
     e.preventDefault();
     const input = $("ms-in"), text = input.value;
-    if (!text.trim() || sending) return;
+    if ((!text.trim() && !photo) || sending) return;
     sending = true; $("ms-go").disabled = true;
     try {
-      const m = await api(`/api/messages/${encodeURIComponent(peer)}`, { method: "POST", body: ({ body: text }) });
-      input.value = ""; grow(input);
+      const m = await api(`/api/messages/${encodeURIComponent(peer)}`, { method: "POST", body: { body: text, image: photo } });
+      input.value = ""; photo = null; grow(input);
       msgs.push(m);
       sending = false;
       drawThread(false);
@@ -155,24 +211,46 @@
     if ((b = e.target.closest("[data-copy]"))) copy(b.dataset.copy, b);
     else if ((b = e.target.closest("[data-copy-msg]"))) { const m = msgs.find((x) => x.id === Number(b.dataset.copyMsg)); if (m) copy(m.body.replace(/```[a-z0-9_-]*\n?/gi, ""), null), flash(t("Mensagem copiada")); }
     else if ((b = e.target.closest("[data-del]"))) remove(Number(b.dataset.del), b);
+    else if ((b = e.target.closest("[data-photo]"))) viewer(Number(b.dataset.photo));
+    else if (e.target.closest("#ms-plus")) $("ms-file").click();
+    else if (e.target.closest("#ms-unpic")) { photo = null; paint($("ms-preview"), ""); ready(); }
     else if (asking !== null && !e.target.closest(".ms-act")) { asking = null; drawThread(); }
   }
 
-  onLive(["notification", "tick"], () => ($("ms") ? refresh().catch(() => {}) : Promise.resolve()));
+  onLive(["notification", "message", "tick"], () => ($("ms") ? refresh().catch(() => {}) : Promise.resolve()));
 
   HUB_VIEWS.mensagens = async function (r) {
-    clearInterval(timer);
-    S = S || null; msgs = []; asking = null;
-    peer = r.company || null;
-    page(`${ui.head("", t("Mensagens"), t("Fala com a equipa: contas, comandos, o que for. Quem recebe vê logo um aviso no Hub, no widget e no telemóvel."))}
+    page(`${ui.head("", t("Mensagens"), t("Fala com a equipa: fotos, contas, comandos, o que for. Quem recebe vê logo um aviso no Hub, no widget e no telemóvel."))}
       <div class="ms-dash" id="ms-dash"></div>
-      <div class="ms ${peer ? "has-peer" : ""}" id="ms"><nav class="ms-list" id="ms-list">${ui.skeleton(4)}</nav><section class="ms-thread" id="ms-thread"></section></div>`);
-    $("view").onclick = click;
-    $("ms-thread").addEventListener("submit", send);
-    $("ms-thread").addEventListener("keydown", (e) => {
-      if (e.target.id === "ms-in" && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("ms-send").requestSubmit(); }
+      <div class="ms ${r.company ? "has-peer" : ""}" id="ms"><nav class="ms-list" id="ms-list">${ui.skeleton(4)}</nav><section class="ms-thread" id="ms-thread"></section></div>`);
+    await mount(r.company || null);
+  };
+  // the same conversation inside another page (the Ten Fold's «Chat da equipa», 30 Oct): that page draws the #ms box
+  window.msMount = mount;
+
+  async function mount(start) {
+    clearInterval(timer);
+    msgs = []; asking = null; photo = null;
+    peer = start;
+    $("ms").onclick = click;
+    const th = $("ms-thread");
+    th.addEventListener("submit", send);
+    th.addEventListener("keydown", (e) => {
+      if (e.target.id === "ms-in" && e.key === "Enter" && !e.shiftKey && !e.isComposing && !phone()) { e.preventDefault(); $("ms-send").requestSubmit(); }
     });
-    $("ms-thread").addEventListener("input", (e) => { if (e.target.id === "ms-in") grow(e.target); });
+    th.addEventListener("input", (e) => { if (e.target.id === "ms-in") { grow(e.target); ready(); } });
+    th.addEventListener("change", (e) => { if (e.target.id === "ms-file" && e.target.files[0]) { pick(e.target.files[0]); e.target.value = ""; } });
+    th.addEventListener("paste", (e) => {   // a screenshot pasted into the box goes as a photo
+      const f = [...(e.clipboardData?.files || [])].find((x) => x.type.startsWith("image/"));
+      if (f) { e.preventDefault(); pick(f); }
+    });
+    th.addEventListener("dragover", (e) => { if ([...(e.dataTransfer?.items || [])].some((x) => x.kind === "file")) { e.preventDefault(); th.classList.add("drop"); } });
+    th.addEventListener("dragleave", (e) => { if (!th.contains(e.relatedTarget)) th.classList.remove("drop"); });
+    th.addEventListener("drop", (e) => {
+      th.classList.remove("drop");
+      const f = [...(e.dataTransfer?.files || [])].find((x) => x.type.startsWith("image/"));
+      if (f) { e.preventDefault(); pick(f); }
+    });
     await loadList();
     if (!peer && !phone()) {   // on the computer a conversation is always open: the newest, else the team's
       const newest = [...S.conversations].filter((c) => c.last).sort((a, b) => String(b.last.at).localeCompare(String(a.last.at)))[0];
@@ -183,8 +261,9 @@
     }
     if (peer && !conv(peer)) { peer = null; }
     drawThread(false);
-    if (peer) { await loadThread(); if ($("ms-in") && !phone()) $("ms-in").focus(); }
-    // the other PCs' messages come by sync, which tells no page: look every 4 s while this one is open and seen
+    if (peer) { await loadThread(); if ($("ms-in") && !phone()) $("ms-in").focus({ preventScroll: true }); }
+    // the live event comes first (sync rings it for what other PCs send); this look every 4 s is the safety net, and it
+    // also runs with the page behind another window (the widget's Hub is often not the window in front)
     timer = setInterval(() => { if (!$("ms")) clearInterval(timer); else refresh().catch(() => {}); }, 4000);
-  };
+  }
 })();

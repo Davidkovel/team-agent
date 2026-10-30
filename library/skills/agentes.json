@@ -34,6 +34,10 @@
  "customer-research": [
   "riddler"
  ],
+ "design-is": [
+  "catwoman",
+  "alfred"
+ ],
  "dossie-crescimento": [
   "riddler",
   "joker"
@@ -67,6 +71,10 @@
  ],
  "migration": [
   "lucius"
+ ],
+ "motion-react": [
+  "batman",
+  "catwoman"
  ],
  "offers": [
   "joker",
@@ -128,15 +136,11 @@
   "lucius",
   "alfred"
  ],
+ "ui-ux-pro-max": [
+  "catwoman"
+ ],
  "watch": [
   "riddler",
-  "catwoman"
- ],
- "motion-react": [
-  "batman",
-  "catwoman"
- ],
- "ui-ux-pro-max": [
   "catwoman"
  ]
 }

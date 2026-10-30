@@ -59,6 +59,10 @@
   "licenca": "aberta",
   "veio": "escolhida pelo Claude do Marco a 21 out 2026 («as melhores do GitHub, que funcionem a sério»)"
  },
+ "design-is": {
+  "de": "Plugin claude-mem",
+  "licenca": "não indicada"
+ },
  "hub-pagina": {
   "de": "docs/hub-paginas.md do team-agent",
   "autor": "Empresa AMG (Claude, a pedido do Marco, 21 out 2026)"
@@ -108,6 +112,12 @@
  "migration": {
   "de": "Plugin caveman",
   "licenca": "aberta"
+ },
+ "motion-react": {
+  "de": "github.com/secondsky/claude-skills/plugins/motion/skills/motion",
+  "autor": "Claude Skills Maintainers, MIT",
+  "licenca": "aberta",
+  "veio": "pedida pelo David a 26 out 2026 (Motion for React)"
  },
  "offers": {
   "de": "github.com/coreyhaines31/marketingskills/skills/offers",
@@ -185,22 +195,16 @@
   "licenca": "aberta",
   "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
  },
- "watch": {
-  "de": "github.com/bradautomates/claude-video",
-  "autor": "Bradley Bonanno (bradautomates), MIT",
-  "licenca": "aberta",
-  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
- },
- "motion-react": {
-  "de": "github.com/secondsky/claude-skills/plugins/motion/skills/motion",
-  "autor": "Claude Skills Maintainers, MIT",
-  "licenca": "aberta",
-  "veio": "pedida pelo David a 26 out 2026 (Motion for React)"
- },
  "ui-ux-pro-max": {
   "de": "github.com/nextlevelbuilder/ui-ux-pro-max-skill (v2.15.0)",
   "autor": "Next Level Builder, MIT",
   "licenca": "aberta",
   "veio": "pedida pelo David a 26 out 2026"
+ },
+ "watch": {
+  "de": "github.com/bradautomates/claude-video",
+  "autor": "Bradley Bonanno (bradautomates), MIT",
+  "licenca": "aberta",
+  "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
  }
 }

@@ -1932,7 +1932,8 @@ HUB_VIEWS.tenfold = async function (r) {
       <span class="tf-mark">${esc(c.short || "TF")}</span>
       <div class="tf-id"><small>03 · ${t("Negócios")} · ${t("O trabalho principal")}</small><h1>${esc(c.name)}</h1><p>${esc(c.tagline || "")}</p></div>
       <div class="tf-act"><a class="tf-btn gold" href="#/tenfold/sites">${icon("eye")}${t("Ver o site")}</a><button class="tf-btn" id="tf-task">${icon("plus")}${t("Nova tarefa")}</button>
-        <a class="tf-app" href="#/mensagens/team" title="${esc(t("Abrir o Chat da equipa"))}"><i>${icon("chat")}<em id="tf-unread" hidden></em></i><span>${esc(t("Chat"))}</span></a></div>
+        <a class="tf-app" href="#/mensagens/team" title="${esc(t("Abrir o Chat da equipa"))}"><i>${icon("chat")}<em id="tf-unread" hidden></em></i><span>${esc(t("Chat"))}</span></a>
+        <a class="tf-app" href="#/fotos" title="${esc(t("Abrir as Fotos da agência"))}"><i>${icon("fotos")}<em id="tf-photos" hidden></em></i><span>${esc(t("Fotos"))}</span></a></div>
     </section>
     <nav class="tf-lines">${c.sections.map((s) => `<a class="tf-line ${s.id === shown.id ? "on" : ""}" href="#/tenfold/${esc(s.id)}">
       <span>${icon(s.id)}${esc(t(s.label))}</span><b>${s.count ?? "—"}</b><small>${t(TF_LINE[s.id] || "")}</small></a>`).join("")}</nav>
@@ -1947,6 +1948,7 @@ HUB_VIEWS.tenfold = async function (r) {
       kpi("Custo de IA", o.ai_cost_usd == null ? null : fmt.usd(o.ai_cost_usd), { src: o.ai_cost_usd == null ? "" : "estimated" })]);
   }, 1);
   // the Chat is the agency's app (30 Oct, Marco: «o chat de equipa é uma aplicação»): an app icon here, with what is unread
+  api("/api/photos").then((p) => { const el = $("tf-photos"); if (el && p.items.length) { el.textContent = p.items.length; el.classList.add("n"); el.hidden = false; } }).catch(() => {});
   api("/api/messages").then((m) => { const el = $("tf-unread"); if (el && m.unread) { el.textContent = m.unread > 99 ? "99+" : m.unread; el.hidden = false; } }).catch(() => {});
   await done;
 };

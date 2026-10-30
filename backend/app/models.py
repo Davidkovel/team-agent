@@ -426,3 +426,18 @@ class Plan(Base):
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class Photo(Base):
+    """Fotos da Ten Fold (30 Oct, Marco: «uma livraria, uma cena para fotos»): the agency's photo library, in albums.
+    The picture is a JPEG data URL made small in the browser (≤ 2000 px), with a ≤ 480 px thumb for the grid, so it
+    travels to every PC by sync like any row; the API sends them only from /api/photos/<id>/img."""
+    __tablename__ = "photos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company: Mapped[str] = mapped_column(String(40), default="tenfold", index=True)
+    album: Mapped[str] = mapped_column(String(80), default="Geral")
+    title: Mapped[str] = mapped_column(String(160), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    image: Mapped[str] = mapped_column(Text, default="")
+    thumb: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

@@ -142,7 +142,8 @@ const NAV = [
   ["Empresa AMG", "grid", [["empresa", "Empresa AMG"]], "agentes"],
   ["Skills", "layers", [["skills", "Skills"], ["galeria", "Galeria"]], "agentes"],
   ["Equipa", "users", [["equipa", "Equipa"], ["aovivo", "Ao vivo"], ["agentes", "Agentes"], ["historico", "Histórico"]], "agentes"],
-  ["Ten Fold", "spark", [["tenfold", "Ten Fold"]], "negocios"], // the main work (Marco, 27 Oct): its own entry, first in Negócios
+  ["Ten Fold", "spark", [["tenfold", "Ten Fold"]], "negocios"],
+  ["Fotos", "fotos", [["fotos", "Fotos"]], "negocios"],   // the Ten Fold's photo library (30 Oct, Marco: «uma livraria... para fotos») // the main work (Marco, 27 Oct): its own entry, first in Negócios
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]], "negocios"],
   ["Radar", "target", [["radar", "Radar"]], "negocios"],
   ["Fábrica Etsy", "bag", [["etsy", "Fábrica Etsy"]], "negocios"],
@@ -734,13 +735,15 @@ async function viewCompanies(r) {
   const base = r.base || `#/empresas/${esc(company.id)}`; // a company with a page of its own (#/tenfold) keeps its links there
   $("view").innerHTML = `
     ${r.base ? "" : `<div class="chips">${companies.map((c) => `<a class="chip ${c.id === company.id ? "active" : ""}" href="#/empresas/${esc(c.id)}">${esc(c.short)} · ${esc(c.name)}</a>`).join("")}</div>`}
-    <div id="work"></div>
-    <div class="split">
-      <nav class="side">${company.sections.map((s) => `
-        <a class="${s.id === section.id ? "active" : ""}" href="${base}/${esc(s.id)}">${icon(s.id)}${esc(s.label)}<span class="n">${s.count}</span></a>`).join("")}</nav>
+    ${r.base ? "" : '<div id="work"></div>'}
+    <div class="split ${r.base ? "flat" : ""}">
+      ${r.base ? "" : `<nav class="side">${company.sections.map((s) => `
+        <a class="${s.id === section.id ? "active" : ""}" href="${base}/${esc(s.id)}">${icon(s.id)}${esc(s.label)}<span class="n">${s.count}</span></a>`).join("")}</nav>`}
       <section><div class="page-head"><div><h2>${esc(section.label)}</h2><p>${esc(section.description)}</p></div></div><div id="section-body"><p class="muted">A carregar…</p></div></section>
     </div>`;
-  api(`/api/work/${company.id}`).then((w) => {
+  // a company with a page of its own (Ten Fold, 30 Oct: «super desorganizado») has its sections as tabs on top already, and
+  // the long list of who worked on it stays on the plain company page only
+  if (!r.base) api(`/api/work/${company.id}`).then((w) => {
     if (!$("work")) return;
     $("work").innerHTML = `<div class="section-title">Quem trabalhou em ${esc(company.name)}</div><div class="card">
       ${w.people.length

@@ -230,6 +230,8 @@ async def _ring():
     atualizam»): before, an open Hub page only saw it at its next look, since sync told no page."""
     if "messages" in _came:
         await rt.publish("message", 0, "team")
+    if "photos" in _came:   # the Ten Fold's photo library (routers/photos.py)
+        await rt.publish("photo", 0, "team")
     if "notifications" in _came:   # the card of a message (or a task) made on another computer pops up here too
         await rt.publish("notification", 0, "team")
     _came.clear()

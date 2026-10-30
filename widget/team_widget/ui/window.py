@@ -1543,13 +1543,26 @@ def paint_gauge(p: QPainter, r: QRectF, arcs, value="", key=None, segments=None,
     p.restore()
 
 
-def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, dpr=1.0):
+def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, dpr=1.0, glass=False):
     """An option on the minimized card, small: a capsule of glass with a tiny ring (the gauge's arc, or one piece per
     partner) round the option's glyph, and the figure beside it in the gauge's colour."""
     p.save()
-    p.setPen(QPen(QColor(255, 255, 255, 70 if hot else 34), 1))
-    p.setBrush(QColor(28, 29, 33, 225) if hot else QColor(10, 10, 12, 190))   # its own dark capsule: reads on any desktop
-    cut(p, r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
+    if glass:   # 30 Oct, David on the Mac: «estilo de vidro» — clear glass with a lit rim, not a dark pill
+        body = r.adjusted(0.5, 0.5, -0.5, -0.5)
+        fill = QLinearGradient(body.topLeft(), body.bottomLeft())
+        fill.setColorAt(0, QColor(255, 255, 255, 62 if hot else 44))
+        fill.setColorAt(0.5, QColor(150, 155, 165, 40 if hot else 28))
+        fill.setColorAt(1, QColor(20, 22, 26, 120))
+        rim = QLinearGradient(body.topLeft(), body.bottomLeft())
+        rim.setColorAt(0, QColor(255, 255, 255, 150 if hot else 110))
+        rim.setColorAt(1, QColor(255, 255, 255, 30))
+        p.setPen(QPen(rim, 1))
+        p.setBrush(fill)
+        cut(p, body, r.height() / 2, r.height() / 2)
+    else:
+        p.setPen(QPen(QColor(255, 255, 255, 70 if hot else 34), 1))
+        p.setBrush(QColor(28, 29, 33, 225) if hot else QColor(10, 10, 12, 190))   # its own dark capsule: reads on any desktop
+        cut(p, r.adjusted(0.5, 0.5, -0.5, -0.5), r.height() / 2, r.height() / 2)
     c = QPointF(r.left() + 12.5, r.center().y())
     ring = QRectF(c.x() - 8, c.y() - 8, 16, 16)
     p.setBrush(Qt.NoBrush)
@@ -2114,10 +2127,10 @@ class Orb(QWidget):
 class MacOrb(Orb):
     """The widget at rest on the Mac (30 Oct, David: «só quero uma estrelinha... o horário embaixo e... a data assim
     pequenino; quando eu meter lá o rato que apareça os outros»): a small star, the time under it and the date under
-    that, nothing else. The chips wait out of sight and slide in, in one row beside the clock, while the mouse is on
-    it. The row sits on the side facing the screen (flip), so the clock keeps to the edge it was dragged to."""
+    that, nothing else. The chips, in clear glass, wait out of sight and drop down in a column under the date while the
+    mouse is on the clock («queria que elas aparecessem pra baixo»)."""
     STAR, PAD, M = 26, 4, 10
-    CHIP_GAP, GAP = 5, 12   # between chips; between the row and the clock
+    CHIP_H, CHIP_GAP, GAP = 22, 5, 10   # chip; between chips; between the date and the first chip
 
     def __init__(self, on_click):
         self._reveal = 0.0
@@ -2125,7 +2138,7 @@ class MacOrb(Orb):
         self._f_time = font(17, QFont.DemiBold, DISPLAY)
         self._f_date = font(7, QFont.Bold, UI, spacing=1.2)
         self._reveal_anim = animate(self, 260, lambda v: self._set("_reveal", v))
-        self._linger = QTimer(self)          # leaving the clock for the row crosses a gap: wait before hiding it
+        self._linger = QTimer(self)          # going from the clock down to a chip crosses a gap: wait before hiding them
         self._linger.setSingleShot(True)
         self._linger.timeout.connect(lambda: self._to(self._reveal_anim, self._reveal, 0))
         self._layout()
@@ -2136,19 +2149,20 @@ class MacOrb(Orb):
         fm, fd = QFontMetricsF(self._f_time), QFontMetricsF(self._f_date)
         return max(fm.horizontalAdvance("00:00"), fd.horizontalAdvance("SÁB 24 MMM") + 4, self.STAR) + 2
 
-    def _row_w(self) -> float:
-        n = len(self.items)
-        return sum(self._chip_w(g) for _, g in self.items) + self.CHIP_GAP * (n - 1) if n else 0.0
+    def _col_w(self) -> float:
+        """Every chip as wide as the widest, so the column reads as one."""
+        return max((self._chip_w(g) for _, g in self.items), default=0.0) + 4
 
     def _layout(self):
         if not hasattr(self, "_f_date"):   # Orb.__init__ lays out before this class has its fonts
             return super()._layout()
         fm, fd = QFontMetricsF(self._f_time), QFontMetricsF(self._f_date)
         self._stack_h = self.STAR + 5 + fm.capHeight() + 7 + fd.capHeight()
-        row = self._row_w()
-        self.CW = round(self._stack_w() + (self.GAP + row if row else 0) + 2 * self.PAD)
-        self.CH = round(max(self._stack_h, self.CHIP_H) + 2 * self.PAD)
-        self._colw, self._rows, self._rows_items = self._stack_w(), (1 if self.items else 0), [self.items]
+        n = len(self.items)
+        col_h = self.GAP + n * self.CHIP_H + (n - 1) * self.CHIP_GAP if n else 0
+        self.CW = round(max(self._stack_w(), self._col_w()) + 2 * self.PAD)
+        self.CH = round(self._stack_h + col_h + 2 * self.PAD)
+        self._colw, self._rows, self._rows_items = self._stack_w(), (1 if n else 0), [self.items]
         size = (self.CW + 2 * self.M, self.CH + 2 * self.M)
         if size != (getattr(self, "W", 0), getattr(self, "H", 0)):
             self.W, self.H = size
@@ -2157,26 +2171,19 @@ class MacOrb(Orb):
         self._face_key = None
 
     def _stack_x(self) -> float:
-        """The clock's column: on the outer edge, the row of chips on the side facing the screen."""
-        return self.CW - self.PAD - self._stack_w() if self.flip else float(self.PAD)
+        return (self.CW - self._stack_w()) / 2
 
     def _star_x(self) -> float:
-        return self._stack_x() + (self._stack_w() - self.STAR) / 2
+        return (self.CW - self.STAR) / 2
 
     def _gauge_rects(self) -> list:
         out = []
-        if not self.items:
-            return out
-        y = (self.CH - self._stack_h) / 2 + self.STAR + 5 + QFontMetricsF(self._f_time).capHeight() / 2 - self.CHIP_H / 2
-        slide = (1 - self._reveal) * 14    # they come out from behind the clock
-        if self.flip:
-            x = self._stack_x() - self.GAP - self._row_w() + slide
-        else:
-            x = self._stack_x() + self._stack_w() + self.GAP - slide
+        w = self._col_w()
+        x = (self.CW - w) / 2
+        y = self.PAD + self._stack_h + self.GAP - (1 - self._reveal) * 10   # they drop from under the date
         for key, g in self.items:
-            w = self._chip_w(g)
             out.append((key, g, QRectF(x, y, w, self.CHIP_H)))
-            x += w + self.CHIP_GAP
+            y += self.CHIP_H + self.CHIP_GAP
         return out
 
     def _gauge_at(self, pos: QPointF):
@@ -2186,7 +2193,7 @@ class MacOrb(Orb):
 
     def _on_content(self, pos: QPointF) -> bool:
         local = pos - QPointF(self.FACE.topLeft())
-        top = (self.CH - self._stack_h) / 2
+        top = self.PAD
         return QRectF(self._stack_x() - 4, top - 4, self._stack_w() + 8, self._stack_h + 8).contains(local)
 
     def enterEvent(self, e):
@@ -2203,7 +2210,7 @@ class MacOrb(Orb):
         p.translate(face.topLeft())
         p.scale(face.width() / self.CW, face.height() / self.CH)
         sx, sw = self._stack_x(), self._stack_w()
-        top = (self.CH - self._stack_h) / 2
+        top = self.PAD
         paint_star(p, QRectF(self._star_x(), top, self.STAR, self.STAR), shadow=True)
         fm = QFontMetricsF(self._f_time)
         base = top + self.STAR + 5 + fm.capHeight()
@@ -2225,7 +2232,7 @@ class MacOrb(Orb):
             dpr = self.devicePixelRatioF()
             p.setOpacity(p.opacity() * self._reveal)
             for key, g, cr in self._gauge_rects():
-                paint_chip(p, cr, key, g, self._f_value, key == self._hot, dpr)
+                paint_chip(p, cr, key, g, self._f_value, key == self._hot, dpr, glass=True)
         p.restore()
 
     def _build_face(self, hhmm_now: str) -> QPixmap:
@@ -2238,7 +2245,7 @@ class MacOrb(Orb):
             p.setRenderHint(QPainter.Antialiasing)
             text = str(count) if count < 100 else "99+"
             w = max(16.0, QFontMetricsF(self._f_count).horizontalAdvance(text) + 9)
-            top = self.FACE.top() + (self.CH - self._stack_h) / 2
+            top = self.FACE.top() + self.PAD
             pill = QRectF(self.FACE.left() + self._star_x() + self.STAR - w / 2, top - 4, w, 16)
             p.setPen(QPen(QColor(0, 0, 0, 200), 2))
             p.setBrush(QColor("#ff3b30"))

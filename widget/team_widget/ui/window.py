@@ -12,6 +12,7 @@ plays for a few seconds after a change and then rests: a cockpit where nothing h
 import getpass
 import math
 import os
+import sys
 import threading
 import time
 import urllib.error
@@ -226,6 +227,21 @@ def animate(owner, ms, on_value, start=0.0, end=1.0, curve=QEasingCurve.OutCubic
     a.setEasingCurve(curve)
     a.valueChanged.connect(on_value)
     return a
+
+
+MAC = sys.platform == "darwin"
+
+
+def _text_shadow(p: QPainter, at: QPointF, f: QFont, text: str):
+    """A tight dark shadow hugging the letters (no box, no oval), so chrome reads on a white wallpaper too."""
+    path = QPainterPath()
+    path.addText(at + QPointF(0, 1.2), f, text)
+    p.save()
+    p.setBrush(Qt.NoBrush)
+    for w, a in ((7, 28), (4.5, 55), (2.2, 110)):
+        p.setPen(QPen(QColor(0, 0, 0, a), w, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.drawPath(path)
+    p.restore()
 
 
 def glow_disc(p: QPainter, centre: QPointF, rx: float, ry: float, colour: str, alpha: float, soft=0.0):
@@ -1930,6 +1946,16 @@ class Orb(QWidget):
                 return key, g
         return None, None
 
+    def _on_content(self, pos: QPointF) -> bool:
+        """The star, a chip, or the time with the badge under it: what is drawn, not the air around it."""
+        local = pos - QPointF(self.FACE.topLeft())
+        if QRectF(self._star_x(), (self.CH - self.STAR) / 2, self.STAR, self.STAR).adjusted(-4, -4, 4, 4).contains(local):
+            return True
+        if any(r.adjusted(-3, -3, 3, 3).contains(local) for _, _, r in self._gauge_rects()):
+            return True
+        ty = self._top + (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if self.items else 0)
+        return QRectF(self._col(), ty - 4, self._colw, self.CH - ty).contains(local)
+
     # ---- the mouse
     def enterEvent(self, e):
         self._to(self._hover_anim, self._hover, 1)
@@ -1976,7 +2002,7 @@ class Orb(QWidget):
             key, _ = self._gauge_at(e.position())
             if key and self.on_icon:
                 self.on_icon(key)
-            else:
+            elif not MAC or self._on_content(e.position()):   # on the Mac, a click beside the clock opens nothing
                 self._on_click()
         elif self._dragged and hasattr(self.window(), "dock"):
             self.window().dock()   # let go: kept inside the screen, and the place is kept for next time
@@ -1990,12 +2016,14 @@ class Orb(QWidget):
         # no card (transparent, as before): a soft dark shadow with no edge, the same on every wallpaper, so the chrome
         # reads on a light desktop too
         p.setPen(Qt.NoPen)
-        glow_disc(p, QPointF(self.CW / 2, self.CH / 2), self.CW * 0.56, self.CH * 0.62, "#000000", 0.42)
-        glow_disc(p, QPointF(self._star_x() + self.STAR / 2, self.CH / 2), self.STAR * 0.7, self.STAR * 0.7, "#000000", 0.25)
         fm_t = QFontMetricsF(self._f_time)
         ty = self._top + (self._rows * (self.CHIP_H + self.CHIP_GAP) + 4 if self.items else 0)
-        tw = max(fm_t.horizontalAdvance(hhmm_now), badge.width(8.0) + 70)
-        glow_disc(p, QPointF((self._col() + self._colw - tw / 2) if self.flip else (self.X0 + tw / 2), ty + fm_t.capHeight() * 0.9), tw * 0.78, fm_t.capHeight() * 1.5, "#000000", 0.6)
+        if not MAC:   # 30 Oct, David on the Mac: the oval read as a dirty smoked tab and caught clicks around the clock;
+            # there the time and the date carry their own tight shadow instead (_text_shadow)
+            glow_disc(p, QPointF(self.CW / 2, self.CH / 2), self.CW * 0.56, self.CH * 0.62, "#000000", 0.42)
+            glow_disc(p, QPointF(self._star_x() + self.STAR / 2, self.CH / 2), self.STAR * 0.7, self.STAR * 0.7, "#000000", 0.25)
+            tw = max(fm_t.horizontalAdvance(hhmm_now), badge.width(8.0) + 70)
+            glow_disc(p, QPointF((self._col() + self._colw - tw / 2) if self.flip else (self.X0 + tw / 2), ty + fm_t.capHeight() * 0.9), tw * 0.78, fm_t.capHeight() * 1.5, "#000000", 0.6)
         # the Mercedes star on the left (24 Oct, Marco: «mete o símbolo da Mercedes»)
         paint_star(p, QRectF(self._star_x(), (self.CH - self.STAR) / 2, self.STAR, self.STAR), shadow=True)
         # on top, the chips of the options switched on
@@ -2008,6 +2036,8 @@ class Orb(QWidget):
         base = y + fm.capHeight()
         col, end = self._col(), self._col() + self._colw
         tx = end - fm.horizontalAdvance(hhmm_now) if self.flip else col - 1
+        if MAC:
+            _text_shadow(p, QPointF(tx, base), self._f_time, hhmm_now)
         chrome_text(p, QPointF(tx, base), self._f_time, hhmm_now)
         # under it the AMG badge and the date, or what needs you
         by = base + 9
@@ -2018,7 +2048,8 @@ class Orb(QWidget):
         text = fl.elidedText(text, Qt.ElideRight, room)
         line_w = badge.width(8.0) + 8 + (10 if self.line else 0) + fl.horizontalAdvance(text) + 1
         x = end - line_w if self.flip else col   # leaning on the star, like the time
-        glow_disc(p, QPointF(x + line_w / 2, by + 4.5), line_w * 0.62, 12, "#000000", 0.5)   # the badge and the date on a light video
+        if not MAC:
+            glow_disc(p, QPointF(x + line_w / 2, by + 4.5), line_w * 0.62, 12, "#000000", 0.5)   # the badge and the date on a light video
         badge.paint(p, x, by, 8.0)
         x += badge.width(8.0) + 8
         if self.line:
@@ -2101,7 +2132,8 @@ class WidgetWindow(QWidget):
     cave_ready = Signal(str)     # the cave's address with a sign-in, for the cameras' mini window
 
     def __init__(self, store: StateStore, client: AgentClient):
-        super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.on_top() else Qt.Widget))
+        super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.on_top() else Qt.Widget)
+                         | (Qt.NoDropShadowWindowHint if MAC else Qt.Widget))   # 30 Oct, David: the Mac outlined the card's shadow
         self.store, self.client = store, client
         self.hub_ready.connect(self._hub_opened)
         self.cave_ready.connect(self._cave_opened)

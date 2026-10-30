@@ -32,6 +32,11 @@
       "sources": [
         {
           "source": "library",
+          "path": "companies/tenfold/marcas/ten-fold",
+          "label": "Ten Fold"
+        },
+        {
+          "source": "library",
           "path": "companies/tenfold/marcas/gato-preto",
           "label": "Gato Preto"
         },

@@ -1,0 +1,32 @@
+/* hub/motion.js: the marker that slides and stretches under the tab you are on, and a page coming up out of a blur. */
+.mo-has-ink { position: relative; }
+.mo-ink { position: absolute; z-index: 0; pointer-events: none; display: block; will-change: left, width, top, height; }
+.mo-has-ink > a { position: relative; z-index: 1; }
+
+/* sub-tabs on the computer: a faint pill and the chrome line under it */
+html:not(.is-phone) .subtabs > .mo-ink { border-radius: 8px 8px 0 0; background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .015)); }
+html:not(.is-phone) .subtabs > .mo-ink::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 2px;
+  background: var(--chrome); box-shadow: 0 0 10px rgba(238, 245, 255, .35); }
+html:not(.is-phone) .subtabs.mo-has-ink a.on::after { display: none; }
+/* on the phone the sub-tabs are a segmented control: the grey pill itself slides */
+html.is-phone .subtabs > .mo-ink { border-radius: 8px; background: #5b5e66; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+html.is-phone .subtabs.mo-has-ink a.on { background: transparent; box-shadow: none; }
+
+/* the sidebar: the lit row and its chrome bar slide together */
+#tabs > .mo-ink { border-radius: 10px; background: rgba(255, 255, 255, .09); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+#tabs > .mo-ink::before { content: ""; position: absolute; left: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--chrome); box-shadow: 0 0 8px rgba(238, 245, 255, .6); }
+#tabs.mo-has-ink .side-link.active { background: transparent; box-shadow: none; }
+#tabs.mo-has-ink .side-link.active::before { display: none; }
+
+/* a page coming in: each block out of a blur, one after the other */
+@keyframes mo-in { from { opacity: 0; transform: translateY(12px); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes mo-pop { from { opacity: 0; transform: translateY(8px) scale(.975); } to { opacity: 1; transform: none; } }
+@keyframes mo-draw { from { stroke-dashoffset: var(--mo-len); } to { stroke-dashoffset: 0; } }
+@keyframes mo-grow { from { transform: scaleY(0); opacity: 0; } to { transform: none; opacity: 1; } }
+.mo-in { animation: mo-in .52s cubic-bezier(.22, 1, .36, 1) var(--mo-d, 0ms) both; }
+.mo-pop { animation: mo-pop .46s cubic-bezier(.22, 1, .36, 1) var(--mo-d, 0ms) both; }
+.mo-draw { stroke-dasharray: var(--mo-len); animation: mo-draw .9s cubic-bezier(.65, 0, .35, 1) .25s both; }
+.pn-bars i.mo-grow { transform-origin: bottom; animation: mo-grow .6s cubic-bezier(.22, 1, .36, 1) .2s both; }
+.pn-trend path.area.mo-grow, .pn-viz.mo-grow { animation: mo-pop .7s ease .35s both; }
+@media (prefers-reduced-motion: reduce) { .mo-in, .mo-pop, .mo-draw, .mo-grow { animation: none !important; } }

@@ -2516,6 +2516,7 @@ class WidgetWindow(QWidget):
         self.hub_note = label("O Hub não está a responder.", 8.5, FAINT)
         self.hub_note.hide()
         team.box.addWidget(self.hub_note)
+        col.addWidget(team)
 
         # 02 No relógio: the icons over the minimized clock, chosen here (23 Oct, Marco: «quero ativar os tokens, quero
         # ativar as câmaras»; 24 Oct: options «que combinem com a funcionalidade de uma empresa»)
@@ -2541,6 +2542,7 @@ class WidgetWindow(QWidget):
         side.sub.setText(f"{on} de {len(GAUGES)} ligados")
         prefs.save(pins=[k for k, pin in self.pins.items() if pin.on])
         side.box.addLayout(tiles)
+        col.addWidget(side)
 
         # «Controlo»: the buttons that were only in the tray menu, as the iPhone's Control Centre
         controls = Platter("Controlo", "", "03")
@@ -2562,6 +2564,7 @@ class WidgetWindow(QWidget):
         for button in (self.ctl_ponto, self.ctl_agent, self.ctl_stop, self.ctl_top, self.ctl_away, self.ctl_hub):
             row.addWidget(button)
         controls.box.addLayout(row)
+        col.addWidget(controls)
         self._render_controls()
 
         # 04 Atalhos: the Hub's pages one click away, as on the iPhone's home screen (headed like the modules, no plate: room)
@@ -2574,6 +2577,7 @@ class WidgetWindow(QWidget):
         head.addStretch(1)
         head_w = QWidget()
         head_w.setLayout(head)
+        col.addWidget(head_w)
         apps = QWidget()
         grid = QGridLayout(apps)
         grid.setContentsMargins(0, 2, 0, 0)
@@ -2586,24 +2590,7 @@ class WidgetWindow(QWidget):
             grid.addWidget(icon, i // 5, i % 5)
             self.apps[glyph_key] = icon
 
-        # one module at a time behind tabs, as the dashboard of David's reel (31 Oct: «tudo muito clean... movimentos suaves»):
-        # the pill slides and stretches between the names, the page changes through a soft blur (tabs.py)
-        from .tabs import Pages, TabBar
-        tools = QWidget()   # Controlo and Atalhos share a page: the buttons, then the Hub's pages
-        stack = QVBoxLayout(tools)
-        stack.setContentsMargins(0, 0, 0, 0)
-        stack.setSpacing(8)
-        stack.addWidget(controls)
-        stack.addWidget(head_w)
-        stack.addWidget(apps)
-        for w in (team, side, tools):
-            w.setFixedWidth(INNER)
-        tab = prefs.load().get("tab", 0)
-        self.tabs = TabBar(["Equipa", "No relógio", "Controlo"], tab if tab in (0, 1, 2) else 0)
-        self.pages = Pages([team, side, tools], self.tabs.current)
-        self.tabs.picked.connect(self._pick_tab)
-        col.addWidget(self.tabs)
-        col.addWidget(self.pages)
+        col.addWidget(apps)
 
         # the FundedNext account (the Hub's #/fundednext in a few numbers); only on a PC with the account
         self.fn = Platter("FundedNext", "", "04")
@@ -2734,11 +2721,6 @@ class WidgetWindow(QWidget):
         self.ledger.hide()
         col.addWidget(self.ledger)
 
-
-    def _pick_tab(self, i: int):
-        self._hide_spot()
-        self.pages.show_page(i)
-        prefs.save(tab=i)
 
     # ------------------------------------------------------------ size and place
 
@@ -3124,7 +3106,6 @@ class WidgetWindow(QWidget):
             self.panel.show()   # the last frame already showed exactly this: no fade needed
             for i, k in enumerate(self.kpis.values()):   # the figures count up, one after the other
                 k.count_in(0.04 * i)
-            QTimer.singleShot(900, self.pages.warm)   # after the figures: the other tabs ready, so the first change is smooth
         else:
             self.mode = "orb"
             face = self.pos() + self._orb_face

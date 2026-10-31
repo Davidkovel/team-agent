@@ -19,14 +19,19 @@ html.is-phone .subtabs.mo-has-ink a.on { background: transparent; box-shadow: no
 #tabs.mo-has-ink .side-link.active { background: transparent; box-shadow: none; }
 #tabs.mo-has-ink .side-link.active::before { display: none; }
 
-/* a page coming in: each block out of a blur, one after the other */
-@keyframes mo-in { from { opacity: 0; transform: translateY(12px); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
-@keyframes mo-pop { from { opacity: 0; transform: translateY(8px) scale(.975); } to { opacity: 1; transform: none; } }
+/* a page coming in: each card out of a blur, one after the other, as in the reel (the old page blurs away over it, motion.js) */
+@keyframes mo-in { 0% { opacity: 0; transform: translateY(26px) scale(.975); filter: blur(14px); }
+  60% { filter: blur(0); } 100% { opacity: 1; transform: none; filter: none; } }
 @keyframes mo-draw { from { stroke-dashoffset: var(--mo-len); } to { stroke-dashoffset: 0; } }
-@keyframes mo-grow { from { transform: scaleY(0); opacity: 0; } to { transform: none; opacity: 1; } }
-.mo-in { animation: mo-in .52s cubic-bezier(.22, 1, .36, 1) var(--mo-d, 0ms) both; }
-.mo-pop { animation: mo-pop .46s cubic-bezier(.22, 1, .36, 1) var(--mo-d, 0ms) both; }
-.mo-draw { stroke-dasharray: var(--mo-len); animation: mo-draw .9s cubic-bezier(.65, 0, .35, 1) .25s both; }
-.pn-bars i.mo-grow { transform-origin: bottom; animation: mo-grow .6s cubic-bezier(.22, 1, .36, 1) .2s both; }
-.pn-trend path.area.mo-grow, .pn-viz.mo-grow { animation: mo-pop .7s ease .35s both; }
-@media (prefers-reduced-motion: reduce) { .mo-in, .mo-pop, .mo-draw, .mo-grow { animation: none !important; } }
+@keyframes mo-grow { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes mo-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mo-land { 0% { text-shadow: 0 0 18px rgba(238, 245, 255, .55); } 100% { text-shadow: 0 0 0 rgba(238, 245, 255, 0); } }
+.mo-in { animation: mo-in .78s cubic-bezier(.16, 1, .3, 1) calc(var(--mo-d, 0ms) + 90ms) both; }
+.mo-in.mo-quiet { animation: mo-fade .3s ease both; }
+.mo-counting { text-shadow: 0 0 16px rgba(238, 245, 255, .45); font-variant-numeric: tabular-nums; }
+.mo-counted { animation: mo-land .6s ease-out both; }
+.mo-draw { stroke-dasharray: var(--mo-len); animation: mo-draw 1.3s cubic-bezier(.65, 0, .35, 1) .35s both; }
+.pn-bars > div.mo-grow i { transform-origin: bottom; animation: mo-grow .8s cubic-bezier(.16, 1, .3, 1) var(--mo-b, .25s) both; }
+.pn-trend path.area.mo-grow, .pn-viz.mo-grow { animation: mo-fade .9s ease .5s both; }
+.mo-ghost * { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .mo-in, .mo-draw, .mo-grow, .mo-grow i, .mo-counted { animation: none !important; } }

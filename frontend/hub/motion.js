@@ -9,8 +9,8 @@
 (() => {
   const view = document.getElementById("view"), tabs = document.getElementById("tabs");
   if (!view || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const LEAD = 300, TRAIL = 480, COUNT = 700, ARMED = 2500;
-  const out3 = (t) => 1 - (1 - t) ** 3, inout3 = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+  const LEAD = 300, TRAIL = 480, COUNT = 1150, ARMED = 2500, LEAVE = 260;
+  const out3 = (t) => 1 - (1 - t) ** 3, outExpo = (t) => (t >= 1 ? 1 : 1 - 2 ** (-10 * t)), inout3 = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
   let armedUntil = performance.now() + ARMED;   // the first page after the Hub opens comes in too
 
   /* ---------- the stretching marker ---------- */
@@ -71,10 +71,12 @@
       const t0 = performance.now() + Number(el.dataset.moDelay || 0);
       const txt = node;
       txt.data = show(0);
+      el.classList.add("mo-counting");
       const step = (now) => {
         const k = Math.max(0, Math.min(1, (now - t0) / COUNT));
-        txt.data = k >= 1 ? head + tok + tail : show(value * out3(k));
+        txt.data = k >= 1 ? head + tok + tail : show(value * outExpo(k));
         if (k < 1 && txt.isConnected) requestAnimationFrame(step);
+        else { el.classList.remove("mo-counting"); el.classList.add("mo-counted"); }
       };
       requestAnimationFrame(step);
       return;   // the first number of the element only
@@ -93,21 +95,63 @@
     return el;
   }
 
+  // what comes in one by one: a row of cards (grid or flex) comes in card by card, anything else as one block
+  function pieces(el) {
+    const kids = [...el.children].filter((k) => k.offsetParent !== null);
+    const d = getComputedStyle(el).display;
+    if (kids.length >= 2 && kids.length <= 12 && /grid|flex/.test(d) && !el.matches(".subtabs, .pn-row, .pn-foot, header")) {
+      return kids.flatMap((k) => (k.children.length && /grid|flex/.test(getComputedStyle(k).display) && k.getBoundingClientRect().height > 160 ? pieces(k) : [k]));
+    }
+    return [el];
+  }
+
   function enter(root) {
     const free = (el) => getComputedStyle(el).animationName === "none";   // a block with its own animation keeps it (the news bar floats)
-    const blocks = [...root.children].filter((el) => !el.matches(".subtabs, .mo-in, script, style, template") && el.offsetParent !== null && free(el));
-    blocks.slice(0, 14).forEach((el, i) => { el.style.setProperty("--mo-d", `${i * 45}ms`); el.classList.add("mo-in"); });
-    root.querySelectorAll(".pn-kpis, .cards, .tiles, #tiles, .stats").forEach((row) => {
-      [...row.children].slice(0, 12).filter((el) => !el.classList.contains("mo-pop") && free(el)).forEach((el, i) => { el.style.setProperty("--mo-d", `${80 + i * 50}ms`); el.classList.add("mo-pop"); });
-    });
-    root.querySelectorAll(".pn-kpi .pn-num, .pn-kpi .pn-row > div, .tile b, .stats .stat > b, [data-count]").forEach((el, i) => {
-      el.dataset.moDelay = 120 + i * 40;
+    const blocks = [...root.children].filter((el) => !el.matches(".subtabs, .mo-in, .mo-ink, script, style, template") && el.offsetParent !== null && free(el));
+    const vh = innerHeight;
+    let n = 0;
+    for (const block of blocks) {
+      for (const el of pieces(block)) {
+        if (el.classList.contains("mo-in") || !free(el)) continue;
+        const top = el.getBoundingClientRect().top;
+        if (top > vh * 1.3) { el.classList.add("mo-in", "mo-quiet"); continue; }   // far below the fold: no wait, no show
+        el.style.setProperty("--mo-d", `${Math.min(n, 14) * 60}ms`);
+        el.classList.add("mo-in");
+        n++;
+      }
+    }
+    let i = 0;
+    root.querySelectorAll(".pn-kpi .pn-row > div, .tile b, .stats .stat > b, [data-count], .pn-gauge text, .pn-gauge b, .gauge b").forEach((el) => {
+      if (el.dataset.moCounted) return;
+      el.dataset.moDelay = 180 + i++ * 70;
       countUp(el);
     });
     root.querySelectorAll(".pn-trend path.line").forEach((p) => {
       try { const len = p.getTotalLength(); p.style.setProperty("--mo-len", len); p.classList.add("mo-draw"); } catch (e) { /* not laid out */ }
     });
-    root.querySelectorAll(".pn-trend path.area, .pn-bars i, .pn-viz").forEach((el) => el.classList.add("mo-grow"));
+    root.querySelectorAll(".pn-bars > div").forEach((el, k) => { el.style.setProperty("--mo-b", `${250 + k * 45}ms`); el.classList.add("mo-grow"); });
+    root.querySelectorAll(".pn-trend path.area, .pn-viz").forEach((el) => el.classList.add("mo-grow"));
+  }
+
+  /* ---------- the page going: a picture of it blurs and lifts away over the new one ---------- */
+  function leave() {
+    if (!view.firstElementChild || view.querySelectorAll("*").length > 4000) return;
+    const r = view.getBoundingClientRect();
+    const ghost = view.cloneNode(true);
+    ghost.removeAttribute("id");
+    ghost.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));   // the new page must find its own elements, not these
+    ghost.querySelectorAll(".subtabs").forEach((el) => el.remove());
+    const src = view.querySelectorAll("canvas"), dst = ghost.querySelectorAll("canvas");
+    dst.forEach((c, k) => { try { c.getContext("2d").drawImage(src[k], 0, 0); } catch (e) { /* webgl: stays blank for 0.26 s */ } });
+    ghost.className += " mo-ghost";
+    const cs = getComputedStyle(view);   // what #view's own rules gave it (the copy has no id, so no #view rules)
+    ghost.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;margin:0;overflow:hidden;pointer-events:none;z-index:5;`
+      + `box-sizing:border-box;padding:${cs.padding};display:${cs.display};flex-direction:${cs.flexDirection};gap:${cs.gap};grid-template-columns:${cs.gridTemplateColumns};font:${cs.font};color:${cs.color}`;
+    document.body.appendChild(ghost);
+    ghost.scrollTop = view.scrollTop;
+    ghost.animate([{ opacity: 1, filter: "blur(0px)", transform: "none" },
+      { opacity: 0, filter: "blur(14px)", transform: "translateY(-14px) scale(.985)" }],
+      { duration: LEAVE, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" }).onfinish = () => ghost.remove();
   }
 
   // a page arrives in pieces (its frame, then «a carregar», then the data): each piece that lands while the page is new comes
@@ -123,6 +167,7 @@
   if (tabs) new MutationObserver(() => requestAnimationFrame(sidebar)).observe(tabs, { childList: true });
   window.addEventListener("hashchange", () => {
     armedUntil = performance.now() + ARMED;
+    try { leave(); } catch (e) { /* a page that cannot be pictured simply changes */ }
   }, true);   // before app.js redraws the page, so the new page counts as arrived
   window.addEventListener("resize", () => { delete lastBy.sub; delete lastBy.side; subtabs(); sidebar(); });
   requestAnimationFrame(() => { subtabs(); sidebar(); });

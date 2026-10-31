@@ -20,9 +20,11 @@
   }
 
   const seen = new WeakMap();   // elemento -> a classe que tinha quando foi visto: só se volta a olhar se mudar
-  function scan() {
+  const ALL = "#app *, #modal *, #palette, .pop, #login *";
+  function scan(roots) {
     const vw = innerWidth, vh = innerHeight;
-    for (const el of document.querySelectorAll("#app *, #modal *, #palette, .pop, #login *")) {
+    const els = roots ? roots.flatMap((r) => [r, ...r.querySelectorAll("*")]).filter((el) => el.matches(ALL)) : document.querySelectorAll(ALL);
+    for (const el of els) {
       if (seen.get(el) === el.className) continue;
       if (SKIP.has(el.tagName.toUpperCase()) || el.classList.contains("vidro") || el.closest("svg")) continue;
       const r0 = el.getBoundingClientRect();
@@ -40,9 +42,20 @@
     }
   }
 
+  // 31 out, David: «quando mudo de página o vidro primeiro fica mais escuro e depois é que fica normal». Era isto: a página nova
+  // pintava-se com o fundo opaco dela e só 120 ms depois passava a vidro. Agora o que entra é visto logo, no próprio
+  // MutationObserver (corre antes de o browser pintar), e só as mudanças de classe/estilo esperam pela pausa.
   let t = 0;
   const later = () => { clearTimeout(t); t = setTimeout(scan, 120); };
-  new MutationObserver(later).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "style", "data-pane"] });
+  new MutationObserver((list) => {
+    const added = [];
+    for (const m of list) {
+      if (m.type !== "childList") continue;
+      for (const n of m.addedNodes) if (n.nodeType === 1 && !SKIP.has(n.tagName.toUpperCase())) added.push(n);
+    }
+    if (added.length) scan(added);
+    later();
+  }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "style", "data-pane"] });
   addEventListener("hashchange", later);
   addEventListener("resize", later);
   addEventListener("animationend", later, true);

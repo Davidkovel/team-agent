@@ -1254,7 +1254,7 @@ class Kpi(Hover):
         self._count_t0 = None   # counting up from 0 since then (the central opening), as the reel's dashboard
         self.zero = False       # drawn at 0, for the picture the central opens from
 
-    COUNT = 0.7   # seconds
+    COUNT = 1.1   # seconds
 
     def count_in(self, delay=0.0):
         """The figure counts up from 0 to what it says, as the central opens. Whole numbers only; «4h12» stays as it is."""
@@ -1277,7 +1277,7 @@ class Kpi(Hover):
         if self._count_t0 is None:
             return self.value
         k = max(0.0, min(1.0, (time.perf_counter() - self._count_t0) / self.COUNT))
-        return str(round(int(self.value) * (1 - (1 - k) ** 3)))
+        return str(round(int(self.value) * (1 - 2 ** (-10 * k) if k < 1 else 1)))   # expo out: races, then lands softly
 
     def set(self, value: str, colour=TEXT, tip=""):
         if (value, colour) != (self.value, self.colour):
@@ -2352,6 +2352,86 @@ class Panel(QWidget):
         self.resized.emit()
 
 
+class Cascade(QWidget):
+    """Over the cockpit while its modules come in one after the other (31 Oct, David, from the reel of a dashboard: «aparecer
+    bonito, desaparecer bonito, contagem bonita»). Pictures only, made once: each module rises out of a blur onto the glass,
+    60 ms after the one above it; closing, they go the other way, bottom first, faster. The real modules sit underneath all the
+    time, hidden by a slice of the cockpit's own glass until their turn, so the last frame is exactly the cockpit."""
+    STEP_IN, DUR_IN, RISE = 0.06, 0.52, 22
+    STEP_OUT, DUR_OUT = 0.03, 0.2
+    BLUR = 6
+
+    def __init__(self, parent, glass: QPixmap, modules: list, opening: bool, done):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setGeometry(parent.rect())
+        self.glass, self.opening, self.done = glass, opening, done
+        dpr = parent.devicePixelRatioF()
+        self.items = []
+        for w in modules:
+            pix = QPixmap(max(1, round(w.width() * dpr)), max(1, round(w.height() * dpr)))
+            pix.setDevicePixelRatio(dpr)
+            pix.fill(Qt.transparent)
+            p = QPainter(pix)
+            w.render(p, QPoint(0, 0), QRegion(), QWidget.DrawChildren)
+            p.end()
+            small = pix.scaled(max(1, pix.width() // self.BLUR), max(1, pix.height() // self.BLUR), Qt.IgnoreAspectRatio,
+                               Qt.SmoothTransformation)
+            soft = small.scaled(pix.width(), pix.height(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            soft.setDevicePixelRatio(dpr)
+            self.items.append((QRectF(w.geometry()), pix, soft))
+        n = len(self.items)
+        self.total = (self.STEP_IN * (n - 1) + self.DUR_IN) if opening else (self.STEP_OUT * (n - 1) + self.DUR_OUT)
+        self.t0 = time.perf_counter()
+        clock().frame.connect(self._frame)
+        clock().need(self)
+        self.show()
+        self.raise_()
+
+    def _k(self, i: int, t: float) -> float:
+        """How far module i has come in (1 = in place)."""
+        if self.opening:
+            x = max(0.0, min(1.0, (t - self.STEP_IN * i) / self.DUR_IN))
+            return 1 - 2 ** (-10 * x) if x < 1 else 1.0      # expo out: arrives fast, settles long, as the reel's cards
+        j = len(self.items) - 1 - i                          # closing: the bottom one goes first
+        x = max(0.0, min(1.0, (t - self.STEP_OUT * j) / self.DUR_OUT))
+        return 1 - x * x
+
+    def _frame(self, _):
+        t = time.perf_counter() - self.t0
+        self.update()
+        if t >= self.total:
+            clock().frame.disconnect(self._frame)
+            clock().need(self, False)
+            self.hide()
+            self.deleteLater()
+            self.done()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        t = time.perf_counter() - self.t0
+        for i, (r, pix, soft) in enumerate(self.items):
+            k = self._k(i, t)
+            if k >= 1:
+                continue                       # in place: the real module shows
+            p.setOpacity(1)
+            p.drawPixmap(r.adjusted(-4, -4, 4, 4), self.glass, self._src(r.adjusted(-4, -4, 4, 4)))   # the glass, hiding it
+            if k <= 0:
+                continue
+            dy = (1 - k) * (self.RISE if self.opening else -self.RISE * 0.6)
+            s = 0.97 + 0.03 * k
+            box = QRectF(r.left() + r.width() * (1 - s) / 2, r.top() + dy, r.width() * s, r.height() * s)
+            p.setOpacity(min(1.0, k * (1 - k) * 3))
+            p.drawPixmap(box, soft, QRectF(soft.rect()))
+            p.setOpacity(k ** 1.6)
+            p.drawPixmap(box, pix, QRectF(pix.rect()))
+
+    def _src(self, r: QRectF) -> QRectF:
+        dpr = self.glass.devicePixelRatio()
+        return QRectF(r.left() * dpr, r.top() * dpr, r.width() * dpr, r.height() * dpr)
+
+
 # ------------------------------------------------------------------ the window
 
 
@@ -2486,6 +2566,7 @@ class WidgetWindow(QWidget):
         row_w = QWidget()
         row_w.setLayout(figures)
         col.addWidget(row_w)
+        self._head_n = col.count()   # the top bar and the figures: what the bubble grows into; the modules come in after (Cascade)
 
         # 01 Equipa: the three partners as big photos; the one picked shows their Claude limits and their windows working
         # (28 Oct, Marco: «de forma organizada, para eu conseguir controlar o meu, o do Kovel e o do David»)
@@ -3064,10 +3145,37 @@ class WidgetWindow(QWidget):
         if self.mode != "panel":
             return
         self._hide_spot()
+        if getattr(self, "_cascade", None) is not None:
+            return
+        # the modules go first, bottom up, then the card shrinks into the clock with only the bar and the figures
+        self._cascade = Cascade(self.panel, self._glass(), self._modules(), False, self._collapse_now)
+
+    def _collapse_now(self):
+        self._cascade = None
+        if self.mode != "panel":
+            return
         self._orb_face = QPoint(SHADOW + WIDTH - self.orb.FACE.width(), SHADOW)
-        self._snap = self._snapshot()
+        self._snap = self._snapshot(modules=False)
         self.panel.hide()
         self._start_morph(-1)
+
+    def _modules(self) -> list:
+        lay = self.panel.layout()
+        out = [lay.itemAt(i).widget() for i in range(self._head_n, lay.count())]
+        return [w for w in out if w is not None and w.isVisible() and w.height() > 0]
+
+    def _glass(self) -> QPixmap:
+        """The cockpit's glass alone, nothing on it: what a module not yet in (or already gone) leaves showing."""
+        dpr = self.devicePixelRatioF()
+        w, h = WIDTH, self.panel.height()
+        pix = QPixmap(round(w * dpr), round(h * dpr))
+        pix.setDevicePixelRatio(dpr)
+        pix.fill(Qt.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing)
+        self._paint_panel(p, QRectF(0, 0, w, h), RADIUS, False)
+        p.end()
+        return pix
 
     def _morph_rect(self, k: float) -> QRectF:
         """Where the growing card is at `k` (0 the clock, 1 the central)."""
@@ -3105,7 +3213,9 @@ class WidgetWindow(QWidget):
             self._backdrop = None
             self.panel.show()   # the last frame already showed exactly this: no fade needed
             for i, k in enumerate(self.kpis.values()):   # the figures count up, one after the other
-                k.count_in(0.04 * i)
+                k.count_in(0.06 * i)
+            self.panel.layout().activate()
+            self._cascade = Cascade(self.panel, self._glass(), self._modules(), True, self._cascade_in_done)
         else:
             self.mode = "orb"
             face = self.pos() + self._orb_face
@@ -3113,6 +3223,9 @@ class WidgetWindow(QWidget):
             self._layout_orb(face)
             self.orb.show()
         self.update()
+
+    def _cascade_in_done(self):
+        self._cascade = None
 
     def _open_cave(self, cam: str = ""):
         """The cameras clicked: the cave of Empresa AMG live, in its mini window over everything (mini.py), signed in, on
@@ -3141,7 +3254,7 @@ class WidgetWindow(QWidget):
             self._mini = MiniWindow()
         self._mini.open(url)
 
-    def _snapshot(self, opening=False) -> QPixmap:
+    def _snapshot(self, opening=False, modules=None) -> QPixmap:
         """The cockpit as a picture (its glass and everything on it), drawn once, so the bubble can grow into it at the
         monitor's refresh rate without laying out or painting a single widget per frame."""
         self.panel.layout().activate()
@@ -3155,7 +3268,16 @@ class WidgetWindow(QWidget):
         self._paint_panel(p, QRectF(0, 0, w, h), RADIUS, False)
         for k in self.kpis.values():   # opening: the figures at 0, where they start counting up from (Kpi.count_in)
             k.zero = opening
-        self.panel.render(p, QPoint(0, 0), QRegion(), QWidget.DrawChildren)
+        if modules is None:
+            modules = not opening   # opening: the bar and the figures only, the modules come in after it has grown (Cascade)
+        if modules:
+            self.panel.render(p, QPoint(0, 0), QRegion(), QWidget.DrawChildren)
+        else:
+            lay = self.panel.layout()
+            for i in range(self._head_n):
+                w = lay.itemAt(i).widget()
+                if w is not None and w.isVisible():
+                    w.render(p, w.pos(), QRegion(), QWidget.DrawChildren)
         for k in self.kpis.values():
             k.zero = False
         p.end()

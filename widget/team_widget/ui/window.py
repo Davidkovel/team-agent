@@ -1251,6 +1251,33 @@ class Kpi(Hover):
         self.setFixedHeight(self.H)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._f_value, self._f_name = font(17, QFont.DemiBold, DISPLAY), font(7.5, QFont.DemiBold, UI)
+        self._count_t0 = None   # counting up from 0 since then (the central opening), as the reel's dashboard
+        self.zero = False       # drawn at 0, for the picture the central opens from
+
+    COUNT = 0.7   # seconds
+
+    def count_in(self, delay=0.0):
+        """The figure counts up from 0 to what it says, as the central opens. Whole numbers only; «4h12» stays as it is."""
+        if self.value.isdigit() and int(self.value) > 0:
+            self._count_t0 = time.perf_counter() + delay
+            clock().frame.connect(self._count_frame, Qt.UniqueConnection)
+            clock().need(self)
+
+    def _count_frame(self, _):
+        if self._count_t0 is None:
+            return
+        if time.perf_counter() - self._count_t0 >= self.COUNT or not self.value.isdigit():
+            self._count_t0 = None
+            clock().need(self, False)
+        self.update()
+
+    def _shown(self) -> str:
+        if self.zero and self.value.isdigit():
+            return "0"
+        if self._count_t0 is None:
+            return self.value
+        k = max(0.0, min(1.0, (time.perf_counter() - self._count_t0) / self.COUNT))
+        return str(round(int(self.value) * (1 - (1 - k) ** 3)))
 
     def set(self, value: str, colour=TEXT, tip=""):
         if (value, colour) != (self.value, self.colour):
@@ -1286,7 +1313,7 @@ class Kpi(Hover):
         p.setFont(self._f_value)
         p.setPen(QColor(self.colour))
         p.drawText(QRectF(r.left() + 11, r.top() + 38, r.width() - 14, 26), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(self._f_value).elidedText(self.value, Qt.ElideRight, r.width() - 14))
+                   QFontMetricsF(self._f_value).elidedText(self._shown(), Qt.ElideRight, r.width() - 14))
         p.setFont(self._f_name)
         p.setPen(QColor(TEXT if self.hover > 0.5 else "#aeb3ba"))
         p.drawText(QRectF(r.left() + 11, r.top() + 62, r.width() - 14, 14), Qt.AlignLeft | Qt.AlignVCenter, self.name)
@@ -2489,7 +2516,6 @@ class WidgetWindow(QWidget):
         self.hub_note = label("O Hub não está a responder.", 8.5, FAINT)
         self.hub_note.hide()
         team.box.addWidget(self.hub_note)
-        col.addWidget(team)
 
         # 02 No relógio: the icons over the minimized clock, chosen here (23 Oct, Marco: «quero ativar os tokens, quero
         # ativar as câmaras»; 24 Oct: options «que combinem com a funcionalidade de uma empresa»)
@@ -2515,7 +2541,6 @@ class WidgetWindow(QWidget):
         side.sub.setText(f"{on} de {len(GAUGES)} ligados")
         prefs.save(pins=[k for k, pin in self.pins.items() if pin.on])
         side.box.addLayout(tiles)
-        col.addWidget(side)
 
         # «Controlo»: the buttons that were only in the tray menu, as the iPhone's Control Centre
         controls = Platter("Controlo", "", "03")
@@ -2537,7 +2562,6 @@ class WidgetWindow(QWidget):
         for button in (self.ctl_ponto, self.ctl_agent, self.ctl_stop, self.ctl_top, self.ctl_away, self.ctl_hub):
             row.addWidget(button)
         controls.box.addLayout(row)
-        col.addWidget(controls)
         self._render_controls()
 
         # 04 Atalhos: the Hub's pages one click away, as on the iPhone's home screen (headed like the modules, no plate: room)
@@ -2550,7 +2574,6 @@ class WidgetWindow(QWidget):
         head.addStretch(1)
         head_w = QWidget()
         head_w.setLayout(head)
-        col.addWidget(head_w)
         apps = QWidget()
         grid = QGridLayout(apps)
         grid.setContentsMargins(0, 2, 0, 0)
@@ -2562,7 +2585,25 @@ class WidgetWindow(QWidget):
             icon.clicked.connect(lambda href=href: self._open_notice(href))
             grid.addWidget(icon, i // 5, i % 5)
             self.apps[glyph_key] = icon
-        col.addWidget(apps)
+
+        # one module at a time behind tabs, as the dashboard of David's reel (31 Oct: «tudo muito clean... movimentos suaves»):
+        # the pill slides and stretches between the names, the page changes through a soft blur (tabs.py)
+        from .tabs import Pages, TabBar
+        tools = QWidget()   # Controlo and Atalhos share a page: the buttons, then the Hub's pages
+        stack = QVBoxLayout(tools)
+        stack.setContentsMargins(0, 0, 0, 0)
+        stack.setSpacing(8)
+        stack.addWidget(controls)
+        stack.addWidget(head_w)
+        stack.addWidget(apps)
+        for w in (team, side, tools):
+            w.setFixedWidth(INNER)
+        tab = prefs.load().get("tab", 0)
+        self.tabs = TabBar(["Equipa", "No relógio", "Controlo"], tab if tab in (0, 1, 2) else 0)
+        self.pages = Pages([team, side, tools], self.tabs.current)
+        self.tabs.picked.connect(self._pick_tab)
+        col.addWidget(self.tabs)
+        col.addWidget(self.pages)
 
         # the FundedNext account (the Hub's #/fundednext in a few numbers); only on a PC with the account
         self.fn = Platter("FundedNext", "", "04")
@@ -2693,6 +2734,11 @@ class WidgetWindow(QWidget):
         self.ledger.hide()
         col.addWidget(self.ledger)
 
+
+    def _pick_tab(self, i: int):
+        self._hide_spot()
+        self.pages.show_page(i)
+        prefs.save(tab=i)
 
     # ------------------------------------------------------------ size and place
 
@@ -3027,7 +3073,7 @@ class WidgetWindow(QWidget):
         self.panel.layout().activate()
         fresh = (self._snap_ready is not None and time.monotonic() - self._snap_at < SNAP_KEEP
                  and round(self._snap_ready.deviceIndependentSize().height()) == self.panel.height())
-        self._snap = self._snap_ready if fresh else self._snapshot()   # ready-made: the first frame comes at once
+        self._snap = self._snap_ready if fresh else self._snapshot(opening=True)   # ready-made: the first frame comes at once
         self._snap_ready = None
         self._start_morph(+1)
 
@@ -3076,6 +3122,9 @@ class WidgetWindow(QWidget):
             self.mode = "panel"
             self._backdrop = None
             self.panel.show()   # the last frame already showed exactly this: no fade needed
+            for i, k in enumerate(self.kpis.values()):   # the figures count up, one after the other
+                k.count_in(0.04 * i)
+            QTimer.singleShot(900, self.pages.warm)   # after the figures: the other tabs ready, so the first change is smooth
         else:
             self.mode = "orb"
             face = self.pos() + self._orb_face
@@ -3111,7 +3160,7 @@ class WidgetWindow(QWidget):
             self._mini = MiniWindow()
         self._mini.open(url)
 
-    def _snapshot(self) -> QPixmap:
+    def _snapshot(self, opening=False) -> QPixmap:
         """The cockpit as a picture (its glass and everything on it), drawn once, so the bubble can grow into it at the
         monitor's refresh rate without laying out or painting a single widget per frame."""
         self.panel.layout().activate()
@@ -3123,7 +3172,11 @@ class WidgetWindow(QWidget):
         p = QPainter(pix)
         p.setRenderHint(QPainter.Antialiasing)
         self._paint_panel(p, QRectF(0, 0, w, h), RADIUS, False)
+        for k in self.kpis.values():   # opening: the figures at 0, where they start counting up from (Kpi.count_in)
+            k.zero = opening
         self.panel.render(p, QPoint(0, 0), QRegion(), QWidget.DrawChildren)
+        for k in self.kpis.values():
+            k.zero = False
         p.end()
         return pix
 
@@ -3844,7 +3897,7 @@ class WidgetWindow(QWidget):
                 self._render_fn(self._fn)
             self._fn_seen = self._fn
         if self.mode == "orb" and self.orb._press_at is None and time.monotonic() - self._snap_at > SNAP_KEEP / 2:
-            self._snap_ready, self._snap_at = self._snapshot(), time.monotonic()   # ~20 ms every 10 s while minimized
+            self._snap_ready, self._snap_at = self._snapshot(opening=True), time.monotonic()   # ~20 ms every 10 s while minimized
         if time.time() - self._usage_at > 10:
             self._usage_at = time.time()
             self._render_usage()

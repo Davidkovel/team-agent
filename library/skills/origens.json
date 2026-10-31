@@ -11,6 +11,10 @@
   "licenca": "aberta",
   "veio": "juntada à biblioteca a 24 out 2026 com a site-imersivo-3d («добавь скилы»)"
  },
+ "build-awwwards-quality-sites": {
+  "de": "As tuas skills",
+  "licenca": "não indicada"
+ },
  "caveman": {
   "de": "github.com/JuliusBrussee/caveman",
   "autor": "Julius Brussee, Apache-2.0",
@@ -62,6 +66,22 @@
  "design-is": {
   "de": "Plugin claude-mem",
   "licenca": "não indicada"
+ },
+ "frontend-design": {
+  "de": "As tuas skills",
+  "licenca": "aberta"
+ },
+ "gsap-frameworks": {
+  "de": "As tuas skills",
+  "licenca": "aberta"
+ },
+ "gsap-react": {
+  "de": "As tuas skills",
+  "licenca": "aberta"
+ },
+ "gsap-scrolltrigger": {
+  "de": "As tuas skills",
+  "licenca": "aberta"
  },
  "hub-pagina": {
   "de": "docs/hub-paginas.md do team-agent",
@@ -206,5 +226,13 @@
   "autor": "Bradley Bonanno (bradautomates), MIT",
   "licenca": "aberta",
   "veio": "post instagram.com/p/DeiT3aSAmvG (gut1n, «10 plugins do Claude Code»), pedido do Marco a 21 out 2026"
+ },
+ "web-artifacts-builder": {
+  "de": "Plugin document-skills",
+  "licenca": "aberta"
+ },
+ "webapp-testing": {
+  "de": "Plugin document-skills",
+  "licenca": "aberta"
  }
 }

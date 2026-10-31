@@ -7,6 +7,10 @@
   "batman",
   "catwoman"
  ],
+ "build-awwwards-quality-sites": [
+  "catwoman",
+  "riddler"
+ ],
  "caveman": [
   "batman"
  ],
@@ -41,6 +45,19 @@
  "dossie-crescimento": [
   "riddler",
   "joker"
+ ],
+ "frontend-design": [
+  "catwoman",
+  "joker"
+ ],
+ "gsap-frameworks": [
+  "lucius"
+ ],
+ "gsap-react": [
+  "lucius"
+ ],
+ "gsap-scrolltrigger": [
+  "lucius"
  ],
  "hub-pagina": [
   "lucius",
@@ -142,5 +159,13 @@
  "watch": [
   "riddler",
   "catwoman"
+ ],
+ "web-artifacts-builder": [
+  "catwoman",
+  "riddler"
+ ],
+ "webapp-testing": [
+  "catwoman",
+  "riddler"
  ]
 }

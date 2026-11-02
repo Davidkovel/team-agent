@@ -101,8 +101,8 @@ def _filtros(termo: str) -> list[str]:
 
 
 # o caminho de um contacto, por ordem
-ESTADOS = {"por_contactar": "Por contactar", "contactado": "Contactado", "respondeu": "Respondeu", "reuniao": "Reunião marcada",
-           "fechou": "Fechou", "nao": "Não quer"}
+ESTADOS = {"por_contactar": "Por contactar", "novo": "Novo lead", "contactado": "Contactado", "respondeu": "Respondeu",
+           "reuniao": "Reunião marcada", "proposta": "Proposta enviada", "fechou": "Fechou", "nao": "Não quer"}
 
 # resultados de pesquisa que não são o site do negócio (diretórios, redes, mapas)
 NOT_SITE = re.compile(r"facebook|instagram|crossfit\.com|treatwell|fresha|booksy|linktr\.ee|youtube|linkedin|tiktok|twitter|x\.com|google\.|bomcondutor|escolasconducao|drivingschools|"
@@ -189,10 +189,23 @@ class Radar:
             leads.pop(k, None)
         else:
             leads[k] = lead
+        self._write(leads)
+        return lead
+
+    def _write(self, leads: dict) -> None:
         tmp = DIR / "seguimento.tmp"
         tmp.write_text(json.dumps(leads, ensure_ascii=False), "utf-8")
         tmp.replace(DIR / "seguimento.json")
-        return lead
+
+    def edit_lead(self, key: str, fn) -> dict:
+        """Muda um lead já no seguimento (o CRM: valor, próxima ação, atividade); fn recebe o dict e mexe nele."""
+        leads = self._leads()
+        if key not in leads:
+            raise ValueError("lead desconhecido")
+        fn(leads[key])
+        leads[key]["at"] = time.time()
+        self._write(leads)
+        return leads[key]
 
     def leads(self) -> list[dict]:
         return sorted(self._leads().values(), key=lambda x: -x["at"])

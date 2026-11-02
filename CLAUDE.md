@@ -663,6 +663,21 @@ completa de uma empresa) e `routers/radar.py`. «Todas as empresas, não só as 
   ficha completa. ←/→ passam de empresa, Esc fecha. Abrir o WhatsApp ou o email marca «Contactado». Com resultados, as perguntas
   encolhem num botão «Nova pesquisa».
 
+### CRM: do Radar ao negócio (2 nov, pedido do David)
+
+`#/crm`, 2.º separador do Radar (`frontend/hub/crm.js` + `.css`), `backend/app/crm.py`, `routers/crm.py` (`/api/crm`), testes
+`tests/test_crm.py`. Nasceu de uma conversa do Marco com o GPT: «o Radar e o CRM deixam de ser ferramentas separadas».
+- **Sem base nova**: cada lead é a entrada do seguimento do Radar (`seguimento.json`, por ramo + nome), por isso o que se marca num
+  aparece no outro. `ESTADOS` ganhou `novo` (Novo lead) e `proposta`. O CRM junta valor (€, só o que a pessoa escreve), próxima ação
+  com data, atividades (chamada, email, WhatsApp, reunião, proposta, nota) e o motivo de um perdido (`RADAR.edit_lead`).
+- **Página**: números (em aberto, quentes no Radar por trazer, valor em aberto, ganhos e taxa), o quadro Novo lead → Contactado →
+  Respondeu → Reunião → Proposta → Ganho (arrastar muda a fase; Perdidos em baixo), «Do Radar para o CRM» (as «Vale a pena» das 8
+  pesquisas mais recentes que ainda não entraram) e a Atividade. Clicar num cartão abre a ficha ao lado.
+- **Departamentos na ficha**: Pesquisa (PES) arranca a ficha completa do Radar e resume o veredicto; Marketing (MKT) escreve a
+  primeira mensagem (mesmas regras do Radar), que fica «por aprovar» até uma pessoa a abrir no WhatsApp/email; Operações (OPS)
+  marca a próxima ação da fase (`NEXT`), sem apagar uma que a pessoa marcou para o futuro. Nada é enviado sozinho.
+- Só neste PC, como o Radar; a página relê de 30 em 30 s só enquanto está aberta.
+
 ### Testar uma mudança no Hub
 
 1. Copiar os dados com a API de backup do SQLite (`sqlite3.connect(origem).backup(destino)`): copiar o `hub.db` com o Hub a correr dá "database disk image is malformed".

@@ -145,7 +145,7 @@ const NAV = [
   ["Ten Fold", "spark", [["tenfold", "Ten Fold"]], "negocios"],
   ["Fotos", "fotos", [["fotos", "Fotos"]], "negocios"],   // the Ten Fold's photo library (30 Oct, Marco: «uma livraria... para fotos») // the main work (Marco, 27 Oct): its own entry, first in Negócios
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]], "negocios"],
-  ["Radar", "target", [["radar", "Radar"]], "negocios"],
+  ["Radar", "target", [["radar", "Radar"], ["crm", "CRM"]], "negocios"],   // CRM (2 nov): o seguimento do Radar até ao negócio
   ["Fábrica Etsy", "bag", [["etsy", "Fábrica Etsy"]], "negocios"],
   ["Sala de Trading", "trend", [["trading", "Sala de Trading"], ["sinal", "Sinal na notícia"], ["fundednext", "FundedNext"], ["robos", "Robôs"], ["reforco", "Reforço na notícia"], ["gap", "Gap da manhã"]], "trading"],
   ["Mercados", "candles", [["mercados", "Mercados"]], "trading"],

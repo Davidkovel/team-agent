@@ -63,8 +63,9 @@
     if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
     return null;
   };
-  const MORE_PAGES = ["mensagens", "fotos", "empresa", "skills", "radar", "etsy", "novidades", "mercados", "trading", "sinal", "fundednext", "robos", "reforco", "gap", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
+  const MORE_PAGES = ["mensagens", "fotos", "empresa", "skills", "radar", "crm", "etsy", "novidades", "mercados", "trading", "sinal", "fundednext", "robos", "reforco", "gap", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
   const titleOf = (r, fallback) => {
+    if (r.tab === "crm") return "CRM"; // sub-página do Radar, não está no menu com nome próprio
     if (r.tab === "baredesk") return r.company ? companies.find((c) => c.id === "baredesk")?.sections.find((x) => x.id === r.company)?.label || (r.company === "loja" ? "Loja" : "BareDesk") : "BareDesk";
     if (r.tab === "empresas" && r.company) return r.section ? companies.find((c) => c.id === r.company)?.sections.find((x) => x.id === r.section)?.label || coName(r.company) : coName(r.company);
     const page = TABS_ALL.find(([id]) => id === r.tab);

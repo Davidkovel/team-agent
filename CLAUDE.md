@@ -678,9 +678,18 @@ completa de uma empresa) e `routers/radar.py`. «Todas as empresas, não só as 
 - **Sem base nova**: cada lead é a entrada do seguimento do Radar (`seguimento.json`, por ramo + nome), por isso o que se marca num
   aparece no outro. `ESTADOS` ganhou `novo` (Novo lead) e `proposta`. O CRM junta valor (€, só o que a pessoa escreve), próxima ação
   com data, atividades (chamada, email, WhatsApp, reunião, proposta, nota) e o motivo de um perdido (`RADAR.edit_lead`).
-- **Página**: números (em aberto, quentes no Radar por trazer, valor em aberto, ganhos e taxa), o quadro Novo lead → Contactado →
-  Respondeu → Reunião → Proposta → Ganho (arrastar muda a fase; Perdidos em baixo), «Do Radar para o CRM» (as «Vale a pena» das 8
-  pesquisas mais recentes que ainda não entraram) e a Atividade. Clicar num cartão abre a ficha ao lado.
+- **Página** (refeita a 2 nov, David: «melhores completamente o CRM... profissional»): números (em aberto, previsão, por fazer,
+  ganhos), vistas Quadro, Lista, Agenda e Funil, pesquisa sem acentos, filtros, ordenar, CSV (`/api/crm/folha.csv`), Novo lead à mão
+  (`/novo`, com aviso de duplicado), e atalhos de teclado. Quadro: Novo lead → Contactado → Respondeu → Reunião → Proposta → Ganho;
+  arrastar muda a fase; Perdido e Ganho pedem motivo/valor numa janela; Perdidos em baixo. «Do Radar para o CRM» e Atividade por baixo.
+- **Números**: `PROB` (10/20/35/55/75/100 %) é estimativa nossa, por isso a Previsão diz sempre que é estimada e nunca «receita». O funil
+  e os dias por fase vêm do histórico real. `ROT` (dias sem atividade por fase) marca cartões parados a vermelho, como no Pipedrive.
+- **Reuniões**: separador Reunião da ficha com dia, duração e link; `.ics` (`/reuniao.ics`), Google Calendar e convite por WhatsApp/email.
+  «Criar no Zoom» (`POST /zoom`) só aparece com `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID` e `ZOOM_CLIENT_SECRET` no `backend/.env` (app
+  Server-to-Server OAuth); até hoje só testado com um Zoom falso. Sem chaves há «Agendar no Zoom», colar o link e a sala própria
+  (localStorage). Zoom do quadro: − % + (70 a 130), guardado por pessoa, ⌘/ctrl+roda, teclas + e −.
+- **Telemóvel**: ficha e janelas tapam as barras do Hub (`#app:has(...)` com z-index) e `vidro.js` não pode pôr transparente os
+  `.cm-dr`, `.rd-dr` e `.cm-mod-in` (a regra das superfícies de página inteira apagava-lhes o fundo). A lista vira cartões em 393 px.
 - **Departamentos na ficha**: Pesquisa (PES) arranca a ficha completa do Radar e resume o veredicto; Marketing (MKT) escreve a
   primeira mensagem (mesmas regras do Radar), que fica «por aprovar» até uma pessoa a abrir no WhatsApp/email; Operações (OPS)
   marca a próxima ação da fase (`NEXT`), sem apagar uma que a pessoa marcou para o futuro. Nada é enviado sozinho.

@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # Hubs every computer also trades with by full address, outside the VPN (29 out): David's Mac has no Radmin, so it opens
     # only /api/sync to the internet with Tailscale Funnel and the PCs of Marco and Kovel call it there. The Mac sets it empty.
     sync_relays: str = "https://macbook-air-de-david.tailcdbdef.ts.net:8443"
+    # Zoom (CRM, optional): a Server-to-Server OAuth app; with all three the lead's meeting is created in the account. Only in backend/.env.
+    zoom_account_id: str = ""
+    zoom_client_id: str = ""
+    zoom_client_secret: str = ""
     # The BareDesk shop on Home (routers/markets.py). Secrets: only in backend/.env, never in git.
     # Shopify: an Admin API token (shpat_..., scope read_orders) or, for an app made in the Dev Dashboard, its client id + secret.
     shopify_store: str = "baredesk-store.myshopify.com"

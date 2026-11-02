@@ -213,7 +213,7 @@
       return;
     }
     if (sc.erro && !negs.length) { paint($("rd-body"), html + `<div class="rd-msg">${esc(sc.erro)}</div>`); return; }
-    const leads = (S.seguimento || []).filter((l) => l.estado !== "por_contactar");
+    const leads = (S.seguimento || []).filter((l) => l.estado !== "por_contactar" && l.sid); // os criados à mão no CRM não têm pesquisa para abrir
     const cnt = { sim: 0, talvez: 0, nao: 0 };
     negs.forEach((n) => { cnt[vale(n).v]++; });
     const contact = negs.filter((n) => phones(n).length || emails(n).length).length;
@@ -1280,6 +1280,7 @@
     else if (d.closeq) closeForm();
     else if (d.lf) {
       const [sid, nid] = d.lf.split("/");
+      if (!sid) { location.hash = "#/crm"; return; } // lead criado à mão no CRM: não está em nenhuma pesquisa
       if (sid && sid !== cur) { cur = sid; store(KEY, cur); raioF = ""; await loadScan(); }
       let n = SC?.negocios.find((x) => x.id === nid);
       if (n && !inScope(n)) { temp = "all"; raioF = ""; store("radar.temp", temp); paintAll(); paintList(); n = SC.negocios.find((x) => x.id === nid); }

@@ -10,7 +10,7 @@ html:not(.is-phone) .subtabs > .mo-ink::after { content: ""; position: absolute;
 html:not(.is-phone) .subtabs.mo-has-ink a.on::after { display: none; }
 /* on the phone the sub-tabs are a segmented control: the grey pill itself slides */
 html.is-phone .subtabs > .mo-ink { border-radius: 8px; background: #5b5e66; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
-html.is-phone .subtabs.mo-has-ink a.on { background: transparent; box-shadow: none; }
+html.is-phone .subtabs.mo-has-ink a.on { background: transparent; box-shadow: none; color: #fff; }
 
 /* the sidebar: the lit row and its chrome bar slide together */
 #tabs > .mo-ink { border-radius: 10px; background: rgba(255, 255, 255, .09); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }

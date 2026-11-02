@@ -663,6 +663,14 @@ completa de uma empresa) e `routers/radar.py`. «Todas as empresas, não só as 
   ficha completa. ←/→ passam de empresa, Esc fecha. Abrir o WhatsApp ou o email marca «Contactado». Com resultados, as perguntas
   encolhem num botão «Nova pesquisa».
 
+- **Painel de comando** (2 nov, David, a partir de uma imagem): com o CRM, a página abre num ecrã só (`.rd-one`, `paintAll`): mapa de
+  satélite (mosaicos Esri, sem biblioteca) com anéis em km e pinos por temperatura; cartão da empresa com Resumo, Histórico,
+  Oportunidades e Notas; Pipeline, Atividade e Agentes (os departamentos Pesquisa, Marketing e Operações do CRM); e a barra de baixo. A
+  lista antiga fica por baixo. Só dados reais: «Sem dados» quando falta, e «N sem posição no mapa» para quem não tem coordenadas. As miniaturas
+  são o satélite do sítio, não fotos do edifício. Nesta página o Painel direito, os separadores Radar | CRM e o fundo do carro escondem-se
+  (`#view:has(#rd)`); o CRM abre-se pelo Pipeline. `vidro.js` marca camadas escuras: o `.rdm-tint` tem de manter o override, senão desfoca o mapa.
+  Parado nada anima: «Reunião marcada» é um estado, não pulsa (custava 19% de um núcleo).
+
 ### CRM: do Radar ao negócio (2 nov, pedido do David)
 
 `#/crm`, 2.º separador do Radar (`frontend/hub/crm.js` + `.css`), `backend/app/crm.py`, `routers/crm.py` (`/api/crm`), testes

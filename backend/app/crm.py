@@ -90,7 +90,8 @@ def radar_quentes(leads: dict, cache: dict, limit: int = 12) -> tuple[list[dict]
             seen.add(k)
             out.append({"sid": sc["id"], "nid": n["id"], "nome": n["nome"], "local": n.get("morada") or sc.get("local") or "",
                         "ramo_nome": sc.get("ramo_nome", ""), "pontos": v["pontos"], "porque": v["porque"][:2], "passo": v["passo"],
-                        "telefone": bool(n.get("telefone") or (n.get("audit") or {}).get("telefones")), "site": n.get("site", "")})
+                        "telefone": bool(n.get("telefone") or (n.get("audit") or {}).get("telefones")), "site": n.get("site", ""),
+                        "nivel": n.get("nivel", ""), "lat": n.get("lat"), "lon": n.get("lon")})
     out.sort(key=lambda x: -x["pontos"])
     return out[:limit], len(out)
 

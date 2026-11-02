@@ -4,7 +4,7 @@
 // (backend/app/radar.py). Refeito a 28 out (Marco: «a cabeça da nossa empresa... organizado e funcional, orienta-me»).
 // A página segue docs/hub-paginas.md; classes rd-.
 (function () {
-  let S = null, SC = null, cur = null, sel = "", timer = 0, formOpen = false;
+  let S = null, SC = null, cur = null, sel = "", timer = 0;
   const FX = {}, fxTimer = {};  // a ficha completa de cada empresa aberta (marca, redes, Google, dinheiro, o que lhe vender)
   const eur = (v) => `${Math.round(v).toLocaleString("pt-PT")} €`;
   const range = (a, b) => a === b ? eur(a) : `${Math.round(a).toLocaleString("pt-PT")}–${eur(b)}`;
@@ -56,19 +56,32 @@
   HUB_VIEWS.radar = async function () {
     cur = cur || store(KEY);
     sel = "";
-    page(`<div class="rd" id="rd">
-      ${ui.head("Negócios", t("Radar"), t("Encontra clientes de qualquer ramo, em qualquer sítio: diz-te quem vale a pena, porquê e como lhe chegar."),
-        `<div class="rd-ctl" id="rd-ctl"></div>`)}
-      <div class="rd-msg" id="rd-msg" hidden></div>
-      <section class="panel pad rd-form" id="rd-form"></section>
-      <div id="rd-body"></div>
+    focus = ""; fitted = ""; cardTab = "resumo";
+    page(`<div class="rd rd-dash" id="rd">
+      <div class="rd-one">
+        <header class="rdh" id="rdh"></header>
+        <div class="rd-msg" id="rd-msg" hidden></div>
+        <div class="rd-grid">
+          <section class="rdx rdm" id="rdm" aria-label="${esc(t("Mapa do Radar"))}"></section>
+          <section class="rdx rdc" id="rdc" aria-label="${esc(t("Empresa escolhida"))}"></section>
+          <section class="rdx rdp" id="rdp" aria-label="${esc(t("Pipeline de CRM"))}"></section>
+          <section class="rdx rda" id="rda" aria-label="${esc(t("Atividade recente"))}"></section>
+          <section class="rdx rdg" id="rdg" aria-label="${esc(t("Agentes ativos"))}"></section>
+        </div>
+        <div class="rdb" id="rdb"></div>
+      </div>
+      <div id="rd-body" class="rd-below"></div>
+      <div class="rd-modal" id="rd-modal" hidden><section class="panel pad rd-form" id="rd-form"></section></div>
       <div class="rd-scrim" id="rd-scrim" hidden></div>
       <aside class="rd-dr" id="rd-dr" hidden aria-label="${esc(t("Ficha da empresa"))}"></aside>
     </div>`);
+    mapInit();
     $("rd").onclick = click;
     $("rd").onchange = (e) => {
       if (e.target.id === "rd-pick") pick(e.target.value);
       if (e.target.id === "rd-sort") { F.sort = e.target.value; store("radar.sort", F.sort); paintList(); }
+      if (e.target.id === "rd-raio") setRaio(e.target.value);
+      if (e.target.id === "rd-pipef") { pipeF = e.target.value; paintPipe(); }
     };
     $("rd").oninput = (e) => {
       if (e.target.id === "rd-q") { F.q = e.target.value; clearTimeout(F.t); F.t = setTimeout(paintList, 120); }
@@ -80,6 +93,7 @@
   // ←/→ passam de empresa na ficha, Esc fecha
   document.addEventListener("keydown", (e) => {
     const dr = $("rd-dr");
+    if (e.key === "Escape" && $("rd-modal") && !$("rd-modal").hidden && (!dr || dr.hidden)) return closeForm();
     if (!dr || dr.hidden || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
     if (e.key === "Escape") closeDr();
     else if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); step(1); }
@@ -87,7 +101,9 @@
   });
 
   async function load() {
-    S = await api("/api/radar");
+    const [radar, crm, team, lim, tasks] = await Promise.all([api("/api/radar"), api("/api/crm").catch(() => null), api("/api/team").catch(() => null),
+      api("/api/limits/team").catch(() => null), api("/api/tasks").catch(() => null)]);
+    S = radar; D = crm; TEAM = team; LIM = lim; TASKS = tasks;
     paintForm();
     if (cur && !S.varreduras.some((v) => v.id === cur)) cur = null;
     cur = cur || S.varreduras[0]?.id || null;
@@ -95,13 +111,13 @@
   }
 
   async function loadScan() {
-    if (!cur) { SC = null; paintCtl(); paintBody(); return; }
+    if (!cur) { SC = null; paintAll(); paintBody(); return; }
     SC = await api(`/api/radar/${cur}`);
-    paintCtl(); paintBody();
+    paintAll(); paintBody();
     if (sel) paintDr();
     clearTimeout(timer);
     if (SC.job) timer = setTimeout(() => { if ($("rd") && !document.hidden) loadScan().catch(() => {}); else if ($("rd")) timer = setTimeout(loadScan, 3000); }, 2500);
-    else if (S.varreduras.find((v) => v.id === cur)?.job) { S = await api("/api/radar"); paintBody(); }
+    else if (S.varreduras.find((v) => v.id === cur)?.job) { S = await api("/api/radar"); D = await api("/api/crm").catch(() => D); paintAll(); paintBody(); }
   }
 
   function msg(text) {
@@ -111,16 +127,11 @@
     clearTimeout(msg.t); msg.t = setTimeout(() => { el.hidden = true; }, 5000);
   }
 
-  function paintCtl() {
-    paint($("rd-ctl"), SC?.job ? `<span class="st busy"><i></i>${esc(t("A procurar…"))}</span>`
-      : SC ? `<span class="st ok"><i></i>${esc(t("Pesquisa de {d}", { d: day(SC.fim || SC.at) }))}</span>` : "");
-  }
-
   // ---------- a pesquisa: três perguntas, como uma pessoa a perguntar ----------
   function paintForm() {
     if ($("rd-f")) return;
     const opts = [...new Set([...Object.values(S.ramos), ...SUGEST])].map((v) => `<option value="${esc(v)}">`).join("");
-    paint($("rd-form"), `<button type="button" class="rd-new" data-newf="1">${icon("search")}<span>${esc(t("Nova pesquisa"))}</span><small>${esc(t("qualquer tipo de empresa, em qualquer sítio"))}</small></button>
+    paint($("rd-form"), `<div class="rd-form-h"><h2>${esc(t("Nova pesquisa"))}</h2><button type="button" class="btn quiet sm" data-closeq="1" title="${esc(t("Fechar (Esc)"))}">${icon("x")}</button></div>
       <form class="rd-f" id="rd-f" autocomplete="off">
       <div class="rd-q"><span class="rd-qn">1</span><div class="rd-qb"><label for="rd-termo">${esc(t("O que procuras?"))}</label>
         <input class="inp" id="rd-termo" name="termo" list="rd-tipos" placeholder="${esc(t("Qualquer tipo de empresa: ginásios, clínicas, restaurantes de sushi…"))}">
@@ -168,9 +179,8 @@
     if (!String(f.get("local") || "").trim() && !lista) { $("rd-local").focus(); return msg(t("Diz onde (pergunta 2).")); }
     try {
       const sc = await api("/api/radar", { method: "POST", body: { ramo: presetOf(termo), termo: termo || "Lista", local: f.get("local"), raio: Number(f.get("raio")), lista } });
-      cur = sc.id; sel = ""; formOpen = false; setTab("vale"); store(KEY, cur);
+      cur = sc.id; sel = ""; focus = ""; raioF = ""; setTab("vale"); store(KEY, cur); closeForm();
       S = await api("/api/radar"); await loadScan();
-      $("rd-body")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) { msg(err.message); }
   }
 
@@ -178,7 +188,6 @@
 
   // ---------- os resultados ----------
   function paintBody() {
-    $("rd-form")?.classList.toggle("min", !!SC && !formOpen);  // com resultados, as perguntas encolhem num botão
     if (!SC) {
       paint($("rd-body"), `<div class="rd-how">${[
         ["1", "Responde às três perguntas", "O tipo de empresa (qualquer um), onde e quantos km à volta. Funciona em qualquer país."],
@@ -189,9 +198,7 @@
     }
     const sc = SC, r = sc.resumo || {}, negs = sc.negocios || [], job = sc.job;
     const where = !sc.local ? t("lista colada") : sc.raio ? t("{l} e {r} km à volta", { l: sc.local, r: sc.raio }) : t("distrito de {d}", { d: sc.distrito || sc.local });
-    const others = S.varreduras.length > 1 ? `<select class="inp rd-pick" id="rd-pick" title="${esc(t("Pesquisas anteriores"))}">${S.varreduras.map((v) =>
-      `<option value="${v.id}" ${v.id === cur ? "selected" : ""}>${esc(`${v.ramo_nome} · ${v.local || t("lista")} · ${day(v.at)}`)}</option>`).join("")}</select>` : "";
-    let html = `<div class="rd-top"><h2 class="rd-title">${esc(sc.ramo_nome)} <span>· ${esc(where)}</span></h2><div class="rd-tools">${others}
+    let html = `<div class="rd-top"><h2 class="rd-title">${esc(sc.ramo_nome)} <span>· ${esc(where)}</span></h2><div class="rd-tools">
       ${job ? "" : `<a class="btn quiet sm" href="/api/radar/${cur}/csv?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">${esc(t("Excel"))}</a>
       <button type="button" class="btn quiet sm" data-del="${cur}">${esc(t("Apagar"))}</button>`}</div></div>`;
     if (job) {
@@ -210,14 +217,7 @@
     const cnt = { sim: 0, talvez: 0, nao: 0 };
     negs.forEach((n) => { cnt[vale(n).v]++; });
     const contact = negs.filter((n) => phones(n).length || emails(n).length).length;
-    const pctOf = (k) => (negs.length ? (k / negs.length) * 100 : null);
-    html += `<div class="rd-sum">${ui.kpis([
-      ui.kpi({ label: "Valem a pena", value: cnt.sim, sub: t("{t} talvez · {n} não", { t: cnt.talvez, n: cnt.nao }),
-        viz: negs.length ? ui.cols([cnt.nao, cnt.talvez, cnt.sim], { fat: true }) : "", cls: cnt.sim ? "rd-hot" : "" }),
-      ui.kpi({ label: "Encontradas", value: negs.length, sub: t("{n} sem site · {b} em baixo", { n: r.sem_site || 0, b: r.em_baixo || 0 }), viz: ui.ring(pctOf(r.sem_site || 0)) }),
-      ui.kpi({ label: "Com contacto", value: contact, sub: t("telefone ou email à vista"), viz: ui.ring(pctOf(contact)) }),
-      ui.kpi({ label: "Em contacto", value: leads.length, sub: leads.length ? t("{n} responderam", { n: leads.filter((l) => /respondeu|reuniao|fechou/.test(l.estado)).length }) : t("ainda ninguém contactado") }),
-    ])}</div>`;
+    html += `<p class="rd-facts">${esc(t("{a} encontradas · {b} sem site · {c} em baixo · {d} com telefone ou email · {e} em contacto", { a: negs.length, b: r.sem_site || 0, c: r.em_baixo || 0, d: contact, e: leads.length }))}</p>`;
     const tabs = [["vale", "Valem a pena", cnt.sim], ["talvez", "Talvez", cnt.talvez], ["all", "Todas", negs.length], ["seg", "Em contacto", leads.length], ["zona", "Concorrência", ""]];
     html += `<div class="rd-tabs" role="tablist">${tabs.map(([k, l, n]) => `<button type="button" role="tab" class="${tab === k ? "on" : ""}" data-tab="${k}">${esc(t(l))}${n !== "" ? ` <small>${n}</small>` : ""}</button>`).join("")}</div>`;
     if (tab === "zona") html += market(sc);
@@ -237,7 +237,7 @@
   // a lista que se vê: o separador, a pesquisa pelo nome, os filtros e a ordem
   function shown() {
     const negs = SC?.negocios || [], q = F.q.trim().toLowerCase();
-    let list = negs.filter((n) => tab === "all" || (tab === "vale" ? vale(n).v === "sim" : tab === "talvez" ? vale(n).v === "talvez" : true));
+    let list = negs.filter(inScope).filter((n) => tab === "all" || (tab === "vale" ? vale(n).v === "sim" : tab === "talvez" ? vale(n).v === "talvez" : true));
     if (q) list = list.filter((n) => `${n.nome} ${n.morada || ""}`.toLowerCase().includes(q));
     if (F.tel) list = list.filter((n) => phones(n).length);
     if (F.mail) list = list.filter((n) => emails(n).length);
@@ -557,13 +557,13 @@
       if (n && (!n.lead || n.lead.estado === "por_contactar")) setTimeout(() => saveLead(n.id, "contactado"), 300);
       return;
     }
+    if (await dashClick(e)) return;
     if (e.target.closest("a")) return;  // ligar, ver o site: o link faz o seu trabalho
     if (e.target.closest("#rd-scrim")) return closeDr();
     const b = e.target.closest("[data-tab],[data-row],[data-copy],[data-del],[data-retry],[data-lead],[data-seg],[data-fx],[data-termo],[data-km],[data-flt],[data-step],[data-close]");
     if (!b) return;
     if (b.dataset.termo) { $("rd-termo").value = b.dataset.termo; say(); if (!$("rd-local").value) $("rd-local").focus(); return; }
     if (b.dataset.km != null) return setKm(Number(b.dataset.km));
-    if (b.dataset.newf) { formOpen = true; $("rd-form").classList.remove("min"); return $("rd-termo").focus(); }
     if (b.dataset.flt) { F[b.dataset.flt] = !F[b.dataset.flt]; b.classList.toggle("on", F[b.dataset.flt]); return paintList(); }
     if (b.dataset.step) return step(Number(b.dataset.step));
     if (b.dataset.close) return closeDr();
@@ -601,14 +601,703 @@
     try {
       await api(`/api/radar/${cur}/${nid}/lead`, { method: "POST", body: nota == null ? { estado } : { estado, nota } });
     } catch (err) { return msg(err.message); }
-    S = await api("/api/radar"); await loadScan();
+    S = await api("/api/radar"); D = await api("/api/crm").catch(() => D); await loadScan();
   }
 
   // as notas guardam-se ao sair da caixa
   document.addEventListener("focusout", (e) => {
     const el = e.target.closest?.("[data-nota]");
     if (!el || !$("rd") || el.value === (el.defaultValue || "")) return;
-    const st = document.querySelector(`[data-lead="${el.dataset.nota}"].on`)?.dataset.st || "por_contactar";
+    const st = document.querySelector(`[data-lead="${el.dataset.nota}"].on`)?.dataset.st || SC?.negocios.find((x) => x.id === el.dataset.nota)?.lead?.estado || "por_contactar";
     saveLead(el.dataset.nota, st, el.value);
   });
+
+  // ---------- o painel de cima (Radar Empresarial): mapa, empresa, pipeline, atividade, agentes e a barra de baixo ----------
+  // Só dados reais: o que falta diz «Sem dados». A temperatura é o «nivel» do scan (quente, morna, fria); o resto do Radar não muda.
+  const TEMP = { quente: ["hot", "Quente"], morna: ["warm", "Morna"], fria: ["cold", "Fria"] };
+  const nivel = (n) => TEMP[n?.nivel] ? n.nivel : "morna";
+  const num = (x) => { const v = parseFloat(x); return Number.isFinite(v) ? v : null; };
+  const placed = (n) => num(n?.lat) != null && num(n?.lon) != null;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const relS = (ts) => {  // a mesma hora em curto, para as colunas estreitas do Pipeline
+    if (!ts) return "";
+    const m = Math.max(0, Date.now() / 1000 - ts) / 60;
+    return m < 1.5 ? t("já") : m < 60 ? `${Math.round(m)}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
+  };
+  const rel = (ts) => {
+    if (!ts) return "";
+    const s = Math.max(0, Date.now() / 1000 - ts);
+    if (s < 90) return t("agora");
+    if (s < 3600) return t("há {n} min", { n: Math.round(s / 60) });
+    if (s < 86400) return t("há {n}h", { n: Math.round(s / 3600) });
+    const d = Math.round(s / 86400);
+    return d === 1 ? t("há 1 dia") : d < 60 ? t("há {n} dias", { n: d }) : day(ts);
+  };
+  const money = (v) => (v == null ? "" : `€${v >= 1000 ? `${(v / 1000).toLocaleString("pt-PT", { maximumFractionDigits: 1 })}k` : Math.round(v).toLocaleString("pt-PT")}`);
+  const line = (d, extra = "") => `<svg class="i" viewBox="0 0 24 24" ${extra}>${d}</svg>`;
+  const IC = {
+    globe: I.web,
+    flame: line('<path d="M12 22c4.4 0 7-2.9 7-6.7 0-3-1.8-5-3.2-6.8-.5 1.7-1.3 2.7-2.5 3.3.3-3.4-1-6.8-4.1-9.3.2 3.3-1.2 5-2.5 6.800C5.5 10.2 5 12.5 5 15.3 5 19.1 7.6 22 12 22z"/>'),
+    diamond: line('<path d="m12 3 8 9-8 9-8-9z"/>'),
+    snow: line('<path d="M12 2v20M4 7l16 10M20 7 4 17M9 4l3 3 3-3M9 20l3-3 3 3"/>'),
+    bldg: line('<path d="M4 21V8l8-5 8 5v13"/><path d="M9 21v-5h6v5M8.5 11h.01M12 11h.01M15.5 11h.01"/>'),
+    aim: line('<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>'),
+    plus: line('<path d="M12 5v14M5 12h14"/>'),
+    minus: line('<path d="M5 12h14"/>'),
+    full: line('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>'),
+    out: line('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
+    star: line('<path d="m12 3 2.7 5.8 6.3.8-4.6 4.3 1.2 6.200L12 17l-5.6 3.1 1.2-6.200L3 9.600l6.3-.8z"/>', 'data-fill="1"'),
+    clock: line('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>'),
+    up: line('<path d="M12 19V5M6 11l6-6 6 6"/>'),
+    down: line('<path d="M12 5v14M6 13l6 6 6-6"/>'),
+    arrow: line('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+    chev: line('<path d="m9 5 7 7-7 7"/>'),
+    tick: line('<path d="m5 12 5 5 9-10"/>'),
+    task: line('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/>'),
+    bars: line('<path d="M5 20v-6M12 20V6M19 20v-10"/>'),
+    feed: line('<path d="M4 6h16v10H9l-5 4z"/><path d="M8 11l2-2 2 2 3-3"/>'),
+    bot: line('<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/>'),
+    user: line('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4-6.5 8-6.500s7 2 8 6.5"/>'),
+    inf: line('<path d="M7.5 8.500a3.5 3.5 0 1 0 0 7c3.5 0 5.5-7 9-7a3.5 3.5 0 1 1 0 7c-3.5 0-5.5-7-9-7z"/>'),
+    list: line('<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>'),
+    gauge: line('<circle cx="12" cy="13" r="8"/><path d="M12 13l3-3M9 2h6"/>'),
+    raio: line('<circle cx="12" cy="12" r="9"/><path d="M12 12 18 6M12 12V7"/>'),
+    search: line('<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>'),
+    rd: `<svg viewBox="0 0 48 48" class="rdh-rad" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-opacity=".35"/><circle cx="24" cy="24" r="14" fill="none" stroke="currentColor" stroke-opacity=".55"/><circle cx="24" cy="24" r="7.5" fill="none" stroke="currentColor" stroke-opacity=".8"/><path d="M24 24 40 11a21 21 0 0 1 5 13z" fill="currentColor" fill-opacity=".24"/><path d="M24 24 40 11" stroke="currentColor" stroke-width="1.4"/><circle cx="24" cy="24" r="2.4" fill="currentColor"/></svg>`,
+  };
+
+  // os três departamentos da equipa, com os nomes do desenho: capacetes feitos à mão, uma cor para cada um
+  function helmet(id, hi, mid, lo, glow) {
+    return `<svg viewBox="0 0 64 64" class="rdg-h" aria-hidden="true"><defs>
+      <linearGradient id="hs${id}" x1=".2" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="${hi}"/><stop offset=".45" stop-color="${mid}"/><stop offset="1" stop-color="${lo}"/></linearGradient>
+      <linearGradient id="hv${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#05070a"/><stop offset=".55" stop-color="#0c1218"/><stop offset="1" stop-color="${glow}" stop-opacity=".55"/></linearGradient>
+      <radialGradient id="hg${id}"><stop offset="0" stop-color="${glow}" stop-opacity=".42"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>
+      <circle cx="32" cy="32" r="31" fill="url(#hg${id})"/>
+      <path d="M9 36C8 19 20 7 36 7c12.5 0 21 9.5 21 22 0 5-.8 9.5-2.3 13.5-1.5 4.5-4.7 8.5-9.7 10.5-4.5 1.8-13 2.5-20 1.500C17 53 10 47 9 36z" fill="url(#hs${id})"/>
+      <path d="M14 24C18 14 27 10 37 10c-9 2.5-15 7.5-18.5 15z" fill="#fff" fill-opacity=".42"/>
+      <path d="M22 26.500c8-4 22-5.5 34.3-2.5.8 6 .1 11.5-1.6 16-10.5 2.7-22 2-30.2-2-3.5-2-5-9.5-2.5-11.500z" fill="url(#hv${id})" stroke="#000" stroke-opacity=".75"/>
+      <path d="M25.5 29c7-2.8 17-3.8 26-2.5-5 .3-17 1.2-24.5 5.500z" fill="#fff" fill-opacity=".2"/>
+      <path d="M21 45.500c7 3 18 3.7 28.5 1.500M24 50.500c6 1.7 14 2 21 .7" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="1.4" stroke-linecap="round"/>
+      <circle cx="17.5" cy="34" r="2.5" fill="#000" fill-opacity=".45"/><circle cx="17.5" cy="34" r="1.1" fill="${glow}"/></svg>`;
+  }
+  const AGENTS = [
+    { k: "pesquisa", tag: "PES", nome: "AMG Research Agent", papel: "Investiga marca, redes, Google e dinheiro", svg: () => helmet("r", "#5aa9f2", "#123f78", "#040e1c", "#4aa8ff") },
+    { k: "marketing", tag: "MKT", nome: "AMG Sales Agent", papel: "Escreve a primeira mensagem", svg: () => helmet("s", "#ffd27a", "#8a5c12", "#1c1103", "#ffb73f") },
+    { k: "operacoes", tag: "OPS", nome: "AMG Follow-up Agent", papel: "Marca a próxima ação de cada lead", svg: () => helmet("f", "#f2f5f7", "#7d858d", "#16191d", "#dfe9f2") },
+  ];
+
+  let temp = store("radar.temp") || "all", raioF = "", focus = "", cardTab = "resumo", pipeF = "", D = null, TEAM = null, LIM = null, TASKS = null, fitted = "", lastScroll = 0;
+  if (!["all", ...Object.keys(TEMP)].includes(temp)) temp = "all";
+  const asked = new Set();
+
+  function centre() {
+    const g = SC?.geo;
+    if (num(g?.lat) != null && num(g?.lon) != null) return { lat: num(g.lat), lon: num(g.lon) };
+    const pts = (SC?.negocios || []).filter(placed);
+    if (pts.length) return { lat: pts.reduce((a, n) => a + num(n.lat), 0) / pts.length, lon: pts.reduce((a, n) => a + num(n.lon), 0) / pts.length };
+    return { lat: 39.6, lon: -8.1 };  // Portugal, antes da primeira pesquisa
+  }
+  function kmOf(n) {
+    if (!placed(n)) return null;
+    const c = centre(), rad = Math.PI / 180, a = num(n.lat) * rad, b = c.lat * rad;
+    const h = Math.sin((a - b) / 2) ** 2 + Math.cos(a) * Math.cos(b) * Math.sin((num(n.lon) - c.lon) * rad / 2) ** 2;
+    return 12742 * Math.asin(Math.sqrt(h));
+  }
+  const kmText = (k) => (k == null ? "" : `${k < 10 ? k.toFixed(1).replace(".", ",") : Math.round(k)} km`);
+  // o filtro de cima (temperatura e raio) vale para o mapa e para a lista; quem não tem posição não sai pelo raio
+  function inScope(n) {
+    if (temp !== "all" && nivel(n) !== temp) return false;
+    if (raioF && placed(n) && kmOf(n) > Number(raioF)) return false;
+    return true;
+  }
+  const scoped = () => (SC?.negocios || []).filter(inScope);
+  const onScreen = (n) => placed(n) && Math.abs(wx(num(n.lon), M.z) - M.cx) < M.w / 2 - 30 && Math.abs(wy(num(n.lat), M.z) - M.cy) < M.h / 2 - 30;
+  // a terra e pouco mais: a morada termina em «..., 2450-100 Nazaré»
+  const place = (n) => {
+    const last = String(n.morada || "").split(",").pop().replace(/\d{4}-\d{3}/, "").replace(/\bPortugal\b/i, "").trim();
+    return last && !/\d/.test(last) ? last : SC?.local ? SC.local[0].toUpperCase() + SC.local.slice(1) : "";
+  };
+  const byScore = (a, b) => vale(b).pontos - vale(a).pontos;
+  const leadOf = (n) => (D?.leads || []).find((l) => l.sid === cur && l.nid === n?.id);
+
+  function paintAll() {
+    if (!$("rd")) return;
+    const list = scoped();
+    paintHead(); pinsBuild();
+    if (!list.some((n) => n.id === focus)) {  // começa na melhor que se vê no mapa
+      const sorted = list.slice().sort((x, y) => byScore(x, y) || (kmOf(x) ?? 1e9) - (kmOf(y) ?? 1e9)), best = sorted.find(onScreen) || sorted.find(placed) || sorted[0];
+      focus = best?.id || "";
+      M.pins.forEach((p) => p.el.classList.toggle("on", p.id === focus));
+      tipDraw();
+    }
+    paintCard(); paintPipe(); paintFeed(); paintAgents(); paintStrip();
+  }
+
+  // ---------- o cabeçalho ----------
+  function paintHead() {
+    const negs = SC?.negocios || [], c = { quente: 0, morna: 0, fria: 0 };
+    negs.forEach((n) => { c[nivel(n)]++; });
+    const pills = [["all", "Todas", IC.globe, "", negs.length], ["quente", "Quentes", IC.diamond, IC.flame, c.quente], ["morna", "Mornas", IC.diamond, "", c.morna], ["fria", "Frios", IC.snow, "", c.fria]];
+    const base = SC ? (SC.raio ? t("Raio: {k} km", { k: SC.raio }) : t("Raio: {l}", { l: !SC.local ? t("lista") : SC.distrito ? t("distrito") : t("zona") })) : t("Raio");
+    const opts = [["", base], ...[5, 10, 25, 50, 100].filter((k) => k !== SC?.raio).map((k) => [String(k), SC?.raio && k > SC.raio ? t("Raio: {k} km · nova pesquisa", { k }) : t("Raio: {k} km", { k })])];
+    const job = SC?.job;
+    paint($("rdh"), `<span class="rdh-ic">${IC.rd}</span>
+      <div class="rdh-t"><h1>${esc(t("Radar Empresarial"))}</h1><p>${esc(t("Descobre, analisa e converte oportunidades em negócios."))}</p></div>
+      <div class="rdh-f" role="group" aria-label="${esc(t("Filtrar por temperatura"))}">${pills.map(([k, l, a, b, n]) =>
+        `<button type="button" class="rdh-pill ${k} ${temp === k ? "on" : ""}" data-temp="${k}" title="${esc(t("{n} empresas", { n }))}">${a}<span>${esc(t(l))}</span>${b}</button>`).join("")}</div>
+      <label class="rdh-raio" title="${esc(t("Quantos km à volta do centro da pesquisa"))}">${IC.raio}<select id="rd-raio" aria-label="${esc(t("Raio"))}">${opts.map(([v, l]) => `<option value="${v}" ${raioF === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
+      <span class="rdh-at ${job ? "busy" : ""}"><i></i>${esc(job ? t("A procurar…") : SC ? t("Atualizado: {w}", { w: rel(SC.fim || SC.at) }) : t("Sem pesquisas"))}</span>
+      <button type="button" class="rdh-fs" data-fs="1" title="${esc(t("Ecrã inteiro"))}" aria-label="${esc(t("Ecrã inteiro"))}">${IC.full}</button>`);
+  }
+
+  function setRaio(v) {
+    if (v && SC?.raio && Number(v) > SC.raio) {  // a pesquisa só foi até ao raio dela: para ver mais é preciso procurar outra vez
+      paintHead();
+      return openForm({ termo: SC.ramo_nome, local: SC.local, km: KM.find((k) => k >= Number(v)) || KM[KM.length - 1] });
+    }
+    raioF = v; fitted = ""; closeDr();
+    paintAll(); paintList(); sweep();
+  }
+
+  function openForm(pre) {
+    const m = $("rd-modal");
+    if (!m) return;
+    m.hidden = false;
+    if (pre) {
+      $("rd-termo").value = pre.termo || ""; $("rd-local").value = pre.local || "";
+      if (pre.km) { if (!KM.includes(pre.km) && $("rd-f")) $("rd-f").raio.value = String(pre.km); setKm(pre.km); }
+    }
+    say(); $("rd-termo").focus();
+  }
+  function closeForm() { if ($("rd-modal")) $("rd-modal").hidden = true; }
+
+  // ---------- o mapa: fotografia de satélite (Esri, sem chave) escurecida, anéis em km verdadeiros à volta do centro da pesquisa ----------
+  const TS = 256, MINZ = 3, MAXZ = 18;
+  const wx = (lon, z) => (lon + 180) / 360 * TS * 2 ** z;
+  const wy = (lat, z) => { const s = Math.sin(lat * Math.PI / 180); return (.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * TS * 2 ** z; };
+  const tile = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+  const M = { w: 0, h: 0, z: 8, cx: 0, cy: 0, imgs: new Map(), tiles: null, back: null, raf: 0, ringKey: "", hover: "", pins: [], ro: null, moved: false };
+
+  function mapInit() {
+    const box = $("rdm");
+    M.ro?.disconnect();
+    paint(box, `<div class="rdm-ts" id="rdm-ts"><div class="rdm-l"></div></div>
+      <div class="rdm-tint"></div>
+      <svg class="rdm-r" id="rdm-r" aria-hidden="true"><g id="rdm-rg"></g></svg>
+      <div class="rdm-sw" id="rdm-sw"><i></i></div>
+      <div class="rdm-pins" id="rdm-pins"></div>
+      <div class="rdm-c" id="rdm-c"><i></i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 20 12 16 4 20z"/></svg></div>
+      <div class="rdm-tip" id="rdm-tip" hidden></div>
+      <div class="rdm-top"><div class="rdm-scan" id="rdm-scan"></div></div>
+      <ul class="rdm-leg"><li class="hot"><i></i>${esc(t("Quente"))}</li><li class="warm"><i></i>${esc(t("Morna"))}</li><li class="cold"><i></i>${esc(t("Fria"))}</li></ul>
+      <div class="rdm-z"><div><button type="button" data-zoom="1" aria-label="${esc(t("Aproximar"))}">${IC.plus}</button><button type="button" data-zoom="-1" aria-label="${esc(t("Afastar"))}">${IC.minus}</button></div>
+        <button type="button" data-recenter="1" title="${esc(t("Voltar ao centro"))}" aria-label="${esc(t("Voltar ao centro"))}">${IC.aim}</button></div>
+      <div class="rdm-note" id="rdm-note"></div>
+      <div class="rdm-attr">Imagens © Esri, Maxar, Earthstar Geographics</div>
+      <div class="rdm-over" id="rdm-over" hidden></div>`);
+    M.tiles = box.querySelector(".rdm-l"); M.imgs = new Map(); M.back = null; M.ringKey = ""; M.pins = []; M.moved = false;
+    const rect = box.getBoundingClientRect();
+    M.w = rect.width; M.h = rect.height;
+    let drag = null;
+    box.onpointerdown = (e) => {
+      if (e.button || e.target.closest("button,select,a,.rdm-tip")) return;
+      drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      box.classList.add("drag");
+      box.setPointerCapture?.(e.pointerId);
+    };
+    box.onpointermove = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      M.cx -= e.clientX - drag.x; M.cy -= e.clientY - drag.y;
+      drag.x = e.clientX; drag.y = e.clientY; M.moved = true;
+      mapSoon();
+    };
+    box.onpointerup = box.onpointercancel = () => { drag = null; box.classList.remove("drag"); };
+    box.ondblclick = (e) => {
+      if (e.target.closest("button,select,a")) return;
+      const r = box.getBoundingClientRect();
+      mapZoom(1, e.clientX - r.left, e.clientY - r.top);
+    };
+    // a roda aproxima, mas quem vinha a descer a página continua a descer em vez de ficar preso no mapa
+    let wheelAt = 0;
+    box.addEventListener("wheel", (e) => {
+      if (Date.now() - lastScroll < 450) return;
+      e.preventDefault();
+      if (Date.now() - wheelAt < 220 || !e.deltaY) return;
+      wheelAt = Date.now();
+      const r = box.getBoundingClientRect();
+      mapZoom(e.deltaY < 0 ? 1 : -1, e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+    const pinsEl = $("rdm-pins");
+    pinsEl.onmouseover = (e) => { const p = e.target.closest("[data-pin]"); if (p) { M.hover = p.dataset.pin; tipDraw(); } };
+    pinsEl.onmouseout = (e) => { if (e.target.closest("[data-pin]")) { M.hover = ""; tipDraw(); } };
+    if (window.ResizeObserver) {
+      M.ro = new ResizeObserver(() => {
+        if (!$("rd")) return M.ro?.disconnect();
+        const r = box.getBoundingClientRect();
+        if (!r.width || (Math.abs(r.width - M.w) < 1 && Math.abs(r.height - M.h) < 1)) return;
+        M.w = r.width; M.h = r.height; M.ringKey = "";
+        if (M.moved) mapDraw(); else mapFit();
+      });
+      M.ro.observe(box);
+    }
+  }
+  addEventListener("scroll", () => { lastScroll = Date.now(); }, { capture: true, passive: true });
+
+  const mapSoon = () => { if (!M.raf) M.raf = requestAnimationFrame(() => { M.raf = 0; mapDraw(); }); };
+
+  function mapDraw() {
+    if (!M.tiles || !M.w || !$("rdm")) return;
+    const { w, h, z } = M, n = 2 ** z, world = TS * n;
+    M.cy = clamp(M.cy, 0, world);
+    const left = M.cx - w / 2, top = M.cy - h / 2;
+    const seen = new Set();
+    for (let x = Math.floor(left / TS); x <= Math.floor((left + w) / TS); x++) {
+      for (let y = Math.max(0, Math.floor(top / TS)); y <= Math.min(n - 1, Math.floor((top + h) / TS)); y++) {
+        const key = `${z}/${x}/${y}`;
+        seen.add(key);
+        let im = M.imgs.get(key);
+        if (!im) {
+          im = new Image();
+          im.alt = ""; im.draggable = false; im.decoding = "async"; im.referrerPolicy = "no-referrer";
+          im.onload = () => im.classList.add("on");
+          im.onerror = () => im.remove();
+          im.src = tile(z, ((x % n) + n) % n, y);
+          M.tiles.appendChild(im); M.imgs.set(key, im);
+        }
+        im.style.transform = `translate(${Math.round(x * TS - left)}px, ${Math.round(y * TS - top)}px)`;
+      }
+    }
+    for (const [k, im] of M.imgs) if (!seen.has(k)) { im.remove(); M.imgs.delete(k); }
+    const c = centre(), sx = Math.round(wx(c.lon, z) - left), sy = Math.round(wy(c.lat, z) - top);
+    ringsDraw(c, sx, sy);
+    $("rdm-c").style.transform = `translate(${sx}px, ${sy}px)`;
+    $("rdm-sw").style.transform = `translate(${sx}px, ${sy}px)`;
+    pinsRelax();
+    noteDraw();
+    for (const p of M.pins) p.el.style.transform = `translate(${Math.round(wx(p.lon, z) - left + p.dx)}px, ${Math.round(wy(p.lat, z) - top + p.dy)}px)`;
+    tipDraw();
+  }
+
+  function noteDraw() {
+    const el = $("rdm-note");
+    if (!el) return;
+    const off = M.pins.filter((p) => Math.abs(wx(p.lon, M.z) - M.cx) > M.w / 2 || Math.abs(wy(p.lat, M.z) - M.cy) > M.h / 2).length;
+    const text = SC?.job ? "" : [M.none ? t("{n} sem posição no mapa", { n: M.none }) : "", off ? t("{n} fora da vista", { n: off }) : ""].filter(Boolean).join(" · ");
+    if (el.textContent !== text) el.textContent = text;
+  }
+
+  // pontos colados na mesma rua afastam-se uns pixels para se poder clicar em cada um; ao aproximar voltam ao sítio exato
+  function pinsRelax() {
+    const key = `${M.z}|${$("rdm-pins")?.dataset.k}`;
+    if (M.relaxKey === key) return;
+    M.relaxKey = key;
+    const c = centre(), cx = wx(c.lon, M.z), cy = wy(c.lat, M.z);
+    const it = M.pins.map((p) => ({ p, x: wx(p.lon, M.z), y: wy(p.lat, M.z), x0: wx(p.lon, M.z), y0: wy(p.lat, M.z), r: p.el.classList.contains("big") ? 25 : p.el.classList.contains("bld") ? 16 : 10 }));
+    for (let pass = 0; pass < 24; pass++) {
+      for (let i = 0; i < it.length; i++) {
+        const a = it[i];
+        for (let j = i + 1; j < it.length; j++) {
+          const b = it[j], dx = b.x - a.x || (i + 1) * .3, dy = b.y - a.y || (j + 1) * .3, d = Math.hypot(dx, dy), need = a.r + b.r + 3;
+          if (d < need) { const k = (need - d) / d / 2; a.x -= dx * k; a.y -= dy * k; b.x += dx * k; b.y += dy * k; }
+        }
+        const dx = a.x - cx || .5, dy = a.y - cy || .5, d = Math.hypot(dx, dy), need = a.r + 24;  // e deixam a seta do centro à vista
+        if (d < need) { a.x += dx / d * (need - d); a.y += dy / d * (need - d); }
+      }
+    }
+    for (const a of it) { a.p.dx = a.x - a.x0; a.p.dy = a.y - a.y0; }
+  }
+
+  // anéis a distâncias redondas (2, 5, 10 km...), para o que se vê ser verdade; o raio escolhido fica mais forte
+  function ringsDraw(c, sx, sy) {
+    const svgEl = $("rdm-r"), g = $("rdm-rg"), key = `${M.z}|${M.w}|${M.h}|${raioF}|${c.lat}`;
+    if (M.ringKey !== key) {
+      M.ringKey = key;
+      svgEl.setAttribute("width", M.w); svgEl.setAttribute("height", M.h);
+      const m = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / 2 ** M.z / 1000;  // km por pixel
+      const step = [.05, .1, .2, .5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].find((k) => k / m >= 30) || 2000;
+      const reach = Math.hypot(M.w, M.h) * 1.3;
+      let html = "";
+      for (let a = 0; a < 180; a += 30) { const r = reach, x = Math.cos(a * Math.PI / 180) * r, y = Math.sin(a * Math.PI / 180) * r; html += `<line x1="${-x}" y1="${-y}" x2="${x}" y2="${y}" class="sp"/>`; }
+      for (let i = 1, r = step / m; r < reach && i < 40; i++, r = i * step / m) {
+        const major = i % 2 === 0;
+        html += `<circle r="${r.toFixed(1)}" class="${major ? "ma" : "mi"}"/>`;
+        if (major && i <= 12) html += `<text x="${(r + 4).toFixed(1)}" y="-4">${esc(kmText(i * step).replace(",0", ""))}</text>`;
+      }
+      for (const [i, a, b] of [[4, -38, 52], [7, 148, 226], [10, -100, -28], [14, 20, 70]]) {  // uns arcos mais vivos, como num ecrã de radar
+        const r = i * step / m, p = (d) => `${(Math.cos(d * Math.PI / 180) * r).toFixed(1)} ${(Math.sin(d * Math.PI / 180) * r).toFixed(1)}`;
+        html += `<path class="arc" d="M${p(a)} A${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${p(b)}"/>`;
+      }
+      if (raioF) html += `<circle r="${(Number(raioF) / m).toFixed(1)}" class="lim"/>`;
+      g.innerHTML = html;
+    }
+    g.setAttribute("transform", `translate(${sx} ${sy})`);
+  }
+
+  function mapFit() {
+    const box = $("rdm");
+    if (!box) return;
+    const r = box.getBoundingClientRect();
+    M.w = r.width; M.h = r.height;
+    if (!M.w) return;
+    const c = centre(), pts = (raioF ? scoped() : SC?.negocios || []).filter(placed);
+    let z = pts.length ? 15 : SC ? 11 : 6;
+    const fits = (zz) => {
+      const ox = wx(c.lon, zz), oy = wy(c.lat, zz);
+      if (raioF && Number(raioF) / (156543.03392 * Math.cos(c.lat * Math.PI / 180) / 2 ** zz / 1000) > Math.min(M.w, M.h) / 2 - 18) return false;
+      // dois em três chegam: um ponto longe não pode encolher os outros todos (a nota diz quantos ficam fora e o «−» mostra-os)
+      const out = pts.filter((p) => !(Math.abs(wx(num(p.lon), zz) - ox) < M.w / 2 - 44 && Math.abs(wy(num(p.lat), zz) - oy) < M.h / 2 - 34)).length;
+      return out <= (raioF ? 0 : Math.floor(pts.length / 3));
+    };
+    while (z > MINZ && !fits(z)) z--;
+    if (raioF) { while (z < MAXZ && fits(z + 1)) z++; }
+    resetTiles(z);
+    M.cx = wx(c.lon, z); M.cy = wy(c.lat, z); M.moved = false;
+    mapDraw();
+  }
+
+  function resetTiles(z) {
+    if (z === M.z && M.tiles) return;
+    M.z = z; M.ringKey = "";
+    M.imgs.forEach((im) => im.remove()); M.imgs.clear();
+  }
+
+  function mapZoom(dz, ax = M.w / 2, ay = M.h / 2) {
+    const z2 = clamp(M.z + dz, MINZ, MAXZ);
+    if (z2 === M.z || !M.tiles) return;
+    const k = 2 ** (z2 - M.z), px = M.cx + ax - M.w / 2, py = M.cy + ay - M.h / 2;
+    M.cx = px * k - (ax - M.w / 2); M.cy = py * k - (ay - M.h / 2); M.z = z2; M.moved = true;
+    M.back?.remove();
+    const old = M.tiles;
+    old.style.transformOrigin = `${ax}px ${ay}px`;
+    requestAnimationFrame(() => { old.style.transform = `scale(${k})`; });
+    M.back = old;
+    M.tiles = document.createElement("div"); M.tiles.className = "rdm-l";
+    old.after(M.tiles);
+    M.imgs = new Map();
+    const pl = $("rdm-pins"); pl.classList.add("zoom"); setTimeout(() => pl.classList.remove("zoom"), 260);
+    mapDraw();
+    setTimeout(() => { if (M.back === old) { old.remove(); M.back = null; } }, 1100);
+  }
+
+  function mapShow(n) {
+    if (!placed(n)) return;
+    const x = wx(num(n.lon), M.z), y = wy(num(n.lat), M.z);
+    if (Math.abs(x - M.cx) > M.w / 2 - 70 || Math.abs(y - M.cy) > M.h / 2 - 50) { M.cx = x; M.cy = y; M.moved = true; mapDraw(); }
+  }
+
+  // os pontos: os três com mais pontos são grandes e com o prédio, como no desenho; os frios com site têm um prédio pequeno
+  function pinsBuild() {
+    const box = $("rdm-pins");
+    if (!box || !S || (!SC && cur)) return;  // sem isto pedia o mapa de Portugal inteiro antes de a pesquisa chegar
+    const list = scoped().filter(placed).sort(byScore), bigs = new Set(), rad = Math.PI / 180;
+    const apart = (a, b) => Math.hypot((num(a.lat) - num(b.lat)) * 111, (num(a.lon) - num(b.lon)) * 111 * Math.cos(num(a.lat) * rad));
+    const chosen = [];  // as três melhores, mas não todas na mesma rua
+    for (const n of list) { if (chosen.length < 3 && nivel(n) !== "fria" && chosen.every((x) => apart(x, n) > 4)) chosen.push(n); }
+    chosen.forEach((n) => bigs.add(n.id));
+    const c = centre();
+    const delay = (n) => {
+      const a = (Math.atan2(num(n.lat) - c.lat, num(n.lon) - c.lon) * 180 / Math.PI + 360 + 90) % 360;
+      return (a / 360 * 2.2).toFixed(2);
+    };
+    const paintKey = list.map((n) => `${n.id}${bigs.has(n.id) ? "b" : ""}`).join();
+    if (box.dataset.k !== paintKey) {
+      box.dataset.k = paintKey;
+      box.innerHTML = list.slice().reverse().map((n) => {
+        const [cls, label] = TEMP[nivel(n)], big = bigs.has(n.id), bld = !big && nivel(n) === "fria" && n.site;
+        return `<button type="button" class="rd-pin ${cls} ${big ? "big" : bld ? "bld" : ""}" data-pin="${n.id}" aria-label="${esc(`${n.nome}, ${t(label)}, ${kmText(kmOf(n))}`)}" style="--d:${delay(n)}s"><span class="rd-pi">${big || bld ? IC.bldg : ""}</span></button>`;
+      }).join("");
+    }
+    M.pins = [...box.children].map((el) => { const n = list.find((x) => x.id === el.dataset.pin); return { el, id: n.id, lat: num(n.lat), lon: num(n.lon), dx: 0, dy: 0 }; });
+    M.relaxKey = "";
+    M.pins.forEach((p) => p.el.classList.toggle("on", p.id === focus));
+    paintScanBar();
+    const pinCount = list.length;
+    const key = `${cur}|${raioF}|${pinCount ? 1 : 0}`;
+    if (fitted !== key) { const fresh = !fitted.startsWith(`${cur}|`); fitted = key; mapFit(); if (fresh) sweep(); }
+    else mapDraw();
+    $("rdm").classList.toggle("spin", !!SC?.job);
+  }
+
+  function paintScanBar() {
+    const job = SC?.job, none = scoped().filter((n) => !placed(n)).length;
+    const scans = S?.varreduras || [];
+    paint($("rdm-scan"), `${scans.length ? `<label class="rdm-pick">${IC.search}<select id="rd-pick" title="${esc(t("Pesquisas anteriores"))}">${scans.map((v) =>
+      `<option value="${v.id}" ${v.id === cur ? "selected" : ""}>${esc(`${v.ramo_nome} · ${v.local || t("lista")} · ${day(v.at)}`)}</option>`).join("")}</select></label>` : ""}
+      <button type="button" class="rdm-new" data-newf="1">${IC.plus}<span>${esc(t("Nova pesquisa"))}</span></button>`);
+    M.none = none; noteDraw();
+    const over = $("rdm-over");
+    if (job) {
+      const pct = job.total ? Math.round(100 * job.feitos / job.total) : 0;
+      over.hidden = false; over.className = "rdm-over job";
+      paint(over, `<b>${esc(t(job.fase || "A procurar…"))}</b>${job.total ? `<small>${job.feitos} / ${job.total}</small>` : ""}<span><i style="width:${job.total ? pct : 8}%"></i></span>`);
+    } else if (!SC) {
+      over.hidden = false; over.className = "rdm-over cta";
+      paint(over, `<b>${esc(t("Ainda sem pesquisas"))}</b><p>${esc(t("Diz que empresas procuras e onde: o Radar marca-as aqui."))}</p><button type="button" class="btn primary" data-newf="1">${icon("search")}${esc(t("Fazer a primeira pesquisa"))}</button>`);
+    } else if (!scoped().filter(placed).length) {
+      over.hidden = false; over.className = "rdm-over cta small";
+      paint(over, `<b>${esc(t(!SC.negocios?.length ? "Esta pesquisa não encontrou empresas" : scoped().length ? "Nenhuma destas tem posição no mapa" : "Nada no mapa com este filtro"))}</b>`);
+    } else over.hidden = true;
+  }
+
+  function tipDraw() {
+    const tip = $("rdm-tip");
+    if (!tip) return;
+    const id = M.hover || focus, p = M.pins.find((x) => x.id === id), n = SC?.negocios.find((x) => x.id === id);
+    if (!p || !n) { tip.hidden = true; return; }
+    const x = wx(p.lon, M.z) - M.cx + M.w / 2 + (p.dx || 0), y = wy(p.lat, M.z) - M.cy + M.h / 2 + (p.dy || 0);
+    if (x < -20 || y < -20 || x > M.w + 20 || y > M.h + 20) { tip.hidden = true; return; }
+    if (tip.dataset.id !== id) {
+      tip.dataset.id = id;
+      const lv = nivel(n), [cls, label] = TEMP[lv];
+      paint(tip, `<b><i class="${cls}"></i>${esc(n.nome)}</b><small class="${cls}">${lv === "quente" ? IC.flame : ""}${esc(t(label))}${kmOf(n) != null ? ` <em>· ${esc(kmText(kmOf(n)))}</em>` : ""}</small>`);
+    }
+    tip.hidden = false;
+    const big = p.el.classList.contains("big") ? 26 : 16, key = `${id}/${M.z}`;
+    if (tip.dataset.key !== key) {
+      tip.dataset.key = key;
+      const w = tip.offsetWidth, h = tip.offsetHeight, others = M.pins.filter((o) => o !== p).map((o) => [wx(o.lon, M.z) - M.cx + M.w / 2 + (o.dx || 0), wy(o.lat, M.z) - M.cy + M.h / 2 + (o.dy || 0), o.el.classList.contains("big") ? 3 : 1]);
+      const ce = $("rdm-c")?.style.transform.match(/-?[\d.]+/g); if (ce) others.push([+ce[0], +ce[1], 2]);
+      let best = 1e9;
+      [[1, -1], [-1, -1], [1, 1], [-1, 1]].forEach(([sx, sy], i) => {
+        const l = sx > 0 ? x + big : x - big - w, u = sy > 0 ? y + 10 : y - 10 - h;
+        const out = l < 6 || u < 50 || l + w > M.w - 6 || u + h > M.h - 6 ? 100 : 0;
+        const cost = out + others.reduce((sum, [a, c, wt]) => sum + (a > l - 12 && a < l + w + 12 && c > u - 12 && c < u + h + 12 ? wt : 0), 0) + i / 10;
+        if (cost < best) { best = cost; tip.dataset.side = `${sx},${sy}`; }
+      });
+    }
+    const [sx, sy] = (tip.dataset.side || "1,-1").split(",").map(Number);
+    tip.style.transform = `translate(${Math.round(x + sx * big)}px, ${Math.round(y + sy * 10)}px) translate(${sx < 0 ? "-100%" : "0"}, ${sy > 0 ? "0" : "-100%"})`;
+  }
+
+  function sweep() {
+    const s = $("rdm-sw"), box = $("rdm-pins"), rd = $("rdm");
+    if (!s || rd.classList.contains("spin")) return;
+    s.classList.remove("go"); box.classList.remove("reveal");
+    void s.offsetWidth;
+    s.classList.add("go"); box.classList.add("reveal");
+    clearTimeout(sweep.t); sweep.t = setTimeout(() => { s.classList.remove("go"); box.classList.remove("reveal"); }, 3000);
+  }
+
+  // ---------- imagens pequenas: o sítio visto de cima (é mesmo aquele sítio), o ícone do site ou as iniciais ----------
+  function satTiles(lat, lon, z, w, h) {
+    const left = wx(lon, z) - w / 2, top = wy(lat, z) - h / 2, im = [], pos = [];
+    for (let x = Math.floor(left / TS); x <= Math.floor((left + w) / TS); x++) for (let y = Math.floor(top / TS); y <= Math.floor((top + h) / TS); y++) {
+      im.push(`url(${tile(z, x, y)})`); pos.push(`${Math.round(x * TS - left)}px ${Math.round(y * TS - top)}px`);
+    }
+    return `width:${w}px;height:${h}px;background-image:${im.join(",")};background-position:${pos.join(",")}`;
+  }
+  const initials = (s) => String(s || "?").replace(/[^\p{L}\p{N} ]/gu, "").split(/\s+/).filter((w) => w.length > 2 || /^\d/.test(w)).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || String(s || "?")[0].toUpperCase();
+  function thumb(x) {
+    if (placed(x)) return `<span class="rd-th"><span class="rd-th-i" style="${satTiles(num(x.lat), num(x.lon), 17, 46, 36)}"></span></span>`;
+    if (x.site) return `<span class="rd-th fav"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(host(x.site))}&sz=64" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"><em>${esc(initials(x.nome))}</em></span>`;
+    return `<span class="rd-th mono"><em>${esc(initials(x.nome))}</em></span>`;
+  }
+
+  // ---------- a empresa escolhida ----------
+  function paintCard() {
+    const box = $("rdc");
+    if (!box) return;
+    const n = SC?.negocios?.find((x) => x.id === focus);
+    if (!n) {
+      paint(box, `<div class="rdc-none">${ui.empty("target", SC?.job ? "O Radar está a trabalhar" : SC && !SC.negocios?.length ? "Sem resultados" : SC ? "Nada com este filtro" : "Escolhe uma empresa no mapa", SC?.job ? "As empresas aparecem aqui à medida que são vistas." : SC && !SC.negocios?.length ? "Experimenta outra zona ou outro tipo de empresa." : SC ? "Tira o filtro ou aumenta o raio." : "Faz uma pesquisa e clica num ponto para ver tudo sobre essa empresa.")}</div>`);
+      return;
+    }
+    if (!asked.has(n.id)) {  // só para mostrar o logótipo se a ficha já existir; abrir a ficha é que a faz
+      asked.add(n.id);
+      api(`/api/radar/${cur}/${n.id}/ficha`).then((r) => { if (r?.ficha) { FX[n.id] = FX[n.id] || r; if (focus === n.id) paintCard(); } }).catch(() => {});
+    }
+    const lv = nivel(n), [cls, label] = TEMP[lv], v = vale(n), tel = phones(n)[0], mail = emails(n)[0], lead = leadOf(n), m = FX[n.id]?.ficha?.marca || {};
+    const pts = (SC.negocios || []).map((x) => vale(x).pontos), avg = pts.reduce((a, b) => a + b, 0) / (pts.length || 1), diff = Math.round(v.pontos - avg);
+    const when = lead?.at || n.lead?.at || SC.fim || SC.at, km = kmOf(n), logo = m.logo || m.icone;
+    const out = (n.audit || {}).final || n.site || gMaps(n);
+    const tabs = [["resumo", "Resumo"], ["hist", "Histórico"], ["opor", "Oportunidades"], ["notas", "Notas"]];
+    const hist = [...(lead?.atividades || []).slice().reverse().slice(0, 4).map((a) => [a.at, a.texto, a.por]), [SC.fim || SC.at, t("Encontrada pelo Radar em {l}.", { l: SC.ramo_nome }), "Radar"]];
+    const pane = cardTab === "hist" ? `<ul class="rdc-hist">${hist.map(([at, x, p]) => `<li><span>${esc(rel(at))}</span><p>${esc(x)}</p><em>${esc(p || "")}</em></li>`).join("")}</ul>`
+      : cardTab === "opor" ? ((n.problemas || []).length ? `<ul class="rdc-opor">${n.problemas.slice(0, 3).map((p) => `<li><p>${esc(p.problema)}</p></li>`).join("")}</ul>` : `<p>${esc(t("O site está bem feito: pouco a propor no site."))}</p>`)
+      : cardTab === "notas" ? `<textarea class="inp rdc-nota" data-nota="${n.id}" placeholder="${esc(t("Com quem falaste, o que disse, quando voltar a ligar"))}">${esc(n.lead?.nota || "")}</textarea>`
+      : `<p>${esc([...v.porque.slice(0, 2)].join(". ").replace(/\.\./g, ".")) || esc(t("Sem dados"))}</p>${v.passo ? `<p class="rdc-next">${esc(t("Primeiro passo: {p}", { p: t(v.passo) }))}</p>` : ""}`;
+    paint(box, `<div class="rdc-top">
+        <a class="rdc-hero ${placed(n) ? "" : "mono"}" href="${esc(gMaps(n))}" target="_blank" rel="noopener" title="${esc(t("Ver no mapa"))}">
+          ${placed(n) ? `<span class="rdc-sat" style="${satTiles(num(n.lat), num(n.lon), 18, 320, 200)}"></span><i class="rdc-mark"></i>` : `<em>${esc(initials(n.nome))}</em>`}
+          ${logo ? `<span class="rdc-logo"><img src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.remove()"></span>` : ""}
+        </a>
+        <div class="rdc-id">
+          <div class="rdc-name"><h2 title="${esc(n.nome)}">${esc(n.nome)}</h2><span class="rdc-tag ${cls}">${lv === "quente" ? IC.flame : ""}${esc(t(label))}</span>
+            <a class="rdc-out" href="${esc(out)}" target="_blank" rel="noopener" title="${esc(n.site ? host(n.site) : t("Ver no mapa"))}">${IC.out}</a></div>
+          <p class="rdc-kind">${esc(SC.ramo_nome || "")}</p>
+          <p class="rdc-where">${I.pin}<span>${esc(place(n) || t("Sem morada"))}${km != null ? ` <em>· ${esc(kmText(km))}</em>` : ""}</span></p>
+        </div>
+      </div>
+      <div class="rdc-stats">
+        <div><span class="rdc-ic star">${IC.star}</span><div><small>${esc(t("Potencial"))}</small><b>${v.pontos}<u>/100</u>${diff ? `<span class="rdc-delta ${diff > 0 ? "up" : "dn"}" title="${esc(t("Em relação à média desta pesquisa"))}">${diff > 0 ? IC.up : IC.down}${diff > 0 ? "+" : ""}${diff}</span>` : ""}</b></div></div>
+        <div><span class="rdc-ic">${IC.clock}</span><div><small>${esc(t("Última atividade"))}</small><b class="tx">${esc(rel(when))}</b></div></div>
+      </div>
+      <div class="rdc-acts">
+        <button type="button" class="rdc-b main" data-open="${n.id}">${IC.diamond}${esc(t("Ver Detalhes"))}</button>
+        ${tel ? `<a class="rdc-b" href="tel:${esc(tel.replace(/\s/g, ""))}" title="${esc(tel)}">${I.tel}${esc(t("Ligar"))}</a>` : `<span class="rdc-b off" title="${esc(t("Sem telefone à vista"))}">${I.tel}${esc(t("Ligar"))}</span>`}
+        ${mail ? `<a class="rdc-b" href="${esc(mailto(n, mail))}" data-mail="${n.id}" title="${esc(mail)}">${I.mail}${esc(t("Email"))}</a>` : `<span class="rdc-b off" title="${esc(t("Sem email à vista"))}">${I.mail}${esc(t("Email"))}</span>`}
+        ${lead ? `<a class="rdc-b done" href="#/crm">${IC.tick}${esc(t("Já no CRM"))}</a>` : `<button type="button" class="rdc-b" data-addcrm="${cur}/${n.id}">${IC.plus}${esc(t("Adicionar ao CRM"))}</button>`}
+      </div>
+      <div class="rdc-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="${cardTab === k ? "on" : ""}" data-ctab="${k}">${esc(t(l))}</button>`).join("")}</div>
+      <div class="rdc-pane">${pane}</div>
+      <div class="rdc-src">${esc(t("Fonte: Radar AMG"))}${IC.raio}</div>`);
+  }
+
+  // ---------- o pipeline: as fases do CRM juntas nas quatro colunas ----------
+  const COLS = [["blue", "Novos Leads", ["novo"], "Sem leads novos"], ["navy", "Em Contacto", ["contactado", "respondeu"], "Ninguém em contacto"],
+    ["amber", "Negociação", ["reuniao", "proposta"], "Nada em negociação"], ["green", "Fechados", ["fechou"], "Nada fechado ainda"]];
+
+  function paintPipe() {
+    const box = $("rdp");
+    if (!box) return;
+    if (!D) { paint(box, `<div class="rdx-h"><span class="rdx-ic">${IC.bars}</span><div><h3>${esc(t("Pipeline de CRM"))}</h3></div></div><p class="rd-none">${esc(t("Sem dados"))}</p>`); return; }
+    const leads = D.leads.filter((l) => !pipeF || l.nivel === pipeF);
+    const mini = (l) => {
+      const [cls, label] = TEMP[l.nivel] || [], won = l.stage === "fechou";
+      return `<button type="button" class="rdp-m" data-lf="${esc(`${l.sid}/${l.nid}`)}">${thumb(l)}<span class="rdp-t"><b title="${esc(l.nome)}">${esc(l.nome)}</b><span class="rdp-2">
+        ${won ? `<small class="won">${IC.tick}${esc(t("Ganho"))}${l.valor != null ? ` · ${esc(money(l.valor))}` : ""}</small>`
+          : `<small class="${cls || ""}">${cls ? `<i></i>${esc(t(label))}` : ""}${l.vale ? ` · ${l.vale.pontos}%` : ""}</small><em title="${esc(rel(l.at))}">${esc(relS(l.at))}</em>`}</span></span></button>`;
+    };
+    const cols = COLS.map(([tone, name, stages, none], i) => {
+      const inCol = leads.filter((l) => stages.includes(l.stage));
+      const hints = i === 0 && !inCol.length ? (D.radar || []).filter((x) => !pipeF || x.nivel === pipeF).slice(0, 3) : [];
+      const body = inCol.length ? inCol.slice(0, 3).map(mini).join("")
+        : hints.length ? `<p class="rdp-hint">${esc(t("Sugestões do Radar"))}</p>${hints.map((x) => { const [c, l] = TEMP[x.nivel] || []; return `<div class="rdp-m sug"><button type="button" class="rdp-go" data-lf="${esc(`${x.sid}/${x.nid}`)}">${thumb(x)}<span class="rdp-t"><b title="${esc(x.nome)}">${esc(x.nome)}</b><span class="rdp-2"><small class="${c || ""}">${c ? `<i></i>${esc(t(l))} · ` : ""}${x.pontos}%</small></span></span></button>
+            <button type="button" class="rdp-add" data-addcrm="${esc(`${x.sid}/${x.nid}`)}" title="${esc(t("Adicionar ao CRM"))}" aria-label="${esc(t("Adicionar {n} ao CRM", { n: x.nome }))}">${IC.plus}</button></div>`; }).join("")}`
+        : `<p class="rdp-none">${esc(t(none))}</p>`;
+      return `<div class="rdp-c ${tone}"><a class="rdp-h" href="#/crm"><b>${esc(t(name))}</b><span>${inCol.length}</span>${IC.chev}</a><div class="rdp-l">${body}</div><a class="rdp-more" href="#/crm">${esc(t("Ver todos"))}${IC.arrow}</a></div>`;
+    }).join("");
+    paint(box, `<div class="rdx-h"><span class="rdx-ic green">${IC.bars}</span><div><h3>${esc(t("Pipeline de CRM"))}</h3><p>${esc(t("Negócios em curso"))}</p></div>
+        <label class="rdx-sel"><select id="rd-pipef" aria-label="${esc(t("Filtrar o pipeline"))}">${[["", "Todos"], ["quente", "Quentes"], ["morna", "Mornas"], ["fria", "Frias"]].map(([k, l]) => `<option value="${k}" ${pipeF === k ? "selected" : ""}>${esc(t(l))}</option>`).join("")}</select></label></div>
+      <div class="rdp-cs">${cols}</div>`);
+  }
+
+  // ---------- a atividade: o que aconteceu mesmo, do Radar e do CRM ----------
+  function feed() {
+    const out = [];
+    const negs = (SC?.negocios || []).slice().sort(byScore);
+    if (SC && !SC.job && negs[0]) out.push({ at: SC.fim || SC.at, tone: "hot", ic: "<i></i>", tit: "Nova oportunidade detetada pelo Radar", sub: [negs[0].nome, kmText(kmOf(negs[0]))].filter(Boolean).join(" · "), lf: `${cur}/${negs[0].id}` });
+    (S?.varreduras || []).slice(0, 4).forEach((v) => {
+      if (v.job || !v.resumo?.total) return;
+      out.push({ at: (v.fim || v.at) - .5, tone: "blue", ic: IC.tick, tit: "Radar concluiu a análise", sub: t("{n} empresas · {r}", { n: v.resumo.total, r: [v.ramo_nome, v.local].filter(Boolean).join(", ") }), scan: v.id });
+    });
+    (D?.leads || []).forEach((l) => {
+      (l.atividades || []).forEach((a) => {
+        const k = `${l.sid}/${l.nid}`;
+        if (a.por === "PES") out.push({ at: a.at, tone: "blue", ic: IC.tick, tit: "Agente de Pesquisa concluiu análise", sub: l.nome, lf: k });
+        else if (a.por === "MKT") out.push({ at: a.at, tone: "gold", ic: IC.feed, tit: "Mensagem escrita pelo Marketing", sub: l.nome, lf: k });
+        else if (a.por === "OPS") out.push({ at: a.at, tone: "white", ic: IC.task, tit: "Nova tarefa atribuída", sub: `${String(a.texto || "").replace(/^Operações: próxima ação «(.*)» para.*$/, "$1")} · ${l.nome}`, lf: k });
+        else out.push({ at: a.at, tone: "white", ic: IC.feed, tit: (D.tipos || {})[a.tipo] || "Atividade", sub: `${l.nome}${a.texto ? ` · ${a.texto}` : ""}`, lf: k });
+      });
+      if (l.stage === "fechou") out.push({ at: l.at, tone: "green", ic: IC.tick, tit: "Negócio fechado", sub: [l.nome, money(l.valor)].filter(Boolean).join(" · "), lf: `${l.sid}/${l.nid}` });
+    });
+    return out.sort((a, b) => b.at - a.at).slice(0, 4);
+  }
+
+  function paintFeed() {
+    const box = $("rda");
+    if (!box) return;
+    const ev = feed();
+    paint(box, `<div class="rdx-h"><span class="rdx-ic green">${IC.feed}</span><div><h3>${esc(t("Atividade Recente"))}</h3></div><a class="rdx-more" href="#/crm">${esc(t("Ver tudo"))}${IC.arrow}</a></div>
+      ${ev.length ? `<ol class="rda-l">${ev.map((e) => `<li class="${e.tone}"><span class="rda-ic">${e.ic}</span><button type="button" ${e.lf ? `data-lf="${esc(e.lf)}"` : e.scan ? `data-scan="${esc(e.scan)}"` : ""}><span class="rda-tt"><b>${esc(t(e.tit))}</b><em>${esc(rel(e.at))}</em></span><small title="${esc(e.sub)}">${esc(e.sub)}</small></button></li>`).join("")}</ol>`
+        : `<p class="rd-none">${esc(t("Sem atividade ainda: faz uma pesquisa."))}</p>`}`);
+  }
+
+  // ---------- os agentes: os três departamentos, com o último trabalho real de cada um ----------
+  function paintAgents() {
+    const box = $("rdg");
+    if (!box) return;
+    const last = {};
+    (D?.leads || []).forEach((l) => (l.atividades || []).forEach((a) => { if (!last[a.por] || a.at > last[a.por].at) last[a.por] = { at: a.at, nome: l.nome }; }));
+    paint(box, `<div class="rdx-h"><span class="rdx-ic">${IC.bot}</span><div><h3>${esc(t("Agentes Ativos"))}</h3></div><a class="rdx-more" href="#/empresa">${esc(t("Ver todos"))}${IC.arrow}</a></div>
+      <div class="rdg-l">${AGENTS.map((a) => { const l = last[a.tag]; return `<button type="button" class="rdg-a" data-run="${a.k}" title="${esc(t("Pôr este agente a trabalhar na empresa escolhida"))}">${a.svg()}
+        <span class="rdg-t"><span class="rdg-n"><b>${esc(a.nome)}</b><span class="rdg-on">${esc(t("Online"))}</span></span><small>${esc(l ? `${l.nome} · ${rel(l.at)}` : t(a.papel))}</small></span></button>`; }).join("")}</div>`);
+  }
+
+  // ---------- a barra de baixo ----------
+  function series() {
+    const days = 30, now = Math.floor(Date.now() / 86400000), raw = new Array(days).fill(0);
+    const add = (ts, v = 1) => { const i = days - 1 - (now - Math.floor(ts * 1000 / 86400000)); if (ts && i >= 0 && i < days) raw[i] += v; };
+    (S?.varreduras || []).forEach((v) => add(v.fim || v.at, v.resumo?.total || 0));
+    (D?.leads || []).forEach((l) => (l.atividades || []).forEach((a) => add(a.at)));
+    const soft = raw.map((_, i) => [-2, -1, 0, 1, 2].reduce((s, d, j) => s + (raw[i + d] || 0) * [1, 3, 5, 3, 1][j], 0) / 13);
+    return { raw, soft, total: raw.reduce((a, b) => a + b, 0) };
+  }
+  function spark() {
+    const { soft, total } = series(), W = 600, H = 44, max = Math.max(...soft), top = max || 1;
+    const X = (i) => i / (soft.length - 1) * W, Y = (v) => H - 3 - v / top * (H - 10);
+    const pts = soft.map((v, i) => [X(i), Y(v)]);
+    let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+    for (let i = 1; i < pts.length; i++) { const mx = (pts[i - 1][0] + pts[i][0]) / 2; d += ` C${mx.toFixed(1)} ${pts[i - 1][1].toFixed(1)} ${mx.toFixed(1)} ${pts[i][1].toFixed(1)} ${pts[i][0].toFixed(1)} ${pts[i][1].toFixed(1)}`; }
+    const pk = soft.indexOf(max);
+    return `<div class="rdb-sp" title="${esc(t("Empresas encontradas e atividade no CRM, últimos 30 dias: {n}", { n: total }))}"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="rdb-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fe6a0" stop-opacity=".26"/><stop offset="1" stop-color="#3fe6a0" stop-opacity="0"/></linearGradient></defs>
+      <path d="${d} L${W} ${H} L0 ${H}Z" fill="url(#rdb-f)"/><path d="${d}" class="ln"/></svg>${total ? `<i style="left:${(pk / (soft.length - 1) * 100).toFixed(2)}%;top:${(Y(max) / H * 100).toFixed(1)}%"></i>` : ""}</div>`;
+  }
+  function paintStrip() {
+    const box = $("rdb");
+    if (!box) return;
+    const on = TEAM ? TEAM.filter((m) => m.status !== "OFFLINE").length : null;
+    const five = LIM && me ? LIM[me.username]?.five : null;
+    const open = TASKS ? TASKS.filter((x) => !x.trashed_at && !["COMPLETED", "CANCELLED"].includes(x.status)).length : null;
+    const taxa = D?.resumo?.taxa;
+    const none = `<b class="no">${esc(t("Sem dados"))}</b>`;
+    paint(box, `<a class="rdb-c" href="#/equipa"><span class="rdb-ic blue">${IC.user}</span><span><small>${esc(t("Equipa AMG"))}</small>${on == null ? none : `<b class="ok"><i></i>${esc(t("{n} Online", { n: on }))}</b>`}</span></a>
+      <a class="rdb-c" href="#/uso" title="${esc(t("O que resta da janela de 5 horas do Claude"))}"><span class="rdb-ic">${IC.inf}</span><span><small>${esc(t("Tokens"))}</small>${five == null ? none : `<b class="${five >= 85 ? "bad" : five >= 60 ? "warn" : "ok"}">${Math.max(0, 100 - Math.round(five))}% <u>${esc(t("livres · 5 h"))}</u></b>`}</span></a>
+      <a class="rdb-c" href="#/tarefas"><span class="rdb-ic">${IC.list}</span><span><small>${esc(t("Tarefas Ativas"))}</small>${open == null ? none : `<b>${open}</b>`}</span></a>
+      <a class="rdb-c wide" href="#/crm" title="${esc(t("Ganhos sobre os negócios já decididos (ganhos e perdidos) no CRM"))}"><span class="rdb-ic">${IC.gauge}</span><span><small>${esc(t("Taxa de Sucesso"))}</small>${taxa == null ? none : `<b class="ok">${IC.up}${taxa}%</b>`}</span>${spark()}</a>`);
+  }
+
+  // os cliques do painel; devolve true quando o clique era dele
+  async function dashClick(e) {
+    const b = e.target.closest("[data-temp],[data-pin],[data-open],[data-addcrm],[data-ctab],[data-zoom],[data-recenter],[data-fs],[data-newf],[data-closeq],[data-lf],[data-scan],[data-run]");
+    if (e.target === $("rd-modal")) { closeForm(); return true; }
+    if (!b) return false;
+    const d = b.dataset;
+    if (d.temp) {
+      temp = d.temp; store("radar.temp", temp); closeDr();
+      paintAll(); paintList(); sweep();
+    } else if (d.pin) {
+      focus = d.pin; cardTab = "resumo"; M.hover = "";
+      M.pins.forEach((p) => p.el.classList.toggle("on", p.id === focus));
+      paintCard(); tipDraw();
+    } else if (d.open) openDr(d.open);
+    else if (d.addcrm) {
+      const [sid, nid] = d.addcrm.split("/");
+      b.disabled = true;
+      try {
+        await api("/api/crm/add", { method: "POST", body: { sid, nid } });
+        D = await api("/api/crm"); S = await api("/api/radar");
+        if (sid === cur) SC = await api(`/api/radar/${cur}`);
+        msg(t("Adicionada ao CRM como novo lead."));
+        paintAll();
+      } catch (err) { b.disabled = false; msg(err.message); }
+    } else if (d.ctab) { cardTab = d.ctab; paintCard(); }
+    else if (d.zoom) mapZoom(Number(d.zoom));
+    else if (d.recenter) mapFit();
+    else if (d.fs) {
+      try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch { msg(t("O browser não deixou abrir em ecrã inteiro.")); }
+    } else if (d.newf) openForm();
+    else if (d.closeq) closeForm();
+    else if (d.lf) {
+      const [sid, nid] = d.lf.split("/");
+      if (sid && sid !== cur) { cur = sid; store(KEY, cur); raioF = ""; await loadScan(); }
+      let n = SC?.negocios.find((x) => x.id === nid);
+      if (n && !inScope(n)) { temp = "all"; raioF = ""; store("radar.temp", temp); paintAll(); paintList(); n = SC.negocios.find((x) => x.id === nid); }
+      if (n) { focus = nid; cardTab = "resumo"; M.pins.forEach((p) => p.el.classList.toggle("on", p.id === focus)); paintCard(); mapShow(n); tipDraw(); }
+    } else if (d.scan) { if (d.scan !== cur) { raioF = ""; await pick(d.scan); } }
+    else if (d.run) {
+      const n = SC?.negocios.find((x) => x.id === focus), lead = leadOf(n);
+      if (!n) msg(t("Escolhe primeiro uma empresa no mapa."));
+      else if (!lead) msg(t("Adiciona primeiro {n} ao CRM: os agentes trabalham nos leads do CRM.", { n: n.nome }));
+      else {
+        b.classList.add("busy");
+        try {
+          await api("/api/crm/agente", { method: "POST", body: { key: lead.key, agente: d.run } });
+          D = await api("/api/crm"); msg(t("Feito em {n}: vê o resultado no CRM.", { n: n.nome })); paintAll();
+        } catch (err) { msg(err.message); }
+        b.classList.remove("busy");
+      }
+    }
+    return true;
+  }
 })();

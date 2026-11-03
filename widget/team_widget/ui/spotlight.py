@@ -65,27 +65,47 @@ class Head(QWidget):
         p.drawText(QRectF(46, 24, room, 16), Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_note).elidedText(self.note, Qt.ElideRight, room))
 
 
+GAP = 8   # between two groups of the list
+
+
+def group_shape(r: QRectF, radius: float, top: bool, bottom: bool) -> QPainterPath:
+    """A slice of a grouped list: round corners only where the group starts and ends."""
+    path = QPainterPath()
+    path.addRoundedRect(r, radius, radius)
+    if top and bottom:
+        return path
+    square = QPainterPath()
+    if not top:
+        square.addRect(QRectF(r.left(), r.top(), r.width(), r.height() / 2))
+    if not bottom:
+        square.addRect(QRectF(r.left(), r.center().y(), r.width(), r.height() / 2))
+    return path.united(square).simplified()
+
+
 class Row(Hover):
-    """One line of the card: the person's photo (or a dot in the state's colour), a title, a line under it, a figure on
-    the right, and up to two thin bars (the Claude limits). Indented rows are the windows under a partner."""
+    """One line of the card, inside a group (3 Nov, Marco: «essas abas estão... tipo Android... a da equipa está bem
+    confusa... tudo junto»): the lines of one thing share one rounded block with hairlines between them, as the lists of
+    iOS Settings, instead of a glass box each with the car through it. A line: the person's photo (or a dot in the
+    state's colour), a title, a line under it, a figure on the right, and up to two thin bars (the Claude limits).
+    `head` is a partner at the top of their group (Equipa); the lines after it are their windows. No tooltips: the old
+    black Windows box is what Marco called «a cena do Windows antigo»."""
 
     def __init__(self):
         super().__init__()
         self.item = {}
+        self.first, self.last, self.gap = True, True, False
         self._f_title, self._f_sub, self._f_right, self._f_bar = (font(9, QFont.DemiBold, UI), font(8, QFont.Normal, UI),
                                                                   font(8.5, QFont.DemiBold, DISPLAY), font(7, QFont.DemiBold, UI))
+        self._f_head = font(10, QFont.DemiBold, DISPLAY)
         photos().ready.connect(self.update)
 
-    def show_item(self, item: dict):
-        h = 50 if item.get("bars") else 38 if item.get("sub") else 26
-        if item.get("indent"):
-            h = 34 if item.get("sub") else 24
-        self.setFixedHeight(h)
+    def show_item(self, item: dict, first=True, last=True, gap=False):
+        h = 56 if item.get("bars") else 48 if item.get("head") else 42 if item.get("sub") else 32
+        self.setFixedHeight(h + (GAP if gap else 0))
         self.setEnabled(bool(item.get("action")))
         self.setCursor(Qt.PointingHandCursor if item.get("action") else Qt.ArrowCursor)
-        self.setToolTip(item.get("tip", ""))
-        if item != self.item:
-            self.item = item
+        if (item, first, last, gap) != (self.item, self.first, self.last, self.gap):
+            self.item, self.first, self.last, self.gap = item, first, last, gap
             self.update()
 
     def paintEvent(self, _):
@@ -95,24 +115,27 @@ class Row(Hover):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        r = QRectF(self.rect()).adjusted(0, 1, 0, -1)
+        r = QRectF(self.rect()).adjusted(0, GAP if self.gap else 0, 0, 0)
+        shape = group_shape(r, 12, self.first, self.last)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 19 if it.get("head") else 12))
+        p.drawPath(shape)
         if it.get("action"):
-            shape = QPainterPath()
-            shape.addPath(cut_path(r, 11, 11))
-            clear_glass(p, shape, r)   # the same clear glass as the central (29 Oct), the car through it
             if self.hover:
-                p.setPen(Qt.NoPen)
-                p.setBrush(QColor(255, 255, 255, int(16 * self.hover)))
+                p.setBrush(QColor(255, 255, 255, int(14 * self.hover)))
                 p.drawPath(shape)
             self.paint_wave(p, shape)
-        x = 10.0
-        if it.get("indent"):
-            x = 30.0
+        x = 12.0
+        if not self.first:   # the hairline between two lines of a group, from where the text starts
+            p.setPen(QPen(QColor(255, 255, 255, 22), 1))
+            start = x + (38 if it.get("user") else 16)
+            p.drawLine(QPointF(r.left() + start, r.top() + 0.5), QPointF(r.right(), r.top() + 0.5))
         colour = it.get("colour") or MUTED
+        two = bool(it.get("sub") or it.get("bars"))
         if it.get("user"):
             s = 28
             pic = photos().photo(it["user"], s, self.devicePixelRatioF())
-            top = QPointF(x, r.top() + (min(r.height(), 40) - s) / 2 + (4 if it.get("bars") else 0))
+            top = QPointF(x, r.top() + (8 if it.get("bars") else (r.height() - s) / 2))
             if not it.get("online", True):
                 p.setOpacity(0.5)
             if pic is not None:
@@ -125,40 +148,42 @@ class Row(Hover):
             p.drawEllipse(QPointF(top.x() + s - 3, top.y() + s - 3), 3.6, 3.6)
             x += s + 10
         else:
-            dot = QPointF(x + 4, r.top() + (13 if it.get("sub") else r.height() / 2))
+            dot = QPointF(x + 4, r.top() + (15 if two else r.height() / 2))
             glow_disc(p, dot, 7, 7, colour, 0.35)
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(colour))
             p.drawEllipse(dot, 3.2, 3.2)
             x += 16
+        line1 = QRectF(0, r.top() + 6, 0, 18) if two else QRectF(0, r.top(), 0, r.height())
         right = it.get("right", "")
         rw = QFontMetricsF(self._f_right).horizontalAdvance(right) + 6 if right else 0
-        room = r.width() - x - rw - 10
+        room = r.width() - x - rw - 14
         p.setFont(self._f_right)
         p.setPen(QColor(it.get("right_colour") or FAINT))
-        p.drawText(QRectF(r.right() - rw - 8, r.top() + 4, rw, 18), Qt.AlignRight | Qt.AlignVCenter, right)
-        p.setFont(self._f_title)
+        p.drawText(QRectF(r.right() - rw - 12, line1.top(), rw, line1.height()), Qt.AlignRight | Qt.AlignVCenter, right)
+        f_title = self._f_head if it.get("head") else self._f_title
+        p.setFont(f_title)
         p.setPen(QColor(it.get("title_colour") or TEXT))
-        p.drawText(QRectF(x, r.top() + (4 if it.get("sub") or it.get("bars") else 0), room, 18 if it.get("sub") or it.get("bars") else r.height()),
-                   Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(self._f_title).elidedText(it.get("title", ""), Qt.ElideRight, room))
+        p.drawText(QRectF(x, line1.top(), room, line1.height()),
+                   Qt.AlignLeft | Qt.AlignVCenter, QFontMetricsF(f_title).elidedText(it.get("title", ""), Qt.ElideRight, room))
         if it.get("sub"):
             p.setFont(self._f_sub)
             p.setPen(QColor(it.get("sub_colour") or MUTED))
-            sub_room = r.width() - x - 10
-            p.drawText(QRectF(x, r.top() + 19, sub_room, 15), Qt.AlignLeft | Qt.AlignVCenter,
+            sub_room = r.width() - x - 12
+            p.drawText(QRectF(x, r.top() + 23, sub_room, 15), Qt.AlignLeft | Qt.AlignVCenter,
                        QFontMetricsF(self._f_sub).elidedText(it["sub"], Qt.ElideRight, sub_room))
         bars = it.get("bars") or []
         if bars:   # [(pct or None, name)]: side by side, the name and the figure over each bar
-            gap = 10
-            each = (r.width() - x - 10 - gap * (len(bars) - 1)) / len(bars)
+            gap = 12
+            each = (r.width() - x - 12 - gap * (len(bars) - 1)) / len(bars)
             for i, (pct, name) in enumerate(bars):
                 bx = x + i * (each + gap)
                 p.setFont(self._f_bar)
                 p.setPen(QColor(MUTED))
-                p.drawText(QRectF(bx, r.top() + 20, each, 13), Qt.AlignLeft | Qt.AlignVCenter, name)
+                p.drawText(QRectF(bx, r.top() + 25, each, 13), Qt.AlignLeft | Qt.AlignVCenter, name)
                 p.setPen(QColor(TEXT if pct is not None else FAINT))
-                p.drawText(QRectF(bx, r.top() + 20, each, 13), Qt.AlignRight | Qt.AlignVCenter, "—" if pct is None else f"{round(pct)}%")
-                bar = QRectF(bx, r.top() + 36, each, 4)
+                p.drawText(QRectF(bx, r.top() + 25, each, 13), Qt.AlignRight | Qt.AlignVCenter, "—" if pct is None else f"{round(pct)}%")
+                bar = QRectF(bx, r.top() + 41, each, 4)
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(255, 255, 255, 22))
                 cut(p, bar, 2, 2)
@@ -174,7 +199,6 @@ class Pill(Hover):
     def __init__(self, text, action, primary=False, tip="", colour=None):
         super().__init__()
         self.text, self.action, self.primary, self.colour = text, action, primary, colour
-        self.setToolTip(tip)
         self.setFixedHeight(32 if primary else 30)
         self._f = font(8.5, QFont.DemiBold, UI)
         self.setMinimumWidth(round(QFontMetricsF(self._f).horizontalAdvance(text)) + 28)
@@ -193,12 +217,10 @@ class Pill(Hover):
             p.setPen(QPen(QColor(255, 255, 255, 90), 1))
             p.setBrush(body)
             p.drawPath(shape)
-        else:   # clear glass, a touch brighter under the mouse
-            clear_glass(p, shape, r)
-            if self.hover:
-                p.setPen(Qt.NoPen)
-                p.setBrush(QColor(255, 255, 255, int(16 * self.hover)))
-                p.drawPath(shape)
+        else:   # a quiet grey capsule, a touch brighter under the mouse
+            p.setPen(QPen(QColor(255, 255, 255, 26), 1))
+            p.setBrush(QColor(255, 255, 255, 16 + int(14 * self.hover)))
+            p.drawPath(shape)
         self.paint_wave(p, shape, "#000000" if self.primary else WHITE)
         p.setPen(QColor("#0b0b0d") if self.primary else QColor(TEXT))
         p.setFont(self._f)
@@ -236,7 +258,7 @@ class Spotlight(QWidget):
         self.grid.setContentsMargins(0, 2, 0, 2)
         col.addLayout(self.grid)
         self.list = QVBoxLayout()
-        self.list.setSpacing(3)
+        self.list.setSpacing(0)
         col.addLayout(self.list)
         self.rows: list[Row] = []
         self.empty = label("", 8.5, FAINT, wrap=True)
@@ -277,10 +299,12 @@ class Spotlight(QWidget):
             row.clicked.connect(lambda _=False, row=row: row.item.get("action") and self._do(row.item["action"])())
             self.list.addWidget(row)
             self.rows.append(row)
-        for row, item in zip(self.rows, items + [None] * len(self.rows)):
+        # groups: a line with `group` (a partner, a person's limits) starts a new block; the rest join the block above
+        starts = [i == 0 or bool(it.get("group")) for i, it in enumerate(items)]
+        for i, (row, item) in enumerate(zip(self.rows, items + [None] * len(self.rows))):
             row.setVisible(item is not None)
             if item is not None:
-                row.show_item(item)
+                row.show_item(item, first=starts[i], last=i + 1 == len(items) or starts[i + 1], gap=starts[i] and i > 0)
         self.empty.setText(c.get("empty", ""))
         self.empty.setVisible(bool(c.get("empty")) and not items)
         sig = tuple((text, primary, colour) for text, _, primary, colour in c.get("buttons", []))
@@ -313,9 +337,13 @@ class Spotlight(QWidget):
 
     @staticmethod
     def _clear(layout):
+        # out at once: with only deleteLater the old buttons stayed painted on the card, so a destaque opened from another
+        # showed the old «Escritório ›» over the new lines (3 Nov, Marco: «tudo junto, tapa-te»)
         while layout.count():
             item = layout.takeAt(0)
             if item.widget():
+                item.widget().hide()
+                item.widget().setParent(None)
                 item.widget().deleteLater()
             elif item.layout():
                 Spotlight._clear(item.layout())
@@ -376,4 +404,5 @@ class Spotlight(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        WidgetWindow._paint_panel(p, QRectF(SHADOW, SHADOW, self.width() - 2 * SHADOW, self.height() - 2 * SHADOW), 22, True)
+        # flat black without the car (3 Nov): the lines are read at a glance, and the photo behind them made it busy
+        WidgetWindow._paint_panel(p, QRectF(SHADOW, SHADOW, self.width() - 2 * SHADOW, self.height() - 2 * SHADOW), 22, True, scene=False)

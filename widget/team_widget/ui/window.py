@@ -1572,9 +1572,11 @@ def paint_gauge(p: QPainter, r: QRectF, arcs, value="", key=None, segments=None,
     p.restore()
 
 
-def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, dpr=1.0, glass=False):
+def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, dpr=1.0, glass=False, name="", f_name=None):
     """An option on the minimized card, small: a capsule of glass with a tiny ring (the gauge's arc, or one piece per
-    partner) round the option's glyph, and the figure beside it in the gauge's colour."""
+    partner) round the option's glyph, and the figure beside it in the gauge's colour. With `name` (the star's column,
+    3 Nov) the option's name follows the ring and the figure sits on the right, as a line of an iOS list: no tooltip
+    needed to know which is which."""
     p.save()
     if glass:   # 30 Oct, David on the Mac: «um vidro muito transparente como... com o widget» — the central's clear glass
         body = r.adjusted(0.5, 0.5, -0.5, -0.5)
@@ -1604,9 +1606,17 @@ def paint_chip(p: QPainter, r: QRectF, key: str, g, f_value: QFont, hot=False, d
             p.setPen(pen(QColor(g.arcs[0][1]), 1.7))
             p.drawArc(ring, 225 * 16, -round(SWEEP * 16 * min(1.0, g.arcs[0][0])))
     p.drawPixmap(QPointF(c.x() - 5, c.y() - 5), glyph(key, 10, "#eef0f3", dpr, 2.3))
-    p.setFont(f_value)
-    p.setPen(QColor(g.ink))
-    p.drawText(QRectF(r.left() + 25, r.top(), r.width() - 28, r.height()), Qt.AlignLeft | Qt.AlignVCenter, g.value or "—")
+    if name:
+        p.setFont(f_name or f_value)
+        p.setPen(QColor(235, 237, 241))
+        p.drawText(QRectF(r.left() + 27, r.top(), r.width() - 30, r.height()), Qt.AlignLeft | Qt.AlignVCenter, name)
+        p.setFont(f_value)
+        p.setPen(QColor(g.ink))
+        p.drawText(QRectF(r.left(), r.top(), r.width() - 10, r.height()), Qt.AlignRight | Qt.AlignVCenter, g.value or "—")
+    else:
+        p.setFont(f_value)
+        p.setPen(QColor(g.ink))
+        p.drawText(QRectF(r.left() + 25, r.top(), r.width() - 28, r.height()), Qt.AlignLeft | Qt.AlignVCenter, g.value or "—")
     p.restore()
 
 
@@ -2182,9 +2192,16 @@ class StarOrb(Orb):
         self._watch.timeout.connect(self._poll)
         self._layout()
 
+    NAMES = dict(GAUGES)
+
     def _col_w(self) -> float:
-        """Every chip as wide as the widest, so the column reads as one."""
-        return max((self._chip_w(g) for _, g in self.items), default=0.0) + 4
+        """Every chip as wide as the widest, so the column reads as one: ring, name, then the figure on the right."""
+        if not hasattr(self, "_f_name"):
+            self._f_name = font(8.5, QFont.Medium, UI)
+        fm_n, fm_v = QFontMetricsF(self._f_name), QFontMetricsF(self._f_value)
+        name_w = max((fm_n.horizontalAdvance(self.NAMES.get(k, k)) for k, _ in self.items), default=0.0)
+        value_w = max((fm_v.horizontalAdvance(g.value or "—") for _, g in self.items), default=0.0)
+        return 27 + name_w + 14 + value_w + 11
 
     def _layout(self):
         if not self._ready:   # Orb.__init__ lays out before this class is set up
@@ -2270,9 +2287,12 @@ class StarOrb(Orb):
             self._linger.start(500)
 
     def mouseMoveEvent(self, e):
-        if self._press_at is None and not self._hover_at(e.position()):
-            if self._hot is not None:
-                self._hot = None
+        if self._press_at is None:
+            # hovering: the chip under the mouse lights up, nothing else (3 Nov, Marco: the black tooltip was «tipo a cena
+            # do Windows antigo»; the chips carry their names now)
+            key = self._gauge_at(e.position())[0] if self._hover_at(e.position()) else None
+            if key != self._hot:
+                self._hot = key
                 self.update()
             QToolTip.hideText()
             self.setToolTip("")
@@ -2313,7 +2333,8 @@ class StarOrb(Orb):
         if self._reveal > 0.01:
             p.setOpacity(p.opacity() * self._reveal)
             for key, g, cr in self._gauge_rects():
-                paint_chip(p, cr, key, g, self._f_value, key == self._hot, dpr, glass=True)
+                # dark capsules, not clear glass: with the names in them the glass could not be read over a white window (3 Nov)
+                paint_chip(p, cr, key, g, self._f_value, key == self._hot, dpr, glass=False, name=self.NAMES.get(key, ""), f_name=self._f_name)
         p.restore()
 
     def _build_face(self, hhmm_now: str) -> QPixmap:
@@ -2922,6 +2943,7 @@ class WidgetWindow(QWidget):
                 rows.append({"user": p["user"], "online": p.get("online"), "colour": dot(p), "title": name(p),
                              "right": until(plan.get("five_reset")).replace("renova em ", "5 h renova em ") if plan.get("five_reset") else "",
                              "bars": [(plan.get("five"), "Claude 5 h"), (plan.get("week"), "Semana")], "action": self._open_tokens,
+                             "group": True,
                              "tip": "Os tokens de cada janela, ao vivo"})
             five = (ml.get("limits") or {}).get("five")
             return {"title": "Tokens do Claude", "note": "o limite de 5 h e o da semana de cada um",
@@ -2933,10 +2955,11 @@ class WidgetWindow(QWidget):
             rows = []
             for p in people:
                 doing, colour = activity({**p, "_me": p["user"] == me})
+                # one block per partner (3 Nov, Marco: «tudo junto»): the partner on top, their windows under them
                 rows.append({"user": p["user"], "online": p.get("online"), "colour": dot(p), "title": name(p), "sub": doing,
-                             "sub_colour": colour, "action": office, "tip": "Abrir o Escritório"})
+                             "sub_colour": colour, "action": office, "head": True, "group": True})
                 for w in live_windows(p["live"])[:3]:
-                    rows.append({"indent": True, "title": w.get("topic") or w.get("project") or "Janela do Claude",
+                    rows.append({"title": w.get("topic") or w.get("project") or "Janela do Claude",
                                  "sub": window_doing(w, p["user"] == me), "right": ago_iso(w.get("since")), "colour": window_colour(w),
                                  "action": open_w(w, p["user"]), "tip": "Ver o pedido e o que está a fazer"})
             return {"title": "Equipa", "note": "Claudes a trabalhar, de cada um", "figure": str(working),

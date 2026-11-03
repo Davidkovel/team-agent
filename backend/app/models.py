@@ -482,3 +482,22 @@ class AffiliateResult(Base):
     note: Mapped[str] = mapped_column(String(300), default="")
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AffiliateProduct(Base):
+    """A product the recommendations page shows (3 Nov, Marco: «encontra os produtos para a gente recomendar... que eu consiga
+    mexer»). Goes to every PC by sync. Per sale: price × pct / 100, or `fixed` (€ per sale or per sign-up) when set."""
+    __tablename__ = "affiliate_products"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(160), default="")
+    category: Mapped[str] = mapped_column(String(40), default="")
+    program_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    price: Mapped[float] = mapped_column(Float, default=0)
+    pct: Mapped[float] = mapped_column(Float, default=0)
+    fixed: Mapped[float] = mapped_column(Float, default=0)
+    link: Mapped[str] = mapped_column(String(600), default="")
+    status: Mapped[str] = mapped_column(String(16), default="ideia")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

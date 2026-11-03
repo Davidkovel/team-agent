@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
-from ..models import AffiliateProgram, AffiliateResult, User
+from ..models import AffiliateProduct, AffiliateProgram, AffiliateResult, User
 from ..realtime import rt
 from ..security import current_user
 from ..services import iso
@@ -22,6 +22,31 @@ router = APIRouter(prefix="/api/afiliados")
 KINDS = ("pct", "fixed", "recurring")
 STATUS = ("ideia", "candidatura", "aprovado", "ativo", "parado")
 DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+PRODUCT_STATUS = ("ideia", "escolhido", "publicado", "vendeu", "fora")
+
+
+class ProductIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=160)
+    category: str = Field("", max_length=40)
+    program_id: int | None = None
+    price: float = Field(0, ge=0, le=1_000_000)
+    pct: float = Field(0, ge=0, le=100)
+    fixed: float = Field(0, ge=0, le=100_000)
+    link: str = Field("", max_length=600)
+    status: str = "ideia"
+    notes: str = Field("", max_length=4000)
+
+
+class ProductEdit(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=160)
+    category: str | None = Field(None, max_length=40)
+    program_id: int | None = None
+    price: float | None = Field(None, ge=0, le=1_000_000)
+    pct: float | None = Field(None, ge=0, le=100)
+    fixed: float | None = Field(None, ge=0, le=100_000)
+    link: str | None = Field(None, max_length=600)
+    status: str | None = None
+    notes: str | None = Field(None, max_length=4000)
 
 
 class ProgramIn(BaseModel):
@@ -79,6 +104,7 @@ async def overview(user: User = Depends(current_user), db: AsyncSession = Depend
     programs = (await db.execute(select(AffiliateProgram).order_by(AffiliateProgram.created_at.desc()))).scalars().all()
     results = (await db.execute(select(AffiliateResult).order_by(AffiliateResult.day.desc(), AffiliateResult.id.desc()))).scalars().all()
     names = {p.id: p.name for p in programs}
+    products = (await db.execute(select(AffiliateProduct).order_by(AffiliateProduct.category, AffiliateProduct.id))).scalars().all()
     totals: dict[int, dict] = {}
     for r in results:
         t = totals.setdefault(r.program_id, {"clicks": 0, "sales": 0, "earned": 0.0, "days": 0})
@@ -88,7 +114,54 @@ async def overview(user: User = Depends(current_user), db: AsyncSession = Depend
         "results": [{"id": r.id, "program_id": r.program_id, "program": names.get(r.program_id, "—"), "day": r.day,
                      "clicks": r.clicks, "sales": r.sales, "earned": r.earned, "note": r.note,
                      "by": people.get(r.user_id or 0, "")} for r in results if r.program_id in names],
+        "products": [{"id": x.id, "name": x.name, "category": x.category, "program_id": x.program_id,
+                      "program": names.get(x.program_id or 0, ""), "price": x.price, "pct": x.pct, "fixed": x.fixed,
+                      "per_sale": round(x.fixed or x.price * x.pct / 100, 2), "link": x.link, "status": x.status, "notes": x.notes,
+                      "updated_at": iso(x.updated_at)} for x in products],
     }
+
+
+def _check_product(status: str | None, link: str | None):
+    if status is not None and status not in PRODUCT_STATUS:
+        raise HTTPException(400, "Estado desconhecido.")
+    if link and not re.match(r"https?://", link.strip(), re.I):
+        raise HTTPException(400, "O link tem de começar por http:// ou https://")
+
+
+@router.post("/produtos")
+async def add_product(body: ProductIn, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    _check_product(body.status, body.link)
+    x = AffiliateProduct(**{k: (v.strip() if isinstance(v, str) else v) for k, v in body.model_dump().items()}, user_id=user.id)
+    db.add(x)
+    await db.commit()
+    await rt.publish("afiliados", user.id, "team")
+    return {"id": x.id}
+
+
+@router.patch("/produtos/{xid}")
+async def edit_product(xid: int, body: ProductEdit, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    x = await db.get(AffiliateProduct, xid)
+    if not x:
+        raise HTTPException(404, "Esse produto não existe.")
+    _check_product(body.status, body.link)
+    for k, v in body.model_dump(exclude_unset=True).items():
+        if v is None and k != "program_id":
+            continue
+        setattr(x, k, v.strip() if isinstance(v, str) else v)
+    await db.commit()
+    await rt.publish("afiliados", user.id, "team")
+    return {"ok": True}
+
+
+@router.delete("/produtos/{xid}")
+async def remove_product(xid: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    x = await db.get(AffiliateProduct, xid)
+    if not x:
+        raise HTTPException(404, "Esse produto não existe.")
+    await db.delete(x)
+    await db.commit()
+    await rt.publish("afiliados", user.id, "team")
+    return {"ok": True}
 
 
 @router.post("/programas")

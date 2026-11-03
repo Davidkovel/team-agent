@@ -40,3 +40,17 @@ def test_programme_results_and_totals(client):
     assert client.delete(f"/api/afiliados/programas/{pid}", headers=h).status_code == 200
     data = client.get("/api/afiliados", headers=h).json()
     assert not any(x["id"] == pid for x in data["programs"]) and not any(r["program_id"] == pid for r in data["results"])
+
+
+def test_products(client):
+    h = login(client, "mark")
+    pid = client.post("/api/afiliados/programas", headers=h, json={"name": "Dreame", "kind": "pct", "commission": 6}).json()["id"]
+    assert client.post("/api/afiliados/produtos", headers=h, json={"name": "X", "status": "nope"}).status_code == 400
+    r = client.post("/api/afiliados/produtos", headers=h, json={"name": "Robô", "category": "Casa", "program_id": pid, "price": 300, "pct": 6})
+    xid = r.json()["id"]
+    lead = client.post("/api/afiliados/produtos", headers=h, json={"name": "Temu", "category": "Até 25 €", "fixed": 5}).json()["id"]
+    items = {x["id"]: x for x in client.get("/api/afiliados", headers=h).json()["products"]}
+    assert items[xid]["per_sale"] == 18 and items[xid]["program"] == "Dreame" and items[lead]["per_sale"] == 5
+    assert client.patch(f"/api/afiliados/produtos/{xid}", headers=h, json={"status": "publicado", "link": "https://dreame.pt/x"}).status_code == 200
+    assert client.get("/api/afiliados", headers=h).json()["products"][0]["status"] in ("publicado", "ideia")
+    assert client.delete(f"/api/afiliados/produtos/{xid}", headers=h).status_code == 200

@@ -7,7 +7,9 @@
 //   Provas: casos públicos com a fonte ao lado. Segue docs/hub-paginas.md; classes af-.
 (function () {
   let D = null, view = "", timer = 0, exF = "todos", exOpen = "";
-  const VIEWS = [["vender", "Como vender"], ["exemplos", "Exemplos · Natal"], ["meus", "Os meus programas"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"]];
+  let PLAN = null, prodCat = "Todas";
+  const PLAN_TITLE = "Página de recomendações: Natal e Black Friday";
+  const VIEWS = [["projeto", "Projeto Natal"], ["vender", "Como vender"], ["exemplos", "Exemplos · Natal"], ["meus", "Os nossos afiliados"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"]];
   const STATUS = [["ideia", "Ideia"], ["candidatura", "Candidatura"], ["aprovado", "Aprovado"], ["ativo", "Ativo"], ["parado", "Parado"]];
   const TONE = { ideia: "off", candidatura: "wait", aprovado: "ai", ativo: "ok", parado: "bad" };
   const KINDS = [["pct", "% da venda"], ["fixed", "€ fixo por venda"], ["recurring", "% todos os meses"]];
@@ -76,8 +78,8 @@
     </div>`);
     wire();
     await load();
-    view = pref.get("v3", "vender");   // v3 (3 nov): «Como vender» abre primeiro para todos uma vez
-    if (!VIEWS.some(([k]) => k === view)) view = "vender";
+    view = pref.get("v4", "projeto");   // v4 (3 nov): o «Projeto Natal» abre primeiro para todos uma vez
+    if (!VIEWS.some(([k]) => k === view)) view = "projeto";
     paint();
     timer = setInterval(() => { if (!$("af")) return clearInterval(timer); if (!$("af-modal").hidden) return; load().then(paintData).catch(() => {}); }, 30000);
   };
@@ -86,6 +88,7 @@
   async function load() {
     try { D = await api("/api/afiliados"); }
     catch (e) { D = D || null; if (!D) $("af-kpis").innerHTML = ui.error(e.message); throw e; }
+    try { PLAN = ((await api("/api/plans")) || []).find((p) => p.title === PLAN_TITLE) || null; } catch { /* sem planos: a aba diz como criar */ }
   }
 
   function paint() {
@@ -96,7 +99,7 @@
     if (!$("af") || !D) return;
     kpis();
     const body = $("af-body");
-    const html = view === "vender" ? vender() : view === "exemplos" ? exemplos() : view === "meus" ? meus() : view === "calc" ? calc() : view === "provas" ? provas() : como();
+    const html = view === "projeto" ? projeto() : view === "vender" ? vender() : view === "exemplos" ? exemplos() : view === "meus" ? meus() : view === "calc" ? calc() : view === "provas" ? provas() : como();
     if (body._html !== html) {
       body._html = html; body.innerHTML = html;
       if (view === "calc") calcRun();
@@ -279,6 +282,109 @@
       why: ["Produtos de poucos euros: 3% de 10 € são 30 cêntimos.", "Entregas de 1 a 4 semanas: a partir de meados de novembro já não chega a tempo do Natal.", "Clientes zangados com atrasos não voltam a clicar nos teus links."],
       how: "Só fora do Natal, e só se for um gadget mesmo viral.", warn: "Para dezembro, esquece." },
   ];
+
+  // ---------------------------------------------------------------- projeto Natal (3 nov, Marco: «uma página de recomendações de
+  // Natal e Black Friday: procura os afiliados e os produtos, põe no widget organizado para eu mexer, com os passos para ir
+  // concluindo e ver quanto já fizemos»). Os passos são o plano partilhado com este título (routers/plans.py, vai por sync e
+  // aparece no Escritório › Missões › Planos); cada passo começa por «[Fase]». Afiliados = os programas; produtos = affiliate_products.
+  const PHASE_WHEN = { "Preparar": "até 9 nov", "Conteúdo": "10–26 nov", "Black Friday": "27–30 nov", "Dezembro": "1–24 dez" };
+  const PLAN_STEPS = [
+    "[Preparar] Escolher o nome da página e criar o Instagram e o TikTok com esse nome",
+    "[Preparar] Bio + Linktree com as categorias (Casa, Beleza, Tech, Desporto, Experiências, Crianças, Até 25 €)",
+    "[Preparar] Inscrever na Amazon.es Afiliados",
+    "[Preparar] Criar conta na Awin e pedir Decathlon PT, PcComponentes PT, EcoFlow e Emma",
+    "[Preparar] Inscrever na Dreame, Notino, GetYourGuide e Temu",
+    "[Preparar] Cada afiliado aceite: mudar para «Aprovado» aqui e colar o link",
+    "[Conteúdo] Escolher 15 produtos da lista (estado «Escolhido») e pôr o link de cada um",
+    "[Conteúdo] Fazer 10 posts «guia de prendas» (fotos da marca + texto) e deixá-los agendados",
+    "[Conteúdo] Post do calendário do Advento de beleza antes de 1 de dezembro",
+    "[Conteúdo] Publicar 1 post por dia e responder a todos os comentários",
+    "[Black Friday] 2 a 3 posts por dia com as melhores promoções (Dreame, EcoFlow, Amazon)",
+    "[Black Friday] Registar cliques e vendas de cada rede em «Registar resultado»",
+    "[Dezembro] Até 15 dez «prendas que ainda chegam»; depois só experiências (GetYourGuide)",
+    "[Dezembro] Ver o que vendeu mais e preparar o Dia dos Namorados",
+  ];
+  const PSTAT = [["ideia", "Ideia"], ["escolhido", "Escolhido"], ["publicado", "Publicado"], ["vendeu", "Vendeu"], ["fora", "Fora"]];
+  const PTONE = { ideia: "off", escolhido: "wait", publicado: "ai", vendeu: "ok", fora: "bad" };
+  const firstUrl = (s) => ((s || "").match(/https?:\/\/\S+/) || [""])[0];
+
+  function projeto() {
+    const steps = PLAN ? PLAN.steps : [], total = steps.length, done = steps.filter((s) => s.done).length;
+    const pctDone = total ? Math.round((done / total) * 100) : 0, nextI = steps.findIndex((s) => !s.done);
+    const progs = D.programs, prods = D.products || [];
+    const okProgs = progs.filter((p) => p.status === "aprovado" || p.status === "ativo").length;
+    const linked = prods.filter((x) => x.link).length, pub = prods.filter((x) => x.status === "publicado" || x.status === "vendeu").length;
+    const earned = D.results.reduce((s, r) => s + (r.earned || 0), 0);
+    const head = !PLAN ? `<div class="panel af-xmas"><div><small>${esc(t("Projeto"))}</small><b>${esc(t("Ainda não há passos"))}</b><p>${esc(t("Cria o plano com os 14 passos. Fica também no Escritório para qualquer sócio continuar."))}</p></div>
+        <button type="button" class="btn primary" data-mkplan>${esc(t("Criar os passos"))}</button></div>`
+      : `<div class="panel af-prog">
+        <div class="af-prog-ring">${ui.ring(pctDone, { text: `${pctDone}%` })}</div>
+        <div class="af-prog-mid"><small>${esc(t("{d} de {n} passos feitos", { d: done, n: total }))}</small>
+          <b>${nextI < 0 ? esc(t("Tudo feito.")) : esc(stepText(steps[nextI]).text)}</b>
+          <div class="af-bar-line"><i style="width:${pctDone}%"></i></div></div>
+        ${nextI < 0 ? "" : `<button type="button" class="btn primary" data-tick="${nextI + 1}">${esc(t("Feito"))}</button>`}</div>`;
+    const kp = (n, of, label) => `<div class="panel af-tile"><i>${n}${of != null ? `<em>/${of}</em>` : ""}</i><span>${esc(t(label))}</span></div>`;
+    return `${head}
+      <div class="af-tiles4 af-steps">${kp(okProgs, progs.length, "afiliados aprovados")}${kp(linked, prods.length, "produtos com link")}${kp(pub, prods.length, "produtos publicados")}${kp(eur(earned), null, "comissões registadas")}</div>
+      ${PLAN ? `${ui.sec("Passos", `<span class="af-hint">${esc(t("Clica para marcar · também no Escritório › Planos"))}</span>`)}${phases(steps)}` : ""}
+      ${ui.sec("Os nossos afiliados", `<button type="button" class="btn quiet sm" data-new>${esc(t("+ Afiliado"))}</button>`)}
+      <div class="af-pipe">${STATUS.filter(([k]) => k !== "parado").map(([k, l]) => { const list = progs.filter((p) => p.status === k);
+        return `<div class="af-col"><div class="af-col-h"><span class="af-pill ${TONE[k]}">${esc(t(l))}</span><b>${list.length}</b></div>
+          ${list.map((p) => { const sign = firstUrl(p.notes); return `<div class="panel af-lead"><div class="af-lead-h"><b>${esc(p.name)}</b><button type="button" class="btn quiet sm" data-edit="${p.id}" title="${esc(t("Editar"))}">···</button></div>
+            <span>${esc(comm(p))}${p.network ? ` · ${esc(p.network)}` : ""}</span>
+            <div class="af-lead-a">${k === "ideia" && sign ? `<a class="btn sm" href="${esc(sign)}" target="_blank" rel="noopener">${esc(t("Inscrever"))}</a>` : ""}
+              ${p.link ? `<button type="button" class="btn quiet sm" data-copy="${p.id}">${esc(t("Copiar link"))}</button>` : ""}
+              ${k !== "ativo" ? `<button type="button" class="btn quiet sm" data-adv="${p.id}">${esc(t(NEXT_LABEL[k]))} →</button>` : ""}</div></div>`; }).join("") || `<p class="af-none">—</p>`}</div>`; }).join("")}</div>
+      ${ui.sec("Produtos para recomendar", `<button type="button" class="btn quiet sm" data-newprod>${esc(t("+ Produto"))}</button>`)}
+      ${produtos(prods)}`;
+  }
+  const NEXT_LABEL = { ideia: "Pedi", candidatura: "Aceite", aprovado: "A vender" };
+  const NEXT_STATUS = { ideia: "candidatura", candidatura: "aprovado", aprovado: "ativo" };
+  function stepText(s) { const m = /^\[(.+?)\]\s*(.*)$/.exec(s.text || ""); return m ? { phase: m[1], text: m[2] } : { phase: "Extra", text: s.text }; }
+  function phases(steps) {
+    const groups = [];
+    steps.forEach((s, i) => { const { phase, text } = stepText(s); let g = groups.find((x) => x.phase === phase); if (!g) groups.push(g = { phase, items: [] }); g.items.push({ ...s, text, n: i + 1 }); });
+    return `<div class="af-phases">${groups.map((g) => { const d = g.items.filter((x) => x.done).length;
+      return `<div class="panel af-phase ${d === g.items.length ? "af-done" : ""}"><div class="af-ph-h"><b>${esc(t(g.phase))}</b><span>${esc(PHASE_WHEN[g.phase] || "")} · ${d}/${g.items.length}</span></div>
+        ${g.items.map((x) => `<button type="button" class="af-check ${x.done ? "on" : ""}" data-${x.done ? "untick" : "tick"}="${x.n}"><i></i><span>${esc(x.text)}${x.done && x.by ? `<em>${esc(x.by)}</em>` : ""}</span></button>`).join("")}</div>`; }).join("")}</div>`;
+  }
+  function produtos(prods) {
+    if (!prods.length) return ui.empty("bag", "Sem produtos", "Junta o primeiro produto para recomendar.", `<button type="button" class="btn primary" data-newprod>${esc(t("+ Produto"))}</button>`);
+    const cats = ["Todas", ...new Set(prods.map((x) => x.category || "Outros"))];
+    if (!cats.includes(prodCat)) prodCat = "Todas";
+    const list = prods.filter((x) => prodCat === "Todas" || (x.category || "Outros") === prodCat).sort((a, b) => b.per_sale - a.per_sale);
+    return `<div class="segx af-exf">${cats.map((c) => `<button type="button" data-pcat="${esc(c)}" class="${c === prodCat ? "on" : ""}">${esc(t(c))}${c === "Todas" ? ` · ${prods.length}` : ""}</button>`).join("")}</div>
+      <div class="panel af-ptable">${list.map((x) => `<div class="af-prow ${x.per_sale >= 15 ? "af-money-row" : ""}">
+        <div class="af-pname"><b>${esc(x.name)}</b><small>${esc([x.category, x.program].filter(Boolean).join(" · "))}</small></div>
+        <span class="af-pprice">${x.fixed ? esc(t("por inscrição")) : `${eur(x.price)} × ${String(x.pct).replace(".", ",")}%`}</span>
+        <strong class="af-pper">~${eur(x.per_sale, x.per_sale < 10 ? 2 : 0)}</strong>
+        <select class="af-status af-pst-${PTONE[x.status]}" data-pstatus="${x.id}" aria-label="${esc(t("Estado"))}">${PSTAT.map(([k, l]) => `<option value="${k}" ${k === x.status ? "selected" : ""}>${esc(t(l))}</option>`).join("")}</select>
+        <span class="af-pact">${x.link ? `<a class="btn quiet sm" href="${esc(x.link)}" target="_blank" rel="noopener">${I.out}</a>` : ""}<button type="button" class="btn quiet sm" data-editprod="${x.id}">${esc(t(x.link ? "Editar" : "Pôr link"))}</button></span>
+      </div>`).join("")}</div>
+      <p class="af-hint">${esc(t("~€ por venda = preço estimado × comissão. Os verdes dão 15 € ou mais. Confirma preço e taxa ao pôr o link."))}</p>`;
+  }
+  function editProduct(x) {
+    const p = x || { name: "", category: prodCat !== "Todas" ? prodCat : "", program_id: null, price: "", pct: "", fixed: "", link: "", status: "ideia", notes: "" };
+    const cats = [...new Set(["Casa", "Beleza", "Tech", "Desporto", "Experiências", "Crianças", "Até 25 €", ...(D.products || []).map((y) => y.category).filter(Boolean)])];
+    const f = (n, l, v, type = "text", attrs = "") => `<label class="field"><span>${esc(t(l))}</span><input name="${n}" type="${type}" value="${esc(v ?? "")}" ${attrs}></label>`;
+    const save = async (d) => {
+      const num = (v) => Number(String(v || "").replace(",", ".")) || 0;
+      const body = { name: d.name, category: d.category, program_id: d.program_id ? Number(d.program_id) : null, price: num(d.price), pct: num(d.pct), fixed: num(d.fixed), link: d.link, status: d.status, notes: d.notes };
+      if (x) await api(`/api/afiliados/produtos/${x.id}`, { method: "PATCH", body }); else await api("/api/afiliados/produtos", { method: "POST", body });
+      flash(t("Produto guardado"));
+    };
+    save.extra = x ? `<button type="button" class="btn quiet" data-delprod="${x.id}">${esc(t("Apagar produto"))}</button>` : "";
+    modal(x ? t("Editar produto") : t("Novo produto"), `<div class="af-form">
+      ${f("name", "Produto", p.name, "text", "required maxlength=160")}
+      <label class="field"><span>${esc(t("Categoria"))}</span><input name="category" list="af-cats" value="${esc(p.category)}"><datalist id="af-cats">${cats.map((c) => `<option value="${esc(c)}">`).join("")}</datalist></label>
+      <label class="field"><span>${esc(t("Afiliado"))}</span><select name="program_id"><option value="">—</option>${D.programs.map((g) => `<option value="${g.id}" ${g.id === p.program_id ? "selected" : ""}>${esc(g.name)}</option>`).join("")}</select></label>
+      <label class="field"><span>${esc(t("Estado"))}</span><select name="status">${PSTAT.map(([k, l]) => `<option value="${k}" ${k === p.status ? "selected" : ""}>${esc(t(l))}</option>`).join("")}</select></label>
+      ${f("price", "Preço (€)", p.price, "text", "inputmode=decimal")}
+      ${f("pct", "Comissão (%)", p.pct, "text", "inputmode=decimal")}
+      ${f("fixed", "Ou € fixo por venda/inscrição", p.fixed || "", "text", "inputmode=decimal")}
+      <label class="field af-wide"><span>${esc(t("O teu link de afiliado deste produto"))}</span><input name="link" type="url" value="${esc(p.link)}" placeholder="https://…"></label>
+      <label class="field af-wide"><span>${esc(t("Notas (modelo, ângulo do post)"))}</span><textarea name="notes" maxlength="4000">${esc(p.notes)}</textarea></label></div>`, save);
+  }
 
   // ---------------------------------------------------------------- como vender (3 nov, Marco: primeiro «tenho de mostrar a cara?»,
   // depois «pouco texto» e por fim «tira os gráficos: quero produtos, ~20 € por cada um, como faço com produto e fornecedor. Vai
@@ -534,7 +640,7 @@
       const g = (s) => e.target.closest(s);
       let b;
       if ((b = g("[data-close]")) || e.target === $("af-modal")) return close();
-      if ((b = g("[data-view]"))) { view = b.dataset.view; pref.set("v3", view); return paint(); }
+      if ((b = g("[data-view]"))) { view = b.dataset.view; pref.set("v4", view); return paint(); }
       if ((b = g("[data-ex]"))) { pref.set("ex", b.dataset.ex); $("af-body")._html = ""; return paintData(); }
       if ((b = g("[data-exf]"))) { exF = b.dataset.exf; return paintData(); }
       if ((b = g("[data-exopen]"))) { exOpen = exOpen === b.dataset.exopen ? "" : b.dataset.exopen; return paintData(); }
@@ -544,6 +650,29 @@
         await api("/api/afiliados/programas", { method: "POST", body: { name: p.name, niche: terms[3], network: p.where, kind: terms[0], commission: terms[1],
           cookie_days: terms[2], status: "ideia", link: "", notes: `${t(p.line)}\n${t("Como vender")}: ${t(p.how)}` } });
         flash(t("{n} juntado aos teus programas", { n: p.name })); await load(); return paintData();
+      }
+      if ((b = g("[data-tick]")) || (b = g("[data-untick]"))) {
+        const on = b.hasAttribute("data-tick"), n = Number(on ? b.dataset.tick : b.dataset.untick);
+        try { PLAN = await api(`/api/plans/${PLAN.id}`, { method: "PATCH", body: on ? { tick: n } : { untick: n } }); } catch (err) { flash(err.message); }
+        return paintData();
+      }
+      if (g("[data-mkplan]")) {
+        PLAN = await api("/api/plans", { method: "POST", body: { title: PLAN_TITLE, goal: "Página de Instagram/TikTok que recomenda prendas de Natal e promoções de Black Friday com links de afiliado. Os afiliados e os produtos estão em Afiliados › Projeto Natal.", project: "Afiliados", steps: PLAN_STEPS } });
+        return paintData();
+      }
+      if ((b = g("[data-adv]"))) {
+        const p = D.programs.find((x) => String(x.id) === b.dataset.adv);
+        await api(`/api/afiliados/programas/${p.id}`, { method: "PATCH", body: { status: NEXT_STATUS[p.status] || "ativo" } });
+        if (NEXT_STATUS[p.status] === "aprovado" && !p.link) { await load(); paintData(); return editProgram(D.programs.find((x) => x.id === p.id)); }
+        await load(); return paintData();
+      }
+      if ((b = g("[data-pcat]"))) { prodCat = b.dataset.pcat; return paintData(); }
+      if (g("[data-newprod]")) return editProduct();
+      if ((b = g("[data-editprod]"))) return editProduct(D.products.find((x) => String(x.id) === b.dataset.editprod));
+      if ((b = g("[data-delprod]"))) {
+        if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = t("Carrega outra vez para apagar"); return; }
+        await api(`/api/afiliados/produtos/${b.dataset.delprod}`, { method: "DELETE" });
+        close(); flash(t("Produto apagado")); await load(); return paintData();
       }
       if (g("[data-new]")) return editProgram();
       if ((b = g("[data-result]"))) return addResult(b.dataset.result);
@@ -557,7 +686,7 @@
         const i = IDEIAS[Number(b.dataset.idea)];
         await api("/api/afiliados/programas", { method: "POST", body: { name: i.name, niche: i.niche, network: i.network, kind: i.kind, commission: i.commission,
           cookie_days: i.cookie_days, status: "ideia", link: "", notes: `${t(i.why)}\n${t("Inscrição")}: ${i.link}` } });
-        flash(t("{n} juntado às ideias", { n: i.name })); view = "meus"; pref.set("v3", view); await load(); return paint();
+        flash(t("{n} juntado às ideias", { n: i.name })); view = "meus"; pref.set("v4", view); await load(); return paint();
       }
       if ((b = g("[data-delprog]"))) {
         if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = t("Carrega outra vez para apagar"); return; }
@@ -571,6 +700,8 @@
       }
     };
     root.onchange = async (e) => {
+      const ps = e.target.closest("[data-pstatus]");
+      if (ps) { await api(`/api/afiliados/produtos/${ps.dataset.pstatus}`, { method: "PATCH", body: { status: ps.value } }); await load(); return paintData(); }
       const s = e.target.closest("[data-status]");
       if (s) { await api(`/api/afiliados/programas/${s.dataset.status}`, { method: "PATCH", body: { status: s.value } }); await load(); return paintData(); }
       if (e.target.closest(".af-calc")) calcRun();

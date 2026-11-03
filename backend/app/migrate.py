@@ -36,7 +36,8 @@ log = logging.getLogger("team.backend")
 # 22: affiliate_programs and affiliate_results, for Afiliados (routers/affiliates.py).
 # 23: photos.kind, the type of a photo of Fotos (Logótipo, Banner, Post...).
 # 24: tasks.worker (which of a person's agents took it) and tasks.after_id (chains of tasks).
-SCHEMA_VERSION = 24
+# 25: affiliate_products, the products of the recommendations page (Afiliados).
+SCHEMA_VERSION = 25
 
 
 def current_version(conn) -> int:

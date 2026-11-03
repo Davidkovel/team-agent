@@ -135,6 +135,48 @@
 .af-rules b { font: 700 22px/1 var(--display); color: #e9edf1; }
 .af-rules span { color: #c9ced5; font-size: 13px; line-height: 1.45; }
 
+/* projeto Natal: progresso, passos, afiliados como leads, produtos */
+.af-prog { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 20px; padding: 20px 22px; }
+.af-prog-ring .pn-ring { width: 74px; height: 74px; }
+.af-prog-mid small { color: var(--faint); font: 600 11px var(--ui); letter-spacing: .1em; text-transform: uppercase; }
+.af-prog-mid b { display: block; margin: 4px 0 10px; font: 700 21px/1.2 var(--display); letter-spacing: -.02em; }
+.af-bar-line { height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.af-bar-line i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #8fe0a8, #c9f2d5); }
+.af-tile i em { font-style: normal; font-size: 18px; color: var(--faint); }
+.af-phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.af-phase { display: flex; flex-direction: column; gap: 2px; padding: 14px; }
+.af-phase.af-done { opacity: .6; }
+.af-phase .af-ph-h { margin-bottom: 6px; }
+.af-phase .af-ph-h b { color: #fff; font: 650 15px var(--display); }
+.af .af-check { justify-content: flex-start; }
+html.is-phone .af .sec .af-hint { display: none; }
+.af-check { display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 8px 6px; border: 0; border-radius: 9px; background: transparent; color: #dfe3e8; text-align: left; font: 500 13px/1.4 var(--ui); cursor: pointer; }
+.af-check:hover { background: var(--surface-2); }
+.af-check i { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 6px; border: 1.5px solid var(--line-2); }
+.af-check.on i { background: #8fe0a8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b0c0e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 13px no-repeat; border-color: transparent; }
+.af-check.on span { color: var(--faint); text-decoration: line-through; }
+.af-check em { display: block; margin-top: 2px; color: var(--faint); font-style: normal; font-size: 11px; text-decoration: none; }
+.af-pipe { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.af-col { display: flex; flex-direction: column; gap: 8px; }
+.af-col-h { display: flex; justify-content: space-between; align-items: center; padding: 0 4px; }
+.af-col-h b { color: var(--faint); font: 650 14px var(--display); }
+.af-lead { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; }
+.af-lead-h { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.af-lead-h b { font: 650 15px var(--display); }
+.af-lead > span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.af-lead-a { display: flex; flex-wrap: wrap; gap: 6px; }
+.af-ptable { padding: 4px 0; }
+.af-prow { display: grid; grid-template-columns: minmax(0, 1fr) 130px 80px 120px 130px; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line); border-left: 3px solid transparent; }
+.af-prow:first-child { border-top: 0; }
+.af-prow.af-money-row { border-left-color: rgba(143, 224, 168, .7); }
+.af-pname b { display: block; font: 650 14px var(--display); }
+.af-pname small { color: var(--muted); font-size: 12px; }
+.af-pprice { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.af-pper { font: 700 17px var(--display); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.af-money-row .af-pper { color: #a9ecbd; }
+.af-pact { display: flex; justify-content: flex-end; gap: 4px; }
+.af .af-pst-ok { color: #8fe0a8; } .af .af-pst-wait { color: #f2c66d; } .af .af-pst-bad { color: #f3ab9f; } .af .af-pst-off { color: var(--muted); }
+
 /* como vender: blocos curtos, para se perceber num olhar */
 .af-hero b { font-size: 30px; }
 .af-tiles3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -189,7 +231,7 @@
   .af-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .af-flow5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .af-flow5 .af-arrow, .af-funnel4 .af-arrow { display: none; }
-  .af-tiles4, .af-funnel4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .af-tiles4, .af-funnel4, .af-phases, .af-pipe { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .af-rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .af-xmas { grid-template-columns: 1fr; }
 }
@@ -220,6 +262,15 @@ html.is-phone .af-tiles3, html.is-phone .af-tiles4, html.is-phone .af-flow5 { gr
 html.is-phone .af-flow5 .af-arrow { display: none; }
 html.is-phone .af-tiles3 > :last-child { grid-column: 1 / -1; }
 html.is-phone .af-funnel4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+html.is-phone .af-phases, html.is-phone .af-pipe { grid-template-columns: 1fr; }
+html.is-phone .af-prog { grid-template-columns: auto minmax(0, 1fr); padding: 16px; gap: 14px; }
+html.is-phone .af-prog > .btn { grid-column: 1 / -1; }
+html.is-phone .af-prog-mid b { font-size: 17px; }
+html.is-phone .af-prow { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 12px 14px; }
+html.is-phone .af-pprice { grid-column: 1; }
+html.is-phone .af-pper { grid-column: 2; grid-row: 1; }
+html.is-phone .af-prow .af-status { grid-column: 1; }
+html.is-phone .af-pact { grid-column: 2; }
 html.is-phone .af-funnel4 .af-arrow { display: none; }
 html.is-phone .af-vs { grid-template-columns: 1fr; }
 html.is-phone .af-vs-x { justify-self: center; }

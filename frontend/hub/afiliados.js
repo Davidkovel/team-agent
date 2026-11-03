@@ -9,7 +9,7 @@
   let D = null, view = "", timer = 0, exF = "todos", exOpen = "";
   let PLAN = null, prodCat = "Todas";
   const PLAN_TITLE = "Página de recomendações: tudo hoje";
-  const VIEWS = [["projeto", "Projeto Natal"], ["vender", "Como vender"], ["exemplos", "Exemplos · Natal"], ["meus", "Os nossos afiliados"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"]];
+  const VIEWS = [["projeto", "Projeto Natal"], ["vender", "Como vender"], ["exemplos", "Exemplos · Natal"], ["meus", "Os nossos afiliados"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"], ["antigas", "Versões anteriores"]];
   const STATUS = [["ideia", "Ideia"], ["candidatura", "Candidatura"], ["aprovado", "Aprovado"], ["ativo", "Ativo"], ["parado", "Parado"]];
   const TONE = { ideia: "off", candidatura: "wait", aprovado: "ai", ativo: "ok", parado: "bad" };
   const KINDS = [["pct", "% da venda"], ["fixed", "€ fixo por venda"], ["recurring", "% todos os meses"]];
@@ -99,7 +99,7 @@
     if (!$("af") || !D) return;
     kpis();
     const body = $("af-body");
-    const html = view === "projeto" ? projeto() : view === "vender" ? vender() : view === "exemplos" ? exemplos() : view === "meus" ? meus() : view === "calc" ? calc() : view === "provas" ? provas() : como();
+    const html = view === "antigas" ? antigas() : view === "projeto" ? projeto() : view === "vender" ? vender() : view === "exemplos" ? exemplos() : view === "meus" ? meus() : view === "calc" ? calc() : view === "provas" ? provas() : como();
     if (body._html !== html) {
       body._html = html; body.innerHTML = html;
       if (view === "calc") calcRun();
@@ -510,6 +510,129 @@
       </div>`;
   }
 
+  // ---------------------------------------------------------------- versões anteriores (3 nov, Marco: «sempre que eu te peço para
+  // trocar, nunca apago o passado... quero ficar com tudo»). A 1.ª «Como vender» (muito texto, nunca publicada antes) e a 2.ª (blocos
+  // curtos, gráficos de trading), tal como estavam; a atual é vender().
+  const OLD = [["v1", "Como vender · 1.ª (texto)"], ["v2", "Como vender · 2.ª (gráficos)"], ["plano", "Plano de semanas (1.º)"]];
+  let oldV = "v1";
+  function antigas() {
+    const body = oldV === "v2" ? venderV2() : oldV === "plano" ? planoV1() : venderV1();
+    return `<div class="af-xmas panel"><div><small>${esc(t("Versões anteriores"))}</small><b>${esc(t("O que já esteve nesta página, guardado."))}</b><p>${esc(t("A versão em uso está nas outras abas. Aqui fica o histórico, para comparar."))}</p></div></div>
+      <div class="segx af-exf">${OLD.map(([k, l]) => `<button type="button" data-oldv="${k}" class="${k === oldV ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>
+      <div class="af-old">${body}</div>`;
+  }
+  function planoV1() {
+    const old = ["[Preparar] Escolher o nome da página e criar o Instagram e o TikTok com esse nome", "[Preparar] Bio + Linktree com as categorias", "[Preparar] Inscrever na Amazon.es Afiliados",
+      "[Preparar] Criar conta na Awin e pedir Decathlon PT, PcComponentes PT, EcoFlow e Emma", "[Preparar] Inscrever na Dreame, Notino, GetYourGuide e Temu", "[Preparar] Cada afiliado aceite: mudar para «Aprovado» e colar o link",
+      "[Conteúdo] Escolher 15 produtos e pôr o link de cada um", "[Conteúdo] Fazer 10 posts «guia de prendas» e deixá-los agendados", "[Conteúdo] Post do calendário do Advento antes de 1 de dezembro",
+      "[Conteúdo] Publicar 1 post por dia e responder aos comentários", "[Black Friday] 2 a 3 posts por dia com as melhores promoções", "[Black Friday] Registar cliques e vendas de cada rede",
+      "[Dezembro] Até 15 dez «prendas que ainda chegam»; depois só experiências", "[Dezembro] Ver o que vendeu mais e preparar o Dia dos Namorados"];
+    const when = { "Preparar": "até 9 nov", "Conteúdo": "10–26 nov", "Black Friday": "27–30 nov", "Dezembro": "1–24 dez" };
+    const groups = [];
+    old.forEach((s) => { const m = /^\[(.+?)\]\s*(.*)$/.exec(s); let g = groups.find((x) => x.p === m[1]); if (!g) groups.push(g = { p: m[1], items: [] }); g.items.push(m[2]); });
+    return `<p class="af-hint">${esc(t("O 1.º plano, em semanas (trocado pela lista de hoje a pedido do Marco). Também está fechado no Escritório › Planos."))}</p>
+      <div class="af-phases">${groups.map((g) => `<div class="panel af-phase"><div class="af-ph-h"><b>${esc(g.p)}</b><span>${esc(when[g.p])}</span></div>${g.items.map((x) => `<div class="af-check"><i></i><span>${esc(x)}</span></div>`).join("")}</div>`).join("")}</div>`;
+  }
+  function venderV1() {
+    const ways = [
+      ["sim", "Sem cara (o que te aconselhamos)", "Gravas o ecrã: o teu gráfico do ouro, o painel da FundedNext, o TradingView. Pões a tua voz por cima (ou só texto no ecrã) e legendas. Ninguém vê quem és. É o formato mais comum no TikTok de trading."],
+      ["talvez", "Com cara", "Falas para a câmara. Ganha confiança mais depressa, porque as pessoas compram a quem conhecem. Podes começar sem cara e mostrar-te mais tarde, se quiseres."],
+      ["talvez", "Sem vídeos", "Um site com comparações («melhor prop firm em 2027») que aparece no Google. Não precisas de aparecer nem de publicar todos os dias, mas demora meses a dar e não serve para este Natal."],
+    ];
+    const path = [
+      ["1", "O vídeo", "Um vídeo curto de 20 a 40 s no TikTok, Instagram Reels ou YouTube Shorts."],
+      ["2", "O teu perfil", "Quem gosta do vídeo carrega no teu nome."],
+      ["3", "O link na bio", "Na descrição do perfil está um link para uma página com os teus links todos (Linktree ou Beacons, grátis)."],
+      ["4", "A compra", "A pessoa carrega no link da FundedNext, compra a conta, e o site sabe que veio de ti."],
+      ["5", "A comissão", "A FundedNext põe os 12% no teu painel de afiliado e paga-te. Tu copias o número para «Os meus programas»."],
+    ];
+    const day = [
+      ["20 min", "Gravar", "Grava o ecrã enquanto analisas o ouro ou o GER40, como já fazes."],
+      ["20 min", "Montar", "No CapCut (grátis): cortas para 30 s, legendas automáticas, texto grande nos primeiros 3 segundos."],
+      ["10 min", "Publicar", "Publica no TikTok, Reels e Shorts ao mesmo tempo (o mesmo vídeo serve para os três)."],
+      ["10 min", "Responder", "Responde aos comentários: quem pergunta é quem compra. «Que prop firm usas?» → «está no link da bio»."],
+    ];
+    const script = [
+      ["0–3 s", "Gancho (texto grande no ecrã)", "«Esta é a conta de 100 mil com que negoceio ouro»"],
+      ["3–20 s", "Mostrar (gravação do ecrã)", "O painel da FundedNext, as regras em 3 frases: quanto podes perder por dia, a meta, quanto ficas do lucro."],
+      ["20–30 s", "Dizer o que fazer", "«Está com desconto no Black Friday, link na bio.»"],
+      ["Legenda", "Por baixo do vídeo", "«Link de afiliado: ganho uma comissão se comprares. Trading tem risco, a maioria não passa o desafio.» #publicidade"],
+    ];
+    return `<div class="af-xmas panel"><div><small>${esc(t("A resposta curta"))}</small><b>${esc(t("Não precisas de mostrar a cara."))}</b>
+        <p>${esc(t("Vender por afiliado é isto: fazes vídeos curtos sobre um assunto de que percebes (no teu caso, trading), e no teu perfil está o link. Quem gosta do que vê carrega e compra. Tu não vendes a ninguém diretamente, não falas com clientes, não envias nada."))}</p></div></div>
+      ${ui.sec("Três maneiras de o fazer")}
+      <div class="af-three">${ways.map(([v, h, p]) => `<div class="panel af-kind af-way ${v}"><span class="af-pill ${VERD[v][0]}">${esc(t(v === "sim" ? "Para ti" : "Também dá"))}</span><b>${esc(t(h))}</b><p>${esc(t(p))}</p></div>`).join("")}</div>
+      ${ui.sec("Como uma venda acontece")}
+      <div class="af-path">${path.map(([n, h, p], i) => `<div class="panel af-step"><span class="af-ic af-num">${n}</span><b>${esc(t(h))}</b><p>${esc(t(p))}</p></div>${i < path.length - 1 ? `<span class="af-arrow">${I.arrow}</span>` : ""}`).join("")}</div>
+      ${ui.sec("O que fazes por dia: 1 hora")}
+      <div class="panel af-rules">${day.map(([n, h, p]) => `<div><b class="af-min">${esc(n)}</b><span><strong>${esc(t(h))}.</strong> ${esc(t(p))}</span></div>`).join("")}</div>
+      ${ui.sec("Um vídeo pronto a gravar (sem cara, 30 segundos)")}
+      <div class="panel af-script">${script.map(([w, h, p]) => `<div><time>${esc(w)}</time><span>${esc(t(h))}</span><p>${esc(t(p))}</p></div>`).join("")}</div>`;
+  }
+
+  // ---------------------------------------------------------------- como vender (3 nov, Marco: «tenho de mostrar a cara? como vendo
+  // isto?» e depois «pouco texto, que o David e o Kovel percebam logo quase sem explicar»): tudo em blocos de 2–6 palavras.
+  function venderV2() {
+    const sv = (d) => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
+    const IC = {
+      screen: sv('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'),
+      cam: sv('<rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/>'),
+      globe: sv('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+      play: sv('<rect x="5" y="2.5" width="14" height="19" rx="3"/><path d="m10.5 9 4 3-4 3z"/>'),
+      user: I.you, link: I.link, cart: I.cart, coin: I.coin,
+      cut: sv('<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.2 7.8 20 18M8.2 16.2 20 6"/>'),
+      send: sv('<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>'),
+      chat: sv('<path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A1.5 1.5 0 0 1 4 14.5z"/>'),
+    };
+    const tile = (ic, h, p, cls = "") => `<div class="panel af-tile ${cls}"><span class="af-ic">${ic}</span><b>${esc(t(h))}</b>${p ? `<span>${esc(t(p))}</span>` : ""}</div>`;
+    const flow = (items) => `<div class="af-flow5">${items.map((x, i) => tile(...x) + (i < items.length - 1 ? `<span class="af-arrow">${I.arrow}</span>` : "")).join("")}</div>`;
+    return `<div class="af-xmas panel af-hero"><div><small>${esc(t("Numa frase"))}</small>
+        <b>${esc(t("Vídeo curto → link na bio → comissão."))}</b>
+        <p>${esc(t("Sem cara, sem clientes, sem stock."))}</p></div></div>
+
+      ${ui.sec("Mostrar a cara?")}
+      <div class="af-tiles3">
+        ${tile(IC.screen, "Sem cara", "Gravar o ecrã + voz", "af-best")}
+        ${tile(IC.cam, "Com cara", "Mais confiança, opcional")}
+        ${tile(IC.globe, "Site no Google", "Lento, não dá p/ Natal", "af-dim")}
+      </div>
+
+      ${ui.sec("Como entra o dinheiro")}
+      ${flow([[IC.play, "Vídeo", "TikTok · Reels"], [IC.user, "Perfil", "Gostam, clicam"], [IC.link, "Link na bio", "O teu código"], [IC.cart, "Compra", "Na FundedNext"], [IC.coin, "12% para ti", "Pago pela marca"]])}
+
+      ${ui.sec("1 hora por dia")}
+      <div class="af-tiles4">
+        ${tile(IC.screen, "20 min", "Gravar o gráfico")}
+        ${tile(IC.cut, "20 min", "Cortar no CapCut")}
+        ${tile(IC.send, "10 min", "Publicar nas 3 redes")}
+        ${tile(IC.chat, "10 min", "Responder comentários")}
+      </div>
+
+      ${ui.sec("Vídeo de 30 s, sem cara")}
+      <div class="panel af-reel">
+        <div class="af-seg" style="flex:1"><time>0–3 s</time><b>${esc(t("«A conta de 100k com que negoceio ouro»"))}</b></div>
+        <div class="af-seg" style="flex:2.4"><time>3–20 s</time><b>${esc(t("Ecrã: painel + 3 regras"))}</b></div>
+        <div class="af-seg lit" style="flex:1.4"><time>20–30 s</time><b>${esc(t("«Desconto. Link na bio.»"))}</b></div>
+      </div>
+      <p class="af-hint">${esc(t("Legenda: «link de afiliado · trading tem risco» #publicidade"))}</p>
+
+      ${ui.sec("Ferramentas (grátis)")}
+      <div class="af-chips">
+        <span><b>TikTok + Instagram</b>${esc(t("conta nova, nome do tema"))}</span>
+        <span><b>CapCut</b>${esc(t("cortar e legendas"))}</span>
+        <span><b>Win + G</b>${esc(t("gravar o ecrã"))}</span>
+        <span><b>Linktree</b>${esc(t("os links na bio"))}</span>
+      </div>
+
+      ${ui.sec("O que esperar")}
+      <div class="af-tiles3 af-steps">
+        <div class="panel af-tile"><i>1–3</i><b>${esc(t("semanas"))}</b><span>${esc(t("Poucas views. Normal."))}</span></div>
+        <div class="panel af-tile"><i>20k+</i><b>${esc(t("views num vídeo"))}</b><span>${esc(t("Primeiras vendas"))}</span></div>
+        <div class="panel af-tile af-best"><i>MKT</i><b>${esc(t("Marketing ajuda"))}</b><span>${esc(t("Guiões da semana prontos"))}</span></div>
+      </div>`;
+  }
+
+
   function natalDates() {
     const now = new Date(), y = now.getMonth() === 0 && now.getDate() <= 6 ? now.getFullYear() - 1 : now.getFullYear();
     const nov1 = new Date(y, 10, 1), thu = 1 + ((4 - nov1.getDay() + 7) % 7) + 21;   // 4.ª quinta-feira de novembro (Thanksgiving)
@@ -702,6 +825,7 @@
         if (NEXT_STATUS[p.status] === "aprovado" && !p.link) { await load(); paintData(); return editProgram(D.programs.find((x) => x.id === p.id)); }
         await load(); return paintData();
       }
+      if ((b = g("[data-oldv]"))) { oldV = b.dataset.oldv; return paintData(); }
       if ((b = g("[data-copyk]"))) {
         try { await navigator.clipboard.writeText(KIT_TEXTS[Number(b.dataset.copyk)]); flash(t("Copiado")); } catch { flash(t("Não deu para copiar")); }
         return;

@@ -7,7 +7,7 @@
 //   Provas: casos públicos com a fonte ao lado. Segue docs/hub-paginas.md; classes af-.
 (function () {
   let D = null, view = "", timer = 0, exF = "todos", exOpen = "";
-  const VIEWS = [["exemplos", "Exemplos · Natal"], ["meus", "Os meus programas"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"]];
+  const VIEWS = [["vender", "Como vender"], ["exemplos", "Exemplos · Natal"], ["meus", "Os meus programas"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"]];
   const STATUS = [["ideia", "Ideia"], ["candidatura", "Candidatura"], ["aprovado", "Aprovado"], ["ativo", "Ativo"], ["parado", "Parado"]];
   const TONE = { ideia: "off", candidatura: "wait", aprovado: "ai", ativo: "ok", parado: "bad" };
   const KINDS = [["pct", "% da venda"], ["fixed", "€ fixo por venda"], ["recurring", "% todos os meses"]];
@@ -76,8 +76,8 @@
     </div>`);
     wire();
     await load();
-    view = pref.get("v2", "exemplos");   // v2 (3 nov): a aba Exemplos · Natal abre primeiro para todos uma vez
-    if (!VIEWS.some(([k]) => k === view)) view = "exemplos";
+    view = pref.get("v3", "vender");   // v3 (3 nov): «Como vender» abre primeiro para todos uma vez
+    if (!VIEWS.some(([k]) => k === view)) view = "vender";
     paint();
     timer = setInterval(() => { if (!$("af")) return clearInterval(timer); if (!$("af-modal").hidden) return; load().then(paintData).catch(() => {}); }, 30000);
   };
@@ -96,7 +96,7 @@
     if (!$("af") || !D) return;
     kpis();
     const body = $("af-body");
-    const html = view === "exemplos" ? exemplos() : view === "meus" ? meus() : view === "calc" ? calc() : view === "provas" ? provas() : como();
+    const html = view === "vender" ? vender() : view === "exemplos" ? exemplos() : view === "meus" ? meus() : view === "calc" ? calc() : view === "provas" ? provas() : como();
     if (body._html !== html) {
       body._html = html; body.innerHTML = html;
       if (view === "calc") calcRun();
@@ -268,6 +268,68 @@
       how: "Só fora do Natal, e só se for um gadget mesmo viral.", warn: "Para dezembro, esquece." },
   ];
 
+  // ---------------------------------------------------------------- como vender (3 nov, Marco: «tenho de mostrar a cara? como vendo
+  // isto?» e depois «pouco texto, que o David e o Kovel percebam logo quase sem explicar»): tudo em blocos de 2–6 palavras.
+  function vender() {
+    const sv = (d) => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
+    const IC = {
+      screen: sv('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'),
+      cam: sv('<rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/>'),
+      globe: sv('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+      play: sv('<rect x="5" y="2.5" width="14" height="19" rx="3"/><path d="m10.5 9 4 3-4 3z"/>'),
+      user: I.you, link: I.link, cart: I.cart, coin: I.coin,
+      cut: sv('<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.2 7.8 20 18M8.2 16.2 20 6"/>'),
+      send: sv('<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>'),
+      chat: sv('<path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A1.5 1.5 0 0 1 4 14.5z"/>'),
+    };
+    const tile = (ic, h, p, cls = "") => `<div class="panel af-tile ${cls}"><span class="af-ic">${ic}</span><b>${esc(t(h))}</b>${p ? `<span>${esc(t(p))}</span>` : ""}</div>`;
+    const flow = (items) => `<div class="af-flow5">${items.map((x, i) => tile(...x) + (i < items.length - 1 ? `<span class="af-arrow">${I.arrow}</span>` : "")).join("")}</div>`;
+    return `<div class="af-xmas panel af-hero"><div><small>${esc(t("Numa frase"))}</small>
+        <b>${esc(t("Vídeo curto → link na bio → comissão."))}</b>
+        <p>${esc(t("Sem cara, sem clientes, sem stock."))}</p></div></div>
+
+      ${ui.sec("Mostrar a cara?")}
+      <div class="af-tiles3">
+        ${tile(IC.screen, "Sem cara", "Gravar o ecrã + voz", "af-best")}
+        ${tile(IC.cam, "Com cara", "Mais confiança, opcional")}
+        ${tile(IC.globe, "Site no Google", "Lento, não dá p/ Natal", "af-dim")}
+      </div>
+
+      ${ui.sec("Como entra o dinheiro")}
+      ${flow([[IC.play, "Vídeo", "TikTok · Reels"], [IC.user, "Perfil", "Gostam, clicam"], [IC.link, "Link na bio", "O teu código"], [IC.cart, "Compra", "Na FundedNext"], [IC.coin, "12% para ti", "Pago pela marca"]])}
+
+      ${ui.sec("1 hora por dia")}
+      <div class="af-tiles4">
+        ${tile(IC.screen, "20 min", "Gravar o gráfico")}
+        ${tile(IC.cut, "20 min", "Cortar no CapCut")}
+        ${tile(IC.send, "10 min", "Publicar nas 3 redes")}
+        ${tile(IC.chat, "10 min", "Responder comentários")}
+      </div>
+
+      ${ui.sec("Vídeo de 30 s, sem cara")}
+      <div class="panel af-reel">
+        <div class="af-seg" style="flex:1"><time>0–3 s</time><b>${esc(t("«A conta de 100k com que negoceio ouro»"))}</b></div>
+        <div class="af-seg" style="flex:2.4"><time>3–20 s</time><b>${esc(t("Ecrã: painel + 3 regras"))}</b></div>
+        <div class="af-seg lit" style="flex:1.4"><time>20–30 s</time><b>${esc(t("«Desconto. Link na bio.»"))}</b></div>
+      </div>
+      <p class="af-hint">${esc(t("Legenda: «link de afiliado · trading tem risco» #publicidade"))}</p>
+
+      ${ui.sec("Ferramentas (grátis)")}
+      <div class="af-chips">
+        <span><b>TikTok + Instagram</b>${esc(t("conta nova, nome do tema"))}</span>
+        <span><b>CapCut</b>${esc(t("cortar e legendas"))}</span>
+        <span><b>Win + G</b>${esc(t("gravar o ecrã"))}</span>
+        <span><b>Linktree</b>${esc(t("os links na bio"))}</span>
+      </div>
+
+      ${ui.sec("O que esperar")}
+      <div class="af-tiles3 af-steps">
+        <div class="panel af-tile"><i>1–3</i><b>${esc(t("semanas"))}</b><span>${esc(t("Poucas views. Normal."))}</span></div>
+        <div class="panel af-tile"><i>20k+</i><b>${esc(t("views num vídeo"))}</b><span>${esc(t("Primeiras vendas"))}</span></div>
+        <div class="panel af-tile af-best"><i>MKT</i><b>${esc(t("Marketing ajuda"))}</b><span>${esc(t("Guiões da semana prontos"))}</span></div>
+      </div>`;
+  }
+
   function natalDates() {
     const now = new Date(), y = now.getMonth() === 0 && now.getDate() <= 6 ? now.getFullYear() - 1 : now.getFullYear();
     const nov1 = new Date(y, 10, 1), thu = 1 + ((4 - nov1.getDay() + 7) % 7) + 21;   // 4.ª quinta-feira de novembro (Thanksgiving)
@@ -434,7 +496,7 @@
       const g = (s) => e.target.closest(s);
       let b;
       if ((b = g("[data-close]")) || e.target === $("af-modal")) return close();
-      if ((b = g("[data-view]"))) { view = b.dataset.view; pref.set("v2", view); return paint(); }
+      if ((b = g("[data-view]"))) { view = b.dataset.view; pref.set("v3", view); return paint(); }
       if ((b = g("[data-ex]"))) { pref.set("ex", b.dataset.ex); $("af-body")._html = ""; return paintData(); }
       if ((b = g("[data-exf]"))) { exF = b.dataset.exf; return paintData(); }
       if ((b = g("[data-exopen]"))) { exOpen = exOpen === b.dataset.exopen ? "" : b.dataset.exopen; return paintData(); }
@@ -457,7 +519,7 @@
         const i = IDEIAS[Number(b.dataset.idea)];
         await api("/api/afiliados/programas", { method: "POST", body: { name: i.name, niche: i.niche, network: i.network, kind: i.kind, commission: i.commission,
           cookie_days: i.cookie_days, status: "ideia", link: "", notes: `${t(i.why)}\n${t("Inscrição")}: ${i.link}` } });
-        flash(t("{n} juntado às ideias", { n: i.name })); view = "meus"; pref.set("v2", view); await load(); return paint();
+        flash(t("{n} juntado às ideias", { n: i.name })); view = "meus"; pref.set("v3", view); await load(); return paint();
       }
       if ((b = g("[data-delprog]"))) {
         if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = t("Carrega outra vez para apagar"); return; }

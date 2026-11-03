@@ -2290,10 +2290,20 @@ class StarOrb(Orb):
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(0, 0, 0, 2))
         p.drawRoundedRect(self._grip(), 10, 10)
-        # the star in dark chrome, smoked over its own shape, inside a fixed double rim: a thin light silver line hugging
-        # the star and a dark one outside it (3 Nov, Marco: «se tiver uma aplicação por trás preta... eu perco aquilo»).
-        # Never picked from the background: the light rim reads on black, the dark rim and the star itself on white.
-        p.drawPixmap(QPointF(sr.left() - self.RIM, sr.top() - self.RIM), self._star_layer(sr, dpr))
+        # the star in dark chrome: painted, then smoked over its own shape; it lights up while the column is out.
+        # 3 Nov (Marco: «se tiver uma aplicação por trás preta... eu perco aquilo»): a lighter smoke (165 -> 95) so the
+        # chrome shows on black. A rim around it was tried and refused the same day: it filled the gaps and the star was lost.
+        layer = QPixmap(int((sr.width() + 12) * dpr), int((sr.height() + 12) * dpr))
+        layer.setDevicePixelRatio(dpr)
+        layer.fill(Qt.transparent)
+        q = QPainter(layer)
+        q.setRenderHint(QPainter.Antialiasing)
+        q.setRenderHint(QPainter.SmoothPixmapTransform)
+        paint_star(q, QRectF(6, 6, sr.width(), sr.height()), shadow=True)
+        q.setCompositionMode(QPainter.CompositionMode_SourceAtop)
+        q.fillRect(QRectF(0, 0, sr.width() + 12, sr.height() + 12), QColor(14, 15, 18, round(95 * (1 - 0.7 * self._reveal))))
+        q.end()
+        p.drawPixmap(QPointF(sr.left() - 6, sr.top() - 6), layer)
         if self.line:   # what needs this person (a Claude waiting, the Hub down): a dot on the star's foot
             dot = QPointF(sr.right() - 2, sr.bottom() - 2)
             glow_disc(p, dot, 7, 7, self.line_colour, 0.45)
@@ -2305,56 +2315,6 @@ class StarOrb(Orb):
             for key, g, cr in self._gauge_rects():
                 paint_chip(p, cr, key, g, self._f_value, key == self._hot, dpr, glass=True)
         p.restore()
-
-    RIM = 10
-
-    def _star_layer(self, sr: QRectF, dpr: float) -> QPixmap:
-        key = (round(sr.width()), round(dpr * 100), round(self._reveal, 2))
-        if getattr(self, "_star_key", None) == key:
-            return self._star_pix
-        m = self.RIM
-        size = (int((sr.width() + 2 * m) * dpr), int((sr.height() + 2 * m) * dpr))
-        def blank():
-            pix = QPixmap(*size)
-            pix.setDevicePixelRatio(dpr)
-            pix.fill(Qt.transparent)
-            return pix
-        box = QRectF(0, 0, sr.width() + 2 * m, sr.height() + 2 * m)
-        star = blank()
-        q = QPainter(star)
-        q.setRenderHint(QPainter.Antialiasing)
-        q.setRenderHint(QPainter.SmoothPixmapTransform)
-        paint_star(q, QRectF(m, m, sr.width(), sr.height()))
-        q.setCompositionMode(QPainter.CompositionMode_SourceAtop)
-        q.fillRect(box, QColor(14, 15, 18, round(120 * (1 - 0.75 * self._reveal))))
-        q.end()
-
-        def silhouette(colour: QColor) -> QPixmap:
-            pix = blank()
-            q = QPainter(pix)
-            q.drawPixmap(0, 0, star)
-            q.setCompositionMode(QPainter.CompositionMode_SourceIn)
-            q.fillRect(box, colour)
-            q.end()
-            return pix
-
-        def ring(q: QPainter, pix: QPixmap, r: float, steps: int = 16):
-            for i in range(steps):
-                a = 2 * math.pi * i / steps
-                q.drawPixmap(QPointF(r * math.cos(a), r * math.sin(a)), pix)
-
-        out = blank()
-        q = QPainter(out)
-        q.setRenderHint(QPainter.SmoothPixmapTransform)
-        dark = silhouette(QColor(0, 0, 0, 70))
-        for r in (3.4, 2.6):
-            ring(q, dark, r)
-        light = silhouette(QColor(236, 240, 246, 120 + round(80 * self._reveal)))
-        ring(q, light, 1.3)
-        q.drawPixmap(0, 0, star)
-        q.end()
-        self._star_key, self._star_pix = key, out
-        return out
 
     def _build_face(self, hhmm_now: str) -> QPixmap:
         """As Orb's, with the red count on the star's shoulder instead of the card's far corner."""

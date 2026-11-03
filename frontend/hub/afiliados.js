@@ -214,6 +214,18 @@
   // programas a 3 nov 2026; as da Amazon.es variam por categoria e não têm tabela pública fiável fora do painel: ficam «a confirmar».
   const VERD = { sim: ["ok", "Vale a pena"], talvez: ["wait", "Talvez"], nao: ["bad", "Não vale"] };
   const NATAL = [
+    { id: "dreame", v: "sim", name: "Robô aspirador Dreame", cat: "Casa · físico", where: "Dreame (programa próprio, Impact ou Webgains)",
+      comm: "mínimo 6% (anunciado pela marca)", price: "300–900 €", per: "~18–54 € por venda (estimado)",
+      line: "Prenda cara de casa: uma venda paga o que 20 air fryers pagam.",
+      why: ["Preço alto × 6% ou mais = ~20 € ou mais por venda.", "No Black Friday os robôs têm descontos grandes, e o desconto é o que faz clicar.", "Mostra-se bem sem cara: fotos da marca, «antes e depois» do chão, comparação de modelos."],
+      how: "Vídeo só com texto e as fotos da marca: «O robô que limpa a casa enquanto estás no trabalho: -30% no Black Friday». Link na bio.",
+      warn: "Confirma a taxa para Portugal/Espanha no painel. Devoluções anulam a comissão." },
+    { id: "ecoflow", v: "sim", name: "Bateria portátil EcoFlow", cat: "Gadgets · físico", where: "EcoFlow (Awin / Tradedoubler, há programa para Espanha)",
+      comm: "5–8% conforme a rede", price: "300–1500 €", per: "~15–100 € por venda (estimado)",
+      line: "Produto caro com público certo: campismo, autocaravanas, cortes de luz.",
+      why: ["Preço muito alto: mesmo a 5% dá 15 € ou mais.", "Ângulo forte depois do apagão: «nunca mais ficas sem luz em casa».", "Nicho com menos concorrência do que os telemóveis."],
+      how: "Vídeo com as fotos da marca: «Isto liga o frigorífico 10 horas sem luz». Comparação de 2 modelos por preço.",
+      warn: "Algumas redes dão só 7 dias de cookie. Confirma a taxa de Espanha antes de começar." },
     { id: "fn", v: "sim", name: "Conta FundedNext como prenda", cat: "Trading · digital", where: "FundedNext (programa próprio)",
       comm: "12% da compra (15–18% nos níveis de cima)", price: "~100–500 € por conta (estimado)", per: "~12–60 € por venda",
       line: "O teu nicho: já negoceias lá e tens o painel no Hub. Produto digital, chega na hora.",
@@ -268,65 +280,91 @@
       how: "Só fora do Natal, e só se for um gadget mesmo viral.", warn: "Para dezembro, esquece." },
   ];
 
-  // ---------------------------------------------------------------- como vender (3 nov, Marco: «tenho de mostrar a cara? como vendo
-  // isto?» e depois «pouco texto, que o David e o Kovel percebam logo quase sem explicar»): tudo em blocos de 2–6 palavras.
+  // ---------------------------------------------------------------- como vender (3 nov, Marco: primeiro «tenho de mostrar a cara?»,
+  // depois «pouco texto» e por fim «tira os gráficos: quero produtos, ~20 € por cada um, como faço com produto e fornecedor. Vai
+  // funcionar?»). Produtos físicos de marcas com programa de afiliados; taxas das páginas dos programas a 3 nov 2026.
   function vender() {
     const sv = (d) => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
     const IC = {
-      screen: sv('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'),
-      cam: sv('<rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/>'),
-      globe: sv('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+      box: sv('<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>'),
+      truck: sv('<path d="M2 6h11v10H2zM13 9h4.5L21 12.5V16h-8"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>'),
+      hand: sv('<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-1V4.5a1.5 1.5 0 0 1 3 0V11m0-.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-.5A6.5 6.5 0 0 1 5 16.5L3.5 13a1.5 1.5 0 0 1 2.6-1.5L8 14"/>'),
+      img: sv('<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>'),
+      ai: sv('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>'),
+      vs: sv('<path d="M7 4v16M17 4v16M3 8h8M13 16h8"/>'),
       play: sv('<rect x="5" y="2.5" width="14" height="19" rx="3"/><path d="m10.5 9 4 3-4 3z"/>'),
-      user: I.you, link: I.link, cart: I.cart, coin: I.coin,
-      cut: sv('<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.2 7.8 20 18M8.2 16.2 20 6"/>'),
-      send: sv('<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>'),
-      chat: sv('<path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A1.5 1.5 0 0 1 4 14.5z"/>'),
+      link: I.link, cart: I.cart, coin: I.coin, user: I.you,
     };
     const tile = (ic, h, p, cls = "") => `<div class="panel af-tile ${cls}"><span class="af-ic">${ic}</span><b>${esc(t(h))}</b>${p ? `<span>${esc(t(p))}</span>` : ""}</div>`;
     const flow = (items) => `<div class="af-flow5">${items.map((x, i) => tile(...x) + (i < items.length - 1 ? `<span class="af-arrow">${I.arrow}</span>` : "")).join("")}</div>`;
+    const prod = (v, name, price, pct, you, note) => `<div class="panel af-tile af-money ${v === "sim" ? "af-best" : ""}">
+      <span class="af-pill ${VERD[v][0]}">${esc(t(VERD[v][1]))}</span><b>${esc(name)}</b>
+      <div class="af-eq"><span>${esc(price)}</span><em>×</em><span>${esc(pct)}</span><em>=</em><strong>${esc(you)}</strong></div>
+      <span>${esc(t(note))}</span></div>`;
+    // Black Friday e Natal: preço médio com 25% de desconto × 6% (estimativas, ditas na página)
+    const bfPer = (price, off, pct) => price * (1 - off) * pct;
+    const BF_AVG = (bfPer(500, 0.25, 0.06) + bfPer(800, 0.25, 0.06)) / 2;
+    const BF_SCEN = [["Fraco", 20000], ["Normal", 60000], ["Bom", 150000]];
+    const bfProd = (name, price, off, pct) => `<div class="panel af-tile af-money"><b>${esc(name)}</b>
+      <div class="af-eq"><span class="af-was">${eur(price)}</span><span>${eur(price * (1 - off))}</span><em>×</em><span>${Math.round(pct * 100)}%</span><em>=</em><strong>${eur(bfPer(price, off, pct), 2)}</strong></div>
+      <span>${esc(t("Preço médio com -{p}% no Black Friday", { p: Math.round(off * 100) }))}</span></div>`;
+    const steps = [["50 000", "pessoas veem", "os teus vídeos num mês"], ["2 500", "clicam", "5% de quem vê"], ["50", "compram", "2% de quem clica"], ["1 000 €", "para ti", "50 × 20 €"]];
     return `<div class="af-xmas panel af-hero"><div><small>${esc(t("Numa frase"))}</small>
-        <b>${esc(t("Vídeo curto → link na bio → comissão."))}</b>
-        <p>${esc(t("Sem cara, sem clientes, sem stock."))}</p></div></div>
+        <b>${esc(t("Tu mostras o produto. A marca vende, entrega e paga-te."))}</b>
+        <p>${esc(t("Sem fornecedor, sem stock, sem falar com clientes."))}</p></div></div>
 
-      ${ui.sec("Mostrar a cara?")}
-      <div class="af-tiles3">
-        ${tile(IC.screen, "Sem cara", "Gravar o ecrã + voz", "af-best")}
-        ${tile(IC.cam, "Com cara", "Mais confiança, opcional")}
-        ${tile(IC.globe, "Site no Google", "Lento, não dá p/ Natal", "af-dim")}
+      ${ui.sec("A tua loja vs. afiliado")}
+      <div class="af-vs">
+        <div class="panel af-tile"><span class="af-ic">${IC.truck}</span><b>${esc(t("A tua loja (fornecedor)"))}</b>
+          <ul><li>${esc(t("Compras ao fornecedor"))}</li><li>${esc(t("Guardas e envias"))}</li><li>${esc(t("Atendes e trocas"))}</li><li>${esc(t("Ficas com a margem"))}</li></ul></div>
+        <span class="af-vs-x">vs</span>
+        <div class="panel af-tile af-best"><span class="af-ic">${IC.link}</span><b>${esc(t("Afiliado"))}</b>
+          <ul><li>${esc(t("A marca tem o stock"))}</li><li>${esc(t("A marca envia"))}</li><li>${esc(t("A marca atende"))}</li><li>${esc(t("Tu ficas com a %"))}</li></ul></div>
       </div>
 
       ${ui.sec("Como entra o dinheiro")}
-      ${flow([[IC.play, "Vídeo", "TikTok · Reels"], [IC.user, "Perfil", "Gostam, clicam"], [IC.link, "Link na bio", "O teu código"], [IC.cart, "Compra", "Na FundedNext"], [IC.coin, "12% para ti", "Pago pela marca"]])}
+      ${flow([[IC.play, "Vídeo do produto", "TikTok · Reels"], [IC.link, "Link na bio", "O teu código"], [IC.cart, "Compra", "No site da marca"], [IC.box, "A marca envia", "Tu não tocas"], [IC.coin, "% para ti", "Paga a marca"]])}
 
-      ${ui.sec("1 hora por dia")}
+      ${ui.sec("Produtos que dão ~20 € ou mais por venda", `<span class="af-hint">${esc(t("estimado · preço × comissão"))}</span>`)}
       <div class="af-tiles4">
-        ${tile(IC.screen, "20 min", "Gravar o gráfico")}
-        ${tile(IC.cut, "20 min", "Cortar no CapCut")}
-        ${tile(IC.send, "10 min", "Publicar nas 3 redes")}
-        ${tile(IC.chat, "10 min", "Responder comentários")}
+        ${prod("sim", "Robô aspirador Dreame", "300–900 €", "≥ 6%", "18–54 €", "Prenda de casa cara. Programa da marca.")}
+        ${prod("sim", "Bateria portátil EcoFlow", "300–1500 €", "5–8%", "15–100 €", "Campismo, cortes de luz. Tem programa em Espanha.")}
+        ${prod("talvez", "Colchão Emma", "300–800 €", "2–5%", "6–40 €", "Só paga depois de 100 noites.")}
+        ${prod("nao", "Coisas de 20 €", "20 €", "3%", "0,60 €", "Precisas de 33 vendas para 20 €.")}
       </div>
+      <p class="af-hint">${esc(t("Também há marcas que pagam por pessoa inscrita, sem compra (ex.: Semrush, 10 $ por cada teste grátis)."))}</p>
 
-      ${ui.sec("Vídeo de 30 s, sem cara")}
-      <div class="panel af-reel">
-        <div class="af-seg" style="flex:1"><time>0–3 s</time><b>${esc(t("«A conta de 100k com que negoceio ouro»"))}</b></div>
-        <div class="af-seg" style="flex:2.4"><time>3–20 s</time><b>${esc(t("Ecrã: painel + 3 regras"))}</b></div>
-        <div class="af-seg lit" style="flex:1.4"><time>20–30 s</time><b>${esc(t("«Desconto. Link na bio.»"))}</b></div>
+      ${ui.sec("Contas do Black Friday e do Natal", `<span class="af-hint">${esc(t("27 nov → 20 dez · estimado"))}</span>`)}
+      <div class="af-tiles3">
+        ${bfProd("Robô Dreame", 500, 0.25, 0.06)}
+        ${bfProd("Bateria EcoFlow", 800, 0.25, 0.06)}
+        <div class="panel af-tile"><span class="af-ic">${IC.coin}</span><b>${esc(t("Média por venda"))}</b><div class="af-eq"><strong>${eur(BF_AVG, 2)}</strong></div><span>${esc(t("Metade de cada produto"))}</span></div>
       </div>
-      <p class="af-hint">${esc(t("Legenda: «link de afiliado · trading tem risco» #publicidade"))}</p>
+      <div class="af-tiles3 af-steps">${BF_SCEN.map(([lab, views], i) => { const sales = Math.round(views * 0.05 * 0.02); return `<div class="panel af-tile ${i === 1 ? "af-best" : ""} ${i === 2 ? "af-lit" : ""}">
+        <span class="af-pill ${["off", "ok", "ai"][i]}">${esc(t(lab))}</span><i>${eur(sales * BF_AVG)}</i>
+        <span>${int(views)} ${esc(t("views"))} → ${int(views * 0.05)} ${esc(t("cliques"))} → <b class="af-inl">${sales} ${esc(t("vendas"))}</b></span></div>`; }).join("")}</div>
+      <p class="af-hint">${esc(t("Contas: desconto de 25% no preço, 6% de comissão, 5% de quem vê clica, 2% de quem clica compra. A comissão costuma ser paga depois do prazo de devolução: o dinheiro do Natal chega em janeiro ou fevereiro."))}</p>
 
-      ${ui.sec("Ferramentas (grátis)")}
-      <div class="af-chips">
-        <span><b>TikTok + Instagram</b>${esc(t("conta nova, nome do tema"))}</span>
-        <span><b>CapCut</b>${esc(t("cortar e legendas"))}</span>
-        <span><b>Win + G</b>${esc(t("gravar o ecrã"))}</span>
-        <span><b>Linktree</b>${esc(t("os links na bio"))}</span>
+      ${ui.sec("Mostrar o produto sem cara e sem falar")}
+      <div class="af-tiles4">
+        ${tile(IC.img, "Fotos da marca + texto", "A marca dá-te as imagens", "af-best")}
+        ${tile(IC.vs, "A vs B", "«Qual comprar?» em texto")}
+        ${tile(IC.hand, "Só as mãos", "Se tiveres o produto")}
+        ${tile(IC.ai, "Vídeo com IA", "Higgsfield, a partir da foto")}
       </div>
+      <p class="af-hint">${esc(t("Não precisas de comprar o produto: o painel de afiliado da marca tem fotos e vídeos para usares."))}</p>
 
-      ${ui.sec("O que esperar")}
-      <div class="af-tiles3 af-steps">
-        <div class="panel af-tile"><i>1–3</i><b>${esc(t("semanas"))}</b><span>${esc(t("Poucas views. Normal."))}</span></div>
-        <div class="panel af-tile"><i>20k+</i><b>${esc(t("views num vídeo"))}</b><span>${esc(t("Primeiras vendas"))}</span></div>
-        <div class="panel af-tile af-best"><i>MKT</i><b>${esc(t("Marketing ajuda"))}</b><span>${esc(t("Guiões da semana prontos"))}</span></div>
+      ${ui.sec("Vai funcionar? As contas para 1 000 € por mês")}
+      <div class="af-funnel4">${steps.map(([n, h, p], i) => `<div class="panel af-tile ${i === steps.length - 1 ? "af-lit" : ""}"><i>${esc(n)}</i><b>${esc(t(h))}</b><span>${esc(t(p))}</span></div>${i < steps.length - 1 ? `<span class="af-arrow">${I.arrow}</span>` : ""}`).join("")}</div>
+      <div class="af-verdict"><div class="panel af-tile af-best"><b>${esc(t("Sim, se houver visualizações"))}</b><span>${esc(t("50 mil por mês = 1 vídeo viral ou 30 vídeos normais."))}</span></div>
+        <div class="panel af-tile"><b>${esc(t("Não, sem visualizações"))}</b><span>${esc(t("0 views = 0 €. O produto não se vende sozinho."))}</span></div></div>
+
+      ${ui.sec("Começar")}
+      <div class="af-tiles4 af-steps">
+        <div class="panel af-tile"><i>1</i><b>${esc(t("Inscreve-te"))}</b><span>Dreame · EcoFlow</span></div>
+        <div class="panel af-tile"><i>2</i><b>${esc(t("Escolhe 1 produto"))}</b><span>${esc(t("O que paga mais"))}</span></div>
+        <div class="panel af-tile"><i>3</i><b>${esc(t("1 vídeo por dia"))}</b><span>${esc(t("Fotos + texto"))}</span></div>
+        <div class="panel af-tile af-best"><i>4</i><b>${esc(t("Regista aqui"))}</b><span>${esc(t("Os meus programas"))}</span></div>
       </div>`;
   }
 

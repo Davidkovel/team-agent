@@ -441,3 +441,37 @@ class Photo(Base):
     image: Mapped[str] = mapped_column(Text, default="")
     thumb: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AffiliateProgram(Base):
+    """Afiliados (3 Nov, Marco: «affiliate market... quero funcional»): a programme the team promotes with its own link.
+    Goes to every PC by sync. `commission` is a number read with `kind`: pct (% of the sale), fixed (€ per sale) or
+    recurring (% every month while the client pays)."""
+    __tablename__ = "affiliate_programs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), default="")
+    niche: Mapped[str] = mapped_column(String(80), default="")
+    network: Mapped[str] = mapped_column(String(80), default="")
+    link: Mapped[str] = mapped_column(String(600), default="")
+    kind: Mapped[str] = mapped_column(String(12), default="pct")
+    commission: Mapped[float] = mapped_column(Float, default=0)
+    cookie_days: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default="ideia")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class AffiliateResult(Base):
+    """What a programme gave on a day, written by hand from the network's dashboard (no network API yet)."""
+    __tablename__ = "affiliate_results"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    program_id: Mapped[int] = mapped_column(Integer, index=True)
+    day: Mapped[str] = mapped_column(String(10), default="")
+    clicks: Mapped[int] = mapped_column(Integer, default=0)
+    sales: Mapped[int] = mapped_column(Integer, default=0)
+    earned: Mapped[float] = mapped_column(Float, default=0)
+    note: Mapped[str] = mapped_column(String(300), default="")
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

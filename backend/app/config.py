@@ -40,7 +40,8 @@ class Settings(BaseSettings):
     sync_peers: str = ""
     # Hubs every computer also trades with by full address, outside the VPN (29 out): David's Mac has no Radmin, so it opens
     # only /api/sync to the internet with Tailscale Funnel and the PCs of Marco and Kovel call it there. The Mac sets it empty.
-    sync_relays: str = "https://macbook-air-de-david.tailcdbdef.ts.net:8443"
+    # The cloud Hub (3 nov, docs/nuvem.md) is the second: always on, so the PCs meet it even with the Mac off.
+    sync_relays: str = "https://macbook-air-de-david.tailcdbdef.ts.net:8443,https://amg-nuvem.tailcdbdef.ts.net:8443"
     # Zoom (CRM, optional): a Server-to-Server OAuth app; with all three the lead's meeting is created in the account. Only in backend/.env.
     zoom_account_id: str = ""
     zoom_client_id: str = ""

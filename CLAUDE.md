@@ -56,6 +56,23 @@ Writes then go into a queue on the phone (`localStorage` `amg-outbox`, `queueWri
 answer sends them oldest first (`flushOutbox`: 4xx dropped, 5xx/no network waits). Pages only show data they had seen before;
 agents, Claude and anything that runs on the PC still need it on. `/api/auth`, streams and blobs are never served old.
 
+**O Hub na nuvem para o Marco e o Kovel (3 nov, David: «se eles te perguntarem o que precisam de fazer, instala tu por
+eles»).** Cada sócio tem o seu servidor grátis da Oracle com um Hub ligado 24 h, para a app do telemóvel funcionar com o PC
+desligado. O do David já corre; a nuvem dele é só dele (`HUB_USER=david`). Quando o Marco ou o Kovel perguntarem («quero o Hub
+no telemóvel com o PC desligado», «o que preciso para a nuvem»), o Claude do PC deles faz tudo o que der e só lhes pede o que
+só eles podem fazer. Guia completo: `docs/nuvem.md`, secção «Marco e Kovel».
+- **O Claude faz**: `git pull`; confirma a Tailscale no PC (`tailscale status`; se faltar, `winget install Tailscale.Tailscale`)
+  e que o telemóvel aparece lá; corre `python scripts\nuvem\preparar.py` (login, número no sync 4/5, telemóvel e a ligação à
+  nuvem do David saem sozinhos) e deixa o texto do cloud-init copiado; no fim confirma que a `amg-nuvem` aparece na
+  `tailscale status` e responde em `https://amg-nuvem.<tailnet>.ts.net`, e dá-lhes esse endereço.
+- **Só a pessoa faz** (pedir um passo de cada vez, com o link): entrar na Tailscale no PC e no telemóvel com a mesma conta;
+  criar a conta Oracle (oracle.com/cloud/free, pede cartão só para confirmar, o Always Free não cobra); gerar a chave da
+  Tailscale (login.tailscale.com/admin/settings/keys → Generate auth key) e colá-la quando o `preparar.py` pedir; na Oracle,
+  Create instance (Ubuntu 24.04, Ampere A1, colar o texto em «Paste cloud-init script»); no telemóvel, abrir o endereço no
+  Safari e Adicionar ao ecrã principal; para os agentes na nuvem, o login do Claude
+  (`ssh ubuntu@amg-nuvem`, `sudo -u amg -H /opt/amg/.local/bin/claude auth login`, `sudo systemctl restart 'amg-agent@*'`).
+- Nunca pedir passwords nem o cartão: a pessoa escreve-os ela mesma no site.
+
 **Phone sign-in through Tailscale (6 Oct, David's iPhone).** Behind `tailscale serve` the Hub sees the *phone's* own tailnet
 address (100.x and its fd7a:… IPv6), not 127.0.0.1, so the phone got the password page. Fix per PC: put the phone's two
 addresses in `backend/.env` → `IP_USERS=<phone 100.x>=david,<phone fd7a:…>=david` (`tailscale ip -4 <phone>` / `-6`), then

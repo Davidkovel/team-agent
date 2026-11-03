@@ -64,6 +64,7 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 | Encaixar sozinho no canto do ecrã | não era isso: quer mexer à vontade e que o resto se ajuste |
 | Relógio, data e cápsulas sempre à vista à volta da estrela (30 out, David; Marco e Kovel concordaram) | ficou só a estrela pequena em tons escuros (`StarOrb`); os ícones descem por baixo dela em vidro limpo só com o rato **na estrela**, lido por temporizador (os eventos de entrar/sair falhavam) |
 | Data, «Tudo bem», ponto e o módulo Limites na central | tralha |
+| Estrela só fumada escura, sem contorno (30 out) | «se tiver uma aplicação por trás preta... eu perco aquilo» (3 nov): agora tem contorno fixo claro + escuro (`StarOrb._star_layer`); e «No relógio» chama-se «Na estrela» |
 | Hora branca fixa sem olhar para o fundo | em fundos brancos deixa de se ler |
 | Estrela, risco, hora e AMG soltos no fundo, a trocar de cor pelo fundo | «tudo bug»: ilegível em cinzento, troca de cor a saltar |
 | A hora e os ícones a reorganizarem-se enquanto se arrasta | «puxar e arrastar é tudo bug» |

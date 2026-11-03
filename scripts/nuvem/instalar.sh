@@ -102,3 +102,45 @@ fi
 
 for _ in $(seq 30); do curl -fs http://127.0.0.1:8000/api/version >/dev/null && break; sleep 2; done
 curl -fs http://127.0.0.1:8000/api/version && echo && echo "== Hub da nuvem a correr" || echo "== O Hub não respondeu: journalctl -u amg-hub"
+
+# O agente (agent/, team_agent) do HUB_USER, 3 nov (David: «falo com um agente pelo telemóvel com o PC desligado e o Claude faz
+# o site»): faz as tarefas e responde às perguntas do Hub com o Claude deste servidor. Precisa do login do Claude uma vez
+# (docs/nuvem.md); até lá avisa e as tarefas falham. O token emite-o este Hub (127.0.0.1 é o HUB_USER) e substitui o anterior
+# dessa pessoa, que vai por sync aos PCs: o agente de um PC dela deixa de entrar, e é este que passa a ser o seu.
+"$APP/venv/bin/pip" install -q -r "$REPO/agent/requirements.txt"
+AENV="$DATA/agent.env"
+if ! grep -q '^TEAM_AGENT_TOKEN=.' "$AENV" 2>/dev/null; then
+  token=$(curl -fs -X POST "http://127.0.0.1:8000/api/users/$HUB_USER/agent-token" | python3 -c 'import json,sys; print(json.load(sys.stdin)["agent_token"])' || true)
+  cat > "$AENV" <<EOF
+TEAM_SERVER_URL=http://127.0.0.1:8000
+TEAM_AGENT_TOKEN=$token
+TEAM_AGENT_WORKSPACE=$APP/trabalho
+TEAM_AGENT_DATA_DIR=$DATA/agente
+HOME=$APP
+PATH=$APP/.local/bin:/usr/local/bin:/usr/bin:/bin
+EOF
+fi
+mkdir -p "$APP/trabalho" "$DATA/agente"
+chmod 600 "$AENV"
+chown -R amg:amg "$APP"
+cat > /etc/systemd/system/amg-agent.service <<EOF
+[Unit]
+Description=Agente AMG - agente do Claude na nuvem
+After=amg-hub.service
+Wants=amg-hub.service
+
+[Service]
+User=amg
+WorkingDirectory=$REPO/agent
+EnvironmentFile=$AENV
+ExecStart=$APP/venv/bin/python -m team_agent --env $AENV
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now amg-agent
+systemctl restart amg-agent
+grep -q '^TEAM_AGENT_TOKEN=.' "$AENV" && echo "== Agente a correr" || echo "== O agente ficou sem token: o Hub não o deu"

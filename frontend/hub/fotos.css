@@ -130,3 +130,37 @@ html.is-phone .ft-alb-t b { font-size: 17px; }
 html:not(.is-phone) .hub.paneled:has(#ft) { grid-template-columns: 236px minmax(0, 1fr); }
 html:not(.is-phone) .hub.paneled.collapsed:has(#ft) { grid-template-columns: 60px minmax(0, 1fr); }
 html:not(.is-phone) .hub.paneled:has(#ft) #hpanel { display: none; }
+
+/* 3 Nov: the types of the photos (Logótipo, Banner...) and each photo's name under it */
+.ft-kinds { display: flex; gap: 6px; overflow-x: auto; padding: 0 22px 12px; scrollbar-width: none; }
+.ft-kinds::-webkit-scrollbar { display: none; }
+.ft-kinds button { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 15px;
+  background: rgba(255, 255, 255, .05); color: rgba(235, 235, 245, .8); font: 500 12.5px var(--ui); cursor: pointer; }
+.ft-kinds button i { font-style: normal; color: rgba(235, 235, 245, .45); font-size: 11.5px; }
+.ft-kinds button:hover { background: rgba(255, 255, 255, .09); }
+.ft-kinds button.on { border-color: transparent; background: linear-gradient(180deg, #e9cf86, #b8934a); color: #111; }
+.ft-kinds button.on i { color: rgba(0, 0, 0, .55); }
+.ft-ph { display: flex; flex-direction: column; gap: 5px; height: auto !important; aspect-ratio: auto !important; background: none !important; overflow: visible !important; }
+.ft-ph-img { position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 6px; background: #151517; }
+.ft-ph-img img { width: 100%; height: 100%; object-fit: cover; }
+.ft-ph-t { overflow: hidden; padding: 0 2px; font: 400 11.5px var(--ui); color: rgba(235, 235, 245, .72); text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+.ft-kind { position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 6px; background: rgba(0, 0, 0, .66); backdrop-filter: blur(6px);
+  color: #e9cf86; font: 600 10px var(--ui); font-style: normal; letter-spacing: .02em; }
+.ft-name { width: min(420px, 60vw); padding: 3px 6px; margin: -3px -6px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #fff; font: 600 15px var(--ui); }
+.ft-name:hover { border-color: rgba(255, 255, 255, .18); }
+.ft-name:focus { outline: none; border-color: #e9cf86; background: rgba(255, 255, 255, .06); }
+.ft-view-k { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 8px 16px 0; }
+.ft-view-k span { margin-right: 4px; color: rgba(235, 235, 245, .55); font: 600 11px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.ft-view-k button { height: 28px; padding: 0 11px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 14px; background: rgba(255, 255, 255, .05); color: #fff; font: 500 12.5px var(--ui); cursor: pointer; }
+.ft-view-k button:hover { background: rgba(255, 255, 255, .1); }
+.ft-view-k button.on { border-color: transparent; background: linear-gradient(180deg, #e9cf86, #b8934a); color: #111; }
+.ft-main { grid-template-rows: auto auto minmax(0, 1fr); }
+.ft-main:not(:has(.ft-kinds)) { grid-template-rows: auto minmax(0, 1fr); }
+.ft-kinds { padding-top: 12px; }
+.ft-grid { column-gap: 8px; row-gap: 14px; padding: 0 16px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+html.is-phone .ft-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 6px; row-gap: 10px; padding: 0 10px; }
+.ft-ph { min-width: 0; }
+.ft-view { grid-template-rows: auto minmax(0, 1fr) auto auto; }
+.ft-ph-t { display: block; width: 100%; max-width: 100%; }
+.ft-view-img { overflow: hidden; }
+.ft-view-img img { max-height: calc(100dvh - 190px); }

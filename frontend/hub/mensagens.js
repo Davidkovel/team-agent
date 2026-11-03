@@ -115,7 +115,7 @@
       <form class="ms-send" id="ms-send" autocomplete="off">
         <div class="ms-preview" id="ms-preview">${photoHtml()}</div>
         <div class="ms-bar">
-          <button type="button" class="ms-plus" id="ms-plus" title="${esc(t("Mandar uma foto"))}">${icon("plus")}</button>
+          <button type="button" class="ms-plus" id="ms-plus" title="${esc(t("Mandar uma foto da biblioteca ou do computador"))}">${icon("plus")}</button>
           <input type="file" id="ms-file" accept="image/*" hidden>
           <div class="ms-field"><textarea id="ms-in" rows="1" placeholder="${esc(t("Mensagem"))}"></textarea>
             <button class="ms-go" id="ms-go" title="${esc(t("Enviar"))}" ${sending ? "disabled" : ""}>${UP}</button></div>
@@ -163,6 +163,83 @@
     ready();
     if ($("ms-in")) $("ms-in").focus();
   }
+  // ---------------------------------------------------------------- the + : the Ten Fold's photo library (3 Nov, Marco: «quando
+  // clico no mais... tem que haver a biblioteca do widget, as fotos que já estão colocadas, organizado pelos nomes»). The
+  // albums of #/fotos (and the brand work of Marcas and Instagram) A to Z, each photo with its name; «Do computador» still there.
+  const LIB_REPO = [["marcas", "Marcas"], ["instagram", "Instagram"]];
+  let lib = null, libFind = "", libKind = "";
+  const LIB_KINDS = ["Logótipo", "Banner", "Post", "Story", "Fotografia", "Mockup", "Apresentação", "Outro"];   // as fotos.js KINDS
+  const LIB_WORDS = [["Logótipo", ["logo", "logotipo", "marca", "brand", "icon"]], ["Banner", ["banner", "capa", "cover", "header", "cartaz"]],
+    ["Story", ["story", "stories", "reel"]], ["Apresentação", ["slide", "carrossel", "carousel", "deck", "apresenta"]], ["Mockup", ["mockup", "mock"]],
+    ["Post", ["post", "instagram", "feed"]], ["Fotografia", ["img_", "dsc", "foto", "photo", "whatsapp image", "screenshot"]]];
+  const libGuess = (s) => { const l = String(s || "").toLowerCase(); const k = LIB_WORDS.find(([, w]) => w.some((x) => l.includes(x))); return k ? k[0] : ""; };
+  const libUrl = (p, size = "full") => (p.repo ? `/api/hub/tenfold/${p.section}/media?id=${encodeURIComponent(p.rid)}&token=${encodeURIComponent(token)}`
+    : `/api/photos/${p.id}/img?size=${size}&token=${encodeURIComponent(token)}`);
+  async function libLoad() {
+    const [mine, ...secs] = await Promise.all([api("/api/photos").catch(() => ({ items: [] })),
+      ...LIB_REPO.map(([id]) => api(`/api/hub/tenfold/${id}`).catch(() => ({ items: [] })))]);
+    const repo = secs.flatMap((d, i) => (d.items || []).filter((it) => /\.(png|jpe?g|webp|gif)$/i.test(it.name)).map((it) => ({
+      repo: true, section: LIB_REPO[i][0], rid: it.id, album: it.group || LIB_REPO[i][1], title: it.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " "),
+      kind: libGuess(`${it.name} ${it.group || LIB_REPO[i][1]}`) })));
+    lib = (mine.items || []).map((p) => ({ ...p, album: p.album || t("Geral") })).concat(repo);
+  }
+  function libBody() {
+    if (!lib) return `<p class="ms-none">${esc(t("A abrir as fotos…"))}</p>`;
+    const q = libFind.trim().toLowerCase();
+    const list = lib.filter((p) => (!libKind || p.kind === libKind) && (!q || `${p.title} ${p.album} ${p.kind || ""}`.toLowerCase().includes(q)));
+    if (!list.length) return `<p class="ms-none">${esc(lib.length ? t("Nenhuma foto com «{q}».", { q: libFind.trim() }) : t("Ainda não há fotos na biblioteca. Junta-as em Fotos."))}</p>`;
+    const by = (a, b) => a.localeCompare(b, "pt", { sensitivity: "base", numeric: true });
+    const names = [...new Set(list.map((p) => p.album))].sort(by);
+    return names.map((n) => {
+      const ps = list.filter((p) => p.album === n).sort((a, b) => by(a.title || "", b.title || ""));
+      return `<section class="ms-lib-al"><h4>${esc(n)}<span>${ps.length}</span></h4><div class="ms-lib-grid">${ps.map((p) =>
+        `<button type="button" class="ms-lib-p" data-lib="${p.repo ? `r:${esc(p.section)}:${esc(p.rid)}` : `p:${esc(p.id)}`}">
+          <span><img src="${libUrl(p, "thumb")}" alt="" loading="lazy" decoding="async">${p.kind ? `<em>${esc(t(p.kind))}</em>` : ""}</span><small>${esc(p.title || t("Sem nome"))}</small></button>`).join("")}</div></section>`;
+    }).join("");
+  }
+  function libKinds() {
+    if (!lib) return "";
+    const n = (k) => lib.filter((p) => p.kind === k).length, ks = LIB_KINDS.filter(n);
+    if (!ks.length) return "";
+    return `<button type="button" class="${libKind ? "" : "on"}" data-lib-kind="">${esc(t("Tudo"))}</button>${ks.map((k) =>
+      `<button type="button" class="${libKind === k ? "on" : ""}" data-lib-kind="${esc(k)}">${esc(t(k))}<i>${n(k)}</i></button>`).join("")}`;
+  }
+  async function openLib() {
+    closeLib();
+    const box = Object.assign(document.createElement("div"), { className: "ms-lib", id: "ms-lib" });
+    box.innerHTML = `<div class="ms-lib-bg" data-lib-close></div><div class="ms-lib-box" role="dialog">
+      <header><b>${esc(t("Fotos"))}</b><button type="button" class="ms-lib-x" data-lib-close>${esc(t("Fechar"))}</button></header>
+      <div class="ms-lib-top"><label class="ms-find">${icon("search")}<input id="ms-lib-find" type="search" placeholder="${esc(t("Procurar pelo nome"))}" value="${esc(libFind)}" autocomplete="off"></label>
+        <button type="button" class="ms-lib-pc" data-lib-pc>${icon("plus")}${esc(t("Do computador"))}</button></div>
+      <nav class="ms-lib-kinds" id="ms-lib-kinds">${libKinds()}</nav>
+      <div class="ms-lib-body" id="ms-lib-body">${libBody()}</div></div>`;
+    document.body.append(box);
+    box.addEventListener("click", libClick);
+    $("ms-lib-find").addEventListener("input", (e) => { libFind = e.target.value; paint($("ms-lib-body"), libBody()); });
+    document.addEventListener("keydown", libKey);
+    const fill = () => { if ($("ms-lib-body")) { paint($("ms-lib-body"), libBody()); paint($("ms-lib-kinds"), libKinds()); } };
+    if (!lib) { await libLoad(); fill(); } else libLoad().then(fill).catch(() => {});
+  }
+  function closeLib() { const b = $("ms-lib"); if (b) b.remove(); document.removeEventListener("keydown", libKey); }
+  function libKey(e) { if (e.key === "Escape") closeLib(); }
+  async function libClick(e) {
+    let b;
+    if ((b = e.target.closest("[data-lib-kind]"))) { libKind = b.dataset.libKind; paint($("ms-lib-kinds"), libKinds()); paint($("ms-lib-body"), libBody()); }
+    else if (e.target.closest("[data-lib-close]")) closeLib();
+    else if (e.target.closest("[data-lib-pc]")) { closeLib(); $("ms-file").click(); }
+    else if ((b = e.target.closest("[data-lib]"))) {
+      const [kind, a, ...rest] = b.dataset.lib.split(":"), c = rest.join(":");   // a repository id can hold «:» itself
+      const p = lib.find((x) => (kind === "r" ? x.repo && x.section === a && String(x.rid) === c : !x.repo && String(x.id) === a));
+      if (!p) return;
+      b.classList.add("busy");
+      try {
+        const blob = await (await fetch(libUrl(p))).blob();
+        closeLib();
+        await pick(new File([blob], `${p.title || "foto"}.jpg`, { type: blob.type || "image/jpeg" }));
+      } catch (err) { b.classList.remove("busy"); flash(t("Não consegui abrir essa foto.")); }
+    }
+  }
+
   function viewer(id) {   // a photo opened big, on black; a click or Esc closes it
     const box = Object.assign(document.createElement("div"), { className: "ms-view" });
     box.innerHTML = `<img src="${imgUrl(id)}" alt=""><a class="ms-view-dl" href="${imgUrl(id)}" download="foto-${id}.jpg" title="${esc(t("Guardar"))}">${SAVE}</a>`;
@@ -243,7 +320,7 @@
     else if ((b = e.target.closest("[data-del]"))) remove(Number(b.dataset.del), b);
     else if ((b = e.target.closest("[data-photo]"))) viewer(Number(b.dataset.photo));
     else if ((b = e.target.closest("[data-tab]"))) { tab = b.dataset.tab; drawThread(); }
-    else if (e.target.closest("#ms-plus")) $("ms-file").click();
+    else if (e.target.closest("#ms-plus")) openLib();
     else if (e.target.closest("#ms-unpic")) { photo = null; paint($("ms-preview"), ""); ready(); }
     else if (asking !== null && !e.target.closest(".ms-act")) { asking = null; drawThread(); }
   }

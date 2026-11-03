@@ -8,6 +8,16 @@
   const ALL = "", GERAL = "Geral";
   const REPO = [["marcas", "Marcas"], ["instagram", "Instagram"]];   // the company.json sections with photos
   let lib = { items: [], albums: [] }, repo = [], album = ALL, find = "", picking = false, picked = new Set(), fresh = [], sending = 0;
+  // 3 Nov, Marco: «deixa-me trocar de nome as fotos e organizar... tipo Logotipo, ou banner»: each photo has a type, chosen in
+  // the photo (or for many at once with Selecionar), and the chips over the grid show only one type. Same list as the Hub's
+  // KINDS (routers/photos.py) and mensagens.js; the brand work of the repository gets its type from its file's name.
+  const KINDS = ["Logótipo", "Banner", "Post", "Story", "Fotografia", "Mockup", "Apresentação", "Outro"];
+  const KIND_WORDS = [["Logótipo", ["logo", "logotipo", "marca", "brand", "icon"]], ["Banner", ["banner", "capa", "cover", "header", "cartaz"]],
+    ["Story", ["story", "stories", "reel"]], ["Apresentação", ["slide", "carrossel", "carousel", "deck", "apresenta"]], ["Mockup", ["mockup", "mock"]],
+    ["Post", ["post", "instagram", "feed"]], ["Fotografia", ["img_", "dsc", "foto", "photo", "whatsapp image", "screenshot"]]];
+  const guessKind = (s) => { const l = String(s || "").toLowerCase(); const k = KIND_WORDS.find(([, w]) => w.some((x) => l.includes(x))); return k ? k[0] : ""; };
+  const NONE = "—";   // the chip of the photos without a type
+  let kind = "";
   const imgUrl = (p, size = "full") => (p.repo ? `/api/hub/tenfold/${p.section}/media?id=${encodeURIComponent(p.rid)}&token=${encodeURIComponent(token)}`
     : `/api/photos/${p.id}/img?size=${size}&token=${encodeURIComponent(token)}`);
   const SAVE = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>';
@@ -25,7 +35,8 @@
   const all = () => lib.items.concat(repo);
   const shown = () => {
     const q = find.trim().toLowerCase();
-    return all().filter((p) => (album === ALL || p.album === album) && (!q || `${p.title} ${p.album} ${p.by}`.toLowerCase().includes(q)));
+    return all().filter((p) => (album === ALL || p.album === album) && (!kind || (kind === NONE ? !p.kind : p.kind === kind))
+      && (!q || `${p.title} ${p.album} ${p.by} ${p.kind || ""}`.toLowerCase().includes(q)));
   };
   const isRepo = (name) => repo.some((p) => p.album === name) && !lib.items.some((p) => p.album === name);
 
@@ -34,7 +45,8 @@
     lib = mine;
     repo = secs.flatMap((d, i) => (d.items || []).filter((it) => /\.(png|jpe?g|webp|gif)$/i.test(it.name)).map((it) => ({
       repo: true, section: REPO[i][0], rid: it.id, id: `r:${REPO[i][0]}:${it.id}`, album: it.group || REPO[i][1],
-      title: it.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " "), by: "", created_at: it.mtime ? new Date(it.mtime * 1000).toISOString() : null })));
+      title: it.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " "), kind: guessKind(`${it.name} ${it.group || REPO[i][1]}`), by: "",
+      created_at: it.mtime ? new Date(it.mtime * 1000).toISOString() : null })));
     fresh = fresh.filter((n) => !lib.albums.some((a) => a.name === n));
   }
 
@@ -54,13 +66,27 @@
       </div>`;
   }
 
+  // the chips of the types, over the grid: only the ones this album has, each with how many
+  function kindsHtml() {
+    const here = all().filter((p) => album === ALL || p.album === album);
+    if (!here.length) return "";
+    const n = (k) => here.filter((p) => (k === NONE ? !p.kind : p.kind === k)).length;
+    const chips = KINDS.filter((k) => n(k)).map((k) => [k, k, n(k)]);
+    if (n(NONE)) chips.push([NONE, t("Sem tipo"), n(NONE)]);
+    if (kind && !chips.some(([k]) => k === kind)) kind = "";
+    return `<nav class="ft-kinds"><button type="button" class="${kind ? "" : "on"}" data-kind="">${esc(t("Tudo"))}<i>${here.length}</i></button>${chips.map(([k, l, c]) =>
+      `<button type="button" class="${kind === k ? "on" : ""}" data-kind="${esc(k)}">${esc(t(l))}<i>${c}</i></button>`).join("")}</nav>`;
+  }
+
   function gridHtml() {
+    const kinds = kindsHtml();
     const list = shown(), groups = [];
     list.forEach((p) => { const m = month(p.created_at); (groups.at(-1)?.m === m ? groups.at(-1) : (groups.push({ m, items: [] }), groups.at(-1))).items.push(p); });
     const title = album === ALL ? t("Biblioteca") : album, repoAlbum = album !== ALL && isRepo(album);
     const count = list.length === 1 ? t("1 foto") : t("{n} fotos", { n: list.length });
     const tools = picking
       ? `<span class="ft-picked">${picked.size ? (picked.size === 1 ? t("1 escolhida") : t("{n} escolhidas", { n: picked.size })) : t("Escolhe as fotos")}</span>
+         <button type="button" class="ft-btn" data-kind-picked ${picked.size ? "" : "disabled"}>${esc(t("Tipo"))}</button>
          <button type="button" class="ft-btn" data-move-picked ${picked.size ? "" : "disabled"}>${icon("folder")}${esc(t("Mover"))}</button>
          <button type="button" class="ft-btn bad" data-del-picked ${picked.size ? "" : "disabled"}>${icon("trash")}${esc(t("Apagar"))}</button>
          <button type="button" class="ft-btn" data-pick>${esc(t("Feito"))}</button>`
@@ -73,10 +99,11 @@
         <button type="button" class="ft-back" data-album-back>${icon("chevron")}${esc(t("Álbuns"))}</button>
         <div class="ft-title"><h1>${esc(title)}</h1><small>${esc(count)}${repoAlbum ? ` · ${esc(t("do repositório da agência"))}` : ""}${sending ? ` · ${esc(t("a enviar {n}…", { n: sending }))}` : ""}</small></div>
         <div class="ft-tools">${tools}</div>
-      </header>
+      </header>${kinds}
       <div class="ft-body" id="ft-body">${groups.length ? groups.map((g) => `<section class="ft-month"><h2>${esc(g.m)}</h2><div class="ft-grid">${g.items.map((p) => `
         <button type="button" class="ft-ph ${picked.has(p.id) ? "picked" : ""} ${picking && p.repo ? "locked" : ""}" data-photo="${esc(String(p.id))}" aria-label="${esc(p.title || t("Foto"))}">
-          <img src="${imgUrl(p, "thumb")}" alt="" loading="lazy" decoding="async">${picking && !p.repo ? '<i class="ft-tick"></i>' : ""}</button>`).join("")}</div></section>`).join("")
+          <span class="ft-ph-img"><img src="${imgUrl(p, "thumb")}" alt="" loading="lazy" decoding="async">${p.kind ? `<em class="ft-kind">${esc(t(p.kind))}</em>` : ""}${picking && !p.repo ? '<i class="ft-tick"></i>' : ""}</span>
+          <small class="ft-ph-t">${esc(p.title || t("Sem nome"))}</small></button>`).join("")}</div></section>`).join("")
         : `<div class="ft-empty">${icon("fotos")}<p>${esc(empty)}</p>${repoAlbum || find ? "" : `<button type="button" class="ft-btn gold" data-add>${icon("plus")}${esc(t("Adicionar fotos"))}</button>`}</div>`}</div>
       <input type="file" id="ft-file" accept="image/*" multiple hidden>`;
   }
@@ -175,25 +202,43 @@
     const paintV = () => {
       const p = list[i], confirm = box.dataset.confirm === "1";
       box.innerHTML = `<header class="ft-view-h"><button type="button" class="ft-ic" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button>
-          <div><b>${esc(p.title || t("Foto"))}</b><small>${esc([p.album, p.by, when(p.created_at)].filter(Boolean).join(" · "))}</small></div><span>${i + 1} / ${list.length}</span></header>
+          <div>${p.repo ? `<b>${esc(p.title || t("Foto"))}</b>` : `<input class="ft-name" id="ft-name" value="${esc(p.title || "")}" placeholder="${esc(t("Dá um nome a esta foto"))}" maxlength="160" title="${esc(t("Clica para mudar o nome; Enter guarda"))}">`}
+            <small>${esc([p.album, p.by, when(p.created_at)].filter(Boolean).join(" · "))}</small></div><span>${i + 1} / ${list.length}</span></header>
         <div class="ft-view-img"><img src="${imgUrl(p)}" alt="">
           ${list.length > 1 ? `<button type="button" class="ft-ic ft-prev" data-step="-1" aria-label="${esc(t("Anterior"))}">${ARROW("M15 5l-7 7 7 7")}</button>
           <button type="button" class="ft-ic ft-next" data-step="1" aria-label="${esc(t("Seguinte"))}">${ARROW("M9 5l7 7-7 7")}</button>` : ""}</div>
+        ${p.repo ? "" : `<div class="ft-view-k"><span>${esc(t("Tipo"))}</span>${KINDS.map((k) => `<button type="button" class="${p.kind === k ? "on" : ""}" data-set-kind="${esc(k)}">${esc(t(k))}</button>`).join("")}</div>`}
         <footer class="ft-view-a"><a class="ft-btn" href="${imgUrl(p)}" download="${esc((p.title || "foto").replace(/[\\/:*?"<>|]+/g, "-"))}.jpg">${SAVE}${esc(t("Guardar"))}</a>
-          ${p.repo ? "" : `<button type="button" class="ft-btn" data-title>${esc(t("Mudar o nome"))}</button><button type="button" class="ft-btn" data-move>${icon("folder")}${esc(t("Mover"))}</button>
+          ${p.repo ? "" : `<button type="button" class="ft-btn" data-move>${icon("folder")}${esc(t("Mover"))}</button>
           <button type="button" class="ft-btn bad" data-del>${icon("trash")}${esc(t(confirm ? "Carrega outra vez para apagar" : "Apagar"))}</button>`}</footer>`;
     };
-    const close = () => { box.remove(); document.removeEventListener("keydown", key); };
-    const step = (d) => { i = (i + d + list.length) % list.length; box.dataset.confirm = ""; paintV(); };
-    const key = (e) => { if (document.querySelector(".ft-sheet-bg")) return; if (e.key === "Escape") close(); if (e.key === "ArrowLeft") step(-1); if (e.key === "ArrowRight") step(1); };
+    const saveName = async () => {   // the name field of the photo: Enter or leaving it saves
+      const p = list[i], f = $("ft-name");
+      if (!f || p.repo) return;
+      const v = f.value.trim();
+      if (!v || v === (p.title || "")) { f.value = p.title || ""; return; }
+      try { await api(`/api/photos/${p.id}`, { method: "PATCH", body: { title: v } }); p.title = v; flash(t("Nome guardado.")); load().then(draw); }
+      catch (err) { flash(err.message); f.value = p.title || ""; }
+    };
+    const close = () => { saveName(); box.remove(); document.removeEventListener("keydown", key); };
+    const step = (d) => { saveName(); i = (i + d + list.length) % list.length; box.dataset.confirm = ""; paintV(); };
+    const key = (e) => {
+      if (document.querySelector(".ft-sheet-bg")) return;
+      if (e.target && e.target.id === "ft-name") { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } else if (e.key === "Escape") { e.target.value = list[i].title || ""; e.target.blur(); } return; }
+      if (e.key === "Escape") close(); if (e.key === "ArrowLeft") step(-1); if (e.key === "ArrowRight") step(1);
+    };
+    box.addEventListener("focusout", (e) => { if (e.target.id === "ft-name") saveName(); });
     box.onclick = async (e) => {
       const p = list[i];
       if (e.target.closest("[data-close]") || e.target === box || e.target.classList.contains("ft-view-img")) return close();
       const s = e.target.closest("[data-step]"); if (s) return step(Number(s.dataset.step));
+      if (e.target.closest("#ft-name")) return;
       if (e.target.closest("[data-move]")) { if (await move([p.id])) close(); return; }
-      if (e.target.closest("[data-title]")) {
-        const v = await ask("Nome da foto", { value: p.title });
-        if (v) { await api(`/api/photos/${p.id}`, { method: "PATCH", body: { title: v } }).catch((err) => flash(err.message)); p.title = v; paintV(); load().then(draw); }
+      const k = e.target.closest("[data-set-kind]");
+      if (k) {   // the same chip again takes the type off
+        const to = p.kind === k.dataset.setKind ? "" : k.dataset.setKind;
+        try { await api(`/api/photos/${p.id}`, { method: "PATCH", body: { kind: to } }); p.kind = to; paintV(); load().then(draw); }
+        catch (err) { flash(err.message); }
         return;
       }
       if (e.target.closest("[data-del]")) {
@@ -233,6 +278,18 @@
         return;
       }
       if (e.target.closest("[data-pick]")) { picking = !picking; picked.clear(); return draw(); }
+      const kc = e.target.closest("[data-kind]");
+      if (kc) { kind = kc.dataset.kind; $("ft-main").innerHTML = gridHtml(); return; }
+      if (e.target.closest("[data-kind-picked]")) {
+        const to = await ask("Que tipo são?", { ok: "Guardar", options: KINDS, value: "" });
+        if (!to) return;
+        const k2 = KINDS.find((x) => x.toLowerCase() === to.toLowerCase()) || "Outro";
+        try { for (const id of picked) await api(`/api/photos/${id}`, { method: "PATCH", body: { kind: k2 } }); }
+        catch (err) { flash(err.message); }
+        flash(picked.size === 1 ? t("1 foto é agora «{k}».", { k: k2 }) : t("{n} fotos são agora «{k}».", { n: picked.size, k: k2 }));
+        picking = false; picked.clear(); await load(); draw();
+        return;
+      }
       if (e.target.closest("[data-move-picked]")) { if (await move([...picked])) { picking = false; picked.clear(); draw(); } return; }
       if (e.target.closest("[data-del-picked]")) {
         const b = e.target.closest("[data-del-picked]");

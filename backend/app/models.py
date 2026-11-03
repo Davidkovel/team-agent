@@ -437,6 +437,7 @@ class Photo(Base):
     company: Mapped[str] = mapped_column(String(40), default="tenfold", index=True)
     album: Mapped[str] = mapped_column(String(80), default="Geral")
     title: Mapped[str] = mapped_column(String(160), default="")
+    kind: Mapped[str | None] = mapped_column(String(30), default="")   # Logótipo, Banner, Post... (3 Nov, routers/photos.py KINDS)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     image: Mapped[str] = mapped_column(Text, default="")
     thumb: Mapped[str] = mapped_column(Text, default="")

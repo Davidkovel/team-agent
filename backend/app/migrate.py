@@ -34,7 +34,8 @@ log = logging.getLogger("team.backend")
 # 18: messages and message_seen, for Mensagens (routers/messages.py): the team writes to each other in the Hub and the widget.
 # 19: plans, for Planos (routers/plans.py): a job in steps that any partner's Claude carries on.
 # 22: affiliate_programs and affiliate_results, for Afiliados (routers/affiliates.py).
-SCHEMA_VERSION = 22
+# 23: photos.kind, the type of a photo of Fotos (Logótipo, Banner, Post...).
+SCHEMA_VERSION = 23
 
 
 def current_version(conn) -> int:

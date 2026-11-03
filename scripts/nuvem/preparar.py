@@ -28,8 +28,13 @@ def main():
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     if not config.get("key"):
         sys.exit(f"Falta a chave da equipa («key») em {CONFIG}: sem ela a nuvem não faz sync com os PCs.")
-    print("Chave da Tailscale: login.tailscale.com/admin/settings/keys → Generate auth key (não reutilizável chega).")
-    authkey = getpass.getpass("Cola aqui a chave (tskey-auth-…, não aparece no ecrã): ").strip()
+    # A chave copiada na Tailscale (botão de copiar) serve sem a colar outra vez
+    clip = subprocess.run(["pbpaste"], capture_output=True, text=True).stdout.strip() if sys.platform == "darwin" else ""
+    if clip.startswith("tskey-"):
+        authkey = clip
+    else:
+        print("Chave da Tailscale: login.tailscale.com/admin/settings/keys → Generate auth key (não reutilizável chega).")
+        authkey = getpass.getpass("Cola aqui a chave (tskey-auth-…, não aparece no ecrã): ").strip()
     if not authkey.startswith("tskey-"):
         sys.exit("Isso não parece uma chave da Tailscale (começa por tskey-).")
 

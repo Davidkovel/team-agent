@@ -81,6 +81,52 @@ TIPOS = {
 }
 
 
+# «Tudo» (3 nov, Marco: «meto só a localidade, a Benedita, e aparecem logo todos os nichos que valem a pena, tipo um radar»):
+# sem tipo de empresa, o mapa traz todos os negócios com nome à volta, cada um com o seu nicho, e a página filtra por nicho.
+_AMEN = ("^(restaurant|fast_food|cafe|bar|pub|dentist|clinic|doctors|veterinary|pharmacy|driving_school|kindergarten|childcare|"
+         "language_school|music_school|dancing_school|prep_school|car_wash|car_rental)$")
+TUDO = ('nwr["shop"]["name"]', 'nwr["office"]["name"]', 'nwr["craft"]["name"]', 'nwr["healthcare"]["name"]',
+        f'nwr["amenity"~"{_AMEN}"]["name"]',
+        'nwr["leisure"~"^(fitness_centre|sports_centre|spa)$"]["name"]', 'nwr["tourism"~"^(hotel|guest_house|hostel|apartment|motel|chalet)$"]["name"]')
+# o que não é cliente: serviços públicos, associações, igrejas, e as cadeias (o mapa marca-as com a marca na Wikidata)
+NAO_CLIENTE = {"office": r"^(government|association|ngo|religion|political_party|diplomatic|union|foundation|quango|educational_institution|research)$",
+               "shop": r"^(vacant|no|disused)$"}
+
+# etiqueta do mapa -> nicho; o primeiro que bate ganha, por isso os mais exatos vêm primeiro
+NICHOS = [
+    ("amenity", r"driving_school", "Escolas de condução"), ("leisure", r"fitness_centre|sports_centre", "Ginásios"),
+    ("amenity", r"restaurant|fast_food", "Restaurantes"), ("amenity", r"cafe|bar|pub", "Cafés e bares"),
+    ("shop", r"bakery|pastry|confectionery", "Padarias e pastelarias"), ("shop", r"hairdresser", "Cabeleireiros e barbearias"),
+    ("shop", r"beauty|cosmetics|massage|perfumery|tattoo", "Estética e beleza"), ("leisure", r"spa", "Estética e beleza"),
+    ("amenity", r"dentist", "Clínicas dentárias"), ("healthcare", r"dentist", "Clínicas dentárias"),
+    ("amenity", r"clinic|doctors", "Clínicas e saúde"), ("healthcare", r".", "Clínicas e saúde"),
+    ("amenity", r"pharmacy", "Farmácias"), ("amenity", r"veterinary", "Veterinários e animais"), ("shop", r"pet", "Veterinários e animais"),
+    ("shop", r"optician|hearing_aids|medical_supply", "Óticas"), ("office", r"estate_agent", "Imobiliárias"), ("shop", r"estate_agent", "Imobiliárias"),
+    ("shop", r"car_repair|tyres|car_parts|motorcycle", "Oficinas e auto"), ("shop", r"^car$", "Stands de automóveis"),
+    ("amenity", r"car_wash|car_rental", "Oficinas e auto"), ("office", r"lawyer|notary", "Advogados e solicitadores"),
+    ("office", r"accountant|tax_advisor|financial|financial_advisor", "Contabilidade e finanças"), ("office", r"insurance", "Seguros"),
+    ("office", r"architect|engineer|surveyor", "Arquitetura e engenharia"),
+    ("craft", r"builder|carpenter|electrician|plumber|painter|metal_construction|roofer|tiler|stonemason|hvac|window_construction|glaziery|plasterer|floorer",
+     "Construção e obras"), ("office", r"construction_company", "Construção e obras"),
+    ("tourism", r".", "Alojamento"), ("shop", r"clothes|boutique|shoes|fashion_accessories|bag|fabric|tailor", "Roupa e calçado"),
+    ("shop", r"furniture|interior_decoration|kitchen|bed|doityourself|hardware|houseware|paint|bathroom_furnishing|flooring|lighting|curtain",
+     "Casa e decoração"), ("shop", r"florist|garden_centre|agrarian", "Floristas e jardim"), ("shop", r"jewelry|watches", "Joalharias"),
+    ("shop", r"supermarket|convenience|greengrocer|butcher|seafood|deli|wine|alcohol|beverages|farm|cheese|frozen_food|coffee|tea", "Alimentação"),
+    ("shop", r"electronics|mobile_phone|computer|appliance", "Eletrónica e informática"),
+    ("amenity", r"kindergarten|childcare|prep_school|language_school|music_school|dancing_school", "Educação e explicações"),
+    ("shop", r"travel_agency", "Agências de viagens"), ("shop", r"laundry|dry_cleaning", "Lavandarias"),
+    ("office", r"it|software|telecommunication|advertising_agency|marketing|graphic_design", "Tecnologia e marketing"),
+    ("office", r".", "Escritórios e serviços"), ("craft", r".", "Ofícios e fábricas"), ("shop", r".", "Outras lojas"),
+]
+
+
+def _nicho(tg: dict) -> str:
+    for k, pat, nome in NICHOS:
+        if tg.get(k) and re.search(pat, tg[k]):
+            return nome
+    return "Outros"
+
+
 def _filtros(termo: str) -> list[str]:
     """Os filtros do mapa para um ramo escrito à mão: os tipos que a frase menciona e o nome (a palavra mais própria)."""
     t = _norm(termo)
@@ -233,6 +279,8 @@ class Radar:
     # ---------- arrancar ----------
     def start(self, ramo: str, local: str, raio: int, lista: str = "", owner: str = "", termo: str = "") -> dict:
         termo = re.sub(r"\s+", " ", termo or "").strip()[:60]
+        if ramo == "tudo" or (not termo and not lista.strip() and (local or "").strip()):  # só a localidade: tudo o que há à volta
+            return self._start_tudo(local, raio, owner)
         if ramo not in RAMOS:  # um ramo escrito à mão: qualquer tipo de empresa
             if not termo:
                 raise ValueError("diz o que procuras (ex.: ginásios, clínicas, restaurantes)")
@@ -258,13 +306,50 @@ class Radar:
         task.add_done_callback(self._tasks.discard)
         return scan
 
+    def _start_tudo(self, local: str, raio, owner: str) -> dict:
+        local = (local or "").strip()[:80]
+        if not local:
+            raise ValueError("diz a localidade (ex.: Benedita)")
+        raio = max(1, min(int(raio if raio not in (None, "") else 5) or 5, 25))  # numa vila 5 km já trazem centenas
+        sid = uuid.uuid4().hex[:12]
+        scan = {"id": sid, "ramo": "tudo", "ramo_nome": "Todas as empresas", "termo": "", "filtros": list(TUDO), "local": local,
+                "raio": raio, "at": time.time(), "fim": None, "owner": owner, "fontes": [], "negocios": [], "mercado": {}, "resumo": {}, "erro": ""}
+        self._save(scan)
+        self.jobs[sid] = {"fase": "a localizar a zona", "feitos": 0, "total": 0}
+        task = asyncio.create_task(self._run(scan, ""))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return scan
+
+    async def geo(self, local: str) -> dict:
+        """Só o sítio, para o mapa ir logo para lá enquanto se escreve (guardado: o Nominatim aceita um pedido por segundo)."""
+        k = _norm(local)
+        if not k:
+            raise ValueError("diz a localidade")
+        cache = getattr(self, "_geo", {})
+        self._geo = cache
+        if k not in cache:
+            async with httpx.AsyncClient(timeout=10, headers={"User-Agent": UA_BOT}) as c:
+                cache[k] = await self._geocode(c, local)
+        return cache[k]
+
     async def _run(self, scan: dict, lista: str) -> None:
         job = self.jobs[scan["id"]]
         try:
             async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={"User-Agent": UA_BOT}) as c:
                 found: list[dict] = []
                 ia = None
-                if scan["local"]:
+                if scan["ramo"] == "tudo":  # todos os negócios do mapa à volta; a IA não serve para «tudo»
+                    scan["geo"] = geo = await self._geocode(c, scan["local"])
+                    job["fase"] = "a procurar no mapa"
+                    try:
+                        got = await self._osm(c, scan["filtros"], geo, scan["raio"], wait=15)  # o radar quer-se rápido
+                    except RuntimeError:  # o Overpass vive cheio: o Photon lê o mesmo mapa, menos de cada vez
+                        got = await self._tudo_lite(c, geo, scan["raio"])
+                    km = lambda n: ((n["lat"] - geo["lat"]) ** 2 + ((n["lon"] - geo["lon"]) * 0.77) ** 2) ** 0.5  # noqa: E731
+                    found += sorted((n for n in got if n.get("lat") is not None), key=km)  # passando o máximo, ficam os mais perto
+                    scan["fontes"].append("OpenStreetMap")
+                elif scan["local"]:
                     geo = await self._geocode(c, scan["local"])
                     scan["geo"] = geo
                     ia = asyncio.create_task(self._ia_lista(scan, geo))  # corre ao mesmo tempo que o mapa
@@ -427,14 +512,14 @@ class Radar:
             await asyncio.sleep(0.3)
         return out
 
-    async def _osm(self, c: httpx.AsyncClient, filtros: list[str], geo: dict, raio: int) -> list[dict]:
+    async def _osm(self, c: httpx.AsyncClient, filtros: list[str], geo: dict, raio: int, wait: int = 45) -> list[dict]:
         around = f"(around:{raio * 1000},{geo['lat']},{geo['lon']})"
         q = "[out:json][timeout:60];(" + "".join(f"{f}{around};" for f in filtros) + ");out center tags;"
         r = None
         for url in ("https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter",
                     "https://overpass.kumi.systems/api/interpreter", "https://overpass-api.de/api/interpreter"):  # vivem cheios: tenta-se outra vez
             try:
-                r = await c.post(url, data={"data": q}, timeout=45)
+                r = await c.post(url, data={"data": q}, timeout=wait)
                 if r.status_code == 200:
                     break
             except httpx.HTTPError:
@@ -444,12 +529,12 @@ class Radar:
         out = []
         for e in r.json().get("elements", []):
             tg = e.get("tags", {})
-            if not tg.get("name"):
+            if not tg.get("name") or tg.get("brand:wikidata") or any(tg.get(k) and re.search(p, tg[k]) for k, p in NAO_CLIENTE.items()):
                 continue
             addr = " ".join(x for x in (tg.get("addr:street"), tg.get("addr:housenumber"), tg.get("addr:city") or tg.get("addr:place")) if x)
             out.append({"nome": tg["name"][:90], "site": tg.get("website") or tg.get("contact:website") or tg.get("url") or "",
                         "telefone": tg.get("phone") or tg.get("contact:phone") or "", "email": tg.get("email") or tg.get("contact:email") or "",
-                        "morada": addr, "facebook": tg.get("contact:facebook", ""), "fonte": "OpenStreetMap",
+                        "morada": addr, "facebook": tg.get("contact:facebook", ""), "fonte": "OpenStreetMap", "nicho": _nicho(tg),
                         "lat": e.get("lat") or e.get("center", {}).get("lat"), "lon": e.get("lon") or e.get("center", {}).get("lon")})
         return out
 
@@ -487,6 +572,50 @@ class Radar:
         if not out:
             raise RuntimeError("o mapa não respondeu; tenta daqui a um minuto")
         return out
+
+    async def _tudo_lite(self, c: httpx.AsyncClient, geo: dict, raio: int) -> list[dict]:
+        """Os negócios à volta pelo Photon (até 50 por tipo de etiqueta), quando nenhum Overpass responde."""
+        out = []
+        # o Photon dá no máximo 50 por pedido: primeiro cada chave, depois os tipos que mais aparecem, para passar dos 50
+        tags = ("shop", "amenity", "office", "craft", "healthcare", "tourism", "leisure", "shop:hairdresser", "shop:beauty", "shop:clothes",
+                "shop:car_repair", "shop:bakery", "shop:supermarket", "shop:furniture", "amenity:restaurant", "amenity:cafe", "amenity:dentist",
+                "amenity:pharmacy", "office:estate_agent", "office:accountant", "office:lawyer", "office:company")
+        for tag in tags:
+            k = tag.split(":")[0]
+            try:
+                r = await c.get("https://photon.komoot.io/reverse", params={"lat": geo["lat"], "lon": geo["lon"], "radius": raio, "limit": 50, "osm_tag": tag})
+                for f in r.json().get("features", []) if r.status_code == 200 else []:
+                    p, (x_lon, x_lat) = f["properties"], f["geometry"]["coordinates"]
+                    tg = {p.get("osm_key", ""): p.get("osm_value", "")}
+                    if not p.get("name") or (k == "amenity" and not re.search(_AMEN, p.get("osm_value", ""))) \
+                            or (k == "leisure" and p.get("osm_value") not in ("fitness_centre", "sports_centre", "spa")) \
+                            or any(tg.get(kk) and re.search(pp, tg[kk]) for kk, pp in NAO_CLIENTE.items()):
+                        continue
+                    out.append({"nome": p["name"][:90], "morada": " ".join(filter(None, (p.get("street"), p.get("housenumber"), p.get("city")))),
+                                "fonte": "OpenStreetMap", "lat": x_lat, "lon": x_lon, "nicho": _nicho(tg), "osm": f"{p.get('osm_type', '')}{p.get('osm_id', '')}"})
+            except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+                continue
+        if not out:
+            raise RuntimeError("o mapa não respondeu; tenta daqui a um minuto")
+        # o Photon não traz telefone nem site: o Nominatim dá-os, 50 de cada vez, pelo número de cada sítio no mapa
+        ids = list(dict.fromkeys(n["osm"] for n in out if re.fullmatch(r"[NWR]\d+", n["osm"])))
+        extra = {}
+        for i in range(0, len(ids), 50):
+            try:
+                await asyncio.sleep(1)
+                r = await c.get("https://nominatim.openstreetmap.org/lookup", params={"osm_ids": ",".join(ids[i:i + 50]), "format": "json", "extratags": 1})
+                for x in r.json() if r.status_code == 200 else []:
+                    et = x.get("extratags") or {}
+                    extra[f"{(x.get('osm_type') or ' ')[0].upper()}{x.get('osm_id')}"] = et
+            except (httpx.HTTPError, ValueError, TypeError):
+                continue
+        for n in out:
+            et = extra.get(n.pop("osm"), {})
+            if et.get("brand:wikidata"):
+                n["cadeia"] = True
+            n.update({k: v for k, v in (("site", et.get("website") or et.get("contact:website") or ""), ("telefone", et.get("phone") or et.get("contact:phone") or ""),
+                                        ("email", et.get("email") or et.get("contact:email") or ""), ("facebook", et.get("contact:facebook") or "")) if v})
+        return [n for n in out if not n.get("cadeia")]
 
     @staticmethod
     async def search(q: str) -> list[httpx.URL]:

@@ -6,6 +6,7 @@ import csv
 import io
 import re
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,15 @@ router = APIRouter(prefix="/api/radar")
 @router.get("")
 def view(user: User = Depends(viewer)):
     return {"ramos": {k: v[0] for k, v in RAMOS.items()}, "estados": ESTADOS, "varreduras": RADAR.list(), "seguimento": RADAR.leads()}
+
+
+@router.get("/geo")
+async def geo(q: str = Query(""), user: User = Depends(viewer)):
+    """Onde fica uma localidade: o mapa vai para lá enquanto se escreve, antes de procurar."""
+    try:
+        return await RADAR.geo(q[:80])
+    except (ValueError, httpx.HTTPError) as e:
+        raise HTTPException(404, str(e) or "não encontrei esse sítio")
 
 
 @router.post("/{sid}/{nid}/lead")

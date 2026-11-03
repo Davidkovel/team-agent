@@ -678,6 +678,14 @@ completa de uma empresa) e `routers/radar.py`. «Todas as empresas, não só as 
   são o satélite do sítio, não fotos do edifício. Nesta página o Painel direito, os separadores Radar | CRM e o fundo do carro escondem-se
   (`#view:has(#rd)`); o CRM abre-se pelo Pipeline. `vidro.js` marca camadas escuras: o `.rdm-tint` tem de manter o override, senão desfoca o mapa.
   Parado nada anima: «Reunião marcada» é um estado, não pulsa (custava 19% de um núcleo).
+- **Só a localidade** (3 nov, Marco: «meto Benedita e aparecem logo todos os nichos que valem a pena, tipo um radar»): a barra
+  «Localidade» em cima do mapa leva o mapa para lá enquanto se escreve (`GET /api/radar/geo`, `M.preview`, anel no raio) e «Radar»
+  arranca uma pesquisa `ramo: "tudo"` (`_start_tudo`, 2–25 km, 5 por omissão; no formulário, deixar o tipo vazio faz o mesmo).
+  O mapa traz todos os negócios com nome (`TUDO`), sem cadeias (`brand:wikidata`) nem serviços públicos/associações
+  (`NAO_CLIENTE`), cada um com o seu nicho (`NICHOS`/`_nicho`, o mais exato primeiro). O Overpass só tem 15 s; cheio, o
+  `_tudo_lite` lê o Photon (até 50 por etiqueta) e pede telefone/site ao Nominatim `lookup`. Sem IA nesta pesquisa. No mapa, o
+  painel **Nichos** (`paintNichos`, `hideN`) ordena pelos que têm mais «Vale a pena», liga/desliga cada um, «só» deixa um,
+  Todos/Nenhum; vale para o mapa e para a lista. Benedita 5 km: 93 empresas em ~2,5 min.
 
 ### CRM: do Radar ao negócio (2 nov, pedido do David)
 

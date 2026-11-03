@@ -89,3 +89,19 @@ def test_qualquer_ramo_e_veredicto():
     assert sim["v"] == "sim" and sim["passo"] == "Ligar" and sim["porque"]
     nao = veredicto({"nome": "B", "site": "https://b.pt", "nota_site": 90, "audit": {}, "oportunidade": 10})
     assert nao["v"] == "nao" and "difícil" in nao["porque"][0] or "bom" in " ".join(nao["porque"])
+
+
+def test_nicho_e_tudo():
+    """Só a localidade (3 nov): cada negócio do mapa ganha um nicho, o mais exato primeiro."""
+    from app.radar import RADAR, _nicho
+    assert _nicho({"amenity": "dentist"}) == "Clínicas dentárias"
+    assert _nicho({"healthcare": "physiotherapist"}) == "Clínicas e saúde"
+    assert _nicho({"shop": "hairdresser"}) == "Cabeleireiros e barbearias"
+    assert _nicho({"shop": "car"}) == "Stands de automóveis"
+    assert _nicho({"shop": "car_repair"}) == "Oficinas e auto"
+    assert _nicho({"office": "estate_agent"}) == "Imobiliárias"
+    assert _nicho({"shop": "qualquer"}) == "Outras lojas"
+    assert _nicho({}) == "Outros"
+    import pytest
+    with pytest.raises(ValueError):
+        RADAR.start("tudo", "", 5)

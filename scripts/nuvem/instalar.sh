@@ -7,7 +7,8 @@
 #
 #   TS_AUTHKEY   chave de autenticação da Tailscale (tskey-auth-…), só da 1.ª vez
 #   TEAM_KEY     a chave da equipa (a do widget.json), para o sync com os PCs
-#   HUB_USER     quem é este Hub (david)
+#   HUB_USER     quem é este Hub (david, mark, owner)
+#   SYNC_NODE    o número desta nuvem no sync (3 a do David; o preparar.py dá um a cada pessoa)
 #   PHONE_IPS    os endereços Tailscale do telemóvel, separados por vírgulas (entram como HUB_USER sem palavra-passe)
 #   SYNC_PEERS   os Hubs com quem troca pela Tailscale, "host:porta,…"
 #   SYNC_RELAYS  os Hubs com quem troca pelo Funnel, "https://…,…"
@@ -57,7 +58,7 @@ REDIS_URL=
 JWT_SECRET=$(cat "$DATA/jwt-secret")
 TEAM_KEY=${TEAM_KEY:-}
 SYNC=1
-SYNC_NODE=3
+SYNC_NODE=${SYNC_NODE:-3}
 SYNC_PEERS=${SYNC_PEERS:-}
 SYNC_RELAYS=${SYNC_RELAYS:-}
 IP_USERS=$users

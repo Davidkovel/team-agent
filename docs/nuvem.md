@@ -23,6 +23,24 @@ ligado sempre. Faz sync com os PCs como os outros Hubs, e o telemóvel passa a a
 5. **Telemóvel**: abrir no Safari `https://amg-nuvem.tailcdbdef.ts.net`, Partilhar → Adicionar ao ecrã principal, e usar
    esta app em vez da antiga. Em Mais → Notificações no telemóvel, ligar outra vez as notificações da app.
 
+## Marco e Kovel (cada um a sua nuvem)
+
+O Hub da nuvem do David é só dele (`HUB_USER=david`, e o telemóvel dele entra sem palavra-passe). Cada um faz a sua, com os
+mesmos passos, a partir do seu PC (Windows):
+
+1. **Tailscale** no PC e no telemóvel, na **mesma conta** (tailscale.com/download). A conta pode ser a deles; não precisa de
+   ser a do David.
+2. **Conta Oracle**, como no passo 1 acima.
+3. No PowerShell, dentro da pasta do team-agent, depois de um `git pull`: `python scripts\nuvem\preparar.py`. Ele tira o
+   login do `widget.json` (Marco → `mark`, Kovel → `owner`), dá à nuvem o seu número no sync (4 o Marco, 5 o Kovel), encontra
+   o telemóvel na Tailscale e liga a nuvem à do David pelo Funnel, que está sempre ligada. Assim tudo chega à equipa mesmo com
+   todos os PCs desligados. O texto fica copiado.
+4. **Criar o servidor**, como no passo 3 acima.
+5. **Telemóvel**: no Safari, `https://amg-nuvem.<tailnet>.ts.net`. A `<tailnet>` está em login.tailscale.com → DNS
+   (ex. `tail1234ab`). Depois, Adicionar ao ecrã principal.
+6. **Agentes com Claude** (opcional, para trabalharem com o PC desligado): no PowerShell `ssh ubuntu@amg-nuvem`, depois
+   `sudo -u amg -H /opt/amg/.local/bin/claude auth login` e `sudo systemctl restart 'amg-agent@*'`.
+
 ## O que fica a correr (scripts/nuvem/instalar.sh)
 
 - Ubuntu + Tailscale (`--hostname=amg-nuvem --ssh`), o repositório em `/opt/amg/team-agent`, o venv e o serviço `amg-hub`

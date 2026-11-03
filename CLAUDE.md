@@ -48,6 +48,14 @@ Subscriptions and the VAPID key live in `~/.team-agent/` (`webpush.json`, `vapid
 one Hub, which sends what is made on it and what arrives by sync. Needs `pywebpush` (in requirements); without it the Hub runs as before.
 Whoever creates a task for themselves gets it on the phone too (not in the bell or the widget).
 
+**The app works with the PC off (3 Nov, David: «quero mexer no meu widget mesmo com o PC desligado»).** On the phone `sw.js`
+always runs (registered by `app.js`, https only): it keeps the page, its files (every page's, fetched once per version,
+`LAZY_FILES` in `ui.js`) and the last answer of each `GET /api/…`. When the PC does not answer (6 s for the page, 9 s for a read),
+the app opens from that, each read gets its kept copy marked `X-AMG-Offline`, and a pill «Sem PC · dados das HH:MM» shows.
+Writes then go into a queue on the phone (`localStorage` `amg-outbox`, `queueWrite`) answered `{ok, queued}`; the first live
+answer sends them oldest first (`flushOutbox`: 4xx dropped, 5xx/no network waits). Pages only show data they had seen before;
+agents, Claude and anything that runs on the PC still need it on. `/api/auth`, streams and blobs are never served old.
+
 **Phone sign-in through Tailscale (6 Oct, David's iPhone).** Behind `tailscale serve` the Hub sees the *phone's* own tailnet
 address (100.x and its fd7a:… IPv6), not 127.0.0.1, so the phone got the password page. Fix per PC: put the phone's two
 addresses in `backend/.env` → `IP_USERS=<phone 100.x>=david,<phone fd7a:…>=david` (`tailscale ip -4 <phone>` / `-6`), then

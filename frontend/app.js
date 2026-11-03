@@ -84,12 +84,79 @@ function renewToken() {
   return renewing;
 }
 
+// The phone app with the PC off (3 Nov, David: «quero mexer no meu widget mesmo com o PC desligado»). sw.js answers every read
+// with the last copy it kept and marks it (X-AMG-Offline); then the app shows «Sem PC» and each write goes into a queue kept on the
+// phone (localStorage), answered at once as done. The first live answer of the PC sends the queue, oldest first; what the Hub
+// refuses (4xx) is dropped, a Hub error or no network stops and tries again later. Only where sw.js runs the app (the phone).
+const OUTBOX = "amg-outbox";
+let offlineSince = null, flushing = false;
+const swApp = () => !!navigator.serviceWorker?.controller;
+function outbox() { try { return JSON.parse(localStorage.getItem(OUTBOX) || "[]"); } catch { return []; } }
+function saveOutbox(list) { try { localStorage.setItem(OUTBOX, JSON.stringify(list)); } catch { /* private mode: lost on close */ } drawOffline(); }
+function queueWrite(path, options) {
+  saveOutbox([...outbox(), { path, method: options.method, body: options.body ?? null, at: Date.now() }]);
+  return { ok: true, queued: true };
+}
+function setOffline(at) {
+  if (offlineSince === null && $("live")) { $("live").textContent = "sem PC"; $("live").classList.remove("live"); }
+  offlineSince = at || "";
+  drawOffline();
+}
+function setOnline() {
+  if (offlineSince === null && !outbox().length) return;
+  offlineSince = null;
+  drawOffline();
+  flushOutbox();
+}
+async function flushOutbox() {
+  if (flushing) return;
+  flushing = true;
+  try {
+    let list = outbox(), sent = 0;
+    while (list.length) {
+      const job = list[0];
+      const send = () => fetch(job.path, { method: job.method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: job.body == null ? undefined : JSON.stringify(job.body) });
+      let res = await send().catch(() => null);
+      if (res?.status === 401 && await renewToken()) res = await send().catch(() => null);
+      if (!res || res.status >= 500) break;   // the PC went away again: the rest waits
+      list = outbox().slice(1);
+      saveOutbox(list);
+      sent++;
+    }
+    if (sent) { readCache.clear(); refresh("tick"); }
+  } finally { flushing = false; drawOffline(); }
+}
+function drawOffline() {
+  const waiting = outbox().length;
+  let bar = document.getElementById("amg-off");
+  if (offlineSince === null && !waiting) { bar?.remove(); return; }
+  if (!bar) { bar = Object.assign(document.createElement("div"), { id: "amg-off", className: "amg-off" }); document.body.append(bar); }
+  const kept = offlineSince ? new Date(offlineSince) : null;
+  const today = kept && kept.toDateString() === new Date().toDateString();
+  const when = kept && !isNaN(kept) ? kept.toLocaleString("pt-PT", today ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+  const queued = waiting ? ` · ${waiting} por enviar` : "";
+  bar.textContent = offlineSince !== null
+    ? `Sem PC · dados ${today ? "das" : "de"} ${when || "antes"}${queued}`
+    : `A enviar ${waiting} ${waiting === 1 ? "alteração" : "alterações"} para o PC…`;
+}
+
 async function request(path, options = {}, again = false) {
-  const res = await fetch(path, {
-    ...options,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  const write = options.method && options.method !== "GET";
+  if (write && offlineSince !== null && swApp()) return queueWrite(path, options);
+  let res;
+  try {
+    res = await fetch(path, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (e) {
+    if (write && swApp()) { setOffline(""); return queueWrite(path, options); }
+    throw e;
+  }
+  const kept = res.headers.get("X-AMG-Offline");
+  if (kept !== null) setOffline(kept); else setOnline();
   if (res.status === 401) {
     if (!again && await renewToken()) return request(path, options, true);
     logout(); throw new Error("unauthorized");
@@ -1469,10 +1536,22 @@ async function start() {
 async function autoLogin() {
   const res = await fetch("/api/auth/auto", { method: "POST" }).catch(() => null);
   if (res?.ok) { token = (await res.json()).token; sessionStorage.setItem("token", token); return start(); }
+  if (!res && swApp() && !startTries++) return start();   // PC off: the phone opens on what sw.js kept (a sign-in comes when it is back)
   if ((!res || res.status >= 500) && ++startTries < 60) { setTimeout(autoLogin, 2000); return; }  // the Hub is restarting
   const ip = res ? (await res.json().catch(() => ({}))).detail?.ip : "";
   logout();
   if (ip) $("login-error").textContent = `Este computador (${ip}) ainda não está associado a ninguém. Entra como admin ou adiciona-o em IP_USERS.`;
 }
 
+// On the phone sw.js always runs, not only for the notifications: it is what keeps the app open with the PC off. Once per version
+// it also fetches every page's files, so a page never opened before still opens without the PC (its data only once it was seen).
+if (document.documentElement.classList.contains("is-phone") && "serviceWorker" in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+  setTimeout(() => {
+    if (offlineSince !== null || !navigator.serviceWorker.controller) return;
+    try { if (localStorage.getItem("amg-warm") === HUB_VERSION) return; localStorage.setItem("amg-warm", HUB_VERSION); } catch { return; }
+    for (const file of new Set(LAZY_FILES)) fetch(`${file}?v=${HUB_VERSION}`).catch(() => {});
+  }, 8000);
+}
+drawOffline();
 token ? start() : autoLogin();

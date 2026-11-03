@@ -30,7 +30,9 @@ function lazyFile(file) {
     document.head.append(tag);
   }));
 }
+const LAZY_FILES = [];   // every page's files, fetched once per version on the phone so it opens them with the PC off (app.js)
 function lazyView(id, script, style) {
+  LAZY_FILES.push(script, ...(style ? [style] : []));
   const standIn = async (route) => {
     await Promise.all([lazyFile(script), style ? lazyFile(style).catch(() => {}) : null]);
     if (HUB_VIEWS[id] === standIn) throw new Error(`${script}: HUB_VIEWS.${id} em falta`);

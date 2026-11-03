@@ -177,6 +177,18 @@ html.is-phone .af .sec .af-hint { display: none; }
 .af-pact { display: flex; justify-content: flex-end; gap: 4px; }
 .af .af-pst-ok { color: #8fe0a8; } .af .af-pst-wait { color: #f2c66d; } .af .af-pst-bad { color: #f3ab9f; } .af .af-pst-off { color: var(--muted); }
 
+.af-kit { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.af-kit-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; }
+.af-kit-h .btn { display: inline-flex; align-items: center; gap: 5px; }
+.af-names { display: flex; flex-wrap: wrap; gap: 6px; }
+.af-names span { padding: 5px 10px; border-radius: 99px; background: var(--surface-3); border: 1px solid var(--line-2); color: #fff !important; font: 600 13px var(--ui) !important; }
+.af-pre { margin: 0; white-space: pre-wrap; color: #dfe3e8; font: 500 13px/1.5 var(--ui); }
+.af-posts { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.af-post { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+.af-post b { font: 650 15.5px/1.25 var(--display); }
+.af-post ul { margin: 0; padding-left: 18px; color: #c9ced5; font-size: 13px; line-height: 1.6; }
+.af-post > span { color: var(--muted); font-size: 12.5px; }
+
 /* como vender: blocos curtos, para se perceber num olhar */
 .af-hero b { font-size: 30px; }
 .af-tiles3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -231,7 +243,7 @@ html.is-phone .af .sec .af-hint { display: none; }
   .af-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .af-flow5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .af-flow5 .af-arrow, .af-funnel4 .af-arrow { display: none; }
-  .af-tiles4, .af-funnel4, .af-phases, .af-pipe { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .af-tiles4, .af-funnel4, .af-phases, .af-pipe, .af-kit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .af-rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .af-xmas { grid-template-columns: 1fr; }
 }
@@ -262,7 +274,7 @@ html.is-phone .af-tiles3, html.is-phone .af-tiles4, html.is-phone .af-flow5 { gr
 html.is-phone .af-flow5 .af-arrow { display: none; }
 html.is-phone .af-tiles3 > :last-child { grid-column: 1 / -1; }
 html.is-phone .af-funnel4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-html.is-phone .af-phases, html.is-phone .af-pipe { grid-template-columns: 1fr; }
+html.is-phone .af-phases, html.is-phone .af-pipe, html.is-phone .af-kit, html.is-phone .af-posts { grid-template-columns: 1fr; }
 html.is-phone .af-prog { grid-template-columns: auto minmax(0, 1fr); padding: 16px; gap: 14px; }
 html.is-phone .af-prog > .btn { grid-column: 1 / -1; }
 html.is-phone .af-prog-mid b { font-size: 17px; }

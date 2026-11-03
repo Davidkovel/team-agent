@@ -8,7 +8,7 @@
 (function () {
   let D = null, view = "", timer = 0, exF = "todos", exOpen = "";
   let PLAN = null, prodCat = "Todas";
-  const PLAN_TITLE = "Página de recomendações: Natal e Black Friday";
+  const PLAN_TITLE = "Página de recomendações: tudo hoje";
   const VIEWS = [["projeto", "Projeto Natal"], ["vender", "Como vender"], ["exemplos", "Exemplos · Natal"], ["meus", "Os nossos afiliados"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"]];
   const STATUS = [["ideia", "Ideia"], ["candidatura", "Candidatura"], ["aprovado", "Aprovado"], ["ativo", "Ativo"], ["parado", "Parado"]];
   const TONE = { ideia: "off", candidatura: "wait", aprovado: "ai", ativo: "ok", parado: "bad" };
@@ -287,23 +287,42 @@
   // Natal e Black Friday: procura os afiliados e os produtos, põe no widget organizado para eu mexer, com os passos para ir
   // concluindo e ver quanto já fizemos»). Os passos são o plano partilhado com este título (routers/plans.py, vai por sync e
   // aparece no Escritório › Missões › Planos); cada passo começa por «[Fase]». Afiliados = os programas; produtos = affiliate_products.
-  const PHASE_WHEN = { "Preparar": "até 9 nov", "Conteúdo": "10–26 nov", "Black Friday": "27–30 nov", "Dezembro": "1–24 dez" };
+  // 3 nov, Marco: «não é coisa de longo prazo, queremos tratar disso tudo hoje» → os passos são uma lista de hoje, ~3 h.
+  const PHASE_WHEN = { "1 · Contas": "~30 min", "2 · Afiliados": "~1 h", "3 · Produtos": "~30 min", "4 · Publicar": "~1 h" };
   const PLAN_STEPS = [
-    "[Preparar] Escolher o nome da página e criar o Instagram e o TikTok com esse nome",
-    "[Preparar] Bio + Linktree com as categorias (Casa, Beleza, Tech, Desporto, Experiências, Crianças, Até 25 €)",
-    "[Preparar] Inscrever na Amazon.es Afiliados",
-    "[Preparar] Criar conta na Awin e pedir Decathlon PT, PcComponentes PT, EcoFlow e Emma",
-    "[Preparar] Inscrever na Dreame, Notino, GetYourGuide e Temu",
-    "[Preparar] Cada afiliado aceite: mudar para «Aprovado» aqui e colar o link",
-    "[Conteúdo] Escolher 15 produtos da lista (estado «Escolhido») e pôr o link de cada um",
-    "[Conteúdo] Fazer 10 posts «guia de prendas» (fotos da marca + texto) e deixá-los agendados",
-    "[Conteúdo] Post do calendário do Advento de beleza antes de 1 de dezembro",
-    "[Conteúdo] Publicar 1 post por dia e responder a todos os comentários",
-    "[Black Friday] 2 a 3 posts por dia com as melhores promoções (Dreame, EcoFlow, Amazon)",
-    "[Black Friday] Registar cliques e vendas de cada rede em «Registar resultado»",
-    "[Dezembro] Até 15 dez «prendas que ainda chegam»; depois só experiências (GetYourGuide)",
-    "[Dezembro] Ver o que vendeu mais e preparar o Dia dos Namorados",
+    "[1 · Contas] Escolher o nome da página (5 opções em «Pronto para copiar»)",
+    "[1 · Contas] Criar o Instagram (conta profissional) e o TikTok com esse nome",
+    "[1 · Contas] Pôr a bio e criar o Linktree (texto pronto em «Pronto para copiar»)",
+    "[2 · Afiliados] Inscrever na Amazon.es Afiliados (dá links logo)",
+    "[2 · Afiliados] Criar conta na Awin e pedir Decathlon PT, PcComponentes PT, EcoFlow e Emma",
+    "[2 · Afiliados] Inscrever na Dreame, Notino, GetYourGuide e Temu",
+    "[3 · Produtos] Escolher 15 produtos com modelo e preço (Claude)",
+    "[3 · Produtos] Pôr o link da Amazon nos produtos da Amazon (botão «Pôr link»)",
+    "[4 · Publicar] Escrever os 10 posts (Claude)",
+    "[4 · Publicar] Fazer no Canva as imagens dos posts 1, 2 e 3 (fotos da marca + o texto do post)",
+    "[4 · Publicar] Publicar o post 1 hoje e agendar o 2 e o 3",
+    "[4 · Publicar] Quando cada afiliado aceitar (1 a 10 dias): «Aceite →» e colar o link",
   ];
+  // o que o Claude deixou pronto a copiar (3 nov). Preços vistos a 3 nov 2026 em lojas e notícias: confirmar ao pôr o link.
+  const KIT = {
+    names: ["Prenda Certa", "Achados de Natal", "O Presente Certo", "Escolha Certa PT", "Vale a Compra"],
+    bio: "🎁 As melhores prendas e promoções, escolhidas por nós\n🔥 Black Friday e Natal 2026\n👇 Todos os links aqui\nLinks de afiliado: ganhamos comissão, sem custo para ti.",
+    links: ["🏠 Casa (robôs, air fryer, baterias)", "💄 Beleza (perfumes, calendário do Advento)", "📱 Tech (Kindle)", "🎟️ Experiências (prenda que chega por email)", "💸 Até 25 €", "🔥 Black Friday (a partir de 27 nov)"],
+    need: "Para te inscreveres: email, NIF, IBAN e o link do Instagram. A Amazon aprova de vez depois de 3 vendas nos primeiros 180 dias; a Awin pode pedir um depósito pequeno reembolsável e cada marca demora até 10 dias úteis a aceitar.",
+    posts: [
+      ["Hoje", "5 prendas de Natal que parecem caras (e não são)", ["Kit de perfume de oferta", "Air fryer Cosori 5,5 L", "LEGO para adultos", "Kindle Paperwhite", "Prendas até 25 €"], "Guarda este post para não te esqueceres 🎁 Todos os links na bio."],
+      ["Amanhã", "O robô que limpa a casa enquanto estás fora", ["Dreame L10s Ultra Gen 2", "Aspira e lava sozinho", "Esvazia o lixo sozinho", "Desde ~350 €"], "A prenda que poupa horas por semana. Link na bio."],
+      ["Dia 3", "Calendário do Advento de beleza: abre um por dia", ["Calendário do Advento Notino 2026", "24 surpresas de beleza", "Tem de chegar antes de 1 de dezembro"], "Encomenda esta semana para chegar a tempo. Link na bio."],
+      ["Dia 4", "Nunca mais ficas sem luz em casa", ["EcoFlow River 3 (~249 €): telemóveis, portátil, luzes", "EcoFlow Delta 3 (~749 €): até o frigorífico", "Campismo, autocaravana, apagões"], "Depois do apagão, toda a gente quer uma. Link na bio."],
+      ["Dia 5", "A air fryer campeã de vendas: vale a pena?", ["Cosori 5,5 L", "~67 mil avaliações, 4,7 ★", "~85–90 € em promoção"], "Sim, vale. Link na bio."],
+      ["Dia 6", "A prenda para quem lê", ["Kindle Paperwhite 2026", "Ecrã sem reflexos, à prova de água", "~210 €"], "Milhares de livros numa mão. Link na bio."],
+      ["Dia 7", "Prendas até 25 € que ninguém devolve", ["Gadgets de cozinha", "Acessórios de telemóvel", "Meias e pijamas de Natal"], "Para o amigo secreto. Link na bio."],
+      ["Dia 8", "A prenda que não precisa de embrulho", ["Experiência a dois: spa, jantar, passeio", "Tours em Lisboa e no Porto", "Chega por email na hora"], "Perfeita à última hora. Link na bio."],
+      ["27 nov", "Black Friday: o que vale MESMO a pena", ["Dreame X50 Ultra", "EcoFlow Delta 3", "Cosori 5,5 L", "Kindle Paperwhite"], "Só os descontos verdadeiros. Link na bio."],
+      ["20 dez", "Esqueceste-te da prenda? Chega por email", ["Experiências GetYourGuide", "Vales digitais"], "Ainda vais a tempo. Link na bio."],
+    ],
+    tags: "#prendasdenatal #blackfriday #natal2026 #prendas #portugal #publicidade",
+  };
   const PSTAT = [["ideia", "Ideia"], ["escolhido", "Escolhido"], ["publicado", "Publicado"], ["vendeu", "Vendeu"], ["fora", "Fora"]];
   const PTONE = { ideia: "off", escolhido: "wait", publicado: "ai", vendeu: "ok", fora: "bad" };
   const firstUrl = (s) => ((s || "").match(/https?:\/\/\S+/) || [""])[0];
@@ -315,7 +334,7 @@
     const okProgs = progs.filter((p) => p.status === "aprovado" || p.status === "ativo").length;
     const linked = prods.filter((x) => x.link).length, pub = prods.filter((x) => x.status === "publicado" || x.status === "vendeu").length;
     const earned = D.results.reduce((s, r) => s + (r.earned || 0), 0);
-    const head = !PLAN ? `<div class="panel af-xmas"><div><small>${esc(t("Projeto"))}</small><b>${esc(t("Ainda não há passos"))}</b><p>${esc(t("Cria o plano com os 14 passos. Fica também no Escritório para qualquer sócio continuar."))}</p></div>
+    const head = !PLAN ? `<div class="panel af-xmas"><div><small>${esc(t("Projeto"))}</small><b>${esc(t("Ainda não há passos"))}</b><p>${esc(t("Cria a lista de hoje com os 12 passos. Fica também no Escritório para qualquer sócio continuar."))}</p></div>
         <button type="button" class="btn primary" data-mkplan>${esc(t("Criar os passos"))}</button></div>`
       : `<div class="panel af-prog">
         <div class="af-prog-ring">${ui.ring(pctDone, { text: `${pctDone}%` })}</div>
@@ -326,7 +345,8 @@
     const kp = (n, of, label) => `<div class="panel af-tile"><i>${n}${of != null ? `<em>/${of}</em>` : ""}</i><span>${esc(t(label))}</span></div>`;
     return `${head}
       <div class="af-tiles4 af-steps">${kp(okProgs, progs.length, "afiliados aprovados")}${kp(linked, prods.length, "produtos com link")}${kp(pub, prods.length, "produtos publicados")}${kp(eur(earned), null, "comissões registadas")}</div>
-      ${PLAN ? `${ui.sec("Passos", `<span class="af-hint">${esc(t("Clica para marcar · também no Escritório › Planos"))}</span>`)}${phases(steps)}` : ""}
+      ${PLAN ? `${ui.sec("Passos de hoje", `<span class="af-hint">${esc(t("Clica para marcar · também no Escritório › Planos"))}</span>`)}${phases(steps)}` : ""}
+      ${kit()}
       ${ui.sec("Os nossos afiliados", `<button type="button" class="btn quiet sm" data-new>${esc(t("+ Afiliado"))}</button>`)}
       <div class="af-pipe">${STATUS.filter(([k]) => k !== "parado").map(([k, l]) => { const list = progs.filter((p) => p.status === k);
         return `<div class="af-col"><div class="af-col-h"><span class="af-pill ${TONE[k]}">${esc(t(l))}</span><b>${list.length}</b></div>
@@ -337,6 +357,22 @@
               ${k !== "ativo" ? `<button type="button" class="btn quiet sm" data-adv="${p.id}">${esc(t(NEXT_LABEL[k]))} →</button>` : ""}</div></div>`; }).join("") || `<p class="af-none">—</p>`}</div>`; }).join("")}</div>
       ${ui.sec("Produtos para recomendar", `<button type="button" class="btn quiet sm" data-newprod>${esc(t("+ Produto"))}</button>`)}
       ${produtos(prods)}`;
+  }
+  let KIT_TEXTS = [];
+  function kit() {
+    KIT_TEXTS = [];
+    const cp = (text) => { KIT_TEXTS.push(text); return `<button type="button" class="btn quiet sm" data-copyk="${KIT_TEXTS.length - 1}">${I.copy}${esc(t("Copiar"))}</button>`; };
+    const post = ([when, title, lines, cap]) => `${title}\n\n${lines.map((l) => `• ${l}`).join("\n")}\n\n${cap}\nLink de afiliado.\n${KIT.tags}`;
+    return `${ui.sec("Pronto para copiar (feito pelo Claude)")}
+      <div class="af-kit">
+        <div class="panel af-tile"><b>${esc(t("Nome da página"))}</b><div class="af-names">${KIT.names.map((n) => `<span>${esc(n)}</span>`).join("")}</div><span>${esc(t("Escolhe um e vê se está livre no Instagram."))}</span></div>
+        <div class="panel af-tile"><div class="af-kit-h"><b>${esc(t("Bio"))}</b>${cp(KIT.bio)}</div><pre class="af-pre">${esc(KIT.bio)}</pre></div>
+        <div class="panel af-tile"><div class="af-kit-h"><b>${esc(t("Botões do Linktree"))}</b>${cp(KIT.links.join("\n"))}</div><pre class="af-pre">${esc(KIT.links.join("\n"))}</pre></div>
+        <div class="panel af-tile"><b>${esc(t("Para te inscreveres"))}</b><span>${esc(t(KIT.need))}</span></div>
+      </div>
+      ${ui.sec("Os 10 posts", `<span class="af-hint">${esc(t("Imagem: foto da marca + o título · Copiar = legenda"))}</span>`)}
+      <div class="af-posts">${KIT.posts.map((p, i) => `<div class="panel af-post"><div class="af-kit-h"><span class="af-pill ${i < 3 ? "ok" : "off"}">${i + 1} · ${esc(t(p[0]))}</span>${cp(post(p))}</div>
+        <b>${esc(p[1])}</b><ul>${p[2].map((l) => `<li>${esc(l)}</li>`).join("")}</ul><span>${esc(p[3])}</span></div>`).join("")}</div>`;
   }
   const NEXT_LABEL = { ideia: "Pedi", candidatura: "Aceite", aprovado: "A vender" };
   const NEXT_STATUS = { ideia: "candidatura", candidatura: "aprovado", aprovado: "ativo" };
@@ -665,6 +701,10 @@
         await api(`/api/afiliados/programas/${p.id}`, { method: "PATCH", body: { status: NEXT_STATUS[p.status] || "ativo" } });
         if (NEXT_STATUS[p.status] === "aprovado" && !p.link) { await load(); paintData(); return editProgram(D.programs.find((x) => x.id === p.id)); }
         await load(); return paintData();
+      }
+      if ((b = g("[data-copyk]"))) {
+        try { await navigator.clipboard.writeText(KIT_TEXTS[Number(b.dataset.copyk)]); flash(t("Copiado")); } catch { flash(t("Não deu para copiar")); }
+        return;
       }
       if ((b = g("[data-pcat]"))) { prodCat = b.dataset.pcat; return paintData(); }
       if (g("[data-newprod]")) return editProduct();

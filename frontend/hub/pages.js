@@ -1929,7 +1929,7 @@ HUB_VIEWS.tenfold = async function (r) {
   const made = c.sections.filter((s) => s.id !== "docs").reduce((n, s) => n + (s.count || 0), 0);
   $("view").innerHTML = `<div class="tf">
     <section class="tf-hero">
-      <span class="tf-mark">${esc(c.short || "TF")}</span>
+      <img class="tf-mark tf-logo" src="assets/tenfold-tf.png" alt="${esc(c.name)}">
       <div class="tf-id"><small>03 · ${t("Negócios")} · ${t("O trabalho principal")}</small><h1>${esc(c.name)}</h1><p>${esc(c.tagline || "")}</p></div>
       <div class="tf-act"><a class="tf-btn gold" href="#/tenfold/sites">${icon("eye")}${t("Ver o site")}</a><button class="tf-btn" id="tf-task">${icon("plus")}${t("Nova tarefa")}</button>
         <a class="tf-app" href="#/mensagens/team" title="${esc(t("Abrir o Chat da equipa"))}"><i>${icon("chat")}<em id="tf-unread" hidden></em></i><span>${esc(t("Chat"))}</span></a>

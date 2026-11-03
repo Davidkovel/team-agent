@@ -164,3 +164,10 @@ html.is-phone .ft-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); colum
 .ft-ph-t { display: block; width: 100%; max-width: 100%; }
 .ft-view-img { overflow: hidden; }
 .ft-view-img img { max-height: calc(100dvh - 190px); }
+
+/* 3 Nov: the types in the left column, and dragging photos onto an album or a type to organize */
+.ft-ty .ft-cover { border-radius: 50%; }
+.ft-ph[draggable="true"] { cursor: grab; }
+.ft.dragging [data-drop-album], .ft.dragging [data-drop-kind] { outline: 1px dashed rgba(233, 207, 134, .35); outline-offset: -2px; }
+.ft .drop-on { background: rgba(212, 171, 67, .22) !important; outline: 1.5px solid #e9cf86 !important; }
+.ft-k-new { width: 28px; padding: 0 !important; font-size: 16px !important; color: #e9cf86 !important; }

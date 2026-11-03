@@ -569,3 +569,7 @@ html.is-phone .wf.tf-folder .wf-lib { grid-template-columns: repeat(2, minmax(0,
 .toast.undo em { overflow: hidden; color: var(--muted); font-style: normal; white-space: nowrap; text-overflow: ellipsis; }
 .toast.undo button { flex: none; height: 30px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--chrome); color: #0b0c0e;
   font: 700 11px var(--ui); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+/* 3 Nov, Marco: «mete o logotipo TF que está na biblioteca... tira essas letras no meio de um fundo dourado»: the agency's
+   own seal (Fotos › Redes sociais e site › «Logotipo TF», frontend/assets/tenfold-tf.png) wherever its mark was */
+img.tf-logo { display: block; flex: none; padding: 0; object-fit: cover; border-radius: 50% !important; background: #07080b !important;
+  box-shadow: 0 0 0 1px rgba(212, 171, 67, .35), 0 8px 22px rgba(0, 0, 0, .45) !important; }

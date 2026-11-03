@@ -77,7 +77,7 @@
   }
   // the app's own top: the agency's seal, its name, the search (30 Oct, Marco: «o chat de equipa é uma aplicação... da
   // agência»: not a tile inside the Ten Fold page, an app of its own)
-  const railTop = () => `<header class="ms-rail-h"><span class="ms-seal">TF</span><div><b>${esc(t("Chat"))}</b><small>Ten Fold</small></div></header>
+  const railTop = () => `<header class="ms-rail-h"><img class="ms-seal tf-logo" src="assets/tenfold-tf.png" alt="Ten Fold"><div><b>${esc(t("Chat"))}</b><small>Ten Fold</small></div></header>
     <label class="ms-find">${icon("search")}<input id="ms-find" type="search" placeholder="${esc(t("Procurar"))}" value="${esc(find)}" autocomplete="off"></label>`;
 
   // ---------------------------------------------------------------- the open conversation
@@ -199,7 +199,8 @@
   }
   function libKinds() {
     if (!lib) return "";
-    const n = (k) => lib.filter((p) => p.kind === k).length, ks = LIB_KINDS.filter(n);
+    const used = [...new Set(lib.map((p) => p.kind).filter(Boolean))];
+    const n = (k) => lib.filter((p) => p.kind === k).length, ks = [...LIB_KINDS.filter(n), ...used.filter((k) => !LIB_KINDS.includes(k)).sort()];
     if (!ks.length) return "";
     return `<button type="button" class="${libKind ? "" : "on"}" data-lib-kind="">${esc(t("Tudo"))}</button>${ks.map((k) =>
       `<button type="button" class="${libKind === k ? "on" : ""}" data-lib-kind="${esc(k)}">${esc(t(k))}<i>${n(k)}</i></button>`).join("")}`;

@@ -34,9 +34,21 @@ GUESS = (("Logótipo", ("logo", "logotipo", "marca", "brand", "icon")), ("Banner
          ("Fotografia", ("img_", "dsc", "foto", "photo", "whatsapp image", "screenshot")))
 
 
+NO_KIND = "-"   # stored when someone took the type off, so the guess from the name does not put it back
+
+
 def _kind(value: str | None) -> str:
-    v = (value or "").strip()
-    return next((k for k in KINDS if k.lower() == v.lower()), "")
+    """One of KINDS (whatever the case), or a type of the team's own (3 Nov: «mete de forma que nós também consigamos
+    organizar»), cut to 30 characters; empty = no type."""
+    v = " ".join((value or "").split())[:30]
+    return next((k for k in KINDS if k.lower() == v.lower()), v)
+
+
+def shown_kind(stored: str | None, title: str) -> str:
+    """The type a photo shows: the one chosen, else the one its name suggests (the photos from before types)."""
+    if stored == NO_KIND:
+        return ""
+    return stored or guess_kind(title)
 
 
 def guess_kind(title: str) -> str:
@@ -75,7 +87,7 @@ async def list_photos(company: str = "tenfold", user: User = Depends(current_use
     people = {u.id: u.display_name for u in (await db.execute(select(User))).scalars()}
     rows = (await db.execute(select(Photo.id, Photo.album, Photo.title, Photo.kind, Photo.user_id, Photo.created_at)
                              .where(Photo.company == company).order_by(Photo.created_at.desc()))).all()
-    items = [{"id": r.id, "album": r.album, "title": r.title, "kind": r.kind or guess_kind(r.title), "by": people.get(r.user_id or 0, ""),
+    items = [{"id": r.id, "album": r.album, "title": r.title, "kind": shown_kind(r.kind, r.title), "by": people.get(r.user_id or 0, ""),
               "mine": r.user_id == user.id, "created_at": iso(r.created_at)} for r in rows]
     albums: dict[str, dict] = {}
     for it in items:   # newest first, so the first photo seen is the album's cover
@@ -120,10 +132,30 @@ async def edit(photo_id: int, body: PhotoEdit, user: User = Depends(current_user
     if body.title is not None:
         p.title = body.title.strip()[:160]
     if body.kind is not None:
-        p.kind = _kind(body.kind)
+        p.kind = _kind(body.kind) or NO_KIND
     await db.commit()
     await rt.publish("photo", user.id, "team")
-    return {"id": p.id, "album": p.album, "title": p.title, "kind": p.kind or ""}
+    return {"id": p.id, "album": p.album, "title": p.title, "kind": shown_kind(p.kind, p.title)}
+
+
+class KindEdit(BaseModel):
+    name: str = Field(..., max_length=60)
+    to: str = Field("", max_length=60)
+    company: str = Field("tenfold", max_length=40)
+
+
+@router.post("/kind")
+async def rename_kind(body: KindEdit, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Rename a type, or join it to another one; an empty `to` takes it off every photo that has it."""
+    rows = (await db.execute(select(Photo).where(Photo.company == body.company))).scalars().all()
+    to = _kind(body.to) or NO_KIND
+    n = 0
+    for p in rows:
+        if shown_kind(p.kind, p.title).lower() == body.name.strip().lower():
+            p.kind, n = to, n + 1
+    await db.commit()
+    await rt.publish("photo", user.id, "team")
+    return {"changed": n, "kind": "" if to == NO_KIND else to}
 
 
 @router.post("/album")

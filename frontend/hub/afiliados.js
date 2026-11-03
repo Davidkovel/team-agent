@@ -6,8 +6,8 @@
 //   Calculadora: visitas × cliques × compras × comissão, com exemplos reais (estimativa, dita como tal).
 //   Provas: casos públicos com a fonte ao lado. Segue docs/hub-paginas.md; classes af-.
 (function () {
-  let D = null, view = "", timer = 0;
-  const VIEWS = [["meus", "Os meus programas"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"]];
+  let D = null, view = "", timer = 0, exF = "todos", exOpen = "";
+  const VIEWS = [["exemplos", "Exemplos · Natal"], ["meus", "Os meus programas"], ["como", "Como funciona"], ["calc", "Calculadora"], ["provas", "Provas"]];
   const STATUS = [["ideia", "Ideia"], ["candidatura", "Candidatura"], ["aprovado", "Aprovado"], ["ativo", "Ativo"], ["parado", "Parado"]];
   const TONE = { ideia: "off", candidatura: "wait", aprovado: "ai", ativo: "ok", parado: "bad" };
   const KINDS = [["pct", "% da venda"], ["fixed", "€ fixo por venda"], ["recurring", "% todos os meses"]];
@@ -76,8 +76,8 @@
     </div>`);
     wire();
     await load();
-    view = pref.get("view", "") || (D && D.programs.length ? "meus" : "como");
-    if (!VIEWS.some(([k]) => k === view)) view = "como";
+    view = pref.get("v2", "exemplos");   // v2 (3 nov): a aba Exemplos · Natal abre primeiro para todos uma vez
+    if (!VIEWS.some(([k]) => k === view)) view = "exemplos";
     paint();
     timer = setInterval(() => { if (!$("af")) return clearInterval(timer); if (!$("af-modal").hidden) return; load().then(paintData).catch(() => {}); }, 30000);
   };
@@ -96,7 +96,7 @@
     if (!$("af") || !D) return;
     kpis();
     const body = $("af-body");
-    const html = view === "meus" ? meus() : view === "calc" ? calc() : view === "provas" ? provas() : como();
+    const html = view === "exemplos" ? exemplos() : view === "meus" ? meus() : view === "calc" ? calc() : view === "provas" ? provas() : como();
     if (body._html !== html) {
       body._html = html; body.innerHTML = html;
       if (view === "calc") calcRun();
@@ -207,6 +207,119 @@
         <div class="panel pad"><b>${esc(t("Demora meses"))}</b><p>${esc(t("Os casos grandes da página Provas levaram anos. Conta com 3 a 6 meses de publicações antes das primeiras comissões a sério."))}</p></div>
         <div class="panel pad"><b>${esc(t("Diz sempre que é link de afiliado"))}</b><p>${esc(t("A lei obriga a dizer que ganhas comissão (publicidade identificada). Em trading, diz também que há risco de perder dinheiro."))}</p></div>
       </div>`;
+  }
+
+  // ---------------------------------------------------------------- exemplos · Natal (3 nov, Marco: «quero aproveitar o natal...
+  // mete já algumas ideias de produtos... os que valem a pena e não, explicando tudo detalhadamente»). Comissões das páginas dos
+  // programas a 3 nov 2026; as da Amazon.es variam por categoria e não têm tabela pública fiável fora do painel: ficam «a confirmar».
+  const VERD = { sim: ["ok", "Vale a pena"], talvez: ["wait", "Talvez"], nao: ["bad", "Não vale"] };
+  const NATAL = [
+    { id: "fn", v: "sim", name: "Conta FundedNext como prenda", cat: "Trading · digital", where: "FundedNext (programa próprio)",
+      comm: "12% da compra (15–18% nos níveis de cima)", price: "~100–500 € por conta (estimado)", per: "~12–60 € por venda",
+      line: "O teu nicho: já negoceias lá e tens o painel no Hub. Produto digital, chega na hora.",
+      why: ["Comissão alta num produto caro: uma venda vale mais do que 20 air fryers.", "É digital: vende-se até dia 24 à noite sem medo de prazos de entrega.", "As prop firms costumam fazer as maiores promoções do ano no Black Friday, o que ajuda quem estava indeciso.", "Tu tens prova real (o teu Painel FundedNext): isso convence mais do que qualquer anúncio."],
+      how: "Vídeo curto: «A prenda que qualquer trader quer: uma conta de 100k para negociar». Mostra o teu painel, explica as regras em 30 s e põe o link na bio com o código do Black Friday.",
+      warn: "Produto de risco: diz sempre que a maioria não passa o desafio e que se pode perder o dinheiro da conta. Nada de prometer lucros." },
+    { id: "tv", v: "sim", name: "TradingView (assinatura)", cat: "Trading · digital", where: "Programa de parceiros TradingView",
+      comm: "30% recorrente enquanto o cliente pagar (regras do programa)", price: "planos mensais ou anuais", per: "30% do plano, todos os meses ou todos os anos",
+      line: "Recorrente: o cliente que trazes em dezembro paga-te o ano todo.",
+      why: ["Comissão recorrente: é a que acumula, como explicado em «Como funciona».", "Todos os traders usam ou querem usar; não tens de convencer ninguém do produto.", "Costuma ter promoções grandes no Black Friday.", "Digital: sem prazos de entrega."],
+      how: "Mostra o teu gráfico do ouro com os teus indicadores: «o setup que uso todos os dias». Link no fim: «está com desconto até domingo».",
+      warn: "Só conta para utilizadores novos e só compras feitas na versão web. Confirma as condições na página do programa." },
+    { id: "host", v: "sim", name: "Alojamento Hostinger (site para 2027)", cat: "Negócios · digital", where: "Hostinger (programa próprio)",
+      comm: "até 60% da venda (anunciado)", price: "planos anuais baratos no Black Friday", per: "~20–40 € por venda (estimado)",
+      line: "Junta-se ao que vocês já fazem: cada site que a equipa vende precisa de alojamento.",
+      why: ["Percentagem altíssima.", "Público que já tens: as empresas do Radar e do CRM, os clientes da Ten Fold, as escolas de condução.", "O Black Friday é a altura em que os alojamentos fazem os preços mais baixos do ano.", "Não é uma prenda: é «começa 2027 com site». Menos concorrência do que os brinquedos."],
+      how: "Post para pequenas empresas: «O teu negócio ainda não tem site? Em 2027 vai ter: alojamento a X € no Black Friday + nós fazemos o site». Ganhas a comissão e um cliente.",
+      warn: "Confirma a percentagem real no teu painel (alguns sites falam em 40% para começar)." },
+    { id: "beauty", v: "talvez", name: "Kits de perfume e beleza", cat: "Prenda clássica · físico", where: "Amazon.es",
+      comm: "a confirmar (a «beleza de luxo» chega a 10% noutros países da Amazon)", price: "30–120 €", per: "~1–10 € por venda (estimado)",
+      line: "Prenda nº 1 em todas as listas, mas tens de confirmar a taxa da categoria em Espanha.",
+      why: ["Toda a gente compra um perfume no Natal: procura enorme.", "Se a taxa for a da beleza de luxo, é das melhores percentagens da Amazon.", "Kits de oferta já vêm prontos a embrulhar."],
+      how: "Lista «5 perfumes abaixo de 50 € que parecem caros», um vídeo por perfume, link para cada um.",
+      warn: "O cookie da Amazon só dura 24 horas: a pessoa tem de comprar quase logo. E muitos criadores fazem o mesmo, por isso destaca-te com um ângulo (preço, homem, adolescentes)." },
+    { id: "fryer", v: "talvez", name: "Air fryer", cat: "Casa · físico", where: "Amazon.es",
+      comm: "a confirmar no painel (cozinha costuma ser baixa, ~3–5%)", price: "60–150 €", per: "~2–6 € por venda (estimado)",
+      line: "Vende-se sozinha e no Black Friday está sempre em promoção, mas ganhas pouco por cada uma.",
+      why: ["Produto que as pessoas já procuram: converte bem.", "Fácil de mostrar em vídeo (receitas).", "Bom para aprender: muitas vendas, pouco dinheiro, mas vês o sistema a funcionar."],
+      how: "Vídeo «3 receitas de Natal na air fryer em 10 minutos» com o modelo usado no link.",
+      warn: "Precisa de volume: 100 vendas para fazer 300–500 €. Sozinha não faz um Natal." },
+    { id: "lego", v: "talvez", name: "LEGO para adultos e crianças", cat: "Brinquedos · físico", where: "Amazon.es",
+      comm: "a confirmar (brinquedos costumam ser ~3%)", price: "40–200 €", per: "~1–6 € por venda (estimado)",
+      line: "Campeão de vendas no Natal, mas é onde há mais concorrência de todos.",
+      why: ["Preço médio alto para um brinquedo.", "Adultos compram para si (Star Wars, Technic): público fiel.", "Os descontos da Amazon no Black Friday são grandes em LEGO."],
+      how: "Comparação «o LEGO certo para cada idade», 30 s, com o preço de hoje.",
+      warn: "Os preços mudam todos os dias: nunca escrevas um preço fixo no post. A partir de ~15 dez, só stock com entrega garantida." },
+    { id: "phone", v: "nao", name: "Telemóveis, auscultadores, smartwatches", cat: "Eletrónica · físico", where: "Amazon.es / lojas",
+      comm: "baixa (eletrónica costuma ser ≤ 4%)", price: "100–1000 €", per: "pouco para o esforço",
+      line: "Toda a gente quer, por isso toda a gente vende: grandes sites já ganham a pesquisa.",
+      why: ["Concorrência máxima: lojas, comparadores e youtubers grandes já ocupam tudo.", "Percentagem baixa: num auricular de 150 € ganhas poucos euros.", "As pessoas comparam preços até ao último minuto e compram noutro sítio (e o cookie de 24 h perde-se)."],
+      how: "Só valeria com uma audiência tua que confie em ti num nicho (por exemplo, «o melhor relógio para treinar»).",
+      warn: "Não comeces por aqui." },
+    { id: "gift", v: "nao", name: "Cartões-oferta da Amazon", cat: "Vale de compras", where: "Amazon",
+      comm: "0%: a Amazon não paga nada em cartões-oferta", price: "qualquer", per: "0 €",
+      line: "Parece a prenda perfeita para recomendar, mas a comissão é zero.",
+      why: ["Nas tabelas da Amazon, os cartões-oferta estão na linha de 0%.", "É o exemplo clássico de produto popular que não te paga."],
+      how: "—", warn: "Cuidado também com as consolas: em algumas tabelas da Amazon também não pagam nada." },
+    { id: "ali", v: "nao", name: "Gadgets baratos do AliExpress", cat: "Gadgets · físico", where: "AliExpress Portals",
+      comm: "anunciado até 9%, na prática ~3%", price: "2–20 €", per: "cêntimos por venda",
+      line: "Barato e viral, mas chega depois do Natal e quase não paga.",
+      why: ["Produtos de poucos euros: 3% de 10 € são 30 cêntimos.", "Entregas de 1 a 4 semanas: a partir de meados de novembro já não chega a tempo do Natal.", "Clientes zangados com atrasos não voltam a clicar nos teus links."],
+      how: "Só fora do Natal, e só se for um gadget mesmo viral.", warn: "Para dezembro, esquece." },
+  ];
+
+  function natalDates() {
+    const now = new Date(), y = now.getMonth() === 0 && now.getDate() <= 6 ? now.getFullYear() - 1 : now.getFullYear();
+    const nov1 = new Date(y, 10, 1), thu = 1 + ((4 - nov1.getDay() + 7) % 7) + 21;   // 4.ª quinta-feira de novembro (Thanksgiving)
+    const bf = new Date(y, 10, thu + 1), cm = new Date(y, 10, thu + 4), xmas = new Date(y, 11, 25);
+    const days = (d) => Math.ceil((new Date(d.toDateString()) - new Date(now.toDateString())) / 864e5);
+    const dm = (d) => `${d.getDate()} ${["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()]}`;
+    return { y, bf, cm, xmas, days, dm };
+  }
+
+  function exemplos() {
+    const N = natalDates(), d = (x) => N.days(x);
+    const fase = (from, to) => { const a = d(from), b = d(to); return b < 0 ? "af-done" : a <= 0 ? "af-now" : ""; };
+    const D0 = new Date(N.y, 10, 1), D15 = new Date(N.y, 10, 15), D16 = new Date(N.y, 10, 16), D1 = new Date(N.y, 11, 1), D14 = new Date(N.y, 11, 14),
+      D15d = new Date(N.y, 11, 15), D24 = new Date(N.y, 11, 24), D26 = new Date(N.y, 11, 26), J6 = new Date(N.y + 1, 0, 6), bfEve = new Date(N.bf.getTime() - 864e5);
+    const plan = [
+      [D0, D15, `1 – 15 nov`, "Preparar", "Escolhe 2 ou 3 produtos desta lista (os verdes). Inscreve-te nos programas (FundedNext, TradingView, Hostinger e Amazon.es). Cria ou arruma uma conta de TikTok/Instagram só para isto e faz os primeiros 5 vídeos."],
+      [D16, bfEve, `16 nov – ${N.dm(bfEve)}`, "Aquecer", "Publica todos os dias: «guia de prendas para traders», «o que comprar no Black Friday». Ainda vendes pouco, mas o algoritmo começa a mostrar-te. Junta os links em «Os meus programas»."],
+      [N.bf, N.cm, `${N.dm(N.bf)} – ${N.dm(N.cm)}`, "Black Friday e Cyber Monday", "O pico do ano. 2 a 3 publicações por dia, sempre com o desconto e a data em que acaba («só até segunda»). É aqui que se faz a maior parte do dinheiro."],
+      [D1, D14, "1 – 14 dez", "Prendas a tempo", "«Prendas que ainda chegam antes do Natal». Físicos só com entrega rápida; empurra os digitais."],
+      [D15d, D24, "15 – 24 dez", "Última hora", "Só digitais (contas de trading, TradingView, alojamento) e entregas Prime. «Esqueceste-te da prenda? Esta chega por email.»"],
+      [D26, J6, "26 dez – 6 jan", "Ano novo", "Saldos e objetivos de 2027: «este ano vou aprender trading», «este ano o negócio tem site». Ótimo para FundedNext, TradingView e Hostinger."],
+    ];
+    const list = NATAL.filter((p) => exF === "todos" || p.v === exF);
+    const count = (v) => NATAL.filter((p) => p.v === v).length;
+    const have = new Set((D.programs || []).map((p) => p.name.toLowerCase()));
+    return `<div class="af-xmas panel">
+        <div><small>${esc(t("Natal {y}", { y: N.y }))}</small><b>${esc(t("Os afiliados ganham o ano em 4 semanas"))}</b><p>${esc(t("Entre o Black Friday e o Natal as pessoas compram mais do que no resto do ano. Quem já tem os links e os vídeos prontos antes do Black Friday apanha esse dinheiro; quem começa em dezembro chega tarde."))}</p></div>
+        <div class="af-count"><div><b>${Math.max(0, d(N.bf))}</b><span>${esc(t("dias para o Black Friday"))}<br>${esc(N.dm(N.bf))}</span></div><div><b>${Math.max(0, d(N.xmas))}</b><span>${esc(t("dias para o Natal"))}<br>${esc(N.dm(N.xmas))}</span></div></div>
+      </div>
+      ${ui.sec("O plano, semana a semana")}
+      <div class="af-plan">${plan.map(([a, b, when, h, p]) => { const f = fase(a, b); return `<div class="panel af-ph ${f}"><div class="af-ph-h"><span>${esc(when)}</span>${f === "af-now" ? `<i class="af-pill ok">${esc(t("Agora"))}</i>` : f === "af-done" ? `<i class="af-pill off">${esc(t("Passou"))}</i>` : ""}</div><b>${esc(t(h))}</b><p>${esc(t(p))}</p></div>`; }).join("")}</div>
+      ${ui.sec("Produtos: os que valem a pena e os que não", `<span class="af-hint">${esc(t("Ganhos por venda estimados"))}</span>`)}
+      <div class="segx af-exf">${[["todos", `Todos · ${NATAL.length}`], ["sim", `Vale a pena · ${count("sim")}`], ["talvez", `Talvez · ${count("talvez")}`], ["nao", `Não vale · ${count("nao")}`]]
+        .map(([k, l]) => `<button type="button" data-exf="${k}" class="${k === exF ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>
+      <div class="af-prods">${list.map((p) => { const open = exOpen === p.id, [tone, lab] = VERD[p.v]; return `<div class="panel af-prod ${p.v} ${open ? "open" : ""}">
+        <div class="af-card-h"><div><b>${esc(p.name)}</b><small>${esc(p.cat)}</small></div><span class="af-pill ${tone}">${esc(t(lab))}</span></div>
+        <p class="af-line">${esc(t(p.line))}</p>
+        <dl class="af-facts"><div><dt>${esc(t("Onde"))}</dt><dd>${esc(p.where)}</dd></div><div><dt>${esc(t("Comissão"))}</dt><dd>${esc(t(p.comm))}</dd></div>
+          <div><dt>${esc(t("Preço"))}</dt><dd>${esc(t(p.price))}</dd></div><div><dt>${esc(t("Ganhas por venda"))}</dt><dd><strong>${esc(t(p.per))}</strong></dd></div></dl>
+        ${open ? `<div class="af-more"><h4>${esc(t(p.v === "nao" ? "Porque não vale" : "Porque vale"))}</h4><ul>${p.why.map((w) => `<li>${esc(t(w))}</li>`).join("")}</ul>
+          ${p.how !== "—" ? `<h4>${esc(t("Como vender (exemplo)"))}</h4><p>${esc(t(p.how))}</p>` : ""}<h4>${esc(t("Atenção"))}</h4><p>${esc(t(p.warn))}</p></div>` : ""}
+        <div class="af-card-a"><button type="button" class="btn sm" data-exopen="${p.id}">${esc(t(open ? "Fechar" : "Ver a explicação toda"))}</button><span class="af-grow"></span>
+          ${p.v !== "nao" ? (have.has(p.name.toLowerCase()) ? `<span class="af-hint">${esc(t("Já está nos teus programas"))}</span>` : `<button type="button" class="btn quiet sm" data-natal="${p.id}">${esc(t("Juntar aos meus programas"))}</button>`) : ""}</div>
+      </div>`; }).join("")}</div>
+      ${ui.sec("A regra para escolher qualquer produto")}
+      <div class="panel af-rules">
+        <div><b>1</b><span>${esc(t("Paga pelo menos 5 € por venda, ou paga todos os meses."))}</span></div>
+        <div><b>2</b><span>${esc(t("Chega a tempo: em dezembro, digital ou entrega rápida."))}</span></div>
+        <div><b>3</b><span>${esc(t("Tens algo a dizer sobre ele (usas, percebes do assunto)."))}</span></div>
+        <div><b>4</b><span>${esc(t("Não é o que toda a gente já está a vender."))}</span></div>
+      </div>
+      <p class="af-hint">${esc(t("Comissões vistas nas páginas dos programas a 3 nov 2026; as da Amazon.es confirmam-se no painel depois de entrares. Valores por venda são estimativas para comparar, não promessas."))}</p>`;
   }
 
   // ---------------------------------------------------------------- calculadora
@@ -321,8 +434,17 @@
       const g = (s) => e.target.closest(s);
       let b;
       if ((b = g("[data-close]")) || e.target === $("af-modal")) return close();
-      if ((b = g("[data-view]"))) { view = b.dataset.view; pref.set("view", view); return paint(); }
+      if ((b = g("[data-view]"))) { view = b.dataset.view; pref.set("v2", view); return paint(); }
       if ((b = g("[data-ex]"))) { pref.set("ex", b.dataset.ex); $("af-body")._html = ""; return paintData(); }
+      if ((b = g("[data-exf]"))) { exF = b.dataset.exf; return paintData(); }
+      if ((b = g("[data-exopen]"))) { exOpen = exOpen === b.dataset.exopen ? "" : b.dataset.exopen; return paintData(); }
+      if ((b = g("[data-natal]"))) {
+        const p = NATAL.find((x) => x.id === b.dataset.natal);
+        const terms = { fn: ["pct", 12, 90, "Trading"], tv: ["recurring", 30, 90, "Trading"], host: ["pct", 60, 30, "Sites"] }[p.id] || ["pct", 0, 1, "Natal"];
+        await api("/api/afiliados/programas", { method: "POST", body: { name: p.name, niche: terms[3], network: p.where, kind: terms[0], commission: terms[1],
+          cookie_days: terms[2], status: "ideia", link: "", notes: `${t(p.line)}\n${t("Como vender")}: ${t(p.how)}` } });
+        flash(t("{n} juntado aos teus programas", { n: p.name })); await load(); return paintData();
+      }
       if (g("[data-new]")) return editProgram();
       if ((b = g("[data-result]"))) return addResult(b.dataset.result);
       if ((b = g("[data-edit]"))) return editProgram(D.programs.find((p) => String(p.id) === b.dataset.edit));
@@ -335,7 +457,7 @@
         const i = IDEIAS[Number(b.dataset.idea)];
         await api("/api/afiliados/programas", { method: "POST", body: { name: i.name, niche: i.niche, network: i.network, kind: i.kind, commission: i.commission,
           cookie_days: i.cookie_days, status: "ideia", link: "", notes: `${t(i.why)}\n${t("Inscrição")}: ${i.link}` } });
-        flash(t("{n} juntado às ideias", { n: i.name })); view = "meus"; pref.set("view", view); await load(); return paint();
+        flash(t("{n} juntado às ideias", { n: i.name })); view = "meus"; pref.set("v2", view); await load(); return paint();
       }
       if ((b = g("[data-delprog]"))) {
         if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = t("Carrega outra vez para apagar"); return; }

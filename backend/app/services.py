@@ -35,6 +35,7 @@ def task_out(t: Task, completed_by: str | None = None) -> dict:
         "agent_role": t.agent_role or "", "agent_instructions": t.agent_instructions or "", "crew": t.crew or "",
         "crew_name": name_of(t.crew), "crew_what": CREW[t.crew]["what"] if t.crew in CREW else "",
         "git_branch": t.git_branch or "", "blocked_reason": t.blocked_reason or "",
+        "worker": t.worker or "", "after_id": t.after_id,
         "trashed_at": iso(t.trashed_at), "trash_reason": t.trash_reason,
         "created_by": t.creator.username if t.creator else None,
         # who finished it, which is not always the person it was for (see finishers)

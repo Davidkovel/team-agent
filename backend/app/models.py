@@ -78,6 +78,12 @@ class Task(Base):
     trash_reason: Mapped[str | None] = mapped_column(String(10))  # done | mistake
     trash_prev_status: Mapped[str | None] = mapped_column(String(30))
     trash_prev_progress: Mapped[int | None] = mapped_column(Integer)
+    # Which of the person's agents took it (TEAM_AGENT_WORKER: "1", "2"...), so two agents of the same person never run the
+    # same task. None: not taken yet, or an agent with a single worker.
+    worker: Mapped[str | None] = mapped_column(String(40))
+    # A step of a chain (POST /api/tasks/chain): it waits BLOCKED until the task after_id is COMPLETED, then gets its result
+    # and goes to the agent by itself.
+    after_id: Mapped[int | None] = mapped_column(Integer)
 
     assignee: Mapped[User] = relationship(foreign_keys=[assignee_id], lazy="joined")
     creator: Mapped[User] = relationship(foreign_keys=[created_by], lazy="joined")

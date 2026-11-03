@@ -33,9 +33,20 @@ ligado sempre. Faz sync com os PCs como os outros Hubs, e o telemóvel passa a a
 - Atualiza-se sozinho (o `selfupdate.py` faz git pull e sai quando o backend muda; o systemd arranca-o outra vez).
 - Sem Claude: os agentes, o Radar com IA, a Sala de Trading e a Fábrica Etsy continuam nos PCs. O Hub da nuvem guarda e mostra
   tudo e recebe o que se mexe; o trabalho de IA arranca quando um PC com o agente ligar.
+- Agentes na nuvem (3 nov): `amg-agent@1..N` (systemd), cada um um `team_agent` do `HUB_USER` com o seu
+  `TEAM_AGENT_WORKER`, porta `877N` e dados em `/opt/amg/dados/agente-N`. Pedem trabalho com `POST /api/agent/tasks/claim`:
+  a tarefa fica com `tasks.worker` e nenhum outro lhe pega. Quantos: `AGENTS=N sudo -E bash …/instalar.sh` (fica em
+  `/opt/amg/dados/agentes`); sem isso, pela RAM (1 até 4 GB, 2 até 16 GB, 3 acima). Precisam do login do Claude uma vez:
+  o «Login Claude na nuvem.command» no Desktop do Mac (`claude auth login` como `amg`, depois reinicia `amg-agent@*`).
+- Cadeias: `POST /api/tasks/chain` com 2 a 12 passos. O 1.º fica ASSIGNED e os outros BLOCKED com `after_id`. Quando um
+  acaba, o seguinte recebe o resultado na descrição e arranca sozinho (`release_next` em `routers/agent.py`).
+- E-mail: a ferramenta `send_emails` do agente manda da conta da pessoa (`SMTP_USER`/`SMTP_PASSWORD` em
+  `/opt/amg/dados/agent.env`; Gmail com palavra-passe de app). Pede uma aprovação para o lote inteiro e junta quem envia e
+  como recusar (RGPD). Quem respondeu «REMOVER» vai para `nao-enviar.txt` e não volta a receber. Pesquisa na web: WebSearch e
+  WebFetch ligados (`TEAM_AGENT_WEB=0` desliga).
 
 ## Manter
 
-Do Mac, pela Tailscale: `tailscale ssh ubuntu@amg-nuvem`, depois `sudo journalctl -u amg-hub -f` (log do Hub),
+Do Mac, pela Tailscale: `tailscale ssh ubuntu@amg-nuvem`, depois `sudo journalctl -u amg-hub -f` (log do Hub), `sudo journalctl -u 'amg-agent@*' -f` (agentes),
 `sudo systemctl restart amg-hub`, ou correr de novo `sudo bash /opt/amg/team-agent/scripts/nuvem/instalar.sh` (sem variáveis
 mantém as definições). Log da instalação: `/var/log/amg-nuvem.log`.

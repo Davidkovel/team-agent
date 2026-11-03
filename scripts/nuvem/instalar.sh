@@ -122,12 +122,28 @@ HOME=$APP
 PATH=$APP/.local/bin:/usr/local/bin:/usr/bin:/bin
 EOF
 fi
-mkdir -p "$APP/trabalho" "$DATA/agente"
+# Vários agentes em paralelo (3 nov, David: «distribuir as atividades pelos agentes»): cada um é o serviço amg-agent@N e
+# pede ao Hub a próxima tarefa livre (POST /api/agent/tasks/claim), que fica escrita como sua; nunca dois na mesma.
+# AGENTS=N escolhe quantos (fica guardado em $DATA/agentes); sem ele, pela RAM: 1 até 4 GB, 2 até 16 GB, 3 acima.
+if [ -n "${AGENTS:-}" ]; then echo "$AGENTS" > "$DATA/agentes"; fi
+if [ -s "$DATA/agentes" ]; then
+  AGENTS=$(cat "$DATA/agentes")
+else
+  mem=$(awk '/MemTotal/ {print int($2 / 1048576)}' /proc/meminfo)
+  AGENTS=$(( mem >= 16 ? 3 : mem >= 4 ? 2 : 1 ))
+fi
+mkdir -p "$APP/trabalho"
+for n in $(seq 1 "$AGENTS"); do mkdir -p "$DATA/agente-$n"; done
 chmod 600 "$AENV"
 chown -R amg:amg "$APP"
-cat > /etc/systemd/system/amg-agent.service <<EOF
+# o serviço de um agente só, de antes
+if [ -f /etc/systemd/system/amg-agent.service ]; then
+  systemctl disable --now amg-agent 2>/dev/null || true
+  rm -f /etc/systemd/system/amg-agent.service
+fi
+cat > /etc/systemd/system/amg-agent@.service <<EOF
 [Unit]
-Description=Agente AMG - agente do Claude na nuvem
+Description=Agente AMG %i - agente do Claude na nuvem
 After=amg-hub.service
 Wants=amg-hub.service
 
@@ -135,7 +151,7 @@ Wants=amg-hub.service
 User=amg
 WorkingDirectory=$REPO/agent
 EnvironmentFile=$AENV
-ExecStart=$APP/venv/bin/python -m team_agent --env $AENV
+ExecStart=/usr/bin/env TEAM_AGENT_WORKER=%i TEAM_AGENT_LOCAL_PORT=877%i TEAM_AGENT_DATA_DIR=$DATA/agente-%i $APP/venv/bin/python -m team_agent --env $AENV
 Restart=always
 RestartSec=10
 
@@ -143,6 +159,12 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now amg-agent
-systemctl restart amg-agent
-grep -q '^TEAM_AGENT_TOKEN=.' "$AENV" && echo "== Agente a correr" || echo "== O agente ficou sem token: o Hub não o deu"
+for unit in $(systemctl list-units --all --plain --no-legend 'amg-agent@*' | awk '{print $1}'); do
+  n=${unit#amg-agent@}; n=${n%.service}
+  [ "$n" -le "$AGENTS" ] 2>/dev/null || systemctl disable --now "$unit"
+done
+for n in $(seq 1 "$AGENTS"); do
+  systemctl enable "amg-agent@$n" >/dev/null 2>&1
+  systemctl restart "amg-agent@$n"
+done
+grep -q '^TEAM_AGENT_TOKEN=.' "$AENV" && echo "== $AGENTS agente(s) a correr" || echo "== Os agentes ficaram sem token: o Hub não o deu"

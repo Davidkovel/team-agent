@@ -45,6 +45,21 @@ class TaskCreate(BaseModel):
     git_branch: str = ""
 
 
+class ChainStep(BaseModel):
+    title: str
+    description: str = ""
+    crew: str = ""  # empty: the office chooses by the step's words
+
+
+class ChainCreate(BaseModel):
+    """Steps that run one after the other: each starts by itself when the one before is done, with its result. They share
+    one folder in the agent's workspace (`project`), so a step finds the files the one before made."""
+    steps: list[ChainStep]
+    assignee: str = ""  # whose agent runs it; empty: the asker's
+    project: str = ""
+    priority: Priority = "normal"
+
+
 class TaskEdit(BaseModel):
     title: str | None = None
     description: str | None = None
@@ -365,6 +380,46 @@ async def delete_trashed(task_id: int, user: User = Depends(current_user), db: A
     await delete_tasks(db, [task.id])
     await rt.publish("task", assignee_id)
     return {"deleted": task_id}
+
+
+@router.post("/chain")
+async def create_chain(body: ChainCreate, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    steps = [st for st in body.steps if st.title.strip()]
+    if not 2 <= len(steps) <= 12:
+        raise HTTPException(422, "A chain has 2 to 12 steps")
+    assignee = user
+    if body.assignee and body.assignee != user.username:
+        assignee = (await db.execute(select(User).where(User.username == body.assignee))).scalar_one_or_none()
+        if not assignee:
+            raise HTTPException(404, "Assignee not found")
+        if not sees_all(user):
+            raise HTTPException(403, "Members can only create tasks for themselves")
+    for st in steps:
+        if st.crew and st.crew not in CREW:
+            raise HTTPException(422, "Unknown crew member")
+    tasks: list[Task] = []
+    for n, st in enumerate(steps, 1):
+        crew = st.crew or office.sector_of(st.title, st.description, "")
+        task = Task(title=st.title.strip()[:200], description=st.description.strip(), project=body.project.strip()[:100],
+                    priority=body.priority, assignee_id=assignee.id, created_by=user.id, crew=crew, agent_role=role_of(crew),
+                    status="ASSIGNED" if n == 1 else "BLOCKED", after_id=tasks[-1].id if tasks else None,
+                    blocked_reason="" if n == 1 else f"À espera do passo {n - 1}: {steps[n - 2].title.strip()[:120]}",
+                    agent_instructions=f"Esta tarefa é o passo {n} de {len(steps)} de uma cadeia. Faz só este passo e "
+                                       "acaba com complete_task e um resultado que o passo seguinte possa usar "
+                                       "(listas completas, caminhos dos ficheiros que fizeste).")
+        db.add(task)
+        await db.commit()
+        await db.refresh(task)
+        if not task.project:  # one folder for the whole chain
+            task.project = f"cadeia-{task.id}"
+            body.project = task.project
+            await db.commit()
+        tasks.append(task)
+    await log_activity(db, assignee, "task_assigned", f"recebeu uma cadeia de {len(tasks)} passos: {tasks[0].title}", tasks[0].id)
+    await rt.publish("task", assignee.id)
+    await rt.publish("wake", assignee.id, "agent")
+    await _announce(db, user, tasks[:1], False)
+    return [task_out(t) for t in tasks]
 
 
 @router.post("/{task_id}/assign-ai")

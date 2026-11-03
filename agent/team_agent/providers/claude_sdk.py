@@ -21,6 +21,13 @@ from .base import AIProvider, RunResult
 MCP_SERVER = "team"
 SUBAGENT_TOOLS = ("Agent", "Task")  # the same tool: "Task" was renamed "Agent" in Claude Code 2.1.63
 BUILTIN_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch", "NotebookEdit"]
+# Reading the web touches nothing on this computer, and without it the agent cannot find businesses, prices or facts
+# (3 Nov, David: «um agente vai ver as escolas de condução na minha zona»). TEAM_AGENT_WEB=0 switches it off.
+WEB_TOOLS = ["WebSearch", "WebFetch"]
+
+
+def web_tools() -> list[str]:
+    return [] if os.environ.get("TEAM_AGENT_WEB", "1").lower() in ("0", "false", "no", "off") else WEB_TOOLS
 
 # name -> (what it is for, how it works, the registry tools it may use; None = all of them)
 SUBAGENTS = {
@@ -89,7 +96,8 @@ class ClaudeAgentProvider(AIProvider):
 
         # background=False: the main session waits for the subagent's answer instead of finishing without it
         return {name: AgentDefinition(description=description, prompt=prompt, background=False,
-                                      tools=[f"mcp__{MCP_SERVER}__{t}" for t in tools if t in registry.tools])
+                                      tools=[f"mcp__{MCP_SERVER}__{t}" for t in tools if t in registry.tools]
+                                      + (web_tools() if name == "research" else []))
                 for name, (description, prompt, tools) in SUBAGENTS.items()}
 
     async def run(self, prompt, system_prompt, registry, workspace: Path, resume_session, on_session, home: Path | None = None) -> RunResult:
@@ -97,6 +105,7 @@ class ClaudeAgentProvider(AIProvider):
                                       SystemMessage, TextBlock, ToolResultBlock, ToolUseBlock, UserMessage)
 
         allowed = [f"mcp__{MCP_SERVER}__{name}" for name in registry.tools]
+        web = web_tools()
         options = ClaudeAgentOptions(
             model=self.model,
             cli_path=native_cli(),
@@ -106,9 +115,9 @@ class ClaudeAgentProvider(AIProvider):
             cwd=home or workspace,
             mcp_servers={MCP_SERVER: self._mcp_server(registry)},
             strict_mcp_config=True,  # only our server: not the connectors of the signed-in Claude account
-            tools=["Agent"] if self.subagents else [],  # no other Claude Code built-in
-            disallowed_tools=BUILTIN_TOOLS + ([] if self.subagents else list(SUBAGENT_TOOLS)),
-            allowed_tools=allowed + (list(SUBAGENT_TOOLS) if self.subagents else []),
+            tools=(["Agent"] if self.subagents else []) + web,  # no other Claude Code built-in
+            disallowed_tools=[t for t in BUILTIN_TOOLS if t not in web] + ([] if self.subagents else list(SUBAGENT_TOOLS)),
+            allowed_tools=allowed + web + (list(SUBAGENT_TOOLS) if self.subagents else []),
             agents=self._agents(registry) if self.subagents else None,
             # a subagent sent to the background would outlive the turn: the run would end without its answer
             env={"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"},

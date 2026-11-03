@@ -7,6 +7,7 @@ from ..permissions import Level
 from ..permissions.policy import SECRET_FILE
 from .approval_tool import RequestApproval
 from .base import Tool, ToolContext, ToolResult
+from .email_tool import SendEmails
 from .file_tool import FILE_TOOLS
 from .git_tool import Git
 from .notification_tool import Notify
@@ -70,5 +71,5 @@ class ToolRegistry:
 
 
 def build_registry(ctx: ToolContext) -> ToolRegistry:
-    classes = [*FILE_TOOLS, Git, RunCommand, *TASK_TOOLS, RequestApproval, Notify, Recall, Skills]
+    classes = [*FILE_TOOLS, Git, RunCommand, *TASK_TOOLS, RequestApproval, Notify, Recall, Skills, SendEmails]
     return ToolRegistry([cls() for cls in classes], ctx)

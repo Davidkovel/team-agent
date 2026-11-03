@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import crew
@@ -36,6 +36,7 @@ class Heartbeat(BaseModel):
     error: str = ""
     started_at: float | None = None
     usage: dict = {}
+    worker: str = ""  # one of several agents of the same person (TEAM_AGENT_WORKER); empty: the only one
 
 
 class TaskUpdate(BaseModel):
@@ -99,14 +100,33 @@ async def session(user: User = Depends(agent_user)):
     return {"token": make_jwt(user)}
 
 
+# Several agents of one person (the cloud server runs 2-3): the last heartbeat of each, so the team sees the busiest one
+# and not whichever spoke last. Kept in memory: presence is not synced either.
+WORKERS: dict[int, dict[str, tuple[float, dict]]] = {}
+BUSY = {"WORKING": 0, "WAITING": 1, "PAUSED": 2, "ERROR": 3, "IDLE": 4, "ONLINE": 5}
+
+
+def busiest(user_id: int, body: Heartbeat) -> dict:
+    state = body.model_dump()
+    if not body.worker:
+        return state
+    now = time.time()
+    mine = WORKERS.setdefault(user_id, {})
+    mine[body.worker] = (now, state)
+    fresh = [st for at, st in mine.values() if now - at < settings.heartbeat_timeout]
+    best = min(fresh, key=lambda st: BUSY.get(st["status"], 9))
+    return {**best, "workers": len(fresh), "working": sum(st["status"] == "WORKING" for st in fresh)}
+
+
 @router.post("/heartbeat")
 async def heartbeat(body: Heartbeat, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     if user.id in AWAY:  # switched offline in the widget: the agent still gets its commands, but nobody sees them online
         return {"commands": await rt.store.pop_commands(user.id), "team": await team_view(db, user)}
     before = await rt.store.get_presence(user.id)
     was_online = before is not None and before.get("via") not in SOFT_VIA  # an open Hub/widget is not the agent
-    await rt.store.set_presence(user.id, {**body.model_dump(), "where": where(user.id, agent=True), "last_seen": time.time()}, settings.heartbeat_timeout)
-    await save_agent_state(db, user.id, body.status)
+    state = busiest(user.id, body)
+    await rt.store.set_presence(user.id, {**state, "where": where(user.id, agent=True), "last_seen": time.time()}, settings.heartbeat_timeout)
+    await save_agent_state(db, user.id, state["status"])
     rt.online.add(user.id)
     ONLINE_VIA[user.id] = "agent"
     PENDING_ONLINE.discard(user.id)
@@ -118,14 +138,38 @@ async def heartbeat(body: Heartbeat, user: User = Depends(agent_user), db: Async
 
 @router.get("/tasks/next")
 async def next_tasks(user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
-    query = select(Task).where(Task.assignee_id == user.id, Task.status == "ASSIGNED", Task.trashed_at.is_(None)).order_by(Task.id)
+    query = select(Task).where(Task.assignee_id == user.id, Task.status == "ASSIGNED", Task.trashed_at.is_(None),
+                               Task.worker.is_(None)).order_by(Task.id)
     return [task_out(t) for t in (await db.execute(query)).scalars()]
 
 
+@router.post("/tasks/claim")
+async def claim_task(worker: str, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+    """One of several agents of the same person takes the oldest free task, and it is written down as theirs in the same
+    transaction (db.py opens each one with BEGIN IMMEDIATE), so two agents asking at once never get the same task."""
+    query = (select(Task).where(Task.assignee_id == user.id, Task.status == "ASSIGNED", Task.trashed_at.is_(None),
+                                or_(Task.worker.is_(None), Task.worker == worker)).order_by(Task.id).limit(1))
+    task = (await db.execute(query)).scalar_one_or_none()
+    if not task:
+        return {"task": None}
+    task.worker = worker
+    await db.commit()
+    await db.refresh(task)
+    return {"task": task_out(task)}
+
+
+def worker_tasks(worker: str):
+    """The tasks that are this worker's to resume: its own, and for worker 1 also those of an agent without workers."""
+    if not worker:
+        return Task.worker.is_(None)
+    return or_(Task.worker == worker, Task.worker.is_(None)) if worker == "1" else Task.worker == worker
+
+
 @router.get("/recovery")
-async def recovery(user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+async def recovery(worker: str = "", user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     """'What was my last task?' -> the unfinished task with its saved context."""
-    query = (select(Task).where(Task.assignee_id == user.id, Task.status.in_(UNFINISHED), Task.trashed_at.is_(None))
+    query = (select(Task).where(Task.assignee_id == user.id, Task.status.in_(UNFINISHED), Task.trashed_at.is_(None),
+                                worker_tasks(worker))
              .order_by(Task.updated_at.desc()).limit(1))
     task = (await db.execute(query)).scalar_one_or_none()
     if not task:
@@ -160,6 +204,8 @@ async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent
     old_status = task.status
     for key, value in changes.items():
         setattr(task, key, value)
+    if task.status == "ASSIGNED":
+        task.worker = None  # back in the queue (Claude's limit): any of the person's agents may take it
     if task.status == "IN_PROGRESS" and not task.started_at:
         task.started_at = datetime.now(timezone.utc)
     if task.status == "COMPLETED":
@@ -172,6 +218,7 @@ async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent
         href = f"#/tarefas/{task.id}"
         if task.status == "COMPLETED":
             await crew.remember_task(db, task, user)  # the whole crew knows it from the next task on
+            await release_next(db, task)
             await notify(db, {user.id, task.created_by}, "task_completed", "low", f"Tarefa concluída: {task.title}",
                          (task.result or "")[:300], href)
         elif task.status == "FAILED":
@@ -183,6 +230,19 @@ async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent
         await log_activity(db, user, "task_action", f"{task.last_action} ({task.progress}%)", task.id)
     await rt.publish("task", user.id)
     return task_out(task)
+
+
+async def release_next(db: AsyncSession, done: Task):
+    """The next steps of a chain waiting on this task get its result and go to their agent."""
+    query = select(Task).where(Task.after_id == done.id, Task.status == "BLOCKED", Task.trashed_at.is_(None))
+    for step in (await db.execute(query)).scalars():
+        before = (done.result or "(o passo anterior não escreveu resultado)").strip()
+        step.description = f"{step.description}\n\nResultado do passo anterior («{done.title}»):\n{before[:6000]}".strip()
+        step.status, step.blocked_reason = "ASSIGNED", ""
+        await db.commit()
+        await log_activity(db, step.assignee, "task_assigned", f"passo seguinte da cadeia: {step.title}", step.id)
+        await rt.publish("task", step.assignee_id)
+        await rt.publish("wake", step.assignee_id, "agent")
 
 
 @router.post("/tasks/{task_id}/events")

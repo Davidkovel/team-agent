@@ -15,7 +15,7 @@ from .transport.local_api import LocalAPI, local_token
 
 
 async def main(cfg: Config):
-    backend = BackendClient(cfg.server_url, cfg.agent_token)
+    backend = BackendClient(cfg.server_url, cfg.agent_token, cfg.worker)
     agent = TeamAgent(
         cfg, backend,
         tasks=RemoteTaskProvider(backend),

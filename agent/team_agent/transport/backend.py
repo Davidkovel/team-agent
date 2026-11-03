@@ -9,12 +9,12 @@ from ..core.logs import log
 class BackendClient:
     """HTTP for state and tasks; WebSocket only as a 'wake up now' signal."""
 
-    def __init__(self, base_url: str, token: str):
-        self.base_url, self.token = base_url, token
+    def __init__(self, base_url: str, token: str, worker: str = ""):
+        self.base_url, self.token, self.worker = base_url, token, worker
         self._http = httpx.AsyncClient(base_url=base_url, timeout=15, headers={"Authorization": f"Bearer {token}"})
 
-    async def _call(self, method: str, path: str, body: dict | None = None):
-        response = await self._http.request(method, f"/api/agent{path}", json=body)
+    async def _call(self, method: str, path: str, body: dict | None = None, params: dict | None = None):
+        response = await self._http.request(method, f"/api/agent{path}", json=body, params=params)
         response.raise_for_status()
         return response.json()
 
@@ -25,13 +25,16 @@ class BackendClient:
         return await self._call("POST", "/session")
 
     async def heartbeat(self, state: dict) -> dict:
-        return await self._call("POST", "/heartbeat", state)
+        return await self._call("POST", "/heartbeat", {**state, "worker": self.worker} if self.worker else state)
 
     async def next_tasks(self) -> list[dict]:
+        if self.worker:  # one of several agents: the Hub writes the task down as this one's, so no other takes it
+            task = (await self._call("POST", "/tasks/claim", params={"worker": self.worker}))["task"]
+            return [task] if task else []
         return await self._call("GET", "/tasks/next")
 
     async def recovery(self) -> dict:
-        return await self._call("GET", "/recovery")
+        return await self._call("GET", "/recovery", params={"worker": self.worker} if self.worker else None)
 
     async def update_task(self, task_id: int, **fields) -> dict:
         return await self._call("POST", f"/tasks/{task_id}/update", fields)

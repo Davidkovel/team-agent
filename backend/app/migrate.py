@@ -35,7 +35,8 @@ log = logging.getLogger("team.backend")
 # 19: plans, for Planos (routers/plans.py): a job in steps that any partner's Claude carries on.
 # 22: affiliate_programs and affiliate_results, for Afiliados (routers/affiliates.py).
 # 23: photos.kind, the type of a photo of Fotos (Logótipo, Banner, Post...).
-SCHEMA_VERSION = 23
+# 24: tasks.worker (which of a person's agents took it) and tasks.after_id (chains of tasks).
+SCHEMA_VERSION = 24
 
 
 def current_version(conn) -> int:

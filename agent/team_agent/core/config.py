@@ -34,6 +34,9 @@ class Config:
     policy_file: Path | None = None
     # Let the main session hand parts of a task to research / coding / testing / review subagents.
     subagents: bool = True
+    # One of several agents of the same person on one machine ("1", "2"...): each takes its own task from the Hub
+    # (POST /api/agent/tasks/claim). Empty: the only agent, as always.
+    worker: str = ""
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -52,4 +55,5 @@ class Config:
             recovery_mode=os.environ.get("TEAM_AGENT_RECOVERY_MODE", "resume"),
             policy_file=Path(policy) if policy else None,
             subagents=os.environ.get("TEAM_AGENT_SUBAGENTS", "1").lower() not in ("0", "false", "no", "off"),
+            worker=os.environ.get("TEAM_AGENT_WORKER", "").strip(),
         )

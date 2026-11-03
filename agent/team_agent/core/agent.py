@@ -97,6 +97,9 @@ def limit_reset(text: str, now: float) -> float | None:
     return now + LIMIT_WAIT
 
 
+OWNER_NOTE = "Resposta do dono: "  # what the owner said with a decision (decide in backend/app/routers/team.py)
+
+
 class TeamAgent:
     def __init__(self, cfg: Config, backend, tasks: TaskProvider, ai: AIProvider, store: LocalStore,
                  ask_ai: Callable[[], AIProvider] | None = None):
@@ -522,11 +525,13 @@ class TeamAgent:
         log.info("Waiting for approval: %s", action)
         self.state.pending_approval = action
         await self._set_status("WAITING", "WAITING_APPROVAL")
-        status = "PENDING"
+        status, self.approval_note = "PENDING", ""
         while status == "PENDING" and not self._intent:
             await asyncio.sleep(self.cfg.approval_poll)
             current = await self._safe(self.backend.get_approval(approval["id"]), "approval status")
             status = current["status"] if current else status
+            if current and status != "PENDING" and OWNER_NOTE in (current.get("detail") or ""):
+                self.approval_note = current["detail"].rpartition(OWNER_NOTE)[2].strip()
         self.state.pending_approval = ""
         if self._intent:
             return False

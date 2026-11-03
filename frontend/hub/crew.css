@@ -514,3 +514,40 @@ html:not(.is-phone) .cr-legend { top: 16px; bottom: auto; }
 .cr-mate .cr-short { letter-spacing: .04em; }
 .cr-mate .cr-long { display: none; }
 .cr-mate span.cr-long { display: none !important; }
+
+/* ================================================================ an agent asks: the card beside it (openAsk) */
+.cr-ask { position: absolute; left: 0; top: 0; z-index: 6; width: min(330px, calc(100% - 20px)); padding: 16px; border-radius: 20px; color: #e9edf3;
+  background: linear-gradient(180deg, rgba(24, 26, 32, .97), rgba(9, 10, 14, .98)); border: 1px solid rgba(255, 255, 255, .13);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .65), inset 0 1px 0 rgba(255, 255, 255, .08); backdrop-filter: blur(18px);
+  opacity: 0; transform: translate(var(--x, 0), calc(var(--y, 0) + 8px)); transition: opacity .18s ease, transform .22s cubic-bezier(.2, .8, .2, 1); }
+.cr-ask.open { opacity: 1; transform: translate(var(--x, 0), var(--y, 0)); }
+.cr-ask[hidden] { display: none; }
+.ask-h { display: flex; align-items: center; gap: 11px; }
+.ask-h img { flex: none; width: 40px; height: 40px; border-radius: 12px; background: #05060a; object-fit: cover; }
+.ask-h div { flex: 1; min-width: 0; }
+.ask-h b { display: block; font: 650 15px/1.2 var(--display); letter-spacing: -.01em; }
+.ask-h small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; font-size: 12px; line-height: 1.3; color: #8b929c; }
+.ask-x { flex: none; align-self: flex-start; display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .07); color: #aab1bb; cursor: pointer; }
+.ask-x:hover { background: rgba(255, 255, 255, .13); color: #fff; }
+.ask-x .i { width: 13px; height: 13px; }
+.ask-k { display: block; margin-top: 15px; font-size: 12px; color: #8b929c; }
+.ask-q { margin: 3px 0 9px; font: 650 20px/1.2 var(--display); letter-spacing: -.02em; color: #fff; overflow-wrap: anywhere; }
+.ask-risk { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.ask-risk i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+.ask-more { margin-top: 10px; font-size: 12px; color: #8b929c; }
+.ask-more summary { cursor: pointer; }
+.ask-more summary:hover { color: #e9edf3; }
+.ask-more code { display: block; margin-top: 7px; padding: 9px 10px; max-height: 110px; overflow: auto; border-radius: 10px; background: #05060a; font: 11.5px/1.45 var(--mono); color: #cfd8e3; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ask-note { display: block; width: 100%; height: 42px; margin-top: 13px; padding: 0 13px; box-sizing: border-box; border-radius: 12px; background: #05060a; border: 1px solid rgba(255, 255, 255, .12); color: #fff; font: inherit; font-size: 14px; outline: none; }
+.ask-note:focus { border-color: rgba(255, 255, 255, .34); }
+.ask-note::placeholder { color: #6d747e; }
+.ask-btns { display: flex; gap: 8px; margin-top: 9px; }
+.ask-btns .btn { height: 46px; border-radius: 13px; justify-content: center; font-size: 15px; font-weight: 650; }
+.ask-yes { flex: 1; gap: 7px; }
+.ask-yes .i { width: 16px; height: 16px; }
+.ask-no { padding: 0 16px; }
+.ask-full { display: block; width: 100%; margin-top: 10px; padding: 2px; border: 0; background: none; font: inherit; font-size: 12px; color: #8b929c; cursor: pointer; }
+.ask-full:hover { color: #e9edf3; }
+html.is-phone .cr-ask { position: fixed; left: 10px; right: 10px; top: auto; bottom: calc(10px + env(safe-area-inset-bottom)); width: auto; z-index: 60; transform: translateY(10px); }
+html.is-phone .cr-ask.open { transform: none; }
+html.is-phone .ask-note { font-size: 16px; }

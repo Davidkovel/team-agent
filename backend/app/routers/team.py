@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api")
 
 class Decision(BaseModel):
     approve: bool
+    note: str = ""  # what the owner tells the agent with the decision (the card in the cave)
 
 
 @router.get("/team")
@@ -82,6 +83,8 @@ async def decide(approval_id: int, body: Decision, owner: User = Depends(require
         raise HTTPException(409, f"Already {approval.status}")
     approval.status = "APPROVED" if body.approve else "REJECTED"
     approval.decided_by = owner.id
+    if body.note.strip():  # the agent reads it from here (OWNER_NOTE in agent/team_agent/core/agent.py)
+        approval.detail = f"{approval.detail or ''}\n\nResposta do dono: {body.note.strip()[:1000]}".strip()
     approval.decided_at = datetime.now(timezone.utc)
     await db.commit()
     verb = "aprovou" if approval.status == "APPROVED" else "recusou"

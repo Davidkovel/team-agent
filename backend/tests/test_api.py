@@ -88,6 +88,10 @@ def test_full_task_lifecycle_with_approval_and_recovery(client):
     client.post(f"/api/tasks/{tid}/control", headers=owner, json={"action": "pause"})
     cmds = client.post("/api/agent/heartbeat", headers=mark_agent, json={"status": "WORKING"}).json()["commands"]
     assert [c["type"] for c in cmds] == ["approval", "pause"]
+    # What the owner says with a decision reaches the agent in the approval's detail.
+    noted = client.post("/api/agent/approvals", headers=mark_agent, json={"task_id": tid, "action": "Publish again"}).json()
+    client.post(f"/api/approvals/{noted['id']}/decide", headers=owner, json={"approve": True, "note": "Só o logótipo"})
+    assert client.get(f"/api/agent/approvals/{noted['id']}", headers=mark_agent).json()["detail"].endswith("Resposta do dono: Só o logótipo")
 
     # Usage + completion.
     client.post("/api/agent/usage", headers=mark_agent,

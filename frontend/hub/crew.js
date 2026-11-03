@@ -1233,6 +1233,7 @@
   let LS = 1, narrow = false; // labels shrink with a small room; on a phone the cards keep only who, what and for whom
   let timer = 0, raf = 0, last = 0, onScreen = true, hovered = null, focus = null, hoverCar = null, vignette = null;
   let caveOpen = false; // the cave is entered from the board: until then nothing is drawn and nothing moves
+  let pendingAsks = [], askOpen = null; // approvals waiting on a person: the sign over the agent and its card (openAsk)
   let panel = null; // what the mission panel shows: { kind: "agent" | "car", ref }
   // the widget's clock opens the mini window on one camera (?mini=1&cam=trading): a room of VIEWS
   const CAM = MINI ? ((location.search.match(/[?&]cam=([a-z]+)(&|$)/) || [])[1] || "") : "";
@@ -1934,6 +1935,31 @@
       rr(g, x + pad, by, Math.max(3 * k, bw * Math.min(1, L.progress / 100)), 3 * k, 2 * k); g.fillStyle = L.color; g.fill();
     }
   }
+  // David, 3 Nov: «logo em cima do agente». An agent that waits on a person has a sign over its head that cannot be missed.
+  const askOf = (a) => (a && a.job && a.job.type === "task" ? pendingAsks.find((x) => x.task_id === a.job.id) : null) || null;
+  function drawAsks(g) {
+    const k = dpr * LS;
+    for (const a of agents) {
+      a.askBox = null;
+      if (!a.head || !askOf(a)) continue;
+      const text = t("Precisa de ti"), h = 25 * k;
+      g.font = `700 ${11.5 * k}px ${FONT}`;
+      const w = g.measureText(text).width + 37 * k, ax = SX(a.head[0]), lift = Math.sin(clock * 3.2) * 2.5 * k;
+      const top = a.label ? a.label.y : SY(a.head[1] - 2);
+      const x = Math.max(4 * k, Math.min(cv.width - w - 4 * k, ax - w / 2)), y = Math.max(3 * k, top - h - 8 * k + lift);
+      g.save();
+      g.shadowColor = NEON.amber; g.shadowBlur = (16 + Math.sin(clock * 3.2) * 7) * k;
+      rr(g, x, y, w, h, h / 2); g.fillStyle = NEON.amber; g.fill();
+      g.restore();
+      g.fillStyle = NEON.amber; g.beginPath(); g.moveTo(ax - 5 * k, y + h - .5 * k); g.lineTo(ax + 5 * k, y + h - .5 * k); g.lineTo(ax, y + h + 6 * k); g.fill();
+      g.fillStyle = "#16100a"; g.beginPath(); g.arc(x + 14 * k, y + h / 2, 8 * k, 0, Math.PI * 2); g.fill();
+      g.textBaseline = "middle"; g.textAlign = "center";
+      g.fillStyle = NEON.amber; g.font = `800 ${11.5 * k}px ${FONT}`; g.fillText("!", x + 14 * k, y + h / 2 + .5 * k);
+      g.textAlign = "left"; g.fillStyle = "#16100a"; g.font = `700 ${11.5 * k}px ${FONT}`; g.fillText(text, x + 27 * k, y + h / 2 + .5 * k);
+      g.textBaseline = "alphabetic";
+      a.askBox = { x, y, w, h: h + 6 * k };
+    }
+  }
   function labels(g) {
     const list = [];
     for (const a of agents) if (a.head) list.push({ a, L: labelOf(a), ax: SX(a.head[0]), ay: SY(a.head[1] - 2) });
@@ -1964,6 +1990,7 @@
       it.a.label = { x, y, w: m.w, h: m.h };
       paintLabel(g, it, m, x, y);
     }
+    drawAsks(g);
   }
   // Who is talking in the lounge now: one at a time, in turns of a few seconds, while at least two are there. What they
   // say is what the team finished lately (the TAREFAS notes), or else the newest notes of the Memória.
@@ -2492,6 +2519,7 @@
   }
   function hitTest(e) {
     const [mx, my] = toLocal(e);
+    for (const a of agents) { const b = a.askBox; if (b && mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) return { agent: a }; }
     for (const a of agents) { const b = a.label; if (b && mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) return { agent: a }; }
     const front = [...agents].sort((p, q) => q.x + q.y - (p.x + p.y));
     for (const a of front) { const b = a.box; if (b && mx >= SX(b[0]) && mx <= SX(b[2]) && my >= SY(b[1]) && my <= SY(b[3])) return { agent: a }; }
@@ -2680,6 +2708,7 @@
     const was = drag; drag = null; stage.classList.remove("dragging");
     if (!was || was.moved) return;
     const hit = hitTest(e);
+    closeAsk();
     if (hit.agent) openPanel({ kind: "agent", ref: hit.agent });
     else if (hit.desk) openPanel({ kind: "agent", ref: crewById(hit.desk.crew) });
     else if (hit.screen) showColumn(hit.screen.id);
@@ -2881,7 +2910,83 @@
     if (input && typed) input.value = typed;
     if (input && focused) input.focus();
   }
+  // The request in plain words: nobody should have to read a shell command to decide. A command only counts as read-only
+  // when it is one plain program from the list, with nothing chained or redirected.
+  const askCommand = (ap) => (/^run `([\s\S]*)`$/.exec(ap.action || "") || [])[1] || "";
+  const askReadOnly = (cmd) => !!cmd && !/[;&|<>`$\n]/.test(cmd) && (/^(which|ls|pwd|file|wc|head|tail|cat|stat|fc-list|pdfinfo|du|df|whoami|uname|date)\b/.test(cmd) || /^\S+ (--version|-V)$/.test(cmd));
+  function askPlain(ap) {
+    const cmd = askCommand(ap);
+    if (!cmd) return ap.action || t("Fazer uma ação");
+    const version = /^(\S+) (--version|-V)$/.exec(cmd);
+    if (version) return t("Ver que versão de {x} está instalada", { x: version[1] });
+    if (/^(which|fc-list)\b/.test(cmd)) return t("Ver que programas estão instalados");
+    if (/^(cat|head|tail)\b/.test(cmd)) return t("Ler um ficheiro do trabalho");
+    if (/^(ls|pwd|file|wc|stat|du|df|pdfinfo)\b/.test(cmd)) return t("Ver os ficheiros do trabalho");
+    if (/^(pip3?|npm|apt(-get)?|brew)\b|-m pip\b/.test(cmd)) return t("Instalar uma ferramenta de que precisa");
+    if (/^(python3?|node|bash|sh)\b/.test(cmd)) return t("Correr um programa para fazer o trabalho");
+    if (/^(mkdir|cp|mv|touch)\b/.test(cmd)) return t("Organizar os ficheiros do trabalho");
+    if (/^git\b/.test(cmd)) return t("Mexer no histórico do projeto (git)");
+    return t("Correr um comando no servidor");
+  }
+  function askRisk(ap) {
+    if (askReadOnly(askCommand(ap))) return ["Só vê, não altera nada", NEON.green];
+    if (ap.kind === "email") return ["Vai enviar para fora", NEON.red];
+    if (ap.risk === "high") return ["Ação sensível: vê bem antes", NEON.red];
+    return ["Pode alterar ficheiros", NEON.amber];
+  }
+  // The card beside the agent (David, 3 Nov): what it is doing, what it asks, Aceitar, and room to tell it something.
+  function openAsk(a) {
+    const ap = askOf(a), el = $("cr-ask"), stage = el && el.parentElement;
+    if (!ap || !stage) return;
+    askOpen = { id: ap.id, a };
+    const [risk, color] = askRisk(ap), cmd = askCommand(ap), more = pendingAsks.filter((x) => x.task_id === ap.task_id).length - 1;
+    const doing = a.job.title.replace(/^Teste:\s*/i, "");
+    el.innerHTML = `<header class="ask-h"><img class="cr-px" src="${a.portrait}" alt=""><div><b>${esc(a.name)}</b><small>${esc(t("Está a fazer"))}: ${esc(doing)}</small></div>
+        <button class="ask-x" data-ask-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
+      <small class="ask-k">${esc(t("Pede-te para"))}</small><h4 class="ask-q">${esc(askPlain(ap))}</h4>
+      <span class="ask-risk" style="--c:${color}"><i></i>${esc(t(risk))}</span>
+      ${ap.action ? `<details class="ask-more"><summary>${esc(t("Ver o que vai correr"))}</summary><code>${esc(cmd || ap.action)}</code></details>` : ""}
+      <input class="ask-note" maxlength="1000" placeholder="${esc(t("Dizer-lhe alguma coisa (opcional)"))}" autocomplete="off">
+      <div class="ask-btns"><button class="btn primary ask-yes" data-ask-decide="1">${icon("check")}${esc(t("Aceitar"))}</button><button class="btn ask-no" data-ask-decide="0">${esc(t("Recusar"))}</button></div>
+      <button class="ask-full" data-ask-full>${esc(t(more > 0 ? "Ver a missão · mais {n} pedido(s)" : "Ver a missão completa", { n: more }))}</button>`;
+    el.hidden = false;
+    hideCaveTip();
+    const box = stage.getBoundingClientRect(), r = box.width / cv.width, ax = SX(a.head ? a.head[0] : cam.x + cam.w / 2) * r, ay = SY(a.head ? a.head[1] : cam.y + cam.h / 2) * r;
+    let x = ax + 26;
+    if (x + el.offsetWidth > box.width - 10) x = ax - el.offsetWidth - 26;
+    x = Math.max(10, Math.min(box.width - el.offsetWidth - 10, x));
+    const y = Math.max(10, Math.min(box.height - el.offsetHeight - 10, ay - 60));
+    el.style.setProperty("--x", `${Math.round(x)}px`); el.style.setProperty("--y", `${Math.round(y)}px`);
+    requestAnimationFrame(() => el.classList.add("open"));
+  }
+  function closeAsk() {
+    const el = $("cr-ask");
+    askOpen = null;
+    if (el) { el.hidden = true; el.classList.remove("open"); }
+  }
+  async function askClick(e) {
+    if (!askOpen) return;
+    const { id, a } = askOpen;
+    if (e.target.closest("[data-ask-close]")) return closeAsk();
+    if (e.target.closest("[data-ask-full]")) { closeAsk(); return openPanel({ kind: "agent", ref: a, full: true }); }
+    const b = e.target.closest("[data-ask-decide]");
+    if (!b) return;
+    const yes = b.dataset.askDecide === "1", note = $("cr-ask").querySelector(".ask-note").value.trim();
+    $("cr-ask").querySelectorAll("button").forEach((x) => { x.disabled = true; });
+    try {
+      await api(`/api/approvals/${id}/decide`, { method: "POST", body: { approve: yes, note } });
+      pendingAsks = pendingAsks.filter((x) => x.id !== id);
+      flash(t(yes ? "Aceite: o agente continua." : "Recusado: o agente não o faz."));
+      closeAsk();
+      if (askOf(a)) openAsk(a);
+    } catch (err) {
+      flash(err.message);
+      $("cr-ask").querySelectorAll("button").forEach((x) => { x.disabled = false; });
+    }
+    lastLoad = 0; load();
+  }
   function openPanel(p) {
+    if (p.kind === "agent" && !p.full && askOf(p.ref)) { openAsk(p.ref); return; }
     const el = $("cr-panel");
     panel = p; panelTask = null;
     el.hidden = false; requestAnimationFrame(() => el.classList.add("open"));
@@ -3071,8 +3176,9 @@
     if (wait > 0) { clearTimeout(later); later = setTimeout(load, wait); return; }
     lastLoad = Date.now();
     try {
-      const [o, ts] = await Promise.all([api("/api/office"), api("/api/tasks")]);
-      office = o; tasks = ts; arsenalList = o.arsenal || [];
+      const [o, ts, aps] = await Promise.all([api("/api/office"), api("/api/tasks"), api("/api/approvals").catch(() => null)]);
+      office = o; tasks = ts;
+      if (aps) pendingAsks = aps.filter((x) => x.status === "PENDING"); arsenalList = o.arsenal || [];
       await loadEtsy();
     } catch (e) {
       if (e.message !== "unauthorized" && $("cx-sum") && firstLoad) $("cx-sum").textContent = e.message;
@@ -3082,6 +3188,7 @@
     jobs = jobsOf();
     const watched = caveOpen || camsLive();   // somebody sees the crew move: in the cave, or on the cameras
     reconcile(jobs, firstLoad || !watched);
+    if (askOpen && !pendingAsks.some((x) => x.id === askOpen.id)) closeAsk();
     firstLoad = false;
     if (!watched) settleAll();
     paintLists();
@@ -3216,7 +3323,7 @@
           <div class="cr-legend" aria-label="${esc(t("Legenda"))}">${[["a trabalhar", NEON.green], ["à espera", NEON.amber], ["precisa de ajuda", NEON.red], ["livre", "#8b95a1"]]
             .map(([l, c]) => `<span><i class="st" style="--c:${c}"></i>${esc(t(l))}</span>`).join("")}<b></b>${PARTNERS.map(([, n, c]) => `<span><i style="--c:${c}"></i>${esc(n)}</span>`).join("")}</div>
           ${MINI ? `<div class="cr-mtop" id="cr-mtop"></div><div class="cr-np" id="cr-np"></div>` : ""}
-          <div class="cr-tip" id="cr-tip" hidden></div></section></div>`;
+          <div class="cr-tip" id="cr-tip" hidden></div><div class="cr-ask" id="cr-ask" hidden></div></section></div>`;
     const drawer = Object.assign(document.createElement("aside"), { className: "cr-panel", id: "cr-panel", hidden: true });
     document.body.append(drawer);
     stage = cave.querySelector("#cr-stage"); cv = cave.querySelector("#cr-canvas"); g2 = cv.getContext("2d");
@@ -3253,6 +3360,9 @@
       for (const type of ["pointerdown", "pointerup"]) np.addEventListener(type, (e) => e.stopPropagation());
     }
     drawer.onclick = panelClick; drawer.onsubmit = panelSubmit;
+    const ask = cave.querySelector("#cr-ask");
+    ask.onclick = askClick;
+    for (const type of ["pointerdown", "pointerup", "pointermove"]) ask.addEventListener(type, (e) => e.stopPropagation());
     const crew = cave.querySelector("#cr-crew");
     crew.onmouseover = (e) => { const b = e.target.closest("[data-mate]"); focus = b ? agents[Number(b.dataset.mate)] : null; };
     crew.onmouseleave = () => { focus = null; };

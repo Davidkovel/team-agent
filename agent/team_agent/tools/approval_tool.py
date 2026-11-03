@@ -13,6 +13,8 @@ class RequestApproval(Tool):
 
     async def run(self, args, ctx):
         approved = await ctx.bridge.request_approval(args["action"], args["detail"])
+        note = getattr(ctx.bridge, "approval_note", "")
+        said = f" The owner said: {note}" if note else ""
         if approved:
-            return ToolResult("APPROVED by the owner. You may proceed with exactly this action.")
-        return ToolResult("REJECTED. Do not perform this action; finish what you can without it.", True)
+            return ToolResult("APPROVED by the owner. You may proceed with exactly this action." + said)
+        return ToolResult("REJECTED. Do not perform this action; finish what you can without it." + said, True)

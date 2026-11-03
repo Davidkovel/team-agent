@@ -58,15 +58,20 @@ class ToolRegistry:
             await self.ctx.bridge.record("error", f"Blocked by policy: {summary} - {decision.reason}")
             return ToolResult(f"BLOCKED by policy: {decision.reason}. Do not retry; choose another approach.", True)
 
+        note = ""
         if decision.level is Level.REQUIRES_APPROVAL:
             if not await self.ctx.bridge.request_approval(summary, decision.reason, approval_meta(name, args, decision.reason, self.ctx)):
-                return ToolResult("REJECTED by the owner. Do not retry this action.", True)
+                said = getattr(self.ctx.bridge, "approval_note", "")
+                return ToolResult("REJECTED by the owner. Do not retry this action." + (f" The owner said: {said}" if said else ""), True)
+            note = getattr(self.ctx.bridge, "approval_note", "")
 
         try:
             result = await tool.run(args, self.ctx)
         except Exception as exc:  # a tool failure is a result for the AI, not an agent crash
             result = ToolResult(f"{type(exc).__name__}: {exc}", True)
         log.info("%s %s", "FAILED" if result.is_error else "Tool", summary)
+        if note:
+            result.text += f"\n\nWhen approving this, the owner said: {note}"
         return result
 
 

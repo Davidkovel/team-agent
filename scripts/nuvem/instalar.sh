@@ -110,7 +110,9 @@ curl -fs http://127.0.0.1:8000/api/version && echo && echo "== Hub da nuvem a co
 "$APP/venv/bin/pip" install -q -r "$REPO/agent/requirements.txt"
 AENV="$DATA/agent.env"
 if ! grep -q '^TEAM_AGENT_TOKEN=.' "$AENV" 2>/dev/null; then
-  token=$(curl -fs -X POST "http://127.0.0.1:8000/api/users/$HUB_USER/agent-token" | python3 -c 'import json,sys; print(json.load(sys.stdin)["agent_token"])' || true)
+  jwt=$(curl -fs -X POST http://127.0.0.1:8000/api/auth/auto | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])' || true)
+  token=$(curl -fs -X POST -H "Authorization: Bearer $jwt" "http://127.0.0.1:8000/api/users/$HUB_USER/agent-token" \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["agent_token"])' || true)
   cat > "$AENV" <<EOF
 TEAM_SERVER_URL=http://127.0.0.1:8000
 TEAM_AGENT_TOKEN=$token

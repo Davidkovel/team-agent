@@ -29,7 +29,7 @@ import urllib.request
 
 from websockets.sync.client import connect
 
-CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" if sys.platform == "darwin" else r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 PORT = 9333
 
 

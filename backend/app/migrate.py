@@ -37,7 +37,8 @@ log = logging.getLogger("team.backend")
 # 23: photos.kind, the type of a photo of Fotos (Logótipo, Banner, Post...).
 # 24: tasks.worker (which of a person's agents took it) and tasks.after_id (chains of tasks).
 # 25: affiliate_products, the products of the recommendations page (Afiliados).
-SCHEMA_VERSION = 25
+# 26: mail_threads, mail_messages, mail_optouts and mail_settings, for E-mails (app/mail.py).
+SCHEMA_VERSION = 26
 
 
 def current_version(conn) -> int:

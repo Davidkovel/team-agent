@@ -70,6 +70,15 @@ def send_all(cfg: dict, messages: list[EmailMessage]) -> list[str]:
     return errors
 
 
+async def hub_queue(ctx):
+    """The Hub's connection when the team's e-mail is connected there; else None and this agent's own account is used."""
+    backend = getattr(ctx.bridge, "backend", None)
+    try:
+        return backend if backend and await backend.mail_connected() else None
+    except Exception:
+        return None
+
+
 class SendEmails(Tool):
     name = "send_emails"
     description = ("Send e-mails from the owner's own account. Give the whole batch at once: the owner reads every address and "
@@ -84,7 +93,10 @@ class SendEmails(Tool):
 
     async def run(self, args, ctx):
         cfg = settings()
-        if not cfg["user"] or not cfg["password"]:
+        hub = await hub_queue(ctx)
+        if hub:  # the team's account on the Hub: it sends in turn, reads the answers and shows it all on the page E-mails
+            cfg = {**cfg, "user": cfg["user"] or "a conta da empresa"}
+        elif not cfg["user"] or not cfg["password"]:
             return ToolResult("E-mail is not set up on this agent (SMTP_USER / SMTP_PASSWORD in its .env). Leave the e-mails as "
                               "a draft file in the workspace and say so in the result.", True)
         no, seen, batch, skipped = refused(), set(), [], []
@@ -116,6 +128,13 @@ class SendEmails(Tool):
         meta = {"risk": "high", "kind": "email", "files": [], "diff": ("\n\n" + "=" * 40 + "\n\n").join(texts)[:60000]}
         if not await ctx.bridge.request_approval(f"Enviar {len(batch)} e-mail(s)", detail, meta):
             return ToolResult("REJECTED by the owner: nothing was sent. Do not retry; keep the texts as a draft.", True)
+        if hub:
+            out = await hub.queue_emails([{"to": it["to"], "subject": it["subject"], "body": it["body"], "attachments": [str(p) for p in fs]} for it, fs in batch])
+            await ctx.bridge.record("action", f"E-mails na fila do Hub: {out['queued']} de {len(batch)}")
+            text = (f"Queued {out['queued']} of {len(batch)} e-mails: the Hub sends them a few at a time in working hours; "
+                    "answers appear on the page E-mails and the owner decides what follows.")
+            gone = skipped + out["skipped"]
+            return ToolResult(text + (" Skipped: " + "; ".join(gone) if gone else ""), out["queued"] == 0)
         errors = await asyncio.to_thread(send_all, cfg, [build(cfg, it, fs) for it, fs in batch])
         sent = len(batch) - len(errors)
         await ctx.bridge.record("action", f"E-mails enviados: {sent} de {len(batch)}")

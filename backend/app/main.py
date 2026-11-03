@@ -9,12 +9,12 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from .config import settings
-from . import claude_hooks, claude_kit, health, limits, migrate, push, selfupdate, sync, webpush
+from . import claude_hooks, claude_kit, health, limits, mail, migrate, push, selfupdate, sync, webpush
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, messages, office, photos, ponto, tasks, team, trading, week, work, ws
-from .routers import affiliates, crm, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom
+from .routers import affiliates, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -113,7 +113,10 @@ async def lifespan(app: FastAPI):
     gaps = asyncio.create_task(gap.loop()) if robots_loop else None  # Gap da manhã: the gaps on the MT5 account's quotes
     kit = asyncio.create_task(claude_kit.loop()) if settings.sync else None  # idle until the PC's person turns it on (Trabalho › Kit do Claude)
     factory = asyncio.create_task(etsy.loop()) if settings.sync else None  # Fábrica Etsy: idle until this PC's person turns it on
+    mailing = asyncio.create_task(mail.loop()) if settings.sync else None  # E-mails: sends, reads answers, updates the CRM
     yield
+    if mailing:
+        mailing.cancel()
     if factory:
         factory.cancel()
     if kit:
@@ -153,6 +156,8 @@ app.include_router(fundednext.router)  # Painel FundedNext
 app.include_router(etsy.router)  # Fábrica Etsy
 app.include_router(radar.router)  # Radar: a máquina de prospeção
 app.include_router(crm.router)  # CRM: o seguimento do Radar até ao negócio
+app.include_router(emails.router)  # E-mails: do Radar à resposta do cliente
+app.include_router(emails.relay)
 app.include_router(affiliates.router)  # Afiliados: os programas, os links e as comissões
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
 app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here

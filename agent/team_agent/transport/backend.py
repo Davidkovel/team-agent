@@ -47,6 +47,12 @@ class BackendClient:
     async def create_approval(self, task_id: int | None, action: str, detail: str, **meta) -> dict:
         return await self._call("POST", "/approvals", {"task_id": task_id, "action": action, "detail": detail, **meta})
 
+    async def mail_connected(self) -> bool:
+        return bool((await self._call("GET", "/mail/status")).get("connected"))
+
+    async def queue_emails(self, emails: list[dict]) -> dict:
+        return await self._call("POST", "/mail/queue", {"emails": emails})
+
     async def task_memory(self, task_id: int) -> list[dict]:
         return await self._call("GET", f"/tasks/{task_id}/memory")
 

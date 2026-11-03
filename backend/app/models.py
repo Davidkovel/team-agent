@@ -501,3 +501,68 @@ class AffiliateProduct(Base):
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class MailThread(Base):
+    """One business we write to (app/mail.py): the conversation with it, from the first draft to its answer."""
+    __tablename__ = "mail_threads"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(200), index=True)
+    nome: Mapped[str] = mapped_column(String(200), default="")
+    ramo: Mapped[str] = mapped_column(String(100), default="")
+    local: Mapped[str] = mapped_column(String(200), default="")
+    site: Mapped[str] = mapped_column(String(300), default="")
+    lead_key: Mapped[str] = mapped_column(String(300), default="")  # the same lead of the Radar and the CRM, when it came from there
+    facts: Mapped[list] = mapped_column(JSON, default=list)  # what the Radar saw, for whoever answers
+    status: Mapped[str] = mapped_column(String(20), default="rascunho")  # rascunho | fila | enviado | respondeu | falhou | removido | ignorado | outro
+    error: Mapped[str] = mapped_column(Text, default="")
+    action: Mapped[str] = mapped_column(String(20), default="")  # what the owner chose after the answer: pdf | condicoes | ignorar
+    task_id: Mapped[int | None] = mapped_column(Integer)
+    followups: Mapped[int] = mapped_column(Integer, default=0)
+    last_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str] = mapped_column(String(100), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MailMessage(Base):
+    """One e-mail, ours or theirs."""
+    __tablename__ = "mail_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    thread_id: Mapped[int] = mapped_column(Integer, index=True)
+    direction: Mapped[str] = mapped_column(String(3), default="out")  # out | in
+    kind: Mapped[str] = mapped_column(String(12), default="first")  # first | followup | reply | agent | answer | auto | bounce
+    status: Mapped[str] = mapped_column(String(12), default="draft")  # draft | approved | sending | sent | failed | received
+    subject: Mapped[str] = mapped_column(String(300), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    message_id: Mapped[str] = mapped_column(String(300), default="", index=True)
+    in_reply_to: Mapped[str] = mapped_column(String(300), default="")
+    attachments: Mapped[list] = mapped_column(JSON, default=list)
+    error: Mapped[str] = mapped_column(Text, default="")
+    approved_by: Mapped[str] = mapped_column(String(100), default="")
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # an answer: when one of us read it
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MailOptOut(Base):
+    """An address that asked not to hear from us again. Never written to again, from any computer."""
+    __tablename__ = "mail_optouts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(200), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MailSettings(Base):
+    """The team's e-mail, one row (id 1). The password is not here: it stays in one file on the Hub that sends (mail.py)."""
+    __tablename__ = "mail_settings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    address: Mapped[str] = mapped_column(String(200), default="")  # empty: no account connected yet
+    from_name: Mapped[str] = mapped_column(String(120), default="")
+    footer: Mapped[str] = mapped_column(Text, default="")  # who we are: company, NIF, site
+    conditions: Mapped[str] = mapped_column(Text, default="")  # the text of «Enviar as nossas condições»
+    daily_cap: Mapped[int] = mapped_column(Integer, default=30)
+    paused: Mapped[bool] = mapped_column(Boolean, default=False)
+    pause_reason: Mapped[str] = mapped_column(String(300), default="")
+    worker: Mapped[str] = mapped_column(String(100), default="")
+    last_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str] = mapped_column(Text, default="")

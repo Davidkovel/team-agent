@@ -34,7 +34,7 @@
       if (cs.display === "none" || !opaqueDark(cs)) continue;
       const r = r0;
       if (r.width < 90 || r.height < 34) continue;    // pontos, barras e etiquetas pequenas ficam como estão
-      if (r.width > vw * 0.9 && r.height > vh * 0.8 && !el.matches(".cm-dr, .rd-dr, .cm-mod-in, .af-mod-in")) { el.style.setProperty("background", "transparent", "important"); continue; }   // contentores de página inteira: só transparentes
+      if (r.width > vw * 0.9 && r.height > vh * 0.8 && !el.matches(".cm-dr, .rd-dr, .cm-mod-in, .af-mod-in, .em-modal, .em-mod")) { el.style.setProperty("background", "transparent", "important"); continue; }   // contentores de página inteira: só transparentes
       if (cs.boxShadow && cs.boxShadow.includes("inset")) el.style.setProperty("--vidro-keep", cs.boxShadow);   // o risco da cor de cada um fica
       el.classList.add("vidro");
       seen.set(el, el.className);

@@ -80,6 +80,16 @@ restart the Hub. `auth.py` also treats this PC's own addresses as its person (fo
 Setting it up on a PC: `winget install Tailscale.Tailscale`, sign in on PC and phone with the same account, enable HTTPS in
 the admin console (DNS → HTTPS Certificates), then `tailscale serve --bg 8000`; the address is `https://<pc>.<tailnet>.ts.net`.
 
+## E-mails: do Radar à resposta (3 nov)
+
+`#/emails` (`frontend/hub/emails.js`, `backend/app/mail.py`, `routers/emails.py`). A linha: Radar > «Enviar e-mails» > rascunhos > aprovação de uma pessoa > envio gradual > resposta detetada > notificação > decisão (PDF, condições, ignorar). O CRM atualiza-se sozinho.
+
+- **Nada sai sem um clique.** Saem em dias úteis, 9h às 18h, 3 a 5 minutos entre cada um, com limite diário. REMOVER é definitivo. Respostas às empresas saem logo.
+- **A palavra-passe da conta nunca passa pelo sync:** fica em `~/.team-agent/mail-account.json` (0600) só no Hub que envia, a nuvem. O formulário de qualquer Hub reencaminha para lá. Nunca a escrevas por ninguém: quem a tem escreve-a no formulário.
+- **«Visto» é visto por nós.** Saber se o cliente abriu exigia um píxel escondido, mau para a entrega e para a lei: não usamos.
+- **Agentes:** o `send_emails` usa a fila do Hub quando a conta está ligada. Depois de atualizar o código, os agentes da nuvem precisam de um reinício.
+- **Testar:** nunca com dados falsos no Hub real, a Base sincroniza. Usa um Hub à parte com `HOME` e `DATABASE_URL` temporários e `SYNC=false`. `backend/tests/test_mail.py` usa SMTP e IMAP falsos.
+
 ## Keep the Hub's Memória up to date (always)
 
 Marco asked (6 Oct): everything we change in the widget or the Hub must also be written into the Hub's **Memória**

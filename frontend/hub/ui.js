@@ -52,6 +52,7 @@ lazyView("mercados", "hub/mercados.js", "hub/mercados.css"); // Mercados: Tradin
 lazyView("trading", "hub/trading-room.js", "hub/trading-room.css"); // Sala de Trading: the room's two traders, SMC, the big alert
 lazyView("robos", "hub/robots.js", "hub/robots.css");
 lazyView("gap", "hub/gap.js", "hub/gap.css"); // Gap da manhã: the gaps on the FundedNext MT5 quotes, told to everyone
+lazyView("emails", "hub/emails.js", "hub/emails.css"); // E-mails: do Radar à resposta do cliente
 lazyView("crm", "hub/crm.js", "hub/crm.css"); // CRM: o seguimento do Radar como quadro, até ao negócio
 lazyView("radar", "hub/radar.js", "hub/radar.css"); // Radar: os negócios de uma zona, o site de cada um auditado, por oportunidade
 lazyView("afiliados", "hub/afiliados.js", "hub/afiliados.css"); // Afiliados: programas, links, comissões, calculadora e provas

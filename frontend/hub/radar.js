@@ -203,7 +203,7 @@
     const sc = SC, r = sc.resumo || {}, negs = sc.negocios || [], job = sc.job;
     const where = !sc.local ? t("lista colada") : sc.raio ? t("{l} e {r} km à volta", { l: sc.local, r: sc.raio }) : t("distrito de {d}", { d: sc.distrito || sc.local });
     let html = `<div class="rd-top"><h2 class="rd-title">${esc(sc.ramo_nome)} <span>· ${esc(where)}</span></h2><div class="rd-tools">
-      ${job ? "" : `<a class="btn quiet sm" href="/api/radar/${cur}/csv?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">${esc(t("Excel"))}</a>
+      ${job ? "" : `<a class="btn sm" href="#/emails" onclick="window.__emailsSid='${esc(cur)}'">${esc(t("Enviar e-mails"))}</a><a class="btn quiet sm" href="/api/radar/${cur}/csv?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">${esc(t("Excel"))}</a>
       <button type="button" class="btn quiet sm" data-del="${cur}">${esc(t("Apagar"))}</button>`}</div></div>`;
     if (job) {
       const stepN = Math.max(0, FASES.findIndex((f) => job.fase.startsWith(f)));

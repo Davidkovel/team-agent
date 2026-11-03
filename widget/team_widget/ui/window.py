@@ -2465,6 +2465,7 @@ class WidgetWindow(QWidget):
     news = Signal(object)       # tasks that were sent, from the thread that polls the Hub
     inbox_news = Signal(object)  # the notifications not read yet, for the mini history (same thread)
     cave_ready = Signal(str)     # the cave's address with a sign-in, for the cameras' mini window
+    messages_ready = Signal(str)  # the same for the Messages app (3 Nov)
 
     def __init__(self, store: StateStore, client: AgentClient):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.on_top() else Qt.Widget)
@@ -2472,6 +2473,7 @@ class WidgetWindow(QWidget):
         self.store, self.client = store, client
         self.hub_ready.connect(self._hub_opened)
         self.cave_ready.connect(self._cave_opened)
+        self.messages_ready.connect(self._messages_opened)
         self.punched.connect(self._punched)
         self.notices = Notices(self._open_notice)  # the black card that says a task was sent
         self.news.connect(self.notices.push)
@@ -2883,6 +2885,10 @@ class WidgetWindow(QWidget):
     def _gauge_clicked(self, key: str):
         """An icon of the minimized clock clicked: its destaque opens beside the clock (28 Oct, Marco: «preciso de utilizar
         para ver rápido»); the same icon again closes it."""
+        if key == "mensagens":   # an app of its own, not a destaque (3 Nov)
+            self._hide_spot()
+            self._open_messages()
+            return
         from .spotlight import Spotlight
         if self._spot is None:
             self._spot = Spotlight()
@@ -3273,6 +3279,26 @@ class WidgetWindow(QWidget):
         self._token_center.open()
         self._fast = True
 
+    def _open_messages(self, peer: str = ""):
+        """Mensagens as an app of its own (3 Nov, Marco: «tem que ser tipo aplicação funcional... tipo app iOS»): a window
+        the size of a phone, over everything, with the Hub's Messages in the iPhone look and without the Hub's bars
+        (?mini=1&phone=1&app=1): the conversations, who is online, «Visto às», photos. On a conversation when one is given."""
+        who = self._identity(self._team or [])
+
+        def work():
+            error = hub.ready()
+            url = hub.hub_url()
+            session = None if error else (self.client.hub_session() or (hub.session(url, who) if who else None))
+            self.messages_ready.emit(f"{url}/?mini=1&phone=1&app=1#login={session or ''}&to=/mensagens{'/' + peer if peer else ''}")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _messages_opened(self, url: str):
+        from .mini import MiniWindow
+        if getattr(self, "_msg_app", None) is None:
+            self._msg_app = MiniWindow("mensagens", "Mensagens", (400, 700), (340, 420))
+        self._msg_app.open(url)
+
     def _cave_opened(self, url: str):
         from .mini import MiniWindow   # the web engine is heavy: only when the cameras are first opened
         if getattr(self, "_mini", None) is None:
@@ -3472,7 +3498,10 @@ class WidgetWindow(QWidget):
             self.news.emit(fresh)
 
     def _open_notice(self, href):
-        """A card was clicked: the Hub opens on that task ("#/tarefas/3")."""
+        """A card was clicked: the Hub opens on that task ("#/tarefas/3"); a message opens the Messages app on its conversation."""
+        if href and href.startswith("#/mensagens"):
+            parts = href.split("/")
+            return self._open_messages(parts[2] if len(parts) > 2 else "")
         if not self._opening_hub:
             self._hub_page = href.lstrip("#")
             self._open_hub()

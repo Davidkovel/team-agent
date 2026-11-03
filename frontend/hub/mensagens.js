@@ -7,7 +7,7 @@
 // What is written between ``` is a block with its own «Copiar» (a command, an account), `like this` is code inside a line,
 // and every message copies whole. A message that arrives shows a card on any page (shell.js, msgNews) and in the widget.
 (function () {
-  let S = null, peer = null, msgs = [], timer = null, sending = false, asking = null, photo = null, tab = "chat", find = "";
+  let S = null, peer = null, msgs = [], seen = [], lastLook = "", timer = null, sending = false, asking = null, photo = null, tab = "chat", find = "";
   const phone = () => document.documentElement.classList.contains("is-phone");
   const conv = (id) => (S ? S.conversations.find((c) => c.peer === id) : null);
   const short = (text, n = 70) => { const s = String(text || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
@@ -40,8 +40,29 @@
   }
 
   // ---------------------------------------------------------------- the list of conversations
+  // 3 Nov, Marco: «nem aparece online nem vista... mete tipo app iOS»: a green dot on whoever is online, as in Messages
   function face(c, cls = "") {
-    return c.peer === "team" ? `<span class="av ms-team ${cls}">${icon("users")}</span>` : ui.avatar(c.name, cls);
+    if (c.peer === "team") return `<span class="ms-face"><span class="av ms-team ${cls}">${icon("users")}</span>${(c.online_names || []).length ? '<i class="ms-on"></i>' : ""}</span>`;
+    return `<span class="ms-face">${ui.avatar(c.name, cls)}${c.online ? '<i class="ms-on"></i>' : ""}</span>`;
+  }
+  // under the name in the conversation's top: online now, or when they were last seen; for the team, who of it is online
+  function status(c) {
+    if (c.peer === "team") {
+      const on = c.online_names || [];
+      return on.length ? { text: t(on.length === 1 ? "{a} online" : "{a} online", { a: on.join(" e ") }), on: true } : { text: t("Ninguém online agora"), on: false };
+    }
+    if (c.online) return { text: t("Online"), on: true };
+    return { text: c.last_seen ? t("Visto {w}", { w: fmt.ago(c.last_seen) }) : t("Offline"), on: false };
+  }
+  // the receipt under my last message: «Visto às 14:32» once the other side had the conversation open after it
+  function receipt() {
+    const last = msgs[msgs.length - 1];
+    if (!last || last.from !== S.me) return "";
+    const after = seen.filter((x) => x.at && new Date(x.at) >= new Date(last.at));
+    if (!after.length) return `<div class="ms-sent">${esc(t("Entregue"))}</div>`;
+    if (peer !== "team") return `<div class="ms-sent seen">${esc(t("Visto às {h}", { h: fmt.hhmm(after[0].at) }))}</div>`;
+    const others = S.conversations.filter((x) => x.peer !== "team").length;
+    return `<div class="ms-sent seen">${esc(after.length >= others ? t("Visto por todos") : t("Visto por {p}", { p: after.map((x) => x.name).join(" e ") }))}</div>`;
   }
   const lastText = (m) => short(String(m.body || "").replace(/```[a-z0-9_-]*/gi, " ")) || (m.image ? "📷 " + t("Foto") : "");
   function listHtml() {
@@ -81,13 +102,14 @@
       const d = fmt.day(m.at), head = d !== day ? `<div class="ms-day"><span>${esc(d)}</span></div>` : "";
       day = d;
       return head + bubble(m, msgs[i - 1], msgs[i + 1]);
-    }).join("") + (msgs[msgs.length - 1].from === S.me ? `<div class="ms-sent">${esc(t("Entregue"))}</div>` : "")
+    }).join("") + receipt()
       : `<div class="ms-first">${face(c, "lg")}<b>${esc(t(c.name))}</b><p>${esc(c.peer === "team"
         ? t("O que escreveres aqui chega a {p}. Cada um vê um aviso no Hub, no widget e no telemóvel.", { p: others.join(" e ") })
         : t("Só tu e {p} veem esta conversa. A mensagem chega num aviso no Hub, no widget e no telemóvel.", { p: c.name }))}</p></div>`;
     const pics = msgs.filter((m) => m.image), links = linksOf(msgs);
     const tabs = [["chat", "Conversa", 0], ["fotos", "Fotos", pics.length], ["links", "Links", links.length]];
-    return `<header class="ms-head">${face(c)}<div class="ms-who-h"><b>${esc(t(c.name))}</b><small>${esc(c.peer === "team" ? others.concat(t("tu")).join(", ") : t("Só vocês os dois"))}</small></div>
+    const st = status(c);
+    return `<header class="ms-head"><a class="ms-back" href="#/mensagens" aria-label="${esc(t("Conversas"))}">${icon("chev")}</a>${face(c)}<div class="ms-who-h"><b>${esc(t(c.name))}</b><small class="${st.on ? "on" : ""}">${esc(st.text)}</small></div>
         <nav class="ms-tabs">${tabs.map(([k, l, n]) => `<button type="button" class="${tab === k ? "on" : ""}" data-tab="${k}">${esc(t(l))}${n ? `<i>${n}</i>` : ""}</button>`).join("")}</nav></header>
       <div class="ms-body ${tab !== "chat" ? "ms-shelf" : ""}" id="ms-body">${tab === "fotos" ? photosHtml(pics) : tab === "links" ? linksHtml(links) : body}</div>
       <form class="ms-send" id="ms-send" autocomplete="off">
@@ -177,8 +199,10 @@
     const want = peer, d = await api(`/api/messages/${encodeURIComponent(peer)}`);
     if (want !== peer || !$("ms-thread")) return;
     const changed = JSON.stringify(d.messages.map((m) => m.id)) !== JSON.stringify(msgs.map((m) => m.id));
-    msgs = d.messages;
-    if (changed || !quiet) drawThread();
+    const c = conv(peer), look = JSON.stringify([d.seen, c && status(c)]);
+    msgs = d.messages; seen = d.seen || [];
+    if (changed || !quiet || look !== lastLook) drawThread();
+    lastLook = look;
     if (changed) loadList().catch(() => {});
   }
   async function refresh() {
@@ -235,7 +259,7 @@
 
   async function mount(start) {
     clearInterval(timer);
-    msgs = []; asking = null; photo = null;
+    msgs = []; seen = []; lastLook = ""; asking = null; photo = null;
     peer = start;
     $("ms").onclick = click;
     const th = $("ms-thread");

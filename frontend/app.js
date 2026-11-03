@@ -40,6 +40,8 @@ const meter = (title, pct, hint = "") => `
 
 // ?mini=1: the cave alone, in the mini window the widget or the browser opens over everything (crew.js openMini)
 if (/[?&]mini=1(&|$)/.test(location.search)) document.documentElement.classList.add("is-mini");
+// ?app=1: one page as an app of its own in a small window of the widget (3 Nov: the Mensagens app), the phone look without its bars
+if (/[?&]app=1(&|$)/.test(location.search)) document.documentElement.classList.add("is-app");
 const handoff = location.hash.match(/^#login=([^&]+)(?:&to=(\/.+))?$/); // opened from the widget: already signed in, maybe on a given page
 if (handoff) {
   sessionStorage.setItem("token", handoff[1]);

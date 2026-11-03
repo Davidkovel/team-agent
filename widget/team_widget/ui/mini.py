@@ -19,12 +19,15 @@ SIZE = (560, 400)   # the first time: the size of a small terminal, in the botto
 
 
 class MiniWindow(QWidget):
-    def __init__(self):
+    """`key` keeps each small window's own place and size: «mini» is the cave, «mensagens» the Messages app (3 Nov)."""
+
+    def __init__(self, key="mini", title="Empresa AMG · ao vivo", size=SIZE, minimum=(320, 220)):
         super().__init__(None, Qt.Window | Qt.WindowStaysOnTopHint)
-        self.setWindowTitle("Empresa AMG · ao vivo")
+        self._key = key
+        self.setWindowTitle(title)
         if ICON.exists():
             self.setWindowIcon(QIcon(str(ICON)))
-        self.setMinimumSize(320, 220)
+        self.setMinimumSize(*minimum)
         self.setStyleSheet("background:#030407;")
         self.view = QWebEngineView(self)
         self.view.page().setBackgroundColor(QColor("#030407"))
@@ -32,10 +35,10 @@ class MiniWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.view)
         self._settings = QSettings("AgenteAMG", "widget")
-        saved = self._settings.value("mini/geometry")
+        saved = self._settings.value(f"{key}/geometry")
         if saved is None or not self.restoreGeometry(saved):
             screen = QGuiApplication.primaryScreen().availableGeometry()
-            self.setGeometry(screen.right() - SIZE[0] - 24, screen.bottom() - SIZE[1] - 24, *SIZE)
+            self.setGeometry(screen.right() - size[0] - 24, screen.bottom() - size[1] - 24, *size)
 
     def open(self, url: str):
         self.view.load(QUrl(url))
@@ -44,6 +47,6 @@ class MiniWindow(QWidget):
         self.activateWindow()
 
     def closeEvent(self, e):
-        self._settings.setValue("mini/geometry", self.saveGeometry())
+        self._settings.setValue(f"{self._key}/geometry", self.saveGeometry())
         self.view.setUrl(QUrl("about:blank"))   # nothing drawing while it is closed
         super().closeEvent(e)

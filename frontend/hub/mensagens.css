@@ -183,3 +183,18 @@ html.is-phone .ms-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 
 html:not(.is-phone) .hub.paneled:has(#ms) { grid-template-columns: 236px minmax(0, 1fr); }
 html:not(.is-phone) .hub.paneled.collapsed:has(#ms) { grid-template-columns: 60px minmax(0, 1fr); }
 html:not(.is-phone) .hub.paneled:has(#ms) #hpanel { display: none; }
+
+/* 3 Nov: online and read receipts, as in Messages; the back arrow of the widget's app (?app=1) */
+.ms-face { position: relative; display: inline-grid; flex: none; }
+.ms-on { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: #30d158; box-shadow: 0 0 0 2.5px #0b0b0d; }
+.ms-head .ms-on { width: 12px; height: 12px; }
+.ms-who-h small.on { color: #30d158; }
+.ms-sent.seen { color: rgba(235, 235, 245, .6); }
+.ms-back { display: none; }
+html.is-app .ms-head { grid-template-columns: auto auto minmax(0, 1fr); }
+html.is-app .ms-back { display: grid; place-items: center; width: 32px; height: 32px; margin-left: -8px; color: #0a84ff; }
+html.is-app .ms-back .i { transform: scaleX(-1); width: 22px; height: 22px; stroke-width: 2.4; }
+html.is-app .hub > main { padding: 0 !important; }
+html.is-app .ms, html.is-app .ms:not(.has-peer) { height: 100dvh; min-height: 0; border-radius: 0; border: 0; }
+html.is-app body { background: #000; }
+html.is-app, html.is-app body { background: #000 !important; }   /* the app is plain black, as Messages on the iPhone */

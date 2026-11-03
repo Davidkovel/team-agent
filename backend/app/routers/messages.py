@@ -18,10 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import push
 from ..db import get_db
-from ..models import Message, MessageSeen, Notification, User
+from ..models import AgentState, Message, MessageSeen, Notification, User
 from ..realtime import rt
 from ..security import current_user, user_from_jwt
-from ..services import iso
+from ..services import iso, last_seen
 
 router = APIRouter(prefix="/api/messages")
 PAGE = 300           # the newest messages of a conversation that are sent to the page
@@ -66,11 +66,24 @@ def out(m: Message, names: dict[int, str]) -> dict:
             "image": bool(m.image), "at": iso(m.created_at)}
 
 
+async def _presence(db: AsyncSession, people: list[User]) -> dict[int, dict]:
+    """Online now and when last seen, per person (3 Nov, Marco: «nem aparece online nem vista»): online is the Hub's live
+    presence, which sync also fills for the people at the other PCs; last seen is the team view's own reckoning."""
+    states = {s.user_id: s for s in (await db.execute(select(AgentState))).scalars()}
+    out_ = {}
+    for u in people:
+        p = await rt.store.get_presence(u.id)
+        out_[u.id] = {"online": p is not None and p.get("status") != "OFFLINE", "last_seen": last_seen(u.id, states.get(u.id))}
+    return out_
+
+
 @router.get("")
 async def conversations(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    """The conversations of this person: the team, then each other person, with the last message and how many are unread."""
+    """The conversations of this person: the team, then each other person, with the last message, how many are unread
+    and whether the other side is online (for the team, who of it is)."""
     people = await _people(db)
     names = {u.id: u.display_name for u in people}
+    here = await _presence(db, people)
     seen = {s.peer: aware(s.seen_at) for s in (await db.execute(select(MessageSeen).where(MessageSeen.user_id == user.id))).scalars()}
     rows = []
     for peer, name, username in [("team", "Equipa", "")] + [(str(u.id), u.display_name, u.username) for u in people if u.id != user.id]:
@@ -78,8 +91,13 @@ async def conversations(user: User = Depends(current_user), db: AsyncSession = D
         unread_q = select(func.count(Message.id)).where(_in(user.id, peer), Message.sender_id != user.id)
         if seen.get(peer):
             unread_q = unread_q.where(Message.created_at > seen[peer])
-        rows.append({"peer": peer, "name": name, "username": username, "last": out(last, names) if last else None,
-                     "unread": (await db.execute(unread_q)).scalar() or 0})
+        row = {"peer": peer, "name": name, "username": username, "last": out(last, names) if last else None,
+               "unread": (await db.execute(unread_q)).scalar() or 0}
+        if peer == "team":
+            row["online_names"] = [u.display_name for u in people if u.id != user.id and here[u.id]["online"]]
+        else:
+            row.update(here[int(peer)])
+        rows.append(row)
     return {"me": user.id, "conversations": rows, "unread": sum(r["unread"] for r in rows)}
 
 
@@ -99,10 +117,16 @@ async def thread(peer: str, user: User = Depends(current_user), db: AsyncSession
     for n in (await db.execute(select(Notification).where(Notification.user_id == user.id, Notification.kind == "message",
                                                          Notification.href == f"#/mensagens/{peer}", Notification.read_at.is_(None)))).scalars():
         n.read_at, opened = now, True
+    # read receipts: when each other person in this conversation last had it open (message_seen travels by sync)
+    if peer == "team":
+        marks = (await db.execute(select(MessageSeen).where(MessageSeen.peer == "team", MessageSeen.user_id != user.id))).scalars()
+    else:
+        marks = (await db.execute(select(MessageSeen).where(MessageSeen.user_id == int(peer), MessageSeen.peer == str(user.id)))).scalars()
+    seen_by = [{"id": s.user_id, "name": names.get(s.user_id, "?"), "at": iso(aware(s.seen_at))} for s in marks]
     await db.commit()
     if opened:
         await rt.publish("notification", user.id)
-    return {"peer": peer, "messages": [out(m, names) for m in reversed(found)]}
+    return {"peer": peer, "messages": [out(m, names) for m in reversed(found)], "seen": seen_by}
 
 
 class MessageIn(BaseModel):

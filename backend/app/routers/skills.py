@@ -48,6 +48,7 @@ LIB = REPO / "library" / "skills"
 OWNERS = LIB / "agentes.json"
 ORIGINS = LIB / "origens.json"
 THEMES = LIB / "temas.json"
+PROJECTS = LIB / "projetos.json"   # the team's projects and the skills each one used (Skills > Projeto)
 CONTEXT = REPO / "scripts" / "claude_contexto.py"
 PLUGINS = Path.home() / ".claude" / "plugins"
 CREW = ["batman", "lucius", "riddler", "catwoman", "joker", "alfred", "robin", "gordon", "penguin", "twoface"]
@@ -246,7 +247,12 @@ async def list_skills(user: User = Depends(viewer)):
                "tema": ctx.area_of(n, ctx.about(LIB / n / "SKILL.md"), by_hand)} for n, s in lib.items()]
     skills += [{"name": n, "about": s["about"], "where": s["where"], "kind": s["kind"], "tema": ctx.area_of(n, s["about"])}
                for n, s in sorted(local.items()) if n not in lib]
-    return {"skills": skills, "crew": CREW, "temas": [{"name": a, "para": ctx.PARA.get(a, "")} for a in ctx.NAMES]}
+    try:
+        projetos = json.loads(PROJECTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        projetos = []
+    return {"skills": skills, "crew": CREW, "temas": [{"name": a, "para": ctx.PARA.get(a, "")} for a in ctx.NAMES],
+            "projetos": projetos}
 
 
 @router.get("/{name}")

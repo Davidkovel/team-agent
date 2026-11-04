@@ -92,12 +92,28 @@
     const shown = all.filter(hit);
     if (!shown.length) return `<p class="sk-none">${esc(t("Nenhuma skill da biblioteca com «{q}».", { q }))}</p>`;
     if (by === "tema") return byTheme(shown).map((g) => themeLane(g, "lib")).join("") + (q ? "" : emptyThemes(all));
+    if (by === "proj") return projPane(shown);
     const lanes = [...cast.map((c) => ({ c, list: shown.filter((k) => (k.crew || [])[0] === c.id) })), { c: null, list: shown.filter((k) => !castOf((k.crew || [])[0])) }];
     return lanes.filter((l) => l.list.length).map(({ c, list }) => `<section class="sk-lane" style="--p:${c ? c.color : "#8b95a1"}">
         <header>${c && c.figure ? `<img class="cr-px sk-fig" src="${c.figure}" alt="">` : `<span class="sk-fig none">${icon("layers")}</span>`}
           <div><b>${esc(c ? c.name : t("Sem agente"))}</b><span>${esc(c ? t(c.what) : t("Ninguém a domina ainda: abre-a e escolhe quem"))}</span></div>
           <em>${esc(t(list.length === 1 ? "1 skill" : "{n} skills", { n: list.length }))}</em></header>
         <div class="sk-grid">${list.map(card).join("")}</div></section>`).join("");
+  }
+  // the library by project: one lane per real job of the team (library/skills/projetos.json), with the client,
+  // when, and where its example lives; what no project used yet goes to «Sem projeto»
+  function projPane(shown) {
+    const projs = S.projetos || [];
+    const used = new Set(projs.flatMap((p) => p.skills || []));
+    const lane = (p, list) => `<section class="sk-lane sk-proj">
+        <header><span class="sk-fig none">${themeIcon(p.tipo)}</span>
+          <div><b>${esc(p.name)}</b><span class="sk-para">${esc([p.cliente, p.quando].filter(Boolean).join(" · "))}${p.exemplo ? `<br><small>${esc(t("Exemplo"))}: ${esc(p.exemplo)}</small>` : ""}</span></div>
+          <em>${esc(p.tipo || "")}</em></header>
+        <div class="sk-grid">${list.map(card).join("")}</div></section>`;
+    const out = projs.map((p) => [p, shown.filter((k) => (p.skills || []).includes(k.name))]).filter(([, l]) => l.length).map(([p, l]) => lane(p, l));
+    const rest = shown.filter((k) => !used.has(k.name));
+    if (rest.length) out.push(lane({ name: t("Sem projeto"), cliente: t("Skills que ainda não usámos num trabalho da equipa"), tipo: "" }, rest));
+    return out.join("");
   }
   // this PC and the shop: by theme, or grouped by where they come from; each group with a way to bring all of it
   function morePane(kind) {
@@ -114,7 +130,7 @@
   function draw() {
     if (!$("sk-body")) return;
     paint($("sk-seg"), HALVES.map(([id, label]) => `<button type="button" data-half="${id}" class="${tab === id ? "on" : ""}">${esc(t(label))}<b>${S ? of(id).length : ""}</b></button>`).join(""));
-    paint($("sk-by"), [["tema", "Tema"], ["dono", tab === "lib" ? "Agente" : "Origem"]].map(([id, label]) => `<button type="button" data-by="${id}" class="${by === id ? "on" : ""}">${esc(t(label))}</button>`).join(""));
+    paint($("sk-by"), [["tema", "Tema"], ...(tab === "lib" ? [["proj", "Projeto"]] : []), ["dono", tab === "lib" ? "Agente" : "Origem"]].map(([id, label]) => `<button type="button" data-by="${id}" class="${by === id ? "on" : ""}">${esc(t(label))}</button>`).join(""));
     paint($("sk-sum"), S ? esc(summary()) : "");
     paint($("sk-dash"), S ? dash() : "");
     paint($("sk-nav"), S ? themeNav(current()) : "");

@@ -1,0 +1,34 @@
+[
+ {
+  "name": "Reel BMW 330e",
+  "cliente": "F. Fernandes Automóveis (Benedita)",
+  "quando": "nov 2026",
+  "tipo": "Vídeo",
+  "exemplo": "reel-stand-auto/exemplo (vídeo final no PC do David: reel-cortes/PRONTO)",
+  "skills": ["reel-stand-auto", "watch"]
+ },
+ {
+  "name": "Site «Las 24 horas»",
+  "cliente": "Marketing Ferreras",
+  "quando": "out 2026",
+  "tipo": "Site",
+  "exemplo": "pasta ferreras-web no PC do David",
+  "skills": ["premium-site-rebuild", "realtor-landing", "site-scroll-infinito"]
+ },
+ {
+  "name": "Fábrica Etsy",
+  "cliente": "Empresa AMG (loja própria)",
+  "quando": "out 2026",
+  "tipo": "Print-on-demand",
+  "exemplo": "Hub › Negócios › Fábrica Etsy",
+  "skills": ["pod-etsy"]
+ },
+ {
+  "name": "Hub e widget AMG",
+  "cliente": "Empresa AMG (interno)",
+  "quando": "desde out 2026",
+  "tipo": "Hub",
+  "exemplo": "repositório team-agent",
+  "skills": ["hub-pagina", "widget-amg", "plano-partilhado"]
+ }
+]

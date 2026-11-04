@@ -97,8 +97,10 @@ systemctl restart amg-hub
 
 # https para o telemóvel (só dentro da Tailscale) e o /api/sync aberto pelo Funnel para os PCs do Marco e do Kovel (sempre com a chave)
 if tailscale status >/dev/null 2>&1; then
-  tailscale serve --bg 8000 || true
-  tailscale funnel --bg --https=8443 --set-path=/api/sync http://127.0.0.1:8000/api/sync || true
+  # Com o HTTPS ou o Funnel por ligar na tailnet, estes comandos podem ficar à espera de um clique: sem o timeout a instalação
+  # parava aqui e os agentes nunca chegavam a ser instalados
+  timeout 60 tailscale serve --bg 8000 || echo "== tailscale serve falhou: ligar o HTTPS em login.tailscale.com/admin/dns"
+  timeout 60 tailscale funnel --bg --https=8443 --set-path=/api/sync http://127.0.0.1:8000/api/sync || echo "== tailscale funnel falhou (só serve para os outros PCs chegarem a esta nuvem)"
 fi
 
 for _ in $(seq 30); do curl -fs http://127.0.0.1:8000/api/version >/dev/null && break; sleep 2; done

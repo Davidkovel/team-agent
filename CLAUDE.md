@@ -62,15 +62,16 @@ desligado. O do David já corre; a nuvem dele é só dele (`HUB_USER=david`). Qu
 no telemóvel com o PC desligado», «o que preciso para a nuvem»), o Claude do PC deles faz tudo o que der e só lhes pede o que
 só eles podem fazer. Guia completo: `docs/nuvem.md`, secção «Marco e Kovel».
 - **O Claude faz**: `git pull`; confirma a Tailscale no PC (`tailscale status`; se faltar, `winget install Tailscale.Tailscale`)
-  e que o telemóvel aparece lá; corre `python scripts\nuvem\preparar.py` (login, número no sync 4/5, telemóvel e a ligação à
-  nuvem do David saem sozinhos) e deixa o texto do cloud-init copiado; no fim confirma que a `amg-nuvem` aparece na
-  `tailscale status` e responde em `https://amg-nuvem.<tailnet>.ts.net`, e dá-lhes esse endereço.
+  e que o telemóvel aparece lá; corre `python scripts\nuvem\preparar.py` (confere Tailscale, HTTPS e telemóvel e diz o que falta;
+  login, número no sync 4/5 e a ligação à nuvem do David saem sozinhos) e deixa o texto do cloud-init copiado; no fim corre
+  `python scripts\nuvem\preparar.py verificar` e dá-lhes o endereço que ele disser.
 - **Só a pessoa faz** (pedir um passo de cada vez, com o link): entrar na Tailscale no PC e no telemóvel com a mesma conta;
   criar a conta Oracle (oracle.com/cloud/free, pede cartão só para confirmar, o Always Free não cobra); gerar a chave da
-  Tailscale (login.tailscale.com/admin/settings/keys → Generate auth key) e colá-la quando o `preparar.py` pedir; na Oracle,
+  Tailscale (login.tailscale.com/admin/settings/keys → Generate auth key) e colá-la quando o `preparar.py` pedir; ligar o HTTPS
+  (login.tailscale.com/admin/dns → HTTPS Certificates → Enable); na Oracle,
   Create instance (Ubuntu 24.04, Ampere A1, colar o texto em «Paste cloud-init script»); no telemóvel, abrir o endereço no
-  Safari e Adicionar ao ecrã principal; para os agentes na nuvem, o login do Claude
-  (`ssh ubuntu@amg-nuvem`, `sudo -u amg -H /opt/amg/.local/bin/claude auth login`, `sudo systemctl restart 'amg-agent@*'`).
+  Safari e Adicionar ao ecrã principal; o login do Claude (`python scripts\nuvem\preparar.py claude`), que não é opcional: a
+  instalação passa o token de agente da pessoa para a nuvem, o agente do PC dela deixa de entrar e sem o login as tarefas falham.
 - Nunca pedir passwords nem o cartão: a pessoa escreve-os ela mesma no site.
 
 **Uma memória só no Mac, na nuvem e no telemóvel (4 nov, David: «quero tudo interligado... o telemóvel tenha a memória do

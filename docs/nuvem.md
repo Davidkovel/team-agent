@@ -28,18 +28,23 @@ ligado sempre. Faz sync com os PCs como os outros Hubs, e o telemóvel passa a a
 O Hub da nuvem do David é só dele (`HUB_USER=david`, e o telemóvel dele entra sem palavra-passe). Cada um faz a sua, com os
 mesmos passos, a partir do seu PC (Windows):
 
+**O mais fácil: dizer ao Claude do PC «instala-me a nuvem do Agente AMG, segue o docs/nuvem.md».** Ele faz o resto e pede só o
+que é da pessoa, um passo de cada vez:
+
 1. **Tailscale** no PC e no telemóvel, na **mesma conta** (tailscale.com/download). A conta pode ser a deles; não precisa de
    ser a do David.
-2. **Conta Oracle**, como no passo 1 acima.
-3. No PowerShell, dentro da pasta do team-agent, depois de um `git pull`: `python scripts\nuvem\preparar.py`. Ele tira o
-   login do `widget.json` (Marco → `mark`, Kovel → `owner`), dá à nuvem o seu número no sync (4 o Marco, 5 o Kovel), encontra
-   o telemóvel na Tailscale e liga a nuvem à do David pelo Funnel, que está sempre ligada. Assim tudo chega à equipa mesmo com
-   todos os PCs desligados. O texto fica copiado.
-4. **Criar o servidor**, como no passo 3 acima.
-5. **Telemóvel**: no Safari, `https://amg-nuvem.<tailnet>.ts.net`. A `<tailnet>` está em login.tailscale.com → DNS
-   (ex. `tail1234ab`). Depois, Adicionar ao ecrã principal.
-6. **Agentes com Claude** (opcional, para trabalharem com o PC desligado): no PowerShell `ssh ubuntu@amg-nuvem`, depois
-   `sudo -u amg -H /opt/amg/.local/bin/claude auth login` e `sudo systemctl restart 'amg-agent@*'`.
+2. **Ligar o HTTPS** da Tailscale, uma vez: login.tailscale.com/admin/dns → HTTPS Certificates → Enable.
+3. **Conta Oracle**, como no passo 1 acima.
+4. No PowerShell, dentro da pasta do team-agent, depois de um `git pull`: `python scripts\nuvem\preparar.py`. Confere os passos
+   1 e 2 e diz o que falta. Tira o login do `widget.json` (Marco → `mark`, Kovel → `owner`), dá à nuvem o seu número no sync
+   (4 o Marco, 5 o Kovel), encontra o telemóvel e liga a nuvem à do David pelo Funnel, que está sempre ligada. Assim tudo chega
+   à equipa mesmo com todos os PCs desligados. O texto fica copiado.
+5. **Criar o servidor**, como no passo 3 acima.
+6. Esperar ~10 min e correr `python scripts\nuvem\preparar.py verificar`, que dá o endereço do telemóvel.
+7. **Telemóvel**: abrir esse endereço no Safari, Partilhar → Adicionar ao ecrã principal.
+8. **Login do Claude, logo a seguir** (não é opcional): `python scripts\nuvem\preparar.py claude`. A instalação dá à nuvem o
+   token de agente da pessoa, por isso **o agente automático do PC dela deixa de entrar** e os agentes passam a ser os da nuvem.
+   Sem este login, as tarefas falham. Cada um usa o seu plano do Claude.
 
 ## O que fica a correr (scripts/nuvem/instalar.sh)
 

@@ -92,6 +92,24 @@ TUDO = ('nwr["shop"]["name"]', 'nwr["office"]["name"]', 'nwr["craft"]["name"]', 
 NAO_CLIENTE = {"office": r"^(government|association|ngo|religion|political_party|diplomatic|union|foundation|quango|educational_institution|research)$",
                "shop": r"^(vacant|no|disused)$"}
 
+
+# 4 nov, David: «a Benedita tem várias empresas que já estão fechadas há algum tempo». O mapa não apaga quem fecha: só
+# sabe quando alguém lá vai e marca. O que ele já marca como fechado sai aqui; o resto confirma-se na web (`_vivas`).
+def _fechada_no_mapa(tg: dict) -> bool:
+    if any(tg.get(k) in ("yes", "closed") for k in ("disused", "abandoned", "closed")):
+        return True
+    if re.search(r"^(closed|off)$", tg.get("opening_hours", "").strip(), re.I):
+        return True
+    fim = tg.get("end_date", "")[:10]
+    if re.match(r"\d{4}", fim) and fim <= time.strftime("%Y-%m-%d"):
+        return True
+    return bool(re.search(r"\b(fechad[oa]|encerrad[oa]|closed|trespassa-se|vende-se)\b", tg.get("name", ""), re.I))
+
+
+def _visto(tg: dict, meta: str = "") -> str:
+    """Quando o mapa viu este negócio pela última vez (a última edição ou a data em que alguém confirmou que existe)."""
+    return max((x[:10] for x in (meta, tg.get("check_date", ""), tg.get("survey:date", "")) if re.match(r"\d{4}-\d\d", x or "")), default="")
+
 # etiqueta do mapa -> nicho; o primeiro que bate ganha, por isso os mais exatos vêm primeiro
 NICHOS = [
     ("amenity", r"driving_school", "Escolas de condução"), ("leisure", r"fitness_centre|sports_centre", "Ginásios"),
@@ -335,6 +353,7 @@ class Radar:
 
     async def _run(self, scan: dict, lista: str) -> None:
         job = self.jobs[scan["id"]]
+        vivas = None
         try:
             async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={"User-Agent": UA_BOT}) as c:
                 found: list[dict] = []
@@ -408,6 +427,7 @@ class Radar:
                     scan["fontes"].append("lista colada")
                 negs = self._merge(found, scan["local"])[:MAX]
                 scan["negocios"] = negs
+                vivas = asyncio.create_task(self._vivas(list(negs), scan["local"]))  # quem ainda está aberto: corre ao lado dos sites
                 job.update(fase="a procurar os sites", total=len(negs))
                 self._save(scan)
                 look = asyncio.Semaphore(2)  # o mapa quase nunca tem o site: procura-se pelo nome, dois de cada vez
@@ -430,11 +450,16 @@ class Radar:
                         self._score(n)
                         job["feitos"] += 1
                 await asyncio.gather(*(one(n) for n in scan["negocios"]))
+            if vivas:
+                job.update(fase="a confirmar quem ainda está aberto", feitos=0, total=len(scan["negocios"]))
+                self._aplica_vivas(scan, await vivas)
             scan["negocios"].sort(key=lambda n: (-n["oportunidade"], n["nota_site"], n["nome"]))
             scan["mercado"] = self._market(scan["negocios"])
             scan["resumo"] = self._summary(scan["negocios"])
         except Exception as e:  # noqa: BLE001  a varredura acaba sempre, com o erro à vista
             scan["erro"] = str(e)[:200] or e.__class__.__name__
+            if vivas and not vivas.done():
+                vivas.cancel()
         finally:
             scan["fim"] = time.time()
             self._save(scan)
@@ -514,7 +539,7 @@ class Radar:
 
     async def _osm(self, c: httpx.AsyncClient, filtros: list[str], geo: dict, raio: int, wait: int = 45) -> list[dict]:
         around = f"(around:{raio * 1000},{geo['lat']},{geo['lon']})"
-        q = "[out:json][timeout:60];(" + "".join(f"{f}{around};" for f in filtros) + ");out center tags;"
+        q = "[out:json][timeout:60];(" + "".join(f"{f}{around};" for f in filtros) + ");out center tags meta;"
         r = None
         for url in ("https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter",
                     "https://overpass.kumi.systems/api/interpreter", "https://overpass-api.de/api/interpreter"):  # vivem cheios: tenta-se outra vez
@@ -529,12 +554,13 @@ class Radar:
         out = []
         for e in r.json().get("elements", []):
             tg = e.get("tags", {})
-            if not tg.get("name") or tg.get("brand:wikidata") or any(tg.get(k) and re.search(p, tg[k]) for k, p in NAO_CLIENTE.items()):
+            if not tg.get("name") or tg.get("brand:wikidata") or _fechada_no_mapa(tg) or any(tg.get(k) and re.search(p, tg[k]) for k, p in NAO_CLIENTE.items()):
                 continue
             addr = " ".join(x for x in (tg.get("addr:street"), tg.get("addr:housenumber"), tg.get("addr:city") or tg.get("addr:place")) if x)
             out.append({"nome": tg["name"][:90], "site": tg.get("website") or tg.get("contact:website") or tg.get("url") or "",
                         "telefone": tg.get("phone") or tg.get("contact:phone") or "", "email": tg.get("email") or tg.get("contact:email") or "",
                         "morada": addr, "facebook": tg.get("contact:facebook", ""), "fonte": "OpenStreetMap", "nicho": _nicho(tg),
+                        "visto_mapa": _visto(tg, e.get("timestamp", "")),
                         "lat": e.get("lat") or e.get("center", {}).get("lat"), "lon": e.get("lon") or e.get("center", {}).get("lon")})
         return out
 
@@ -611,8 +637,10 @@ class Radar:
                 continue
         for n in out:
             et = extra.get(n.pop("osm"), {})
-            if et.get("brand:wikidata"):
-                n["cadeia"] = True
+            if et.get("brand:wikidata") or _fechada_no_mapa({**et, "name": n["nome"]}):
+                n["cadeia"] = True  # fora da lista: cadeia, ou o mapa já a dá como fechada
+            if _visto(et):
+                n["visto_mapa"] = _visto(et)
             n.update({k: v for k, v in (("site", et.get("website") or et.get("contact:website") or ""), ("telefone", et.get("phone") or et.get("contact:phone") or ""),
                                         ("email", et.get("email") or et.get("contact:email") or ""), ("facebook", et.get("contact:facebook") or "")) if v})
         return [n for n in out if not n.get("cadeia")]
@@ -674,10 +702,12 @@ class Radar:
             r = await c.post("https://places.googleapis.com/v1/places:searchText", json=body, headers={
                 "X-Goog-Api-Key": os.environ["GOOGLE_PLACES_KEY"],
                 "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.websiteUri,places.nationalPhoneNumber,"
-                                    "places.rating,places.userRatingCount,places.location,places.googleMapsUri,nextPageToken"})
+                                    "places.rating,places.userRatingCount,places.location,places.googleMapsUri,places.businessStatus,nextPageToken"})
             r.raise_for_status()
             js = r.json()
             for p in js.get("places", []):
+                if p.get("businessStatus") == "CLOSED_PERMANENTLY":  # o Google sabe que fechou
+                    continue
                 out.append({"nome": p.get("displayName", {}).get("text", "")[:90], "site": p.get("websiteUri", ""),
                             "telefone": p.get("nationalPhoneNumber", ""), "morada": p.get("formattedAddress", ""),
                             "nota": p.get("rating"), "opinioes": p.get("userRatingCount"), "maps": p.get("googleMapsUri", ""),
@@ -712,6 +742,97 @@ class Radar:
                             "site": g("site") if g("site").startswith("http") else "", "facebook": g("facebook") if "facebook.com/" in g("facebook") else "",
                             "fonte": "pesquisa web (IA)"})
         return out[:80]
+
+    async def _vivas(self, negs: list[dict], local: str, job: dict | None = None) -> dict[str, dict]:
+        """Quem ainda está aberto hoje (4 nov, David: «atualizar as empresas do radar com os dias de hoje e as que ainda
+        funcionam»). O Claude deste PC procura cada uma na web, 8 de cada vez e quatro lotes ao mesmo tempo, e diz por id:
+        aberta (sinal de vida no último ano), fechada (com a prova) ou duvida (nada recente). Sem Claude devolve {}."""
+        from .tradingroom.council import ask_claude, claude_exe
+        if not negs or not claude_exe() or os.environ.get("RADAR_IA") == "0":
+            return {}
+        hoje = time.strftime("%Y-%m-%d")
+        sem, out = asyncio.Semaphore(4), {}
+
+        async def lote(ns: list[dict]):
+            linhas = "\n".join(f'{n["id"]} | {n["nome"]} | {n.get("morada") or local} | {n.get("nicho") or ""} | {n.get("site") or n.get("facebook") or ""}' for n in ns)
+            async with sem:
+                try:
+                    text, _ = await ask_claude(
+                        "Confirmas se pequenas empresas ainda estão abertas. Respondes só com JSON. Nunca inventas: só o que viste nas páginas.",
+                        f"Hoje é {hoje}. Estas empresas vêm do mapa de {local or 'Portugal'}, que tem muitas que já fecharam. Para cada uma, pesquisa "
+                        "na web (Google Maps, Facebook, Instagram, páginas amarelas, Racius/eInforma, notícias, o site dela) e decide:\n"
+                        "- \"fechada\": há prova de que fechou, mudou de dono/nome ou o espaço está para trespasse (Google «Encerrado "
+                        "permanentemente», empresa dissolvida/insolvente, post de despedida, outro negócio no mesmo sítio);\n"
+                        "- \"aberta\": há sinal de vida nos últimos 12 meses. Basta UM destes: o site no ar com o ano atual ou o anterior "
+                        "no rodapé ou numa notícia; um post, opinião ou anúncio desse período; Racius/eInforma/Iberinform a dar a empresa "
+                        "«ativa» com morada nesta terra; uma lista de negócios atualizada este ano com ela;\n"
+                        "- \"duvida\": não encontraste nada que diga que está aberta nem que fechou.\n"
+                        "Para cada empresa faz 2 a 3 pesquisas: o nome com o ramo e a terra (ex.: «Pé de Feijão loja Benedita»), o nome no Facebook "
+                        "ou Instagram, e o nome na Racius/eInforma. Abre a página do Facebook ou o site quando aparecerem e vê a data do último post. "
+                        "Não peças certeza absoluta: um sinal de vida recente chega para «aberta». Só fica «duvida» quem não deixou rasto recente.\n\n"
+                        f"id | nome | morada | ramo | site\n{linhas}\n\n"
+                        'Devolve só: [{"id": "", "estado": "aberta|fechada|duvida", "prova": "uma frase curta com o que viste e a data", "fonte": "https://..."}]',
+                        "sonnet", DIR / "work", timeout=600, tools="WebSearch,WebFetch")
+                except Exception:  # noqa: BLE001  a confirmação é extra: sem ela fica o que o mapa diz
+                    return
+            m = re.search(r"\[.*\]", text, re.S)
+            try:
+                got = json.loads(m.group(0)) if m else []
+            except ValueError:
+                got = []
+            ids = {n["id"] for n in ns}
+            for x in got if isinstance(got, list) else []:
+                if isinstance(x, dict) and x.get("id") in ids and x.get("estado") in ("aberta", "fechada", "duvida"):
+                    out[x["id"]] = {"estado": x["estado"], "prova": str(x.get("prova") or "")[:220],
+                                    "fonte": str(x.get("fonte") or "")[:300] if str(x.get("fonte") or "").startswith("http") else "", "em": hoje}
+            if job is not None:
+                job["feitos"] = job.get("feitos", 0) + len(ns)
+
+        await asyncio.gather(*(lote(negs[i:i + 8]) for i in range(0, len(negs), 8)))
+        return out
+
+    @staticmethod
+    def _aplica_vivas(scan: dict, vivas: dict[str, dict]) -> None:
+        """As fechadas saem da lista (ficam em `fechadas`, com a prova, para se ver o que saiu); as outras guardam o estado."""
+        keep, gone = [], scan.get("fechadas") or []
+        ano = int(time.strftime("%Y"))
+        for n in scan.get("negocios", []):
+            v, a = vivas.get(n["id"]), n.get("audit") or {}
+            if (not v or v["estado"] == "duvida") and n.get("site") and not a.get("erro") and (a.get("copyright") or 0) >= ano - 1:
+                v = {"estado": "aberta", "prova": f"O site está no ar, com © {a['copyright']} no rodapé", "fonte": n["site"], "em": time.strftime("%Y-%m-%d")}
+            if v:
+                n["viva"] = v
+            (gone if v and v["estado"] == "fechada" else keep).append(n)
+        scan["negocios"], scan["fechadas"] = keep, gone
+        scan["verificado"] = time.time() if vivas else scan.get("verificado")
+
+    def verificar(self, sid: str) -> dict:
+        """Confirma de novo quem está aberto numa pesquisa já feita (as antigas também ficam com os dias de hoje)."""
+        scan = self.get(sid)
+        if sid in self.jobs:
+            raise ValueError("ainda está a correr")
+        scan.pop("job", None)
+        for n in scan.get("negocios", []):
+            n.pop("lead", None)
+        self.jobs[sid] = {"fase": "a confirmar quem ainda está aberto", "feitos": 0, "total": len(scan.get("negocios", []))}
+
+        async def run():
+            try:
+                vivas = await self._vivas(scan["negocios"], scan.get("local", ""), self.jobs[sid])
+                if not vivas:
+                    scan["erro"] = "não consegui confirmar quem está aberto (o Claude deste PC não respondeu)"
+                fresh = json.loads(self._path(sid).read_text("utf-8"))  # o que mudou entretanto (nada, em princípio) não se perde
+                self._aplica_vivas(fresh, vivas)
+                fresh["resumo"] = self._summary(fresh["negocios"]) if fresh["negocios"] and "nivel" in fresh["negocios"][0] else fresh.get("resumo", {})
+                fresh["erro"] = scan.get("erro", "") if not vivas else ""
+                self._save(fresh)
+            finally:
+                self.jobs.pop(sid, None)
+
+        task = asyncio.create_task(run())
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return {"ok": True, "job": self.jobs[sid]}
 
     @staticmethod
     def _merge(found: list[dict], local: str = "") -> list[dict]:
@@ -951,7 +1072,14 @@ def veredicto(n: dict) -> dict:
         nao.append("Sem telefone nem email público: só pelo Facebook")
     else:
         nao.append("Sem telefone, email nem redes: difícil de contactar")
-    pontos = op + (10 if tel or mail else -25)
+    viva, visto = (n.get("viva") or {}).get("estado"), (n.get("visto_mapa") or "")[:4]
+    if viva == "aberta":
+        sim.append("Confirmada aberta na web" + (f": {n['viva']['prova']}" if n["viva"].get("prova") else ""))
+    elif viva == "duvida":
+        nao.append("Não encontrei sinal de vida recente na web: confirma que ainda está aberta antes de ligar")
+    elif not viva and visto and int(visto) <= int(time.strftime("%Y")) - 3 and not n.get("site"):
+        nao.append(f"O mapa não a confirma desde {visto}: pode já ter fechado")
+    pontos = op + (10 if tel or mail else -25) - (15 if viva == "duvida" else 0)
     v = "sim" if pontos >= 60 else "talvez" if pontos >= 40 else "nao"
     passo = ("Ligar" if tel else "Mandar email" if mail else "Mensagem no Facebook" if n.get("facebook") else "Ir lá ou procurar o contacto") if v != "nao" else "Deixar para depois"
     return {"v": v, "titulo": {"sim": "Vale a pena", "talvez": "Talvez", "nao": "Não vale a pena"}[v],

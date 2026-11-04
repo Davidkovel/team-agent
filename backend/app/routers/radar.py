@@ -110,6 +110,15 @@ async def start(body: dict, user: User = Depends(viewer)):
         raise HTTPException(400, str(e))
 
 
+@router.post("/{sid}/verificar")
+def verificar(sid: str, user: User = Depends(viewer)):
+    """Confirma na web quem ainda está aberto numa pesquisa já feita; as fechadas saem da lista."""
+    try:
+        return RADAR.verificar(sid)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @router.get("/{sid}")
 def one(sid: str, user: User = Depends(viewer)):
     try:

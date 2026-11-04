@@ -609,3 +609,7 @@ html:not(.is-phone) .rdp-2 { gap: 3px; }
 html.is-phone .rdm-loc input { width: 110px; }
 html.is-phone .rdm-ni { top: 80px; width: 190px; max-height: calc(100% - 200px); }
 html.is-phone .rdm-ni-o { opacity: 1; }
+.rdm-gone { height: 27px; display: inline-flex; align-items: center; padding: 0 9px; border-radius: 7px; color: #f0b4ae; border: 1px solid rgba(240, 120, 110, .3); background: rgba(8, 11, 14, .78); font: 500 11px var(--ui); white-space: nowrap; cursor: help; }
+.rd-name .rd-dv { font: 500 10px var(--ui); font-style: normal; color: var(--rd-warm); border: 1px solid currentColor; border-radius: 5px; padding: 0 5px; margin-left: 4px; opacity: .85; vertical-align: 1px; cursor: help; }
+.rd-name .rd-ok { font-style: normal; color: var(--rd-green); margin-left: 3px; cursor: help; }
+.rd-name .rd-ok svg { width: 12px; height: 12px; vertical-align: -1px; }

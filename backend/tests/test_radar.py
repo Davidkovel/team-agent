@@ -1,4 +1,6 @@
 """Radar: a nota, o gasto estimado e o juntar de fontes, sem rede."""
+import time
+
 from app.radar import Radar
 
 
@@ -105,3 +107,21 @@ def test_nicho_e_tudo():
     import pytest
     with pytest.raises(ValueError):
         RADAR.start("tudo", "", 5)
+
+
+def test_fechadas_saem():
+    """4 nov: o que o mapa já dá como fechado não entra; o que a web confirma fechado sai da lista, com a prova."""
+    from app.radar import _fechada_no_mapa, _visto, veredicto
+    assert _fechada_no_mapa({"name": "Café Central", "disused": "yes"})
+    assert _fechada_no_mapa({"name": "Loja", "opening_hours": "closed"})
+    assert _fechada_no_mapa({"name": "Loja", "end_date": "2023-05"})
+    assert _fechada_no_mapa({"name": "Pastelaria (Encerrada)"})
+    assert not _fechada_no_mapa({"name": "Pastelaria Doce", "opening_hours": "Mo-Fr 08:00-19:00"})
+    assert _visto({"check_date": "2025-02-01"}, "2019-03-04T10:00:00Z") == "2025-02-01"
+    scan = {"negocios": [{"id": "a", "nome": "A"}, {"id": "b", "nome": "B"}, {"id": "c", "nome": "C", "site": "https://c.pt",
+                                                                                     "audit": {"copyright": int(time.strftime("%Y"))}}]}
+    Radar._aplica_vivas(scan, {"a": {"estado": "fechada", "prova": "Encerrado permanentemente"}, "b": {"estado": "duvida"}})
+    assert [n["id"] for n in scan["negocios"]] == ["b", "c"] and scan["fechadas"][0]["id"] == "a" and scan["verificado"]
+    assert scan["negocios"][1]["viva"]["estado"] == "aberta"  # site no ar com o ano de hoje chega
+    base = {"nome": "B", "telefone": "910", "oportunidade": 60}
+    assert veredicto({**base, "viva": {"estado": "duvida"}})["pontos"] < veredicto(base)["pontos"]

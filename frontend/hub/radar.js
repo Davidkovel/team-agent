@@ -265,7 +265,8 @@
     const tel = phones(n)[0], mail = emails(n)[0];
     return `<div class="rd-row ${sel === n.id ? "open" : ""}" data-row="${n.id}" role="button" tabindex="0">
       <span class="rd-vale ${vt}"><i></i>${esc(t(v.titulo))}</span>
-      <span class="rd-name"><b>${esc(n.nome)}</b><small>${esc([SC?.ramo === "tudo" ? n.nicho : "", n.morada, v.porque[0]].filter(Boolean).join(" · "))}</small></span>
+      <span class="rd-name"><b>${esc(n.nome)}${n.viva?.estado === "duvida" ? ` <em class="rd-dv" title="${esc(n.viva.prova || "")}">${esc(t("Por confirmar"))}</em>`
+        : n.viva?.estado === "aberta" ? ` <em class="rd-ok" title="${esc(n.viva.prova || "")}">${icon("tick")}</em>` : ""}</b><small>${esc([SC?.ramo === "tudo" ? n.nicho : "", n.morada, v.porque[0]].filter(Boolean).join(" · "))}</small></span>
       <span class="rd-v ${st}">${esc(t(sl))}</span>
       <span class="rd-has">${lead ? `<span class="st ${SEG_TONE[n.lead.estado]}"><i></i>${esc(t(S.estados[n.lead.estado]))}</span>`
         : `${tel ? `<a class="rd-ic" href="tel:${esc(tel.replace(/\s/g, ""))}" title="${esc(t("Ligar {n}", { n: tel }))}">${I.tel}</a>` : `<span class="rd-ic off">${I.tel}</span>`}
@@ -315,6 +316,8 @@
     ].filter(Boolean).join("");
     const info = [
       [I.pin, n.morada || town(n) ? esc(n.morada || town(n)) : ""],
+      [icon("tick"), n.viva ? `<span class="${n.viva.estado === "aberta" ? "" : "bad"}">${esc(t(n.viva.estado === "aberta" ? "Aberta" : "Sem sinal de vida recente"))}</span>${n.viva.prova ? ` <em>· ${n.viva.fonte ? ext(n.viva.fonte, esc(n.viva.prova)) : esc(n.viva.prova)} (${esc(n.viva.em)})</em>` : ""}`
+        : n.visto_mapa ? `<em>${esc(t("Ainda não confirmada na web · o mapa viu-a a {d}", { d: n.visto_mapa }))}</em>` : ""],
       ...tel.map((x) => [I.tel, `<a href="tel:${esc(x.replace(/\s/g, ""))}">${esc(x)}</a>`]),
       ...mails.map((e) => [I.mail, `<a href="${esc(mailto(n, e))}" data-mail="${n.id}">${esc(e)}</a>`]),
       [I.web, n.site ? `${ext(a.final || n.site, esc(host(n.site)))}${n.site_achado ? ` <em>${esc(t("· achado pelo nome, confirma"))}</em>` : ""}` : `<em class="bad">${esc(t("Não tem site"))}</em>`],
@@ -1039,7 +1042,9 @@
     const scans = S?.varreduras || [];
     paint($("rdm-scan"), `${scans.length ? `<label class="rdm-pick">${IC.search}<select id="rd-pick" title="${esc(t("Pesquisas anteriores"))}">${scans.map((v) =>
       `<option value="${v.id}" ${v.id === cur ? "selected" : ""}>${esc(`${v.ramo_nome} · ${v.local || t("lista")} · ${day(v.at)}`)}</option>`).join("")}</select></label>` : ""}
-      <button type="button" class="rdm-new" data-newf="1">${IC.plus}<span>${esc(t("Nova pesquisa"))}</span></button>`);
+      <button type="button" class="rdm-new" data-newf="1">${IC.plus}<span>${esc(t("Nova pesquisa"))}</span></button>
+      ${SC && !job ? `<button type="button" class="rdm-new" data-viva="1" title="${esc(SC.verificado ? t("Confirmado na web a {d}. Volta a procurar cada empresa e tira as que fecharam.", { d: day(SC.verificado) }) : t("Procura cada empresa na web e tira as que já fecharam."))}">${icon("tick")}<span>${esc(t(SC.verificado ? "Confirmar de novo" : "Confirmar abertas"))}</span></button>` : ""}
+      ${SC?.fechadas?.length ? `<span class="rdm-gone" title="${esc(SC.fechadas.map((n) => `${n.nome}: ${n.viva?.prova || t("fechada")}`).join("\n"))}">${esc(t("{n} fechadas tiradas", { n: SC.fechadas.length }))}</span>` : ""}`);
     M.none = none; noteDraw();
     const over = $("rdm-over");
     if (job) {
@@ -1364,7 +1369,11 @@
     else if (d.fs) {
       try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch { msg(t("O browser não deixou abrir em ecrã inteiro.")); }
     } else if (d.newf) openForm();
-    else if (d.closeq) closeForm();
+    else if (d.viva) {
+      b.disabled = true;
+      try { await api(`/api/radar/${cur}/verificar`, { method: "POST" }); msg(t("A confirmar na web quem ainda está aberto: demora alguns minutos.")); await loadScan(); }
+      catch (err) { b.disabled = false; msg(err.message); }
+    } else if (d.closeq) closeForm();
     else if (d.lf) {
       const [sid, nid] = d.lf.split("/");
       if (!sid) { location.hash = "#/crm"; return; } // lead criado à mão no CRM: não está em nenhuma pesquisa

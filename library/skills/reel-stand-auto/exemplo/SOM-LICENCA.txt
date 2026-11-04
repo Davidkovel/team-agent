@@ -1,0 +1,25 @@
+Downloaded 2026-11-04 from Wikimedia Commons. All files: CC BY 3.0 (attribution required).
+Credit line: "BMW engine sound by <author> (YouTube), via Wikimedia Commons, CC BY 3.0"
+
+c0.opus  BMW 330i - engine and exhaust sound
+  https://commons.wikimedia.org/wiki/File:BMW_330i_-_engine_and_exhaust_sound_(YouTube_brjd2SF0OPM).opus
+  https://upload.wikimedia.org/wikipedia/commons/5/5d/BMW_330i_-_engine_and_exhaust_sound_%28YouTube_brjd2SF0OPM%29.opus
+  Author: Foot to Pedal (YouTube) | License: CC BY 3.0
+
+c1.opus  BMW 335i - engine and exhaust sound (not used)
+  https://upload.wikimedia.org/wikipedia/commons/d/d4/BMW_335i_-_engine_and_exhaust_sound_%28YouTube_dsUE2KJEpqQ%29.opus
+  Author: YouTube channel (Korean name) | License: CC BY 3.0
+
+c2.opus  BMW E30 - engine and exhaust sound (not used)
+  https://upload.wikimedia.org/wikipedia/commons/1/13/BMW_E30_-_engine_and_exhaust_sound_%28YouTube_KIcw74dVbcY%29.opus
+  Author: Pieter Van Nevel (YouTube) | License: CC BY 3.0
+
+c3.opus  BMW E46 - engine and exhaust sound
+  https://commons.wikimedia.org/wiki/File:BMW_E46_-_engine_and_exhaust_sound_(YouTube_lIaGAT4slbs).opus
+  https://upload.wikimedia.org/wikipedia/commons/6/6b/BMW_E46_-_engine_and_exhaust_sound_%28YouTube_lIaGAT4slbs%29.opus
+  Author: BMW 324TD (YouTube) | License: CC BY 3.0
+
+Outputs (1.8 s, 48 kHz stereo, -18 LUFS, peak -1.5..-1.8 dBFS, HP 35 Hz / LP 6 kHz, comp 2.5:1, fade-in 30 ms / fade-out 400 ms):
+  exhaust_real_1.wav = c3.opus from 65.35 s (E46 single blip)   -> copied to exhaust_real.wav
+  exhaust_real_2.wav = c3.opus from 44.74 s (E46 shorter blip)
+  exhaust_real_3.wav = c0.opus from 185.60 s (330i, choppier rev burst)

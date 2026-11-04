@@ -167,5 +167,9 @@
  "webapp-testing": [
   "catwoman",
   "riddler"
+ ],
+ "reel-stand-auto": [
+  "catwoman",
+  "joker"
  ]
 }

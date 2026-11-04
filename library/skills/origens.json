@@ -234,5 +234,11 @@
  "webapp-testing": {
   "de": "Plugin document-skills",
   "licenca": "aberta"
+ },
+ "reel-stand-auto": {
+  "de": "feita pelo Claude do David a 4 nov 2026 a partir do reel BMW 330e da F. Fernandes Automóveis (C:/Users/David/reel-cortes)",
+  "autor": "Empresa AMG",
+  "licenca": "nossa",
+  "veio": "David: «guarda no Hub como skill, para repetir o vídeo»"
  }
 }

@@ -43,7 +43,7 @@ AREAS = [
                  r"\bppc\b|\broas\b|реклам",
      ["ads", "ads-plan", "ads-create", "ads-creative", "ads-meta", "ads-google", "ads-tiktok", "ads-audit"]),
     ("Vídeo", r"v[ií]deos?|\breels?\b|\bgifs?\b|\bshorts\b|motion|anima[cç](ão|ões)|animad[oa]s?|showreel|explainer|видео|ролик|анимац",
-     ["motion-reel-codigo", "ads-creative", "algorithmic-art"]),
+     ["reel-stand-auto", "motion-reel-codigo", "ads-creative", "algorithmic-art"]),
     ("Redes sociais e conteúdo", r"instagram|linkedin|facebook|tiktok|\bposts?\b|carross[eé]is|carross[eé]l|carousel|"
                                  r"redes sociais|social media|conte[uú]dos?|\bcontent\b|newsletter|e-?mails?\b|\bblog|"
                                  r"n[aã]o pare[cç]a (ia|ai)|parecer (escrito por )?(uma )?(ia|ai|pessoa|humano)|humaniz|"

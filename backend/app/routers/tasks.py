@@ -199,7 +199,8 @@ async def route_ask(body: RouteAsk, user: User = Depends(current_user), db: Asyn
 async def list_tasks(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """The board. What went into the bin as finished is still here (trashed_at says so, the board hides it); mistakes are not."""
     await purge_trash(db)
-    query = select(Task).where(not_mistake()).order_by(Task.id.desc())
+    # A conversation with Claude on the phone is not work on the board (routers/conversas.py)
+    query = select(Task).where(not_mistake(), Task.agent_role != "conversa").order_by(Task.id.desc())
     if not sees_all(user):
         query = query.where(Task.assignee_id == user.id)
     tasks = list((await db.execute(query)).scalars())

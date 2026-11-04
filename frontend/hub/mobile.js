@@ -21,7 +21,7 @@
     ["home", "Início", "home", ["home"]],
     ["tarefas", "Tarefas", "tasks", ["tarefas", "aprovacoes", "semana"]],
     ["escritorio", "Escritório", "bot", ["escritorio"]],   // the command centre, one touch away (Marco, 9 out); it has its own tabs (crew-board.js)
-    ["avisos", "Avisos", "bell", ["avisos"]],
+    ["claude", "Claude", "chat", ["claude"]],   // 4 Nov, David: work from the phone as at the computer. The bell on top opens Avisos
     ["empresas", "Trabalho", "building", ["empresas", "projetos", "codigo", "entregas", "baredesk", "kit"]],
   ];
 
@@ -43,7 +43,7 @@
       </div>
     </header>
     <nav id="m-tabs">${TABS.map(([id, label, ic]) => `<a href="#/${id}" data-tab="${id}">${icon(ic)}<span>${t(label)}</span>${
-      id === "avisos" ? '<i class="badge" id="m-av-n" hidden></i>' : id === "tarefas" ? badgeHtml("tarefas") : ""}</a>`).join("")}
+      id === "tarefas" ? badgeHtml("tarefas") : ""}</a>`).join("")}
       <button data-tab="more" aria-label="Mais">${icon("more")}<span>${t("Mais")}</span></button></nav>
     <div id="m-sheet" hidden><div class="m-bg"></div><div class="m-box"></div></div>`);
 
@@ -59,6 +59,8 @@
     if (r.tab === "codigo" || r.tab === "entregas" || r.tab === "kit") return ["#/empresas", "Trabalho"];
     if (r.tab === "aprovacoes" || r.tab === "semana") return ["#/tarefas", "Tarefas"];
     if (r.tab === "agentes" && r.company) return ["#/equipa", "Equipa"];
+    if (r.tab === "claude" && r.company) return ["#/claude", "Claude"];
+    if (r.tab === "avisos") return ["#/home", "Início"];
     if (r.tab === "mensagens" && r.company) return ["#/mensagens", "Chat"];   // a conversation goes back to the list
     if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
     return null;
@@ -97,7 +99,7 @@
   // the unread counter is kept by the Hub on the sidebar's bell: mirror it on the bar and on the Avisos tab
   const mirror = () => {
     const n = $("bell-n"), shown = !n.hidden && n.textContent;
-    for (const id of ["m-bell-n", "m-av-n"]) { $(id).textContent = n.textContent; $(id).hidden = !shown; }
+    $("m-bell-n").textContent = n.textContent; $("m-bell-n").hidden = !shown;
   };
   new MutationObserver(mirror).observe($("bell-n"), { attributes: true, childList: true, characterData: true, subtree: true });
   mirror();

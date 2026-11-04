@@ -173,11 +173,27 @@ def _pk_where(table, pk: str):
     return and_(*(col == value for col, value in zip(table.primary_key.columns, json.loads(pk))))
 
 
+def _private(conn, table, pk: str) -> bool:
+    """What a person says to Claude on the phone (routers/conversas.py) never leaves their Hub: this sync reaches the partners.
+    The same for what hangs from it: its events, approvals, activity, and the notices that open it."""
+    tasks = Base.metadata.tables["tasks"]
+    if table.name == "tasks":
+        return conn.execute(select(tasks.c.agent_role).where(_pk_where(table, pk))).scalar() == "conversa"
+    if table.name == "notifications":
+        return str(conn.execute(select(table.c.href).where(_pk_where(table, pk))).scalar() or "").startswith("#/claude")
+    if "task_id" not in table.c:
+        return False
+    owner = select(table.c.task_id).where(_pk_where(table, pk)).scalar_subquery()
+    return conn.execute(select(tasks.c.agent_role).where(tasks.c.id == owner)).scalar() == "conversa"
+
+
 def _changes(conn, since: int) -> tuple[list[dict], int, bool]:
     """(what changed here after `since`, the new cursor, whether there is more)."""
     entries = conn.execute(select(LOG).where(LOG.c.seq > since).order_by(LOG.c.seq).limit(CHUNK)).all()
     out = []
     for e in entries:
+        if e.tbl in Base.metadata.tables and not e.deleted and _private(conn, Base.metadata.tables[e.tbl], e.pk):
+            continue
         item = {"tbl": e.tbl, "pk": e.pk, "mt": e.mt, "node": e.node, "deleted": bool(e.deleted)}
         table = Base.metadata.tables.get(e.tbl)
         row = None if table is None or e.deleted else conn.execute(select(table).where(_pk_where(table, e.pk))).first()

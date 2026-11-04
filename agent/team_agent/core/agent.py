@@ -14,6 +14,7 @@ from ..storage import LocalStore
 from ..tasks import TaskProvider
 from ..tools import ToolContext, build_registry
 from ..tools.skills_tool import skill_lines
+from . import projects
 from .config import Config
 from .logs import log
 from .session import SessionReport
@@ -57,6 +58,13 @@ Stay yourself in how you think and decide, but the work comes first: no role-pla
 
 # How to work when a task was handed over as a particular kind of agent (the Hub's "Assign to AI").
 ROLE_PROMPTS = {
+    "conversa": ("You are in a conversation with the person, who writes from their phone and wants to work as if they were at "
+                 "their computer. Their earlier work is in your memory: when they mention a project or something done before, "
+                 "look it up with the recall tool before answering, and continue it instead of asking them to repeat it. Do "
+                 "what they ask with your tools, then answer in their language, short and plain, as your final message: what "
+                 "you did, what you found, what you need from them. You do not need complete_task. Never claim something you "
+                 "did not check. If what they need exists only on their computer, say so. The company's e-mail is read with "
+                 "read_company_email and anything sent waits for their approval with send_emails."),
     "developer": "You were given this task as a developer: write and change code, run the tests, keep changes small.",
     "research": "You were given this task as a researcher: gather the facts and write up what you found. Do not change code unless the task asks for it.",
     "marketing": "You were given this task as a marketer: write the copy and prepare campaigns as drafts. Anything published or paid needs approval first.",
@@ -123,6 +131,7 @@ class TeamAgent:
         self.cfg, self.backend, self.tasks, self.ai, self.store = cfg, backend, tasks, ai, store
         self.ask_ai = ask_ai                # makes a provider for a question from the Hub, apart from the task's own
         self._session: SessionReport | None = None  # the Hub's record of the run in progress
+        self._code_note = ""                # a conversation's project: what could not come from git
         self._memory: list[dict] = []       # what the Hub says the AI should know for the current task
         self._brief: dict = {}              # the Hub's briefing for it (crew.py): projects, open work, the crew member
         self._crew = ""                     # the crew member it runs as, if any
@@ -250,12 +259,39 @@ class TeamAgent:
         self._run = asyncio.create_task(self._execute(task, resume))
 
     def _workspace(self, task: dict) -> Path:
+        if self.cfg.worker == "pc" and (real := projects.local_path(task.get("project") or "")):
+            return real  # the person's computer: the project's real folder, and only that one
         name = re.sub(r"[^A-Za-z0-9_.-]", "_", task.get("project") or "").strip(".") or f"task-{task['id']}"
         path = self.cfg.workspace / name
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    def _prompt(self, task: dict, resume: bool) -> str:
+    def _chat_prompt(self, task: dict, session: str | None) -> str:
+        """The next turn of a conversation (routers/conversas.py). A session that goes on only needs what is new."""
+        chat = self._brief.get("chat") or {}
+        new = chat.get("new") or [task.get("description") or ""]
+        said = "\n\n".join(new)
+        if session:
+            return f"The person wrote, from their phone:\n\n{said}\n\nDo it, then answer them."
+        lines = [ROLE_PROMPTS["conversa"]]
+        if self._memory:
+            lines += ["", "What the team already knows (the Hub's memory). Take it as given:",
+                      *[f"- [{m['scope']}{'/' + m['category'] if m.get('category') else ''}] {m['title']}: {m['content']}"
+                        for m in self._memory]]
+        lines += self._briefing_lines() + projects.lines()
+        if task.get("project"):
+            lines += ["", f"This conversation is about the project {task['project']}; your workspace is its folder."]
+        if self._code_note:
+            lines += ["", self._code_note]
+        earlier = (chat.get("history") or [])[:-len(new)] if chat.get("new") else []
+        if earlier:
+            lines += ["", "The conversation so far:", *[f"{m['who']}: {m['text'][:3000]}" for m in earlier[-30:]]]
+        lines += ["", "The person wrote, from their phone:", "", said]
+        return "\n".join(lines)
+
+    def _prompt(self, task: dict, resume: bool, session: str | None = None) -> str:
+        if task.get("agent_role") == "conversa":
+            return self._chat_prompt(task, session)
         lines = [f"Task #{task['id']}: {task['title']}"]
         if task.get("description"):
             lines += ["", "Description:", task["description"]]
@@ -331,6 +367,10 @@ class TeamAgent:
             team = ", ".join(f"{m['name']} ({m['what']})" for m in self._brief.get("team", []))
             system += CREW_PROMPT.format(persona=member["persona"], team=team or "the rest of the crew")
         self._crew = crew
+        chatting = task.get("agent_role") == "conversa"
+        self._code_note = ""
+        if chatting and task.get("project") and self.cfg.worker != "pc":
+            self._code_note = await asyncio.to_thread(projects.fetch, workspace, task["project"])
         self._session = SessionReport(self._report, "task", self.cfg.model, task["id"])
         await self._session.open()
         self.ai.on_event = self._session.on_event
@@ -339,7 +379,7 @@ class TeamAgent:
             if reason := self.ai.unavailable_reason():
                 raise RuntimeError(f"AI provider is not ready: {reason}")
             await self._set_status("WORKING", "IN_PROGRESS")
-            session = task.get("session_id") if resume else self.store.crew_session(crew) if crew else None
+            session = task.get("session_id") if resume or chatting else self.store.crew_session(crew) if crew else None
             extra = {"home": self._crew_home(crew)} if crew else {}
             if crew and session and not resume:
                 # the crew member's conversation already cost something before this task: count only what this one adds
@@ -350,7 +390,7 @@ class TeamAgent:
             log.info("%s Claude session for TASK-%s%s", "Resuming" if session else "Started", task["id"],
                      f" as {member.get('name')}" if crew else "")
             try:
-                result = await self.ai.run(self._prompt(task, resume), system, registry, workspace, session, self._on_session, **extra)
+                result = await self.ai.run(self._prompt(task, resume, session), system, registry, workspace, session, self._on_session, **extra)
             except Exception as exc:
                 if not session or self._intent:
                     raise
@@ -399,6 +439,13 @@ class TeamAgent:
             await self.record("note", f"Limite do Claude: a tarefa volta à fila e recomeça sozinha às {when}.")
             await self._release("ASSIGNED", current_action=f"À espera do limite do Claude: recomeça às {when}")
             self.state.current_action = f"À espera do limite do Claude até às {when}"
+        elif task.get("agent_role") == "conversa" and result.ok:
+            # a conversation ends each turn by answering: what Claude said is the result, and it waits for the next message
+            await self._release("COMPLETED", result=result.text or "Feito.")
+        elif task.get("agent_role") == "conversa":
+            log.info("TASK-%s error: %s", tid, result.error)
+            await self.record("error", result.error)
+            await self._release("FAILED")  # a new message tries again; the agent stays free for other work
         elif not result.ok:
             log.info("TASK-%s error: %s", tid, result.error)
             self._remember(f"Erro: {result.error.split(':')[0][:50]}")

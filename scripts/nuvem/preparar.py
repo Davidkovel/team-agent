@@ -8,6 +8,8 @@ sync_peers deste PC, para ele trocar com a nuvem pela Tailscale.
     python3 scripts/nuvem/preparar.py            # confere o que falta e faz o texto para colar na Oracle
     python3 scripts/nuvem/preparar.py verificar  # depois de criar o servidor: está a responder? dá o endereço do telemóvel
     python3 scripts/nuvem/preparar.py claude     # login do Claude na nuvem, para os agentes trabalharem lá
+    python3 scripts/nuvem/preparar.py github     # login do GitHub na nuvem, para ela chegar aos projetos privados
+    python3 scripts/nuvem/preparar.py memoria    # a nuvem passa a mandar as conversas dela a este computador
 
 O ficheiro tem a chave da equipa e a da Tailscale: fica fora do git e só o dono o lê.
 """
@@ -94,6 +96,26 @@ def claude():
     sys.exit(subprocess.run([tailscale(), "ssh", "ubuntu@amg-nuvem", "-t", remote]).returncode)
 
 
+def github():
+    """O login do GitHub na nuvem: é a própria pessoa que autoriza, e o token dela não passa por este computador."""
+    status()
+    remote = ("command -v gh >/dev/null || sudo apt-get install -y -q gh; "
+              "sudo -u amg -H gh auth login --git-protocol https --web && sudo -u amg -H gh auth setup-git")
+    sys.exit(subprocess.run([tailscale(), "ssh", "ubuntu@amg-nuvem", "-t", remote]).returncode)
+
+
+def memoria():
+    """Junta este computador aos SYNC_PEERS da nuvem: é por aí que ela lhe manda as conversas do Claude (recall_share.py)."""
+    me = (status().get("Self") or {}).get("HostName", "").strip().lower().replace(" ", "-")
+    if not me or not all(c.isalnum() or c == "-" for c in me):
+        sys.exit("Não consegui ler o nome deste computador na Tailscale.")
+    peer = f"{me}:8000"
+    remote = (f"grep -q '^SYNC_PEERS=.*{peer}' /opt/amg/dados/hub.env && echo 'Já estava.' || "
+              f"(sudo sed -i -E 's/^SYNC_PEERS=(.+)$/SYNC_PEERS=\\1,{peer}/; s/^SYNC_PEERS=$/SYNC_PEERS={peer}/' /opt/amg/dados/hub.env "
+              f"&& sudo systemctl restart amg-hub && echo 'Feito.')")
+    sys.exit(subprocess.run([tailscale(), "ssh", "ubuntu@amg-nuvem", remote]).returncode)
+
+
 def main():
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     if not config.get("key"):
@@ -157,4 +179,4 @@ def main():
 
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else ""
-    {"verificar": verificar, "claude": claude}.get(what, main)()
+    {"verificar": verificar, "claude": claude, "github": github, "memoria": memoria}.get(what, main)()

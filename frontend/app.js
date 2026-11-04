@@ -206,6 +206,7 @@ const NAV = [
   ["Início", "home", [["home", "Início"]], "comando"],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]], "comando"],
   ["Chat", "chat", [["mensagens", "Chat"]], "comando"],
+  ["Claude", "chat", [["claude", "Claude"]], "comando"],
   ["Novidades", "spark", [["novidades", "Novidades"]], "comando"],
   ["Escritório", "bot", [["escritorio", "Escritório"]], "agentes"],
   ["Empresa AMG", "grid", [["empresa", "Empresa AMG"]], "agentes"],

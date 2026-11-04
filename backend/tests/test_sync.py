@@ -1,5 +1,6 @@
 """Two real Hubs, each on its own database, the way two computers of the team run them: no host."""
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -85,3 +86,32 @@ def test_two_hubs_trade_changes_and_neither_is_the_host():
             for proc in (a, b):
                 if proc:
                     proc.terminate(); proc.wait()
+
+
+def test_a_conversation_with_claude_never_reaches_another_hub():
+    """Sync reaches the partners: what a person says to Claude on the phone stays on their Hub, with all that hangs from it."""
+    secret = "segredo-da-conversa-xyz"
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        a = start(tmp, "a.db", 0, 8021, 8022)
+        b = start(tmp, "b.db", 1, 8022, 8021)
+        try:
+            david = login(A, "david")
+            agent = {"Authorization": "Bearer " + httpx.post(A + "/api/users/david/agent-token", headers=david).json()["agent_token"]}
+            talk = httpx.post(A + "/api/conversas", headers=david, json={"text": secret}).json()
+            httpx.post(A + "/api/agent/tasks/claim", headers=agent, params={"worker": "1"})
+            httpx.get(A + f"/api/agent/tasks/{talk['id']}/briefing", headers=agent)
+            ask = httpx.post(A + "/api/agent/approvals", headers=agent, json={"task_id": talk["id"], "action": secret, "detail": secret})
+            assert ask.status_code == 200
+            httpx.post(A + f"/api/agent/tasks/{talk['id']}/update", headers=agent, json={"status": "COMPLETED", "result": secret})
+            httpx.post(A + "/api/tasks", headers=david, json={"title": "tarefa normal depois", "assignee": "mark", "for_ai": False})
+            wait(lambda: "tarefa normal depois" in titles(B))
+            time.sleep(2)   # another round of sync, for anything that would come late
+            assert any(n["href"].startswith("#/claude") for n in httpx.get(A + "/api/notifications", headers=david).json()["items"])
+            assert secret.encode() in b"".join(p.read_bytes() for p in Path(tmp).glob("a.db*"))
+            with sqlite3.connect(Path(tmp) / "b.db") as db:
+                tables = [r[0] for r in db.execute("select name from sqlite_master where type='table'")]
+                found = [t for t in tables if secret in str(db.execute(f'select * from "{t}"').fetchall())]
+            assert found == []
+        finally:
+            for proc in (a, b):
+                proc.terminate(); proc.wait()

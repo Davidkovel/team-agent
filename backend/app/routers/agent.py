@@ -8,14 +8,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import crew
+from .. import crew, mail
 from ..config import settings
 from ..db import get_db
-from ..models import UNFINISHED, AgentSession, Approval, Task, TaskEvent, UsageRecord, User
+from ..models import UNFINISHED, AgentSession, Approval, MailMessage, MailThread, Task, TaskEvent, UsageRecord, User
 from ..realtime import rt
-from ..security import agent_user, make_jwt
+from ..security import agent_user, make_jwt, sees_all
 from ..services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, where, approval_out, deciders, event_out, log_activity, notify,
                         save_agent_state, task_out, team_view)
+from . import conversas, emails
 from .work import memory_for_task
 
 router = APIRouter(prefix="/api/agent")
@@ -118,14 +119,28 @@ def busiest(user_id: int, body: Heartbeat) -> dict:
     return {**best, "workers": len(fresh), "working": sum(st["status"] == "WORKING" for st in fresh)}
 
 
+async def commands_for(db: AsyncSession, user: User, worker: str) -> list[dict]:
+    """The commands of this worker. Several share a login, and a command about a task taken by another one would be lost here."""
+    mine = []
+    for command in await rt.store.pop_commands(user.id):
+        task = await db.get(Task, command["task_id"]) if command.get("task_id") else None
+        if task and task.worker and task.worker != worker and task.status in conversas.RUNNING:
+            await rt.store.push_command(user.id, command)
+        else:
+            mine.append(command)
+    return mine
+
+
 @router.post("/heartbeat")
 async def heartbeat(body: Heartbeat, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     if user.id in AWAY:  # switched offline in the widget: the agent still gets its commands, but nobody sees them online
-        return {"commands": await rt.store.pop_commands(user.id), "team": await team_view(db, user)}
+        return {"commands": await commands_for(db, user, body.worker), "team": await team_view(db, user)}
     before = await rt.store.get_presence(user.id)
     was_online = before is not None and before.get("via") not in SOFT_VIA  # an open Hub/widget is not the agent
     state = busiest(user.id, body)
     await rt.store.set_presence(user.id, {**state, "where": where(user.id, agent=True), "last_seen": time.time()}, settings.heartbeat_timeout)
+    if body.worker == conversas.PC:
+        conversas.PC_SEEN[user.id] = time.time()
     await save_agent_state(db, user.id, state["status"])
     rt.online.add(user.id)
     ONLINE_VIA[user.id] = "agent"
@@ -133,7 +148,7 @@ async def heartbeat(body: Heartbeat, user: User = Depends(agent_user), db: Async
     if not was_online:
         await log_activity(db, user, "agent_online", f"{user.display_name} ligou o agente")
     await rt.publish("presence", user.id, "team")
-    return {"commands": await rt.store.pop_commands(user.id), "team": await team_view(db, user)}
+    return {"commands": await commands_for(db, user, body.worker), "team": await team_view(db, user)}
 
 
 @router.get("/tasks/next")
@@ -147,8 +162,10 @@ async def next_tasks(user: User = Depends(agent_user), db: AsyncSession = Depend
 async def claim_task(worker: str, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
     """One of several agents of the same person takes the oldest free task, and it is written down as theirs in the same
     transaction (db.py opens each one with BEGIN IMMEDIATE), so two agents asking at once never get the same task."""
+    # The agent of the person's own computer only takes what was asked to run there (routers/conversas.py)
+    mine = Task.worker == worker if worker == conversas.PC else or_(Task.worker.is_(None), Task.worker == worker)
     query = (select(Task).where(Task.assignee_id == user.id, Task.status == "ASSIGNED", Task.trashed_at.is_(None),
-                                or_(Task.worker.is_(None), Task.worker == worker)).order_by(Task.id).limit(1))
+                                mine).order_by(Task.id).limit(1))
     task = (await db.execute(query)).scalar_one_or_none()
     if not task:
         return {"task": None}
@@ -193,7 +210,47 @@ async def task_briefing(task_id: int, user: User = Depends(agent_user), db: Asyn
     """What a crew member reads before starting (crew.py): who they are, the Memória, the projects, the open work, what
     the crew finished lately and what they did before."""
     task = await own_task(task_id, user, db)
-    return await crew.briefing(db, task, await memory_for_task(db, task))
+    brief = await crew.briefing(db, task, await memory_for_task(db, task))
+    if task.agent_role == conversas.ROLE:
+        brief["chat"] = await conversas.turn(db, task)
+    return brief
+
+
+@router.get("/mail/status")
+async def mail_status(user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+    """Is there a team account, so the agent's batch goes through the Hub's queue? (agent/team_agent/tools/email_tool.py)"""
+    st = await mail.get_settings(db)
+    await db.commit()
+    return {"connected": bool(st.address)}
+
+
+@router.post("/mail/queue")
+async def mail_queue(body: dict, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+    """The agent's batch, after its owner approved it (send_emails waits for that): it leaves from the Hub, in turn."""
+    return await mail.queue(db, emails.who(user), body.get("emails") or [])
+
+
+@router.get("/mail/threads")
+async def mail_threads(user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+    """The company's e-mail for the person's agent to read. Sending stays with send_emails, which waits for a click."""
+    if not sees_all(user):
+        raise HTTPException(403, "Só quem dirige o trabalho")
+    return {"threads": await emails.all_threads(db)}
+
+
+@router.get("/mail/threads/{thread_id}")
+async def mail_thread(thread_id: int, user: User = Depends(agent_user), db: AsyncSession = Depends(get_db)):
+    """One conversation, without marking its answers as seen: only the person opening it does that."""
+    if not sees_all(user):
+        raise HTTPException(403, "Só quem dirige o trabalho")
+    thread = await db.get(MailThread, thread_id)
+    if not thread:
+        raise HTTPException(404, "Conversa desconhecida")
+    query = select(MailMessage).where(MailMessage.thread_id == thread_id).order_by(MailMessage.at)
+    messages = list((await db.execute(query)).scalars())
+    return {**emails.thread_out(thread, messages),
+            "messages": [{"direction": m.direction, "status": m.status, "subject": m.subject, "body": m.body, "at": iso(m.at)}
+                         for m in messages]}
 
 
 @router.post("/tasks/{task_id}/update")
@@ -204,7 +261,7 @@ async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent
     old_status = task.status
     for key, value in changes.items():
         setattr(task, key, value)
-    if task.status == "ASSIGNED":
+    if task.status == "ASSIGNED" and task.worker != conversas.PC:
         task.worker = None  # back in the queue (Claude's limit): any of the person's agents may take it
     if task.status == "IN_PROGRESS" and not task.started_at:
         task.started_at = datetime.now(timezone.utc)
@@ -216,7 +273,15 @@ async def update_task(task_id: int, body: TaskUpdate, user: User = Depends(agent
     if task.status != old_status:
         await log_activity(db, user, "task_status", f"{STATUS_TEXT.get(task.status, task.status)}: {task.title}", task.id)
         href = f"#/tarefas/{task.id}"
-        if task.status == "COMPLETED":
+        if task.agent_role == conversas.ROLE and task.status == "COMPLETED":
+            if not await conversas.answered(db, task):  # a message written meanwhile: it goes on, and tells when that ends
+                await notify(db, {user.id}, "task_completed", "low", f"Claude respondeu: {task.title}", (task.result or "")[:300],
+                             f"#/claude/{task.id}")
+        elif task.agent_role == conversas.ROLE and task.status == "FAILED":
+            if not await conversas.requeue_if_waiting(db, task):
+                await notify(db, {user.id}, "agent_failed", "medium", f"O Claude não conseguiu responder: {task.title}", "",
+                             f"#/claude/{task.id}")
+        elif task.status == "COMPLETED":
             await crew.remember_task(db, task, user)  # the whole crew knows it from the next task on
             await release_next(db, task)
             await notify(db, {user.id, task.created_by}, "task_completed", "low", f"Tarefa concluída: {task.title}",
@@ -266,8 +331,12 @@ async def request_approval(body: ApprovalIn, user: User = Depends(agent_user), d
     await db.refresh(approval)
     await log_activity(db, user, "approval_requested",
                        f"{user.display_name} espera aprovação: {body.action}", body.task_id)
-    await notify(db, await deciders(db), "approval_required", "high",
-                 f"Claude / {user.display_name} precisa de aprovação", body.action, "#/aprovacoes")
+    task = await db.get(Task, body.task_id) if body.task_id is not None else None
+    if task and task.agent_role == conversas.ROLE:   # a private conversation: only its person hears of it, and it opens there
+        await notify(db, [user.id], "approval_required", "high", "O Claude precisa da tua aprovação", body.action, f"#/claude/{task.id}")
+    else:
+        await notify(db, await deciders(db), "approval_required", "high",
+                     f"Claude / {user.display_name} precisa de aprovação", body.action, "#/aprovacoes")
     await rt.publish("approval", user.id)
     return approval_out(approval)
 

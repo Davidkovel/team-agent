@@ -1,0 +1,51 @@
+/* Claude (conversas.js): written for the phone, 393 px first; my bubbles in the Hub's accent, its answers in graphite. */
+.cl { display: grid; gap: 14px; max-width: 720px; margin: 0 auto; color: var(--text); font: 400 15px/1.45 var(--ui); }
+.cl .on { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #34c759; }
+.cl-new { display: grid; gap: 10px; padding: 14px; border-radius: 18px; background: #1c1c1e; border: 1px solid rgba(255, 255, 255, .08); }
+.cl textarea { width: 100%; min-width: 0; box-sizing: border-box; border: 0; outline: 0; resize: none; background: none; color: #f2f2f7; font: 400 16px/1.4 var(--ui); }
+.cl-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.cl-seg { display: grid; grid-template-columns: 1fr 1fr; padding: 2px; border-radius: 10px; background: #2c2c2e; grid-column: 1 / -1; }
+.cl-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.cl-seg span { display: block; padding: 8px 4px; border-radius: 8px; color: #aeaeb2; text-align: center; font-weight: 600; font-size: 14px; }
+.cl-seg input:checked + span { background: #636366; color: #fff; }
+.cl-seg input:disabled + span { opacity: .4; }
+.cl-seg input:focus-visible + span { outline: 2px solid #d4ab43; }
+.cl select { grid-column: 1 / -1; min-height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: #2c2c2e; color: #f2f2f7; font: 400 16px var(--ui); }
+.cl-state { margin: 0; color: #8e8e93; font-size: 13px; }
+.cl-state i:not(.on) { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #636366; }
+.cl-err { margin: 0; color: #ff6961; font-size: 14px; }
+.cl-go { min-height: 44px; border: 0; border-radius: 12px; background: #d4ab43; color: #0b0c0f; font: 700 16px var(--ui); }
+.cl-list { display: grid; gap: 8px; }
+.cl-item { display: grid; gap: 3px; min-width: 0; padding: 12px 14px; border-radius: 14px; background: #1c1c1e; color: #f2f2f7; text-decoration: none; }
+.cl-item b, .cl-item span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cl-item span { color: #aeaeb2; font-size: 14px; }
+.cl-item small { color: #8e8e93; font-size: 12px; }
+.cl-none { color: #8e8e93; text-align: center; }
+.cl-thread { grid-template-rows: minmax(0, 1fr) auto auto; gap: 8px; height: calc(100dvh - 190px); min-height: 320px; }
+.cl-msgs { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; padding: 4px 2px; -webkit-overflow-scrolling: touch; }
+.cl-b { max-width: 86%; padding: 9px 13px; border-radius: 18px; overflow-wrap: anywhere; }
+.cl-b.me { align-self: flex-end; background: #d4ab43; color: #0b0c0f; border-bottom-right-radius: 5px; }
+.cl-b.them { align-self: flex-start; background: #2c2c2e; color: #f2f2f7; border-bottom-left-radius: 5px; }
+.cl-b.err { align-self: flex-start; background: rgba(255, 105, 97, .14); color: #ff9b95; }
+.cl-b a { color: inherit; text-decoration: underline; }
+.cl-busy { margin: 2px 4px; color: #8e8e93; font-size: 13px; }
+.cl-ask { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: #2a2416; border: 1px solid rgba(212, 171, 67, .5); color: #f2f2f7; }
+.cl-ask p { margin: 0; overflow-wrap: anywhere; }
+.cl-ask pre { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: #d1d1d6; font-size: 12px; }
+.cl-ask div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cl-ask button { min-height: 44px; border: 0; border-radius: 10px; background: #3a3a3c; color: #fff; font: 600 15px var(--ui); }
+.cl-ask .yes { background: #d4ab43; color: #0b0c0f; }
+.cl-send { display: flex; align-items: flex-end; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 22px; background: #1c1c1e; border: 1px solid rgba(255, 255, 255, .1); }
+.cl-send textarea { flex: 1; padding: 6px 0; }
+.cl-up { flex: none; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: #d4ab43; color: #0b0c0f; }
+.cl-up .i { width: 18px; height: 18px; }
+.cl-stop { flex: none; min-height: 34px; padding: 0 12px; border: 0; border-radius: 17px; background: #3a3a3c; color: #fff; font: 600 13px var(--ui); }
+.cl-stop[hidden] { display: none; }
+.cl textarea, .cl textarea:focus { min-height: 0; height: auto; margin: 0; border: 0; box-shadow: none; background: none; }
+.cl-send textarea { order: 1; } .cl-stop { order: 0; } .cl-up { order: 2; }
+/* the Hub's glass theme clears backgrounds: these must stay solid over the photo */
+.cl .cl-new, .cl .cl-item { background: #1c1c1e !important; }
+.cl .cl-ask { background: #2a2416 !important; }
+.cl .cl-b.them { background: #2c2c2e !important; }
+.cl .cl-ask button:not(.yes) { background: #3a3a3c !important; }
+html.is-phone .cl-thread { height: calc(100dvh - 150px); }

@@ -44,6 +44,7 @@ lazyView("escritorio", "hub/crew.js", "hub/crew.css");   // the command centre (
 lazyView("saude", "hub/health.js", "hub/office.css");
 lazyView("empresa", "hub/crew.js", "hub/crew.css");
 lazyView("mensagens", "hub/mensagens.js", "hub/mensagens.css");
+lazyView("claude", "hub/conversas.js", "hub/conversas.css");
 lazyView("fotos", "hub/fotos.js", "hub/fotos.css");   // the Ten Fold's photo library (routers/photos.py)   // the team writes to each other (routers/messages.py)
 lazyView("skills", "hub/skills.js", "hub/skills.css");   // the company's skills library: who masters each one
 lazyView("galeria", "hub/galeria.js", "hub/galeria.css");   // Skills › Galeria: the best sites on the web, to steal ideas from

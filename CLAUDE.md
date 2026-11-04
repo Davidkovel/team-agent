@@ -56,6 +56,8 @@ Writes then go into a queue on the phone (`localStorage` `amg-outbox`, `queueWri
 answer sends them oldest first (`flushOutbox`: 4xx dropped, 5xx/no network waits). Pages only show data they had seen before;
 agents, Claude and anything that runs on the PC still need it on. `/api/auth`, streams and blobs are never served old.
 
+**Claude no telemóvel (`#/claude`, 4 nov, David: «trabalhar no meu telemóvel como se fosse no computador»).** Uma conversa é uma tarefa com `agent_role="conversa"` (`routers/conversas.py`): nunca vai por sync, nem para a Memória da equipa, nem para o quadro (`sync._private`). O que foi dito lá encontra-se com `python3 scripts/lembrar.py <palavras>`. Guia: `docs/nuvem.md`, secção «Claude no telemóvel».
+
 **O Hub na nuvem para o Marco e o Kovel (3 nov, David: «se eles te perguntarem o que precisam de fazer, instala tu por
 eles»).** Cada sócio tem o seu servidor grátis da Oracle com um Hub ligado 24 h, para a app do telemóvel funcionar com o PC
 desligado. O do David já corre; a nuvem dele é só dele (`HUB_USER=david`). Quando o Marco ou o Kovel perguntarem («quero o Hub

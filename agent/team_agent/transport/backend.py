@@ -50,6 +50,9 @@ class BackendClient:
     async def mail_connected(self) -> bool:
         return bool((await self._call("GET", "/mail/status")).get("connected"))
 
+    async def mail_threads(self, thread_id: int | None = None) -> dict:
+        return await self._call("GET", f"/mail/threads/{thread_id}" if thread_id else "/mail/threads")
+
     async def queue_emails(self, emails: list[dict]) -> dict:
         return await self._call("POST", "/mail/queue", {"emails": emails})
 

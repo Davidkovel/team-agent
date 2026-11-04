@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import socket
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -35,9 +36,12 @@ log = logging.getLogger("team.recall")
 
 PROJECTS = Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "projects"
 STORE = Path.home() / ".team-agent" / "recall-peers"   # what the other computers sent (read by recall_tool.py)
+LOCAL_PROJECTS = Path.home() / ".team-agent" / "projetos.json"   # this computer's projects, for its own agent (agent/.../projects.py)
+PROJECTS_KEPT = 25
+PROJECT_DAYS = 60
 STATE = Path.home() / ".team-agent" / "recall-share.json"   # {peer: {"folder/session": [mtime, size]}} of what went where
 FIRST = 90              # seconds after the Hub starts
-EVERY = 600             # between rounds
+EVERY = 180             # between rounds (4 Nov: from 600, what was said on one computer is on the others in minutes)
 DAYS = 120              # a conversation untouched for longer stays where it is
 BATCH_FILES = 30
 BATCH_CHARS = 4_000_000
@@ -103,7 +107,12 @@ def _text(message) -> str:
 
 def digest(f: Path) -> list[list[str]]:
     """[when, who, text] of one conversation, as recall_tool.py reads it: what the person and Claude said, without the tool
-    output and the system wrappers (most of the file). Of a very long one, the newest FILE_CHARS."""
+    output and the system wrappers (most of the file). Of a very long one, the newest FILE_CHARS.
+    A note of Claude's own memory (<project>/memory/*.md) goes whole, as one thing Claude said."""
+    if f.suffix == ".md":
+        when = time.strftime("%Y-%m-%d %H:%M", time.gmtime(f.stat().st_mtime))
+        text = f.read_text(encoding="utf-8", errors="ignore").strip()
+        return [[when, "claude", text[:TEXT]]] if text else []
     items = []
     with f.open(encoding="utf-8", errors="ignore") as fh:
         for line in fh:
@@ -128,16 +137,25 @@ def digest(f: Path) -> list[list[str]]:
     return keep[::-1]
 
 
+def _where_from(f: Path) -> tuple[str, str]:
+    """(project folder, session name) of a conversation or of a note of Claude's memory."""
+    return (f.parents[1].name, f"memoria-{f.stem}") if f.suffix == ".md" else (f.parent.name, f.stem)
+
+
+def _key(f: Path) -> str:
+    return "/".join(_where_from(f))
+
+
 def pending(sent: dict, root: Path | None = None) -> list[tuple[Path, str, float, int]]:
     """The conversations this peer has not got as they are now, newest first."""
     root = root or PROJECTS
     cutoff, out = time.time() - DAYS * 86400, []
-    for f in root.glob("*/*.jsonl"):
+    for f in [*root.glob("*/*.jsonl"), *root.glob("*/memory/*.md")]:
         try:
             st = f.stat()
         except OSError:
             continue
-        key = f"{f.parent.name}/{f.stem}"
+        key = _key(f)
         if st.st_mtime >= cutoff and sent.get(key) != [st.st_mtime, st.st_size]:
             out.append((f, key, st.st_mtime, st.st_size))
     out.sort(key=lambda x: x[2], reverse=True)
@@ -174,7 +192,8 @@ def batch(sent: dict, root: Path | None = None) -> list[dict]:
         n = sum(len(i[2]) for i in items)
         if out and (len(out) >= BATCH_FILES or chars + n > BATCH_CHARS):
             break
-        out.append({"folder": f.parent.name, "session": f.stem, "mtime": mtime, "size": size, "items": items})
+        folder, session = _where_from(f)
+        out.append({"folder": folder, "session": session, "mtime": mtime, "size": size, "items": items})
         chars += n
     return out
 
@@ -196,6 +215,102 @@ async def send(client: httpx.AsyncClient, peer: str, state: dict, root: Path | N
     return len(files)
 
 
+# ------------------------------------------------------------------ the projects of this computer
+
+def _git(path: str, *args: str) -> str:
+    try:
+        done = subprocess.run(["git", "-C", path, *args], capture_output=True, text=True, timeout=8,
+                              env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+        return done.stdout.strip() if done.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _cwd(f: Path) -> str:
+    """The folder a conversation ran in: every line of the transcript near the start says it."""
+    try:
+        with f.open(encoding="utf-8", errors="ignore") as fh:
+            for _, line in zip(range(40), fh):
+                if '"cwd"' in line:
+                    return str(json.loads(line).get("cwd") or "")
+    except (OSError, ValueError):
+        pass
+    return ""
+
+
+def clean_remote(url: str) -> str:
+    """Without any user or token written inside the address: this list goes to the other computers."""
+    return re.sub(r"^(https?://)[^/@]+@", r"\1", url.strip())
+
+
+def scan_projects(root: Path | None = None) -> list[dict]:
+    """The projects of the Claude conversations of this computer, newest first: name, folder, git remote, what is not pushed."""
+    root, home = root or PROJECTS, Path.home().resolve()
+    newest: dict[str, tuple[float, Path]] = {}
+    cutoff = time.time() - PROJECT_DAYS * 86400
+    for f in root.glob("*/*.jsonl"):
+        try:
+            mtime = f.stat().st_mtime
+        except OSError:
+            continue
+        if mtime >= cutoff and mtime > newest.get(f.parent.name, (0, f))[0]:
+            newest[f.parent.name] = (mtime, f)
+    # Many conversations start in the home folder, whatever they work on: the repositories in plain sight count too
+    places = [(mtime, _cwd(f)) for mtime, f in newest.values()]
+    for git in [Path(__file__).resolve().parents[2] / ".git", *home.glob("*/.git"), *home.glob("*/*/.git")]:
+        try:
+            if git.stat().st_mtime >= cutoff:
+                places.append((git.stat().st_mtime, str(git.parent)))
+        except OSError:
+            continue
+    out, seen = [], set()
+    for mtime, cwd in sorted(places, key=lambda x: x[0], reverse=True):
+        if not cwd or not Path(cwd).is_dir():
+            continue
+        path = _git(cwd, "rev-parse", "--show-toplevel") or cwd
+        resolved = Path(path).resolve()
+        # never the home folder as a whole, nor outside it, nor the throwaway folders of Claude's own
+        if path in seen or home not in resolved.parents or resolved.name.startswith("scratch-"):
+            continue
+        seen.add(path)
+        ahead = _git(path, "rev-list", "--count", "@{u}..HEAD")
+        out.append({"name": resolved.name, "path": str(resolved), "remote": clean_remote(_git(path, "remote", "get-url", "origin")),
+                    "branch": _git(path, "branch", "--show-current"), "last": _git(path, "log", "-1", "--format=%s")[:160],
+                    "dirty": len(_git(path, "status", "--porcelain").splitlines()), "ahead": int(ahead) if ahead.isdigit() else 0,
+                    "used": mtime})
+        if len(out) >= PROJECTS_KEPT:
+            break
+    return out
+
+
+def known_projects() -> list[dict]:
+    """What the phone can choose from: name, computer folder or not, newest first (routers/conversas.py)."""
+    lists = [LOCAL_PROJECTS, *STORE.glob("*/_projects.json")] if STORE.is_dir() else [LOCAL_PROJECTS]
+    best: dict[str, dict] = {}
+    for path in lists:
+        try:
+            for p in json.loads(path.read_text(encoding="utf-8")):
+                if p.get("name") and (p.get("used") or 0) >= (best.get(p["name"], {}).get("used") or 0):
+                    best[p["name"]] = p
+        except (OSError, ValueError, AttributeError):
+            continue
+    rows = sorted(best.values(), key=lambda p: p.get("used") or 0, reverse=True)
+    return [{"name": p["name"], "git": bool(p.get("remote")), "dirty": p.get("dirty") or 0, "ahead": p.get("ahead") or 0} for p in rows]
+
+
+async def send_projects(client: httpx.AsyncClient, peer: str, state: dict, rows: list[dict]):
+    """The list goes only when it changed."""
+    mark = [[p["name"], p["last"], p["dirty"], p["ahead"]] for p in rows]
+    if state.get("_projects", {}).get(peer) == mark:
+        return
+    name, system = computer()
+    res = await client.post(f"{sync._base(peer)}/api/sync/recall", json={"computer": name, "system": system, "files": [], "projects": rows},
+                            headers={"X-Team-Key": settings.team_key})
+    if res.status_code not in (404, 405):
+        res.raise_for_status()
+        state.setdefault("_projects", {})[peer] = mark
+
+
 async def loop():
     await asyncio.sleep(FIRST)
     async with httpx.AsyncClient(timeout=90) as client:
@@ -203,8 +318,11 @@ async def loop():
             if settings.recall_share and settings.team_key and PROJECTS.is_dir():
                 try:
                     state = _load()
+                    rows = await asyncio.to_thread(scan_projects)
+                    await asyncio.to_thread(LOCAL_PROJECTS.write_text, json.dumps(rows, ensure_ascii=False), "utf-8")
                     for peer in [p for p in sync.peers() if await asyncio.to_thread(own, p)]:
                         try:
+                            await send_projects(client, peer, state, rows)
                             for _ in range(BATCHES):
                                 if await send(client, peer, state) <= 0:
                                     break
@@ -232,6 +350,7 @@ class RecallIn(BaseModel):
     computer: str
     system: str = ""
     files: list[RecallFile] = []
+    projects: list[dict] | None = None   # the projects of that computer (scan_projects)
 
 
 def _safe(text: str, cap: int) -> str:
@@ -265,6 +384,13 @@ async def take(body: RecallIn, request: Request):
         where.mkdir(parents=True, exist_ok=True)
         (where / name).write_text(json.dumps({"folder": f.folder[:200], "mtime": f.mtime, "items": items[::-1]},
                                              ensure_ascii=False), encoding="utf-8")
+        kept += 1
+    if body.projects is not None:
+        where.mkdir(parents=True, exist_ok=True)
+        keys = ("name", "path", "remote", "branch", "last", "dirty", "ahead", "used")
+        rows = [{k: (clean_remote(str(p.get(k) or "")) if k == "remote" else p.get(k)) for k in keys}
+                for p in body.projects[:PROJECTS_KEPT * 2] if isinstance(p, dict)]
+        (where / "_projects.json").write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
         kept += 1
     if kept:
         (where / "_computer.json").write_text(json.dumps({"computer": body.computer[:80], "system": body.system[:20],

@@ -92,6 +92,8 @@ async def summary(db: AsyncSession, now: datetime | None = None, with_commits: b
             feed.append({"when": when.isoformat(), "user": r["user"], "who": r["name"], "what": a.kind, "text": _sentence(a, r["name"])})
 
     for t in (await db.execute(select(Task).where(not_mistake()))).scalars():
+        if t.agent_role == "conversa":   # a conversation with Claude on the phone is not a task of the week
+            continue
         r = rows.get(t.assignee_id)
         if not r:
             continue

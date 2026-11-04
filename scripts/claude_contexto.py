@@ -278,7 +278,8 @@ def news_text() -> str:
             + (f": {t['result']}" if t.get("result") else "") for t in tasks[:8]]
     rows += [f"- Memória [{n['category'] or 'nota'}] {n['title']}: {n['content']}" for n in notes[:6]]
     return ("\n\nO que aconteceu nos últimos 2 dias, também pelo telemóvel e pelos agentes da nuvem (vem do Hub deste "
-            "computador). Se o pedido continua uma destas coisas, parte daqui em vez de perguntar:\n" + "\n".join(rows))
+            "computador). Se o pedido continua uma destas coisas, parte daqui em vez de perguntar. O que foi dito ao Claude no "
+            "telemóvel encontra-se com: python3 scripts/lembrar.py <palavras>\n" + "\n".join(rows))
 
 
 def context(event: dict) -> str:

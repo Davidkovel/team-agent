@@ -15,7 +15,7 @@ from .models import User
 from .radar import loop as radar_loop
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, messages, office, photos, ponto, tasks, team, trading, week, work, ws
-from .routers import affiliates, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom
+from .routers import affiliates, conversas, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -168,6 +168,7 @@ app.include_router(emails.relay)
 app.include_router(affiliates.router)  # Afiliados: os programas, os links e as comissões
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
 app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here
+app.include_router(conversas.router)  # Claude no telemóvel: a conversa que continua o trabalho
 app.include_router(recall_share.router)  # one Claude memory on the person's own computers (the Mac's conversations in the cloud)
 
 @app.middleware("http")

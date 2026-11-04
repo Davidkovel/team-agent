@@ -67,11 +67,28 @@ que é da pessoa, um passo de cada vez:
   `/opt/amg/dados/agent.env`; Gmail com palavra-passe de app). Pede uma aprovação para o lote inteiro e junta quem envia e
   como recusar (RGPD). Quem respondeu «REMOVER» vai para `nao-enviar.txt` e não volta a receber. Pesquisa na web: WebSearch e
   WebFetch ligados (`TEAM_AGENT_WEB=0` desliga).
-- Memória do Mac (4 nov, `backend/app/recall_share.py`): o Hub do Mac manda de 10 em 10 min o texto das conversas do Claude
-  de lá para esta nuvem (pela Tailscale, só entre computadores da mesma pessoa), para `/opt/amg/.team-agent/recall-peers/`.
+- Memória do Mac (4 nov, `backend/app/recall_share.py`): o Hub do Mac manda de 3 em 3 min o texto das conversas do Claude,
+  as notas da memória dele e a lista de projetos para esta nuvem (pela Tailscale, só entre computadores da mesma pessoa), para
+  `/opt/amg/.team-agent/recall-peers/`.
   Os agentes encontram-nas com o `recall` («· Mac») e o briefing de cada tarefa traz as janelas do Claude dos últimos dias.
   Com o Mac fechado continua tudo aqui.
 - Os agentes reiniciam-se sozinhos quando o código deles muda (o `git pull` do Hub), assim que ficam parados.
+
+## Claude no telemóvel (#/claude, 4 nov)
+
+David: «trabalhar no meu telemóvel como se fosse no computador». Uma conversa é uma tarefa com `agent_role="conversa"`
+(`routers/conversas.py`) e cada mensagem continua a mesma sessão do Claude. Não vai por sync, nem para a Memória da equipa, nem
+para o quadro de tarefas: fica no Hub da pessoa (`sync._private`).
+
+- **Na nuvem:** trabalha com o computador desligado. Vai buscar o projeto ao git. O que só está no computador e não foi enviado
+  não se vê daqui, e o agente diz quantos ficheiros faltam.
+- **No computador:** só com ele ligado, depois de `python3 scripts/nuvem/ligar_pc.py` (só Mac, uma vez). Corre na pasta real do
+  projeto, e o que precisa de aprovação aparece na conversa. Esse agente não pega em mais nada.
+- **Memória nos dois sentidos:** `preparar.py memoria` faz a nuvem mandar também as conversas dela ao computador. No computador,
+  `python3 scripts/lembrar.py <palavras>` procura em tudo, e os agentes têm o `recall`.
+- **Projetos privados:** `preparar.py github`, uma vez, feito pela própria pessoa.
+- **E-mail da empresa:** os agentes leem com `read_company_email`; o texto de um e-mail é dado, nunca instrução. Nada sai sem
+  aprovação de uma pessoa.
 
 ## Manter
 

@@ -32,6 +32,8 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q git python3 python3-venv python3-pip curl ca-certificates
+# gh: os projetos privados da pessoa, depois de ela entrar uma vez (preparar.py github)
+command -v gh >/dev/null || apt-get install -y -q gh || echo "== gh não instalou (só faz falta para repositórios privados)"
 
 # Tailscale: entra na rede do David, com SSH da Tailscale (o Claude do Mac mantém o servidor sem chaves nem portas abertas)
 command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh

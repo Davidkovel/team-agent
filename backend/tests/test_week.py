@@ -37,6 +37,7 @@ def test_ledger_counts_logins_tasks_and_commits(client, monkeypatch):
         {"author": "Estranho", "date": now, "repo": "Agente AMG", "message": "y", "stats": None}])
 
     before = row(client.get("/api/week", headers=owner).json(), "mark")  # other test modules share this database
+    before_nobody = row(client.get("/api/week", headers=owner).json(), "david")  # other tests in this shared DB may have used david
     done = client.post("/api/tasks", headers=owner, json={"title": "Feito", "assignee": "mark"}).json()["id"]
     client.post("/api/tasks", headers=owner, json={"title": "Por fazer", "assignee": "mark"})
     client.post(f"/api/agent/tasks/{done}/update", headers=agent, json={"status": "COMPLETED", "progress": 100})
@@ -46,7 +47,7 @@ def test_ledger_counts_logins_tasks_and_commits(client, monkeypatch):
     assert me["days"][data["today"]] == 1 and me["logins"] >= 1 and me["status"] == "ativo"
     assert me["tasks_done"] - before["tasks_done"] == 1 and me["tasks_open"] - before["tasks_open"] == 1
     assert me["commits"] == 1 and me["added"] == 10 and me["deleted"] == 2  # only the commit by an alias of Marco counts
-    assert nobody["commits"] == 0 and nobody["tasks_done"] == 0
+    assert nobody["commits"] == 0 and nobody["tasks_done"] == before_nobody["tasks_done"]
     assert any(f["what"] == "login" and f["text"] == "entrou no Hub" for f in data["feed"]) and any(f["what"] == "commit" for f in data["feed"])
     assert data["demo"] is False and len(data["days"]) == 7
 

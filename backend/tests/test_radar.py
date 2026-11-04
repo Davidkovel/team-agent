@@ -142,6 +142,10 @@ def test_rever_sozinho(tmp_path, monkeypatch):
         (tmp_path / f"{sid}.json").write_text(json.dumps({"id": sid, "ramo": "tudo", "local": "Benedita", "at": quando, "fim": quando, "verificado": quando, "negocios": [{"id": "x", "nome": "X"}]}))
     feitos = []
     monkeypatch.setattr(radar.RADAR, "verificar", lambda sid: feitos.append(sid))
+
+    async def parada():
+        await asyncio.Event().wait()
+    monkeypatch.setattr("app.radar_share.loop", parada)
     radar._tentou.clear()
 
     async def corre():
@@ -157,3 +161,44 @@ def test_rever_sozinho(tmp_path, monkeypatch):
             pass
     asyncio.run(corre())
     assert feitos == ["a" * 12]
+
+
+def test_partilha_entre_computadores(tmp_path, monkeypatch):
+    """O que muda num computador chega ao outro: a pesquisa mais recente ganha, os leads juntam-se, o apagado apaga-se."""
+    import json
+    import os
+
+    from app import radar, radar_share
+    mac, nuvem = tmp_path / "mac", tmp_path / "nuvem"
+    for d in (mac, nuvem):
+        (d / "fichas").mkdir(parents=True)
+
+    def em(d):
+        monkeypatch.setattr(radar, "DIR", d)
+
+    velho = time.time() - 3600
+    scan = {"id": "a" * 12, "ramo": "tudo", "local": "Benedita", "negocios": [{"id": "x", "nome": "Café X"}]}
+    em(mac)
+    radar_share._write_json(mac / f"{'a' * 12}.json", scan, velho)
+    radar_share._write_json(mac / "fichas" / f"{'a' * 12}-x.json", {"marca": 1}, velho)
+    radar.RADAR._write({"tudo:x": {"estado": "contactado", "at": velho}})
+    os.utime(mac / "seguimento.json", (velho, velho))
+    corpo = radar_share.lote({})
+    assert len(corpo["files"]) == 2 and corpo["leads"]
+
+    em(nuvem)
+    radar_share._write_json(nuvem / f"{'a' * 12}.json", {**scan, "negocios": []}, velho - 100)  # a da nuvem é mais velha
+    radar.RADAR._write({"tudo:y": {"estado": "respondeu", "at": velho}})
+    assert radar_share.juntar(corpo) == 3
+    assert json.loads((nuvem / f"{'a' * 12}.json").read_text())["negocios"][0]["nome"] == "Café X"
+    assert (nuvem / f"{'a' * 12}.json").stat().st_mtime == velho  # a hora vai com ela: não volta para trás
+    assert set(radar.RADAR._leads()) == {"tudo:x", "tudo:y"}
+    assert radar_share.juntar(corpo) == 0  # outra vez o mesmo: nada muda
+
+    radar.RADAR.delete("a" * 12)  # apagada na nuvem...
+    radar.RADAR._write({"tudo:x": radar.RADAR._leads()["tudo:x"]})  # ...e o lead y tirado
+    volta = radar_share.lote({})
+    em(mac)
+    radar_share.juntar(volta)
+    assert not (mac / f"{'a' * 12}.json").exists() and not (mac / "fichas" / f"{'a' * 12}-x.json").exists()
+    assert set(radar.RADAR._leads()) == {"tudo:x"}

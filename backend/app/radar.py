@@ -256,7 +256,10 @@ class Radar:
         self._write(leads)
         return lead
 
-    def _write(self, leads: dict) -> None:
+    def _write(self, leads: dict, partilha: bool = True) -> None:
+        if partilha:  # o que sai do seguimento sai também nos outros computadores da pessoa (radar_share)
+            from .radar_share import apagar
+            apagar([f"lead:{k}" for k in self._leads().keys() - leads.keys()])
         tmp = DIR / "seguimento.tmp"
         tmp.write_text(json.dumps(leads, ensure_ascii=False), "utf-8")
         tmp.replace(DIR / "seguimento.json")
@@ -293,6 +296,8 @@ class Radar:
         if sid in self.jobs:
             raise ValueError("ainda está a correr")
         self._path(sid).unlink(missing_ok=True)
+        from .radar_share import apagar
+        apagar([f"scan:{sid}"])  # e nos outros computadores da pessoa
 
     # ---------- arrancar ----------
     def start(self, ramo: str, local: str, raio: int, lista: str = "", owner: str = "", termo: str = "") -> dict:
@@ -1095,9 +1100,20 @@ _tentou: dict[str, float] = {}  # sem Claude a resposta falha: a mesma pesquisa 
 
 async def loop():
     from .config import settings
+    from .radar_share import loop as partilha
     from .tradingroom.council import claude_exe
-    if not settings.sync or os.environ.get("RADAR_IA") == "0":
+    if not settings.sync:
         return
+    share = asyncio.create_task(partilha())  # o Radar igual nos computadores da pessoa; acaba com este loop
+    try:
+        await _rever(claude_exe)
+    finally:
+        share.cancel()
+
+
+async def _rever(claude_exe):
+    if os.environ.get("RADAR_IA") == "0":
+        await asyncio.Event().wait()  # sem IA não se confirma nada, mas a partilha continua
     await asyncio.sleep(600)  # o Hub acabou de arrancar: primeiro o resto
     while True:
         try:

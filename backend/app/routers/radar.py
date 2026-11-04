@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import radar_doc
+from .. import radar_doc, radar_share
 from ..radar_ficha import FICHAS, custo
 from ..db import get_db
 from ..models import User
@@ -20,6 +20,7 @@ from ..security import user_from_jwt
 from .tradingroom import viewer
 
 router = APIRouter(prefix="/api/radar")
+router.include_router(radar_share.router)  # POST /api/radar/partilha: o Radar dos outros computadores da pessoa
 
 
 @router.get("")

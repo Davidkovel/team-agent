@@ -11,3 +11,4 @@ pytest>=8.0
 pywebpush>=2.0
 MetaTrader5>=5.0.45; sys_platform == "win32"   # Escritório de Robôs: the MT5 API (FundedNext)
 pywin32; sys_platform == "win32"   # Escritório de Robôs: DPAPI for the account passwords
+tzdata; sys_platform == "win32"   # zoneinfo finds no time zones on Windows without it (mail.py: Europe/Lisbon)

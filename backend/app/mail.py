@@ -29,7 +29,7 @@ from email.message import EmailMessage
 from email.utils import formataddr, make_msgid, parseaddr
 from html import unescape
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from sqlalchemy import func, select
@@ -46,7 +46,10 @@ log = logging.getLogger("team.mail")
 ACCOUNT = Path.home() / ".team-agent" / "mail-account.json"
 CURSOR = Path.home() / ".team-agent" / "mail-cursor.json"
 CRM_SEEN = RADAR_DIR / "mail-crm.json"
-LISBON = ZoneInfo("Europe/Lisbon")
+try:
+    LISBON = ZoneInfo("Europe/Lisbon")
+except ZoneInfoNotFoundError:   # Windows has no time zones without the tzdata package, and the self-update does not run pip:
+    LISBON = timezone.utc        # the Hub must still start (4 Nov: this line alone kept it down); an hour off in summer until iniciar.ps1 installs it
 HOURS = (9, 18)
 GAP = (180, 300)              # seconds between two first e-mails
 FOLLOWUP_DAYS = 4             # a contact with no answer goes to «Enviar outra vez» after this

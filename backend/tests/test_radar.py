@@ -125,3 +125,35 @@ def test_fechadas_saem():
     assert scan["negocios"][1]["viva"]["estado"] == "aberta"  # site no ar com o ano de hoje chega
     base = {"nome": "B", "telefone": "910", "oportunidade": 60}
     assert veredicto({**base, "viva": {"estado": "duvida"}})["pontos"] < veredicto(base)["pontos"]
+
+
+def test_rever_sozinho(tmp_path, monkeypatch):
+    """O Hub volta a confirmar a pesquisa confirmada há mais tempo, só depois de uma semana."""
+    import asyncio
+    import json
+
+    from app import radar
+    monkeypatch.setattr(radar, "DIR", tmp_path)
+    from app.config import settings
+    monkeypatch.setattr(settings, "sync", True)
+    monkeypatch.setattr("app.tradingroom.council.claude_exe", lambda: "claude")
+    velho = time.time() - 30 * 86400
+    for sid, quando in (("a" * 12, velho), ("b" * 12, time.time())):
+        (tmp_path / f"{sid}.json").write_text(json.dumps({"id": sid, "ramo": "tudo", "local": "Benedita", "at": quando, "fim": quando, "verificado": quando, "negocios": [{"id": "x", "nome": "X"}]}))
+    feitos = []
+    monkeypatch.setattr(radar.RADAR, "verificar", lambda sid: feitos.append(sid))
+    radar._tentou.clear()
+
+    async def corre():
+        dormir = iter([None, None])
+
+        async def sleep(_s):
+            if next(dormir, "fim") == "fim":
+                raise asyncio.CancelledError
+        monkeypatch.setattr(radar.asyncio, "sleep", sleep)
+        try:
+            await radar.loop()
+        except asyncio.CancelledError:
+            pass
+    asyncio.run(corre())
+    assert feitos == ["a" * 12]

@@ -1086,4 +1086,35 @@ def veredicto(n: dict) -> dict:
             "porque": (sim + nao) if v != "nao" else (nao + sim), "passo": passo, "pontos": max(0, min(100, round(pontos)))}
 
 
+# 4 nov, David: «como o servidor é ativo 24 horas, se alguma fechar quero que atualizes os dados». Cada Hub volta a confirmar
+# sozinho as suas pesquisas: a que foi confirmada há mais tempo primeiro, uma de cada vez, nunca antes de passar uma semana.
+# Na nuvem corre 24 h; num PC corre enquanto está ligado e, ao ligar, põe em dia as que passaram do prazo.
+REVER_DIAS = 7
+_tentou: dict[str, float] = {}  # sem Claude a resposta falha: a mesma pesquisa só se tenta outra vez no dia seguinte
+
+
+async def loop():
+    from .config import settings
+    from .tradingroom.council import claude_exe
+    if not settings.sync or os.environ.get("RADAR_IA") == "0":
+        return
+    await asyncio.sleep(600)  # o Hub acabou de arrancar: primeiro o resto
+    while True:
+        try:
+            if claude_exe() and not RADAR.jobs:
+                agora, velhas = time.time(), []
+                for s in RADAR.list():
+                    sc = RADAR.get(s["id"])
+                    quando = sc.get("verificado") or sc.get("fim") or sc.get("at") or 0
+                    if sc.get("negocios") and sc.get("fim") and agora - quando > REVER_DIAS * 86400 and agora - _tentou.get(s["id"], 0) > 86400:
+                        velhas.append((quando, s["id"]))
+                if velhas:
+                    sid = min(velhas)[1]
+                    _tentou[sid] = agora
+                    RADAR.verificar(sid)
+        except Exception:  # noqa: BLE001  uma pesquisa estragada não para as outras: tenta-se na hora seguinte
+            pass
+        await asyncio.sleep(3600)
+
+
 RADAR = Radar()

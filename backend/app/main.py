@@ -12,6 +12,7 @@ from .config import settings
 from . import claude_hooks, claude_kit, health, limits, mail, migrate, push, recall_share, selfupdate, sync, webpush
 from .db import SessionLocal, engine
 from .models import User
+from .radar import loop as radar_loop
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, messages, office, photos, ponto, tasks, team, trading, week, work, ws
 from .routers import affiliates, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom
@@ -115,7 +116,10 @@ async def lifespan(app: FastAPI):
     factory = asyncio.create_task(etsy.loop()) if settings.sync else None  # Fábrica Etsy: idle until this PC's person turns it on
     mailing = asyncio.create_task(mail.loop()) if settings.sync else None  # E-mails: sends, reads answers, updates the CRM
     recalling = asyncio.create_task(recall_share.loop()) if settings.sync else None  # the Claude conversations to the person's own other computers
+    radaring = asyncio.create_task(radar_loop()) if settings.sync else None  # Radar: confirms again, weekly, who is still open
     yield
+    if radaring:
+        radaring.cancel()
     if recalling:
         recalling.cancel()
     if mailing:

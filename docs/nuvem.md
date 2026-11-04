@@ -62,6 +62,11 @@ mesmos passos, a partir do seu PC (Windows):
   `/opt/amg/dados/agent.env`; Gmail com palavra-passe de app). Pede uma aprovação para o lote inteiro e junta quem envia e
   como recusar (RGPD). Quem respondeu «REMOVER» vai para `nao-enviar.txt` e não volta a receber. Pesquisa na web: WebSearch e
   WebFetch ligados (`TEAM_AGENT_WEB=0` desliga).
+- Memória do Mac (4 nov, `backend/app/recall_share.py`): o Hub do Mac manda de 10 em 10 min o texto das conversas do Claude
+  de lá para esta nuvem (pela Tailscale, só entre computadores da mesma pessoa), para `/opt/amg/.team-agent/recall-peers/`.
+  Os agentes encontram-nas com o `recall` («· Mac») e o briefing de cada tarefa traz as janelas do Claude dos últimos dias.
+  Com o Mac fechado continua tudo aqui.
+- Os agentes reiniciam-se sozinhos quando o código deles muda (o `git pull` do Hub), assim que ficam parados.
 
 ## Manter
 

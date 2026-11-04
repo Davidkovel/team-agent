@@ -1,6 +1,8 @@
 """Agent core: owns the state, the task lifecycle and the bridge that tools use."""
 import asyncio
 import json
+import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -16,6 +18,21 @@ from .config import Config
 from .logs import log
 from .session import SessionReport
 from .state import AgentState
+
+# In the cloud (scripts/nuvem/instalar.sh) systemd runs the agents and starts them again when they stop (Restart=always;
+# INVOCATION_ID is what systemd sets for its services). The Hub there pulls main by itself (selfupdate.py) but nobody
+# restarted the agents, so they kept the old code until someone logged in. Now an agent whose code changed on disk
+# leaves when it is idle, and the new one starts within seconds (4 Nov, David: «quero que tudo funcione sozinho»).
+CODE = Path(__file__).resolve().parents[1]
+RESTARTS = bool(os.environ.get("INVOCATION_ID")) or os.environ.get("TEAM_AGENT_RESTART_ON_UPDATE") == "1"
+
+
+def code_stamp(code: Path = CODE) -> float:
+    """The newest change to the agent's own code."""
+    try:
+        return max((f.stat().st_mtime for f in code.rglob("*.py")), default=0.0)
+    except OSError:
+        return 0.0
 
 SYSTEM_PROMPT = """You are {name}'s Team Agent: an autonomous AI worker running on {name}'s computer as part of a small team. You receive one assigned task and carry it out end to end.
 
@@ -128,17 +145,31 @@ class TeamAgent:
 
     async def run(self):
         log.info("Agent started")
+        self._code, self._code_checked = code_stamp(), time.time()
         await self._connect()
         await self._recover()
         while True:
             self._wake.clear()
             await self._heartbeat()
+            if self._task is None:
+                self._leave_if_updated()
             if self._task is None and self.state.connected and time.time() >= self._limited_until:
                 await self._poll()
             try:
                 await asyncio.wait_for(self._wake.wait(), self.cfg.heartbeat_interval)
             except asyncio.TimeoutError:
                 pass
+
+    def _leave_if_updated(self):
+        """Idle and the code changed under it (the Hub's git pull): exit, and systemd starts the new code. Only where
+        something starts it again (RESTARTS); on a PC the widget or the autostart runs it and it stays."""
+        if not RESTARTS or time.time() - self._code_checked < 60:
+            return
+        self._code_checked = time.time()
+        if code_stamp() > self._code:
+            log.info("Agent code updated: exiting so the new code starts")
+            logging.shutdown()
+            os._exit(0)
 
     async def _connect(self):
         while True:
@@ -272,6 +303,12 @@ class TeamAgent:
             lines += ["", "Finished lately by the team:", *[f"- {t['title']} ({t['by']}): {t['result']}" for t in b["finished"]]]
         if b.get("mine"):
             lines += ["", "Your own last tasks:", *[f"- {t['title']}: {t['result']}" for t in b["mine"]]]
+        if b.get("claude"):  # the person's own Claude windows on any of their computers (their Mac): carry on, do not redo
+            lines += ["", "What the person worked on lately in their own Claude Code windows, on their Mac or another computer "
+                          "(newest first). It is the same work you are part of: carry it on, never redo it, and look up the "
+                          "details with the recall tool:",
+                      *[f"- {c['when']} · {c['project']}{' · ' + c['title'] if c.get('title') else ''}: asked «{c['asked']}»"
+                        f"{' → ' + c['result'] if c.get('result') else ''}" for c in b["claude"]]]
         lines += skill_lines((b.get("crew") or {}).get("id") or "")
         return lines
 

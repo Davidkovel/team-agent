@@ -9,13 +9,13 @@ what the crew finished lately and what this one did before. When a task is finis
 (category TAREFAS), so the next run of any of them knows it too.
 """
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import hub
-from .models import Memory, Project, Task, User
+from .models import ClaudeSession, Memory, Project, Task, User
 
 # id -> name, the agent_role the task gets when none is chosen, what they do, and who they are (to the model)
 CREW: dict[str, dict] = {
@@ -82,6 +82,8 @@ WITH_AGENT = ("ASSIGNED", "IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HE
 
 MEMORY_CATEGORY = "TAREFAS"
 MEMORY_KEEP = 15  # the TAREFAS notes a task's prompt gets: the newest ones (the Memória page still shows them all)
+CLAUDE_DAYS = 4      # the person's own Claude windows a task's prompt gets: those of the last days,
+CLAUDE_WINDOWS = 10  # the newest ones
 
 
 def role_of(crew_id: str | None) -> str:
@@ -151,6 +153,11 @@ async def briefing(db: AsyncSession, task: Task, memory: list[Memory]) -> dict:
     if crew_id:
         mine = (await db.execute(select(Task).where(Task.crew == crew_id, Task.status == "COMPLETED", Task.id != task.id)
                                  .order_by(Task.completed_at.desc()).limit(8))).unique().scalars().all()
+    # What the person did lately in their own Claude windows, on any of their computers (4 Nov, David: the cloud agent
+    # given a task from the phone knows what was done on the Mac). claude_sessions travels by sync like any row.
+    since = datetime.now(timezone.utc) - timedelta(days=CLAUDE_DAYS)
+    windows = (await db.execute(select(ClaudeSession).where(ClaudeSession.user_id == task.assignee_id, ClaudeSession.updated_at >= since)
+                                .order_by(ClaudeSession.updated_at.desc()).limit(CLAUDE_WINDOWS))).scalars().all()
     return {
         "crew": {"id": crew_id, **{k: CREW[crew_id][k] for k in ("name", "role", "what", "persona")}} if crew_id else None,
         "team": [{"name": name_of(c), "what": CREW[c]["what"]} for c in CREW if c != crew_id],
@@ -162,4 +169,11 @@ async def briefing(db: AsyncSession, task: Task, memory: list[Memory]) -> dict:
         "finished": [{"title": t.title, "by": name_of(t.crew) or t.assignee.display_name, "result": _short(t.result, 220)}
                      for t in finished],
         "mine": [{"title": t.title, "result": _short(t.result, 300)} for t in mine],
+        "claude": [{"when": _when(w.updated_at), "project": w.project or "", "title": w.title or "",
+                    "asked": _short(w.request or w.prompt, 400), "result": _short(w.result or "", 300)}
+                   for w in windows if (w.request or w.prompt or "").strip()],
     }
+
+
+def _when(at: datetime | None) -> str:
+    return at.strftime("%d/%m %H:%M") if at else ""

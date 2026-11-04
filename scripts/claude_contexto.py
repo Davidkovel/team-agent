@@ -259,6 +259,28 @@ def plans_text() -> str:
             "`python scripts/plano.py ver <n>` no team-agent e segue a skill plano-partilhado:\n" + rows)
 
 
+STATUS = {"COMPLETED": "feita", "FAILED": "falhou", "WAITING_APPROVAL": "à espera de aprovação", "NEEDS_HELP": "precisa de ajuda",
+          "REVIEW": "em revisão"}
+
+
+def news_text() -> str:
+    """What was finished and written down in the last two days anywhere (the phone, the cloud's agents, the other computers:
+    it all reaches this Hub by sync), so a window opened on the Mac knows what was done while it was closed. Never waits long."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8000/api/local/news", timeout=1.5) as r:
+            news = json.loads(r.read() or b"{}")
+    except Exception:
+        return ""
+    tasks, notes = news.get("tasks") or [], news.get("notes") or []
+    if not tasks and not notes:
+        return ""
+    rows = [f"- tarefa #{t['id']} {t['title']} ({STATUS.get(t['status'], t['status'])}, {t['for']})"
+            + (f": {t['result']}" if t.get("result") else "") for t in tasks[:8]]
+    rows += [f"- Memória [{n['category'] or 'nota'}] {n['title']}: {n['content']}" for n in notes[:6]]
+    return ("\n\nO que aconteceu nos últimos 2 dias, também pelo telemóvel e pelos agentes da nuvem (vem do Hub deste "
+            "computador). Se o pedido continua uma destas coisas, parte daqui em vez de perguntar:\n" + "\n".join(rows))
+
+
 def context(event: dict) -> str:
     if os.environ.get("AMG_SKILLS") == "0" or not LIB.is_dir():
         return ""
@@ -267,7 +289,7 @@ def context(event: dict) -> str:
         if event.get("source") == "resume":   # the window already has it from when it started
             return ""
         skills = index()
-        return (start_text(skills) if skills else "") + plans_text()
+        return (start_text(skills) if skills else "") + plans_text() + news_text()
     if name == "UserPromptSubmit":
         prompt = str(event.get("prompt") or "")
         if len(prompt.strip()) < 12:

@@ -2,8 +2,11 @@
 
 Claude Code keeps each conversation in ~/.claude/projects/<folder>/<session>.jsonl: what the person asked and what Claude
 answered, from the first session on. The Hub's Memória has the short version the team wrote down; this has everything,
-so an agent asked to "do it like last time" can go and look. Only this PC's files are read, only when the agent asks,
-and nothing is copied anywhere: the snippets go back to the agent's own conversation and nowhere else.
+so an agent asked to "do it like last time" can go and look. Only read when the agent asks, and the snippets go back to
+the agent's own conversation and nowhere else.
+
+Since 4 Nov it also reads what the person's other computers sent (backend/app/recall_share.py, in
+~/.team-agent/recall-peers/<computer>/): an agent in the cloud, given a task from the phone, finds what was done on the Mac.
 """
 import json
 import os
@@ -42,6 +45,8 @@ def _project(folder: str) -> str:
 
 
 INDEX = Path(os.environ.get("TEAM_AGENT_HOME", Path.home() / ".team-agent")) / "recall"
+# What the Hub of this computer received from the person's other computers (recall_share.py writes it as the Hub's user)
+PEERS = Path(os.environ.get("TEAM_AGENT_RECALL_PEERS", Path.home() / ".team-agent" / "recall-peers"))
 _cache: dict[str, tuple[float, int, list]] = {}
 
 
@@ -84,21 +89,71 @@ def _messages(f: Path) -> list:
     return items
 
 
-def search(query: str, root: Path = PROJECTS, limit: int = TOP, budget: float = MAX_SECONDS) -> list[dict]:
+def _peer(f: Path) -> tuple[str, list]:
+    """(project folder, items) of a conversation another computer sent."""
+    st = f.stat()
+    key = str(f)
+    hit = _cache.get(key)
+    if hit and hit[0] == st.st_mtime and hit[1] == st.st_size:
+        return hit[2]
+    data = json.loads(f.read_text(encoding="utf-8"))
+    value = (str(data.get("folder") or ""), data.get("items") or [])
+    _cache[key] = (st.st_mtime, st.st_size, value)
+    return value
+
+
+def _where(folder: Path) -> str:
+    """How the computer that sent a folder is called in a hit: «Mac», else its own name."""
+    try:
+        info = json.loads((folder / "_computer.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        info = {}
+    return "Mac" if info.get("system") == "mac" else str(info.get("computer") or folder.name)
+
+
+def _files(root: Path, peers: Path) -> list[tuple[float, Path, str | None]]:
+    """(mtime, file, computer) of every conversation, newest first: computer None for this one's own transcripts."""
+    out = []
+    if root.is_dir():
+        for f in list(root.glob("*/*.jsonl")) + list(root.glob("*/*/subagents/*.jsonl")):
+            try:
+                out.append((f.stat().st_mtime, f, None))
+            except OSError:
+                pass
+    if peers.is_dir():
+        for folder in (d for d in peers.iterdir() if d.is_dir()):
+            where = _where(folder)
+            for f in folder.glob("*.json"):
+                if not f.name.startswith("_"):
+                    try:
+                        out.append((f.stat().st_mtime, f, where))
+                    except OSError:
+                        pass
+    out.sort(key=lambda x: x[0], reverse=True)
+    return out
+
+
+def search(query: str, root: Path = PROJECTS, limit: int = TOP, budget: float = MAX_SECONDS, peers: Path = PEERS) -> list[dict]:
     words = [w for w in _fold(query).split() if len(w) > 2] or _fold(query).split()
-    if not words or not root.is_dir():
+    if not words:
         return []
     start, hits = time.time(), []
-    files = sorted(list(root.glob("*/*.jsonl")) + list(root.glob("*/*/subagents/*.jsonl")), key=lambda f: f.stat().st_mtime, reverse=True)
-    for f in files:
+    for _, f, where in _files(root, peers):
         if time.time() - start > budget:
             break
         try:
-            items = _messages(f)
-        except OSError:
+            if where is None:
+                items = _messages(f)
+                project = _project(f.parent.name if f.parent.name != "subagents" else f.parents[2].name)
+            else:
+                folder, items = _peer(f)
+                project = f"{_project(folder)} · {where}"
+        except (OSError, ValueError, AttributeError):
             continue
-        project = _project(f.parent.name if f.parent.name != "subagents" else f.parents[2].name)
-        for when, who, text in items:
+        for item in items:
+            if len(item) != 3:
+                continue
+            when, who, text = item
             folded = _fold(text)
             score = sum(1 for w in words if w in folded)
             if score < max(1, (len(words) + 1) // 2):
@@ -113,8 +168,9 @@ def search(query: str, root: Path = PROJECTS, limit: int = TOP, budget: float = 
 
 class Recall(Tool):
     name = "recall"
-    description = ("Search every past Claude Code conversation kept on this computer (all projects, from the first session on): "
-                   "what the team asked and what was answered. Use it when the task refers to earlier work, a decision, a "
+    description = ("Search every past Claude Code conversation kept on this computer (all projects, from the first session on), "
+                   "and those of the person's other computers (a hit marked «· Mac» was done on their Mac): what was asked "
+                   "and what was answered. Use it when the task refers to earlier work, a decision, a "
                    "file or a way of doing something that is not in the briefing. Give a few distinctive words, in the "
                    "language the team used (usually Portuguese).")
     schema = schema(query=STR)

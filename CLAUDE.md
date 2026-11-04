@@ -73,6 +73,21 @@ só eles podem fazer. Guia completo: `docs/nuvem.md`, secção «Marco e Kovel»
   (`ssh ubuntu@amg-nuvem`, `sudo -u amg -H /opt/amg/.local/bin/claude auth login`, `sudo systemctl restart 'amg-agent@*'`).
 - Nunca pedir passwords nem o cartão: a pessoa escreve-os ela mesma no site.
 
+**Uma memória só no Mac, na nuvem e no telemóvel (4 nov, David: «quero tudo interligado... o telemóvel tenha a memória do
+PC e o PC a do telemóvel»; o Windows dele já não conta, o Mac é o principal).** O Hub, a Memória, as tarefas e os projetos já
+iam por sync. O que faltava, e já está:
+- **As conversas do Claude do Mac vão para a nuvem** (`backend/app/recall_share.py`): de 10 em 10 min cada Hub manda o texto
+  das suas conversas (`~/.claude/projects`, sem o que as ferramentas devolvem) aos Hubs dos outros computadores da própria pessoa,
+  que as guardam em `~/.team-agent/recall-peers/<computador>/`; a ferramenta `recall` dos agentes procura lá também (os
+  resultados dizem «· Mac»). Só entre computadores da mesma Tailscale (100.64.0.0/10, fd7a:115c:a1e0::/48), com a chave e nunca
+  pelo Funnel; não entra na base de dados, por isso nunca chega aos Hubs dos sócios. `RECALL_SHARE=0` no `backend/.env` desliga.
+- **O briefing de cada tarefa** traz o que a pessoa fez nas suas janelas do Claude nos últimos 4 dias, em qualquer computador
+  (`claude` no `crew.briefing`, da `claude_sessions` que já ia por sync).
+- **Cada janela nova do Claude no Mac** ouve o que aconteceu nos últimos 2 dias, também pelo telemóvel e pelos agentes da nuvem
+  (`news_text` no `claude_contexto.py`, `GET /api/local/news`).
+- **Os agentes da nuvem atualizam-se sozinhos**: um agente parado cujo código mudou (o `git pull` do Hub) sai e o systemd
+  arranca o novo (`_leave_if_updated` no `agent.py`; só onde há systemd, `INVOCATION_ID`). Já não é preciso reiniciá-los à mão.
+
 **Phone sign-in through Tailscale (6 Oct, David's iPhone).** Behind `tailscale serve` the Hub sees the *phone's* own tailnet
 address (100.x and its fd7a:… IPv6), not 127.0.0.1, so the phone got the password page. Fix per PC: put the phone's two
 addresses in `backend/.env` → `IP_USERS=<phone 100.x>=david,<phone fd7a:…>=david` (`tailscale ip -4 <phone>` / `-6`), then

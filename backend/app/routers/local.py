@@ -7,7 +7,7 @@ import asyncio
 import hmac
 import ipaddress
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import commits, ponto, sync, week
 from ..config import settings
 from ..db import get_db
-from ..models import Approval, Notification, Task, User
+from ..models import Approval, Memory, Notification, Task, User
 from ..realtime import rt
 from ..security import make_jwt, sees_all
 from ..services import WIDGET_SEEN, hub_seen, notify, set_away, iso, usage_fields, usage_numbers
@@ -51,6 +51,29 @@ def local_or_team_key(request: Request):
 
 class WidgetPing(BaseModel):
     user: str  # login (owner/mark/david) or the name people see (Kovel/Marco/David)
+
+
+@router.get("/news", dependencies=[Depends(only_local)])
+async def local_news(days: int = 2, db: AsyncSession = Depends(get_db)):
+    """For the hook that starts each Claude window (scripts/claude_contexto.py): what was finished and written down lately
+    anywhere, the phone, the cloud's agents and the other computers included (it all arrives here by sync), so a window
+    opened on the Mac knows what was done while it was closed (4 Nov, David: «o PC tenha a memória do telemóvel»)."""
+    since = datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 14)))
+    tasks = (await db.execute(select(Task).where(Task.status.in_(("COMPLETED", "FAILED", "WAITING_APPROVAL", "NEEDS_HELP", "REVIEW")),
+                                                 Task.trashed_at.is_(None), Task.updated_at >= since)
+                              .order_by(Task.updated_at.desc()).limit(10))).unique().scalars().all()
+    notes = (await db.execute(select(Memory).where(Memory.category != "TAREFAS", Memory.updated_at >= since)
+                              .order_by(Memory.updated_at.desc()).limit(8))).scalars().all()
+
+    def short(text: str | None, size: int) -> str:
+        text = " ".join((text or "").split())
+        return text if len(text) <= size else text[:size - 1].rstrip() + "…"
+
+    return {
+        "tasks": [{"id": t.id, "title": t.title, "status": t.status, "for": t.assignee.display_name if t.assignee else "",
+                   "result": short(t.result or t.blocked_reason, 220)} for t in tasks],
+        "notes": [{"category": m.category, "title": m.title, "content": short(m.content, 200)} for m in notes],
+    }
 
 
 @router.get("/team")

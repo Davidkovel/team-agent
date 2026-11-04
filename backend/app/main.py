@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from .config import settings
-from . import claude_hooks, claude_kit, health, limits, mail, migrate, push, selfupdate, sync, webpush
+from . import claude_hooks, claude_kit, health, limits, mail, migrate, push, recall_share, selfupdate, sync, webpush
 from .db import SessionLocal, engine
 from .models import User
 from .realtime import rt
@@ -114,7 +114,10 @@ async def lifespan(app: FastAPI):
     kit = asyncio.create_task(claude_kit.loop()) if settings.sync else None  # idle until the PC's person turns it on (Trabalho › Kit do Claude)
     factory = asyncio.create_task(etsy.loop()) if settings.sync else None  # Fábrica Etsy: idle until this PC's person turns it on
     mailing = asyncio.create_task(mail.loop()) if settings.sync else None  # E-mails: sends, reads answers, updates the CRM
+    recalling = asyncio.create_task(recall_share.loop()) if settings.sync else None  # the Claude conversations to the person's own other computers
     yield
+    if recalling:
+        recalling.cancel()
     if mailing:
         mailing.cancel()
     if factory:
@@ -161,6 +164,7 @@ app.include_router(emails.relay)
 app.include_router(affiliates.router)  # Afiliados: os programas, os links e as comissões
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
 app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here
+app.include_router(recall_share.router)  # one Claude memory on the person's own computers (the Mac's conversations in the cloud)
 
 @app.middleware("http")
 async def always_fresh(request, call_next):

@@ -110,7 +110,7 @@ def memoria():
     if not me or not all(c.isalnum() or c == "-" for c in me):
         sys.exit("Não consegui ler o nome deste computador na Tailscale.")
     peer = f"{me}:8000"
-    remote = (f"grep -q '^SYNC_PEERS=.*{peer}' /opt/amg/dados/hub.env && echo 'Já estava.' || "
+    remote = (f"sudo grep -q '^SYNC_PEERS=.*{peer}' /opt/amg/dados/hub.env && echo 'Já estava.' || "
               f"(sudo sed -i -E 's/^SYNC_PEERS=(.+)$/SYNC_PEERS=\\1,{peer}/; s/^SYNC_PEERS=$/SYNC_PEERS={peer}/' /opt/amg/dados/hub.env "
               f"&& sudo systemctl restart amg-hub && echo 'Feito.')")
     sys.exit(subprocess.run([tailscale(), "ssh", "ubuntu@amg-nuvem", remote]).returncode)

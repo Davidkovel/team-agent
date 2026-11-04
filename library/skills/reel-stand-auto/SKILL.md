@@ -5,7 +5,7 @@ description: Reel vertical (9:16) de stand de automóveis a partir de vídeo FIL
 
 # Reel de stand automóvel (vídeo filmado)
 
-Exemplo real: `exemplo/BMW_330e_final.mp4` (F. Fernandes Automóveis, Benedita, 4 nov 2026) e `exemplo/folha.jpg` (5 momentos: fala, carro a entrar, legenda com insígnia M, morada, cartão final). Projeto original: `C:\Users\David\reel-cortes` no PC do David.
+Exemplo real: no Hub, Ten Fold › Vídeos › «2026-11 Reel BMW 330e — F. Fernandes» (e `exemplo/BMW_330e_final.mp4` no PC do David) (F. Fernandes Automóveis, Benedita, 4 nov 2026) e `exemplo/folha.jpg` (5 momentos: fala, carro a entrar, legenda com insígnia M, morada, cartão final). Projeto original: `C:\Users\David\reel-cortes` no PC do David.
 
 ## Pipeline (3 comandos)
 1. `python render.py` → `reel_novo.mp4` (≈20 min, 1080x1920, 30 fps). `python render.py 21.8 35.5` → `stills/` para ver frames sem render completo (stills saem a metade do tamanho).

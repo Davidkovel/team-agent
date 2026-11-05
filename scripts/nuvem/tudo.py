@@ -5,6 +5,8 @@ como está. Acaba com uma linha por coisa, FEITO ou FALTA, e na FALTA diz o que 
 
     python3 scripts/nuvem/tudo.py
 """
+import json
+import shlex
 import subprocess
 import sys
 import time
@@ -21,11 +23,27 @@ RESTART = ("c=$(git -C /opt/amg/team-agent log -1 --format=%ct -- agent); for u 
            "'amg-agent@*' | awk '{print $1}'); do s=$(date -d \"$(systemctl show $u -p ActiveEnterTimestamp --value)\" +%s); "
            "[ \"$s\" -lt \"$c\" ] && sudo systemctl restart $u && echo $u; done; true")
 
+# O que o trabalho do telemóvel precisa na nuvem: vídeo, PDF, imagens, sites. Só instala se faltar alguma coisa.
+TOOLS = ("for c in ffmpeg node npm chromium yt-dlp convert pdftoppm; do command -v $c >/dev/null || m=1; done; [ -z \"$m\" ] || "
+         "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -q ffmpeg nodejs npm yt-dlp imagemagick poppler-utils chromium-browser")
 
-def cloud(command: str) -> tuple[int, str]:
+
+def cloud(command: str, seconds: int = 90) -> tuple[int, str]:
     run = subprocess.run([tailscale(), "ssh", "ubuntu@amg-nuvem", command], capture_output=True, text=True, encoding="utf-8",
-                         errors="replace", timeout=90)
+                         errors="replace", timeout=seconds)
     return run.returncode, run.stdout.strip()
+
+
+def mirror_state() -> str:
+    """O que o espelho deste computador (backend/app/espelho.py) já acabou de copiar. Vazio se ainda não acabou nenhuma ronda."""
+    try:
+        state = json.loads((Path.home() / ".team-agent" / "espelho.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    if not state.get("ultima"):
+        return ""
+    return ", ".join(f"{name} ({row['ficheiros']} ficheiros)" if "ficheiros" in row else f"{name} (ERRO: {row.get('erro')})"
+                     for name, row in (state.get("pastas") or {}).items())
 
 
 def script(*args: str) -> bool:
@@ -77,6 +95,22 @@ def main():
         missing.append("projetos privados na nuvem: python3 scripts/nuvem/preparar.py github, na janela do terminal (só a pessoa pode autorizar)")
     else:
         done.append("a nuvem chega aos projetos privados do GitHub")
+
+    if cloud(TOOLS, 600)[0]:
+        missing.append("as ferramentas de trabalho na nuvem (vídeo, PDF, imagens) não instalaram: corre isto de novo")
+    else:
+        done.append("a nuvem tem as ferramentas de trabalho (ffmpeg, node, chromium, yt-dlp, imagemagick, poppler)")
+    who = [subprocess.run(["git", "-C", str(REPO), "config", key], capture_output=True, text=True).stdout.strip()
+           for key in ("user.name", "user.email")]
+    if all(who):  # sem isto, um commit feito pelo telemóvel na nuvem falha
+        cloud(f"sudo -u amg -H git config --global user.name {shlex.quote(who[0] + ' (nuvem)')}; "
+              f"sudo -u amg -H git config --global user.email {shlex.quote(who[1])}")
+
+    mirror = mirror_state()
+    if mirror:
+        done.append(f"a Secretária, os Documentos e os projetos estão copiados na nuvem: {mirror}")
+    else:
+        missing.append("a primeira cópia para a nuvem ainda não acabou: com o Hub deste computador ligado, corre isto daqui a 30 min")
 
     print()
     for line in done:

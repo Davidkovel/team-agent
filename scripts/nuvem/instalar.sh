@@ -32,6 +32,8 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q git python3 python3-venv python3-pip curl ca-certificates
+# O que o trabalho pelo telemóvel precisa (vídeo, PDF, imagens, sites). Se falhar, o Hub arranca na mesma e o tudo.py tenta de novo
+apt-get install -y -q ffmpeg nodejs npm yt-dlp imagemagick poppler-utils chromium-browser || echo "== faltam ferramentas de trabalho (scripts/nuvem/tudo.py instala-as)"
 # gh: os projetos privados da pessoa, depois de ela entrar uma vez (preparar.py github)
 command -v gh >/dev/null || apt-get install -y -q gh || echo "== gh não instalou (só faz falta para repositórios privados)"
 

@@ -21,7 +21,8 @@ Só lhe pedes o que só ela pode fazer: entrar numa conta, autorizar numa págin
    `tailscale ssh ubuntu@amg-nuvem` e, lá, `POST http://127.0.0.1:8000/api/auth/auto` dá o token;
    `POST /api/conversas` com `{"text": "..."}` e depois com `{"text": "...", "where": "pc"}`; `GET /api/conversas/<id>` mostra a resposta.
    O teste com `where: "pc"` tem de correr neste computador. Depois do teste, `python scripts/lembrar.py <palavra do teste>`
-   encontra a conversa da nuvem ao fim de ~3 min. Só digas que funciona o que viste funcionar.
+   encontra a conversa da nuvem ao fim de ~3 min. Testa também a cópia: com `"project": "Secretária"`, pede na nuvem um ficheiro
+   novo de teste, confirma que chega à Secretária deste computador em ~4 min, e apaga-o. Só digas que funciona o que viste funcionar.
 6. Grava na Memória do Hub, com `scripts/memoria.py`, que esta pessoa ficou ligada, e o que faltou.
 7. Diz à pessoa, com palavras simples, o que está abaixo em «O que dizer no fim», com o endereço da app dela.
 
@@ -36,7 +37,9 @@ Só lhe pedes o que só ela pode fazer: entrar numa conta, autorizar numa págin
 
 **O que tens de saber:**
 - Abre as conversas sempre na app da nuvem. O `#/claude` do Hub do computador não tem agente.
-- Com o computador desligado, a nuvem só vê o que está no git.
+- A Secretária, os Documentos e os projetos ficam copiados na nuvem, com os ficheiros por guardar. Com o computador desligado, trabalhas neles na mesma; quando o ligas, o que mudou volta sozinho em ~3 min, e o que mudaste no computador vai para a nuvem. As Transferências não são copiadas.
+- Se o mesmo ficheiro mudar nos dois lados, ficam os dois: o da nuvem ganha «(versão da nuvem …)» no nome. O que se apaga fica 30 dias no lixo da cópia.
+- Para o código ir para o GitHub, pede ao Claude: a cópia não faz commit nem push sozinha.
 - Para desligar o agente do computador: `python scripts/nuvem/ligar_pc.py desligar`.
 
 Acrescenta o estado real desta pessoa: as linhas FEITO e FALTA do `tudo.py`, e o que testaste. Se a Memória do Hub tiver novidades sobre isto (`python scripts/memoria.py --list`), conta-as também.

@@ -80,8 +80,15 @@ David: «trabalhar no meu telemóvel como se fosse no computador». Uma conversa
 (`routers/conversas.py`) e cada mensagem continua a mesma sessão do Claude. Não vai por sync, nem para a Memória da equipa, nem
 para o quadro de tarefas: fica no Hub da pessoa (`sync._private`).
 
-- **Na nuvem:** trabalha com o computador desligado. Vai buscar o projeto ao git. O que só está no computador e não foi enviado
-  não se vê daqui, e o agente diz quantos ficheiros faltam.
+- **Na nuvem:** trabalha com o computador desligado, numa cópia da Secretária, dos Documentos e dos projetos, com os ficheiros
+  por guardar (espelho, abaixo). Sem projeto, a conversa vê as pastas todas. Um projeto que o computador ainda não mandou vem do git.
+- **Espelho (5 nov, `backend/app/espelho.py`):** o Hub do computador troca de ~3 em 3 min com a nuvem da mesma pessoa
+  (`~/trabalho/<pasta>`), nos dois sentidos, só pela Tailscale e com a chave. Não copia Transferências, `.git`, segredos nem
+  lixo. Mudou dos dois lados: ficam os dois, o da nuvem com «(versão da nuvem …)». Apagar vai para o lixo 30 dias
+  (`~/.team-agent/espelho-lixo` no computador, `~/trabalho/.lixo` na nuvem). Uma lista vazia nunca apaga nada, e apagar mais de
+  metade de uma pasta grande espera 24 h. Não faz commit nem push sozinho. Estado: `~/.team-agent/espelho.json` (segundos por
+  pasta incluídos). `ESPELHO=0` desliga. Testado a 5 nov: um ficheiro feito na nuvem com o agente do Mac parado chegou à
+  Secretária do Mac, e apagá-lo no Mac mandou a cópia da nuvem para o lixo.
 - **No computador:** só com ele ligado, depois de `python3 scripts/nuvem/ligar_pc.py` (Mac ou Windows, uma vez). Corre na pasta real do
   projeto, e o que precisa de aprovação aparece na conversa. Esse agente não pega em mais nada.
 - **Memória nos dois sentidos:** `preparar.py memoria` faz a nuvem mandar também as conversas dela ao computador. No computador,
@@ -94,7 +101,8 @@ para o quadro de tarefas: fica no Hub da pessoa (`sync._private`).
 
 Qualquer sócio escreve **telemóvel** no Claude do computador, e o hook (`scripts/claude_contexto.py`) manda seguir a skill
 `library/skills/telemovel`. Essa skill corre `scripts/nuvem/tudo.py`, que faz o que falta e diz FEITO ou FALTA, sem mexer no que
-já está: nuvem, agentes no código novo, memória nos dois sentidos, agente do computador (Mac e Windows) e GitHub.
+já está: nuvem, agentes no código novo, memória nos dois sentidos, agente do computador (Mac e Windows), GitHub, as ferramentas
+de trabalho (ffmpeg, node, chromium, yt-dlp, imagemagick, poppler), o nome dos commits feitos na nuvem e o estado do espelho.
 
 ## Manter
 

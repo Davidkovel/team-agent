@@ -43,6 +43,9 @@ SAFE_COMMANDS = [
     "npx eslint", "ruff", "mypy", "tsc --noemit", "go test", "cargo test",
     # Only say where the agent is (5 Nov: a conversation on the phone stopped for an approval on `pwd`)
     "pwd", "hostname", "whoami", "date", "uname",
+    # Names, sizes and types, never what is inside (5 Nov: every `stat` and `file` stopped a phone conversation for a click).
+    # Nothing that reads content (cat, head), runs things (find -exec) or reaches the network (ffprobe, identify).
+    "ls", "stat", "file", "wc", "du",
 ]
 APPROVAL_PATTERNS = [
     r"\bdeploy", r"\bpublish", r"\brelease\b", r"\bpush\b", r"\bkubectl\b", r"\bhelm\b", r"\bterraform\b",

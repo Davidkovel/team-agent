@@ -72,3 +72,13 @@ def test_git_ls_files_only_reads(policy):
 @pytest.mark.parametrize("command", ["pwd; rm x", "date > x", "hostname newname && pwd"])
 def test_the_new_safe_commands_cannot_carry_another_one(policy, command):
     assert policy.check_command(command).level != Level.SAFE
+
+
+def test_looking_at_names_and_sizes_needs_no_click(tmp_path):
+    from team_agent.permissions.policy import SAFE, PermissionPolicy
+
+    policy = PermissionPolicy(tmp_path)
+    for command in ("ls -la Secretária", "stat -c %s a.jpg", "file a.jpg", "wc -l notas.txt", "du -sh Documentos"):
+        assert policy.check_command(command) == SAFE, command
+    for command in ("cat .env", "head a.txt", "find . -delete", "lsof", "ls; rm x", "file a | sh"):
+        assert policy.check_command(command) != SAFE, command

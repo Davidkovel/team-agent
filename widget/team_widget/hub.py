@@ -6,6 +6,7 @@ the widget starts the backend in dev mode (SQLite, no Redis) so the button alway
 import json
 import os
 import secrets
+import socket
 import subprocess
 import threading
 import sys
@@ -89,6 +90,17 @@ def is_up(url: str) -> bool:
             return True
     except urllib.error.HTTPError:
         return True  # 401 = the server answered
+    except OSError:
+        return _busy_here(url)
+
+
+def _busy_here(url: str) -> bool:
+    """This computer's Hub holding the port is alive, only slow: starting another could never take it."""
+    if not is_local(url):
+        return False
+    try:
+        with socket.create_connection((urlparse(url).hostname, urlparse(url).port or 8000), timeout=1):
+            return True
     except OSError:
         return False
 

@@ -261,3 +261,20 @@ async def test_a_git_project_first_time_makes_the_clone_equal_to_the_computer(wo
     assert done["up"] == 1 and done["del_remote"] == 1 and done["conflict"] == 0
     assert (e.TRABALHO / "proj" / "f.txt").read_text() == "por guardar"
     assert not (e.TRABALHO / "proj" / "g.txt").exists()
+
+
+def test_a_second_hub_sees_the_port_is_taken(monkeypatch):
+    import socket
+    import sys
+
+    from app.main import _port_taken
+
+    monkeypatch.setattr(sys, "argv", ["uvicorn", "app.main:app"])
+    assert _port_taken() is False  # tests and other ways in never stop
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        port = held.getsockname()[1]
+        monkeypatch.setattr(sys, "argv", ["uvicorn", "app.main:app", "--port", str(port)])
+        held.listen()
+        assert _port_taken() is True
+    assert _port_taken() is False

@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import socket
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -88,8 +90,21 @@ async def offline_watcher():
             log.exception("presence watcher")  # keep going: one bad tick must not stop the bookkeeping
 
 
+def _port_taken() -> bool:
+    """A Hub already answers on this port. uvicorn only tries the port after the startup below, so a second Hub used to run
+    everything, fail to bind, and stay alive holding the database and copying files next to the real one."""
+    argv = sys.argv
+    if "--port" not in argv[:-1]:
+        return False
+    with socket.socket() as probe:
+        probe.settimeout(1)
+        return probe.connect_ex(("127.0.0.1", int(argv[argv.index("--port") + 1]))) == 0
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if _port_taken():
+        os._exit(0)
     await migrate.upgrade(engine)  # creates what is missing, never drops; backs the database up before changing it
     if settings.sync:
         await sync.prepare()  # before the first write: ids and the change log depend on it

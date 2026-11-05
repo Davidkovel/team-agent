@@ -109,7 +109,8 @@ def lines(project: str = "") -> list[str]:
     out, known = [], elsewhere()[:20]
     if copies := mirrored():
         out += ["", f"The folders of the person's computer are copied on this server, in {MIRROR}: {', '.join(copies)}. "
-                    "Secretária is their Desktop. Look there for their files and work there; changes go back by themselves."]
+                    "Secretária is their Desktop. Look there for their files and work there; changes go back by themselves. "
+                    "Only what is inside those folders goes back: a new file with no folder of its own goes in Secretária."]
     if known:
         out += ["", "The person's projects on their other computers (the recall tool finds what was said about each):",
                 *[f"- {p['name']}{' · ' + p['remote'] if p.get('remote') else ' · not in git'}"

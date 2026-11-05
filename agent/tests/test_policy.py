@@ -78,7 +78,7 @@ def test_looking_at_names_and_sizes_needs_no_click(tmp_path):
     from team_agent.permissions.policy import SAFE, PermissionPolicy
 
     policy = PermissionPolicy(tmp_path)
-    for command in ("ls -la Secretária", "stat -c %s a.jpg", "file a.jpg", "wc -l notas.txt", "du -sh Documentos"):
+    for command in ("ls -la Secretária", "stat -c %s a.jpg", "file a.jpg", "wc -l notas.txt", "du -s Documentos"):
         assert policy.check_command(command) == SAFE, command
     for command in ("cat .env", "head a.txt", "find . -delete", "lsof", "ls; rm x", "file a | sh"):
         assert policy.check_command(command) != SAFE, command

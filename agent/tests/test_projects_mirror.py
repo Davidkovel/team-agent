@@ -18,12 +18,12 @@ def test_only_the_folders_the_computer_sent(tmp_path, monkeypatch):
 def test_a_conversation_with_no_project_sees_all_the_folders(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from team_agent.core.agent import Agent
+    from team_agent.core.agent import TeamAgent
 
     monkeypatch.setattr(projects, "MIRROR", tmp_path)
     (tmp_path / "Secretária").mkdir()
     (tmp_path / ".espelho.json").write_text(json.dumps({"pastas": {"Secretária": {}}}), encoding="utf-8")
     me = SimpleNamespace(cfg=SimpleNamespace(worker="1", workspace=tmp_path / "w"))
-    assert Agent._workspace(me, {"id": 1, "agent_role": "conversa"}) == tmp_path
-    assert Agent._workspace(me, {"id": 2, "agent_role": "conversa", "project": "Secretária"}) == tmp_path / "Secretária"
-    assert Agent._workspace(me, {"id": 3, "agent_role": "programador"}) == tmp_path / "w" / "task-3"
+    assert TeamAgent._workspace(me, {"id": 1, "agent_role": "conversa"}) == tmp_path
+    assert TeamAgent._workspace(me, {"id": 2, "agent_role": "conversa", "project": "Secretária"}) == tmp_path / "Secretária"
+    assert TeamAgent._workspace(me, {"id": 3, "agent_role": "programador"}) == tmp_path / "w" / "task-3"

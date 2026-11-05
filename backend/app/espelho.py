@@ -40,6 +40,7 @@ FIRST = 60
 HOME = Path(os.environ.get("TEAM_AGENT_HOME", Path.home() / ".team-agent"))
 TRABALHO = Path(os.environ.get("ESPELHO_PASTA", Path.home() / "trabalho"))
 STATE = HOME / "espelho.json"
+OWNER = HOME / "espelho-dono.json"
 HASHES = HOME / "espelho-hashes.json"
 TRASH = HOME / "espelho-lixo"
 PROJECTS = HOME / "projetos.json"
@@ -634,9 +635,13 @@ async def loop():
     """Runs on the person's computer. A cloud has nothing to drive: the computer may be off, and it catches up when it wakes."""
     if sys.platform == "linux" or os.environ.get("ESPELHO") == "0":
         return
+    me = {"pid": os.getpid(), "desde": time.time()}
+    _save(OWNER, me)  # a Hub that never finished dying must not copy next to its successor: the newest owns the mirror
     await asyncio.sleep(FIRST)
     async with httpx.AsyncClient(timeout=httpx.Timeout(60, read=600, write=600)) as client:
         while True:
+            if _load(OWNER).get("pid") != me["pid"]:
+                return
             if settings.team_key:
                 try:
                     if peer := await _my_cloud(client):

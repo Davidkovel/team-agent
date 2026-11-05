@@ -49,12 +49,18 @@ def local_path(name: str) -> Path | None:
     return None
 
 
+def mirrored() -> list[str]:
+    """The folders the computer really keeps here. ~/trabalho also holds the agents' own task folders: those are not it."""
+    try:
+        names = json.loads((MIRROR / ".espelho.json").read_text(encoding="utf-8")).get("pastas") or {}
+    except (OSError, ValueError, AttributeError):
+        return []
+    return sorted(n for n in names if (MIRROR / n).is_dir())
+
+
 def mirror(name: str) -> Path | None:
     """The copy of this folder of the person's computer on this server, when the computer has already sent it."""
-    if not name or name != Path(name).name or name.startswith("."):
-        return None
-    path = MIRROR / name
-    return path if path.is_dir() else None
+    return MIRROR / name if name in mirrored() else None
 
 
 def mirror_note(name: str) -> str:
@@ -101,7 +107,7 @@ def fetch(workspace: Path, name: str) -> str:
 def lines(project: str = "") -> list[str]:
     """For the first prompt of a conversation: the projects known, and the index of the person's Claude memory."""
     out, known = [], elsewhere()[:20]
-    if MIRROR.is_dir() and (copies := sorted(d.name for d in MIRROR.iterdir() if d.is_dir() and not d.name.startswith("."))):
+    if copies := mirrored():
         out += ["", f"The folders of the person's computer are copied on this server, in {MIRROR}: {', '.join(copies)}. "
                     "Secretária is their Desktop. Look there for their files and work there; changes go back by themselves."]
     if known:

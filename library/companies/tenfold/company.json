@@ -93,5 +93,29 @@
         }
       ]
     }
-  ]
+  ],
+  "channels": {
+    "instagram": {
+      "handle": "",
+      "caption": "Who we are & how we work 👇\n\nTen Fold — scaling partners for growing brands: websites, software & AI agents, branding and ads, under one roof.\n\nSwipe to see how a project runs from brief to launch. Free audit → link in bio.",
+      "hashtags": "#tenfold #webdesign #branding #aiagents #marketingagency #smallbusiness #growth"
+    },
+    "email": {
+      "address": "tenfold@tutamail.com",
+      "cc": "marco.goucha@gmail.com"
+    },
+    "site": {
+      "url": "https://davidkovel.github.io/apex-agents/"
+    },
+    "telegram": {
+      "user": "David_k27"
+    },
+    "phone": {
+      "number": "+380 68 418 55 76",
+      "whatsapp": ""
+    },
+    "linkedin": {
+      "url": ""
+    }
+  }
 }

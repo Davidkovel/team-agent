@@ -1920,6 +1920,66 @@ HUB_VIEWS.empresas = async function (r) {
    one more shop. The hero, the production lines (one per section of the library, with what it holds), the numbers of the
    work, then the library as every company has it, with the agency's own site first. */
 const TF_LINE = { sites: "no portefólio", marcas: "peças de marca", instagram: "prontas a publicar", videos: "reels", docs: "notas" };
+/* Ten Fold's channels (5 Nov, David: «instagram, e-mail, tudo com função»): each card does the job, not only shows a link.
+   Defaults come from company.json "channels"; what someone fills in here is kept on this PC (localStorage "tf.channels"). */
+const TF_MAILS = {
+  apresentacao: ["Apresentação", "A quick idea for {empresa}", "Hi {nome},\n\nI'm writing from Ten Fold, a small team that builds websites, software, AI agents and ads for growing brands.\n\nI looked at {empresa} and see a couple of quick wins: a faster site that turns visitors into requests, and ads that are measured down to every sale.\n\nCan I send you a free 1-page audit? No call needed.\n\nBest,\nTen Fold — Scaling Partners"],
+  seguimento: ["Seguimento", "Re: a quick idea for {empresa}", "Hi {nome},\n\nJust bringing this back to the top of your inbox. The free audit for {empresa} is still on the table, it takes us a day and costs you nothing.\n\nShould I send it?\n\nTen Fold"],
+  proposta: ["Proposta", "Ten Fold proposal for {empresa}", "Hi {nome},\n\nThank you for the call. As promised, here is our proposal for {empresa}: scope, timeline and price are in the attached PDF.\n\nWe can start this week. Any question, just reply here.\n\nBest,\nTen Fold — Scaling Partners"],
+};
+const tfCh = (c) => { let mine = {}; try { mine = JSON.parse(localStorage.getItem("tf.channels") || "{}"); } catch {}
+  const out = {}; for (const k of new Set([...Object.keys(c.channels || {}), ...Object.keys(mine)])) out[k] = { ...(c.channels || {})[k], ...mine[k] }; return out; };
+const tfCopy = (text, ok) => navigator.clipboard.writeText(text).then(() => flash(t(ok || "Copiado.")), () => flash(t("O browser não deixou copiar.")));
+function tfChannels(c) {
+  const ch = tfCh(c), ig = ch.instagram || {}, em = ch.email || {}, site = ch.site || {}, tg = ch.telegram || {}, ph = ch.phone || {}, li = ch.linkedin || {};
+  const a = (href, label, gold) => href ? `<a class="tf-btn ${gold ? "gold" : ""}" href="${esc(href)}" target="_blank" rel="noopener">${esc(t(label))}</a>` : "";
+  const b = (id, label) => `<button class="tf-btn" data-tfc="${id}">${esc(t(label))}</button>`;
+  const none = (what) => `<small class="tf-ch-none">${esc(t(what))} — ${t("carrega em «Editar»")}</small>`;
+  const card = (key, name, value, body) => `<article class="tf-ch" data-ch="${key}"><header><b>${esc(name)}</b><span>${value ? esc(value) : "—"}</span></header><div class="tf-ch-act">${body}</div></article>`;
+  return `<section class="tf-chs"><div class="tf-chs-head"><h3>${t("Canais")}</h3><button class="tf-btn" id="tf-ch-edit">${t("Editar")}</button></div>
+    <form id="tf-ch-form" class="tf-ch-form" hidden>
+      ${[["instagram.handle", "Instagram (@)", ig.handle], ["email.address", "E-mail", em.address], ["site.url", "Site", site.url], ["telegram.user", "Telegram", tg.user],
+         ["phone.number", "Telefone", ph.number], ["phone.whatsapp", "WhatsApp (só dígitos)", ph.whatsapp], ["linkedin.url", "LinkedIn (URL)", li.url]]
+        .map(([n, l, v]) => `<label>${esc(t(l))}<input name="${n}" value="${esc(v || "")}"></label>`).join("")}
+      <div class="rowx"><button class="tf-btn gold">${t("Guardar")}</button><button type="button" class="tf-btn" id="tf-ch-reset">${t("Repor")}</button></div></form>
+    <div class="tf-ch-grid">
+      ${card("instagram", "Instagram", ig.handle && "@" + ig.handle.replace(/^@/, ""),
+        (ig.handle ? a("https://instagram.com/" + ig.handle.replace(/^@/, ""), "Abrir perfil", true) : none("Falta o @"))
+        + a("https://www.instagram.com/", "Publicar") + b("ig-caption", "Copiar legenda") + b("ig-tags", "Copiar hashtags")
+        + `<a class="tf-btn" href="#/tenfold/instagram">${t("Ver carrossel")}</a>`)}
+      ${card("email", "E-mail", em.address,
+        `<div class="tf-mail"><input id="tf-m-to" placeholder="${esc(t("para: cliente@empresa.com"))}"><input id="tf-m-nome" placeholder="${esc(t("nome"))}"><input id="tf-m-emp" placeholder="${esc(t("empresa"))}">
+          <select id="tf-m-tpl">${Object.entries(TF_MAILS).map(([k, [l]]) => `<option value="${k}">${esc(t(l))}</option>`).join("")}</select></div>`
+        + b("m-send", "Escrever") + b("m-copy", "Copiar texto") + a("https://app.tuta.com/", "Abrir caixa") + b("m-addr", "Copiar endereço")
+        + `<a class="tf-btn" href="#/emails">${t("E-mails do Radar")}</a>`)}
+      ${card("site", "Site", site.url && site.url.replace(/^https?:\/\//, "").replace(/\/$/, ""),
+        a(site.url, "Abrir", true) + (site.url ? b("site-copy", "Copiar link") : none("Falta o link")) + `<a class="tf-btn" href="#/tenfold/sites">${t("Ver aqui")}</a>`)}
+      ${card("telegram", "Telegram", tg.user && "@" + tg.user, tg.user ? a("https://t.me/" + tg.user, "Escrever", true) + b("tg-copy", "Copiar link") : none("Falta o utilizador"))}
+      ${card("phone", t("Telefone"), ph.number, (ph.number ? a("tel:" + ph.number.replace(/[^\d+]/g, ""), "Ligar", true) + b("ph-copy", "Copiar") : none("Falta o número"))
+        + a(ph.whatsapp && "https://wa.me/" + ph.whatsapp.replace(/\D/g, ""), "WhatsApp"))}
+      ${card("linkedin", "LinkedIn", li.url && li.url.replace(/^https?:\/\/(www\.)?/, ""), li.url ? a(li.url, "Abrir", true) + b("li-copy", "Copiar link") : none("Falta a página"))}
+    </div></section>`;
+}
+function tfChannelsWire(c) {
+  const box = document.querySelector(".tf-chs"); if (!box) return;
+  const ch = tfCh(c), ig = ch.instagram || {}, em = ch.email || {};
+  const mail = () => { const [, su, body] = TF_MAILS[$("tf-m-tpl").value];
+    const fill = (s) => s.replaceAll("{nome}", $("tf-m-nome").value.trim() || "there").replaceAll("{empresa}", $("tf-m-emp").value.trim() || "your business");
+    return { to: $("tf-m-to").value.trim(), su: fill(su), body: fill(body) }; };
+  const act = {
+    "ig-caption": () => tfCopy(ig.caption || "", "Legenda copiada."), "ig-tags": () => tfCopy(ig.hashtags || "", "Hashtags copiadas."),
+    "m-send": () => { const m = mail(); location.href = `mailto:${encodeURIComponent(m.to)}?${em.cc ? `cc=${encodeURIComponent(em.cc)}&` : ""}subject=${encodeURIComponent(m.su)}&body=${encodeURIComponent(m.body)}`; },
+    "m-copy": () => { const m = mail(); tfCopy(`${m.su}\n\n${m.body}`, "Texto copiado."); }, "m-addr": () => tfCopy(em.address || "", "Endereço copiado."),
+    "site-copy": () => tfCopy(ch.site.url), "tg-copy": () => tfCopy("https://t.me/" + ch.telegram.user), "ph-copy": () => tfCopy(ch.phone.number), "li-copy": () => tfCopy(ch.linkedin.url),
+  };
+  box.onclick = (e) => { const k = e.target.closest("[data-tfc]")?.dataset.tfc; if (k && act[k]) { e.preventDefault(); act[k](); } };
+  $("tf-ch-edit").onclick = () => { $("tf-ch-form").hidden = !$("tf-ch-form").hidden; };
+  $("tf-ch-reset").onclick = () => { localStorage.removeItem("tf.channels"); render(); };
+  $("tf-ch-form").onsubmit = (e) => { e.preventDefault(); const mine = {};
+    for (const [n, v] of new FormData(e.target)) { const [k, f] = n.split("."); (mine[k] ||= {})[f] = v.trim(); }
+    localStorage.setItem("tf.channels", JSON.stringify(mine)); flash(t("Canais guardados neste PC.")); render(); };
+}
+
 HUB_VIEWS.tenfold = async function (r) {
   const c = companies.find((x) => x.main) || companies.find((x) => x.id === "tenfold");
   if (!c) return page(ui.empty("building", "A Ten Fold não está neste PC", t("Faz git pull no team-agent.")));
@@ -1938,8 +1998,10 @@ HUB_VIEWS.tenfold = async function (r) {
     <nav class="tf-lines">${c.sections.map((s) => `<a class="tf-line ${s.id === shown.id ? "on" : ""}" href="#/tenfold/${esc(s.id)}">
       <span>${icon(s.id)}${esc(t(s.label))}</span><b>${s.count ?? "—"}</b><small>${t(TF_LINE[s.id] || "")}</small></a>`).join("")}</nav>
     <div id="tf-nums"></div>
+    ${tfChannels(c)}
     ${$("view").innerHTML}</div>`;
   $("tf-task").onclick = () => newTask({ company: c.id });
+  tfChannelsWire(c);
   mount($("tf-nums"), async () => {
     const o = await api(`/api/companies/${c.id}/overview`);
     return kpiRow([kpi("Em produção", o.open_tasks, { sub: t("tarefas abertas"), href: "#/tarefas", go: "Ver" }),

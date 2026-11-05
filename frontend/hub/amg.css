@@ -573,3 +573,22 @@ html.is-phone .wf.tf-folder .wf-lib { grid-template-columns: repeat(2, minmax(0,
    own seal (Fotos › Redes sociais e site › «Logotipo TF», frontend/assets/tenfold-tf.png) wherever its mark was */
 img.tf-logo { display: block; flex: none; padding: 0; object-fit: cover; border-radius: 50% !important; background: #07080b !important;
   box-shadow: 0 0 0 1px rgba(212, 171, 67, .35), 0 8px 22px rgba(0, 0, 0, .45) !important; }
+/* Ten Fold channels (5 Nov): Instagram, e-mail, site, Telegram, phone, LinkedIn, each with real actions */
+.tf-chs { display: grid; gap: 10px; }
+.tf-chs-head { display: flex; align-items: center; justify-content: space-between; }
+.tf-chs-head h3 { margin: 0; color: #f6efe0; font: 700 17px var(--display); letter-spacing: -.02em; }
+.tf-ch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+.tf-ch { display: grid; gap: 10px; align-content: start; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .07); background: linear-gradient(160deg, #1b1a16, #101113 70%); }
+.tf-ch header { display: grid; gap: 2px; }
+.tf-ch header b { color: #cfc4ad; font: 600 12.5px var(--display); }
+.tf-ch header span { color: #f6efe0; font: 600 15px var(--display); overflow-wrap: anywhere; }
+.tf-ch-act { display: flex; flex-wrap: wrap; gap: 6px; }
+.tf-ch-act .tf-btn { padding: 7px 12px; font-size: 12px; }
+.tf-ch-none { color: #8a8170; font-size: 11.5px; align-self: center; }
+.tf-mail { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+.tf-mail input:first-child { grid-column: 1 / -1; }
+.tf-mail input, .tf-mail select, .tf-ch-form input { padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .1); background: #0d0e10; color: #f6efe0; font: 13px var(--ui); }
+.tf-ch-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; padding: 14px; border-radius: 12px; border: 1px solid rgba(212, 171, 67, .3); }
+.tf-ch-form label { display: grid; gap: 4px; color: #b9ad94; font-size: 12px; }
+.tf-ch-form .rowx { grid-column: 1 / -1; }
+html.is-phone .tf-ch-grid { grid-template-columns: 1fr; }

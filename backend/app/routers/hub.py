@@ -59,7 +59,8 @@ async def list_companies(user: User = Depends(current_user)):
                              "description": s.get("description", ""), "editable": bool(s.get("editable")),
                              "count": len(listing["items"])})
         out.append({"id": company["id"], "name": company["name"], "short": company.get("short", company["name"]),
-                    "tagline": company.get("tagline", ""), "main": bool(company.get("main")), "sections": sections})
+                    "tagline": company.get("tagline", ""), "main": bool(company.get("main")), "sections": sections,
+                    "channels": company.get("channels", {})})
     return out
 
 

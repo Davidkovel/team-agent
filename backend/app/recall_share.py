@@ -295,6 +295,9 @@ def known_projects() -> list[dict]:
         except (OSError, ValueError, AttributeError):
             continue
     rows = sorted(best.values(), key=lambda p: p.get("used") or 0, reverse=True)
+    mirror = Path.home() / "trabalho"  # the computer's folders on the cloud (espelho.py): the Desktop and Documents too
+    if mirror.is_dir():
+        rows += [{"name": d.name} for d in sorted(mirror.iterdir()) if d.is_dir() and d.name[0] != "." and d.name not in best]
     return [{"name": p["name"], "git": bool(p.get("remote")), "dirty": p.get("dirty") or 0, "ahead": p.get("ahead") or 0} for p in rows]
 
 

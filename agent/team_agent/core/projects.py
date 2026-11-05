@@ -8,12 +8,15 @@ was never committed and pushed is not there, and the listing says so to the agen
 import json
 import os
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 HOME = Path(os.environ.get("TEAM_AGENT_HOME", Path.home() / ".team-agent"))
 LOCAL = HOME / "projetos.json"
 PEERS = Path(os.environ.get("TEAM_AGENT_RECALL_PEERS", HOME / "recall-peers"))
 MEMORY_CHARS = 6000
+MIRROR = Path(os.environ.get("ESPELHO_PASTA", Path.home() / "trabalho"))  # backend/app/espelho.py keeps it, on the cloud
+FOLDERS = {"Secretária": "Desktop", "Documentos": "Documents"}
 
 
 def _read(path: Path) -> list:
@@ -36,6 +39,8 @@ def elsewhere() -> list[dict]:
 def local_path(name: str) -> Path | None:
     """The real folder of a project on this computer. Only inside the person's home, and never the home itself."""
     home = Path.home().resolve()
+    if name in FOLDERS and (Path.home() / FOLDERS[name]).is_dir():
+        return Path.home() / FOLDERS[name]
     for project in _read(LOCAL):
         if project.get("name") == name:
             path = Path(project.get("path") or "").expanduser().resolve()
@@ -44,8 +49,29 @@ def local_path(name: str) -> Path | None:
     return None
 
 
+def mirror(name: str) -> Path | None:
+    """The copy of this folder of the person's computer on this server, when the computer has already sent it."""
+    if not name or name != Path(name).name or name.startswith("."):
+        return None
+    path = MIRROR / name
+    return path if path.is_dir() else None
+
+
+def mirror_note(name: str) -> str:
+    try:
+        last = json.loads((MIRROR / ".espelho.json").read_text(encoding="utf-8"))
+        when = datetime.fromtimestamp(last["quando"]).strftime("%d/%m %H:%M")
+    except (OSError, ValueError, KeyError, TypeError):
+        when = "desconhecida"
+    return (f"This folder is the copy of {name} from the person's computer, with the files not yet committed. Last copy: {when} "
+            "(server time); the computer may be off, which is fine. Work here as if on the computer: what you change goes back "
+            "to the computer by itself when it is on, with no commit and no push. Commit and push only when the person asks.")
+
+
 def fetch(workspace: Path, name: str) -> str:
     """Bring the project's code into this workspace from git. What it could not do is said to the agent."""
+    if workspace == mirror(name):
+        return mirror_note(name)
     project = next((p for p in elsewhere() if p.get("name") == name), None)
     remote = (project or {}).get("remote") or ""
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
@@ -75,6 +101,9 @@ def fetch(workspace: Path, name: str) -> str:
 def lines(project: str = "") -> list[str]:
     """For the first prompt of a conversation: the projects known, and the index of the person's Claude memory."""
     out, known = [], elsewhere()[:20]
+    if MIRROR.is_dir() and (copies := sorted(d.name for d in MIRROR.iterdir() if d.is_dir() and not d.name.startswith("."))):
+        out += ["", f"The folders of the person's computer are copied on this server, in {MIRROR}: {', '.join(copies)}. "
+                    "Secretária is their Desktop. Look there for their files and work there; changes go back by themselves."]
     if known:
         out += ["", "The person's projects on their other computers (the recall tool finds what was said about each):",
                 *[f"- {p['name']}{' · ' + p['remote'] if p.get('remote') else ' · not in git'}"

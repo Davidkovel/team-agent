@@ -261,6 +261,8 @@ class TeamAgent:
     def _workspace(self, task: dict) -> Path:
         if self.cfg.worker == "pc" and (real := projects.local_path(task.get("project") or "")):
             return real  # the person's computer: the project's real folder, and only that one
+        if task.get("agent_role") == "conversa" and self.cfg.worker != "pc" and (copy := projects.mirror(task.get("project") or "")):
+            return copy  # the cloud: the same folder, kept by the mirror (backend/app/espelho.py)
         name = re.sub(r"[^A-Za-z0-9_.-]", "_", task.get("project") or "").strip(".") or f"task-{task['id']}"
         path = self.cfg.workspace / name
         path.mkdir(parents=True, exist_ok=True)

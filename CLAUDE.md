@@ -58,6 +58,8 @@ agents, Claude and anything that runs on the PC still need it on. `/api/auth`, s
 
 **Claude no telemóvel (`#/claude`, 4 nov, David: «trabalhar no meu telemóvel como se fosse no computador»).** Uma conversa é uma tarefa com `agent_role="conversa"` (`routers/conversas.py`): nunca vai por sync, nem para a Memória da equipa, nem para o quadro (`sync._private`). O que foi dito lá encontra-se com `python3 scripts/lembrar.py <palavras>`. Guia: `docs/nuvem.md`, secção «Claude no telemóvel».
 
+**A palavra «telemóvel» (5 nov, David: «só precisarem de escrever tipo uma palavra»).** Em qualquer PC da equipa, um pedido só com essa palavra segue a skill `library/skills/telemovel` (forçado em `scripts/claude_contexto.py`): `scripts/nuvem/tudo.py` liga o que falta, o Claude testa com mensagens reais e conta à pessoa o que foi feito. Guia: `docs/nuvem.md`.
+
 **O Hub na nuvem para o Marco e o Kovel (3 nov, David: «se eles te perguntarem o que precisam de fazer, instala tu por
 eles»).** Cada sócio tem o seu servidor grátis da Oracle com um Hub ligado 24 h, para a app do telemóvel funcionar com o PC
 desligado. O do David já corre; a nuvem dele é só dele (`HUB_USER=david`). Quando o Marco ou o Kovel perguntarem («quero o Hub

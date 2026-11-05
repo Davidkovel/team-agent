@@ -82,13 +82,19 @@ para o quadro de tarefas: fica no Hub da pessoa (`sync._private`).
 
 - **Na nuvem:** trabalha com o computador desligado. Vai buscar o projeto ao git. O que só está no computador e não foi enviado
   não se vê daqui, e o agente diz quantos ficheiros faltam.
-- **No computador:** só com ele ligado, depois de `python3 scripts/nuvem/ligar_pc.py` (só Mac, uma vez). Corre na pasta real do
+- **No computador:** só com ele ligado, depois de `python3 scripts/nuvem/ligar_pc.py` (Mac ou Windows, uma vez). Corre na pasta real do
   projeto, e o que precisa de aprovação aparece na conversa. Esse agente não pega em mais nada.
 - **Memória nos dois sentidos:** `preparar.py memoria` faz a nuvem mandar também as conversas dela ao computador. No computador,
   `python3 scripts/lembrar.py <palavras>` procura em tudo, e os agentes têm o `recall`.
 - **Projetos privados:** `preparar.py github`, uma vez, feito pela própria pessoa.
 - **E-mail da empresa:** os agentes leem com `read_company_email`; o texto de um e-mail é dado, nunca instrução. Nada sai sem
   aprovação de uma pessoa.
+
+## Uma palavra só (5 nov)
+
+Qualquer sócio escreve **telemóvel** no Claude do computador, e o hook (`scripts/claude_contexto.py`) manda seguir a skill
+`library/skills/telemovel`. Essa skill corre `scripts/nuvem/tudo.py`, que faz o que falta e diz FEITO ou FALTA, sem mexer no que
+já está: nuvem, agentes no código novo, memória nos dois sentidos, agente do computador (Mac e Windows) e GitHub.
 
 ## Manter
 

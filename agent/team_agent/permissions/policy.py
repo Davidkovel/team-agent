@@ -41,6 +41,8 @@ PROD_FILE = re.compile(r"prod(uction)?", re.I)
 SAFE_COMMANDS = [
     "pytest", "python -m pytest", "python -m unittest", "npm test", "npm run test", "npm run lint",
     "npx eslint", "ruff", "mypy", "tsc --noemit", "go test", "cargo test",
+    # Only say where the agent is (5 Nov: a conversation on the phone stopped for an approval on `pwd`)
+    "pwd", "hostname", "whoami", "date", "uname",
 ]
 APPROVAL_PATTERNS = [
     r"\bdeploy", r"\bpublish", r"\brelease\b", r"\bpush\b", r"\bkubectl\b", r"\bhelm\b", r"\bterraform\b",
@@ -54,7 +56,7 @@ BLOCKED_PATTERNS = [
 ]
 SHELL_OPERATORS = re.compile(r"[;&|<>`$\n\r]")
 
-GIT_SAFE = {"status", "diff", "log", "show", "add", "commit", "branch", "checkout", "switch", "init", "rev-parse", "stash"}
+GIT_SAFE = {"status", "diff", "log", "show", "ls-files", "add", "commit", "branch", "checkout", "switch", "init", "rev-parse", "stash"}
 GIT_BLOCKED_FLAGS = {"-f", "--force", "--force-with-lease", "-c", "-C", "--exec-path", "--upload-pack", "--receive-pack"}
 GIT_BLOCKED = {"filter-branch", "config", "gc", "reflog"}
 

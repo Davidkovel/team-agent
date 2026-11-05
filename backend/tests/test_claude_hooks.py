@@ -102,3 +102,11 @@ def test_the_model_comes_from_the_end_of_the_transcript(tmp_path):
         {"type": "user", "message": {"content": "fim"}}]), encoding="utf-8")
     assert claude_hook.model_of(str(transcript)) == "claude-opus-5-5"
     assert claude_hook.step({"hook_event_name": "Stop", "session_id": "s", "transcript_path": str(transcript)})["model"] == "claude-opus-5-5"
+
+
+def test_the_one_word_always_starts_the_setup():
+    import claude_contexto
+    for word in ("telemóvel", " Telemovel ", "telemóvel."):
+        got = claude_contexto.context({"hook_event_name": "UserPromptSubmit", "prompt": word})
+        assert "telemovel/SKILL.md" in got
+    assert "telemovel/SKILL.md" not in claude_contexto.context({"hook_event_name": "UserPromptSubmit", "prompt": "ok"})

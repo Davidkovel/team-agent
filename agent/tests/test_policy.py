@@ -58,3 +58,17 @@ def test_git(policy, args, level):
 def test_logs_redact_secrets():
     line = redact("key sk-ant-api03-abcDEF token=agt_12345 Authorization: Bearer eyJhbGciOi.x.y")
     assert "abcDEF" not in line and "agt_12345" not in line and "eyJhbGciOi" not in line
+
+
+@pytest.mark.parametrize("command", ["pwd", "hostname", "whoami", "date", "uname -a"])
+def test_saying_where_it_is_needs_no_approval(policy, command):
+    assert policy.check_command(command).level == Level.SAFE
+
+
+def test_git_ls_files_only_reads(policy):
+    assert policy.check_git(["ls-files", "--deleted"]).level == Level.SAFE
+
+
+@pytest.mark.parametrize("command", ["pwd; rm x", "date > x", "hostname newname && pwd"])
+def test_the_new_safe_commands_cannot_carry_another_one(policy, command):
+    assert policy.check_command(command).level != Level.SAFE

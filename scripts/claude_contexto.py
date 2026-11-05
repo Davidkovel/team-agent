@@ -205,7 +205,7 @@ def start_text(skills: dict) -> str:
             "servem para ele. Uma skill está em <pasta>/<nome>/SKILL.md e os ficheiros dela ao lado. Para juntar uma: "
             "a página Skills do Hub (#/skills) ou uma pasta nova em library/skills com commit e push (chega aos outros "
             "PCs no pull seguinte). O que a equipa decidiu está na Memória do Hub (scripts/memoria.py --list no "
-            "team-agent).\n" + rows)
+            "team-agent). Se a pessoa escrever só «telemóvel», segue a skill telemovel: liga o telemóvel e o computador.\n" + rows)
 
 
 def offer(prompt: str, skills: dict) -> list[str]:
@@ -282,6 +282,16 @@ def news_text() -> str:
             "telemóvel encontra-se com: python3 scripts/lembrar.py <palavras>\n" + "\n".join(rows))
 
 
+# A palavra que liga tudo (5 nov, David: «só precisarem de escrever tipo uma palavra»). Vai por código, não pela escolha do
+# modelo: o pedido só com ela tem sempre esta resposta, em qualquer PC da equipa.
+WORD = {"telemóvel", "telemovel", "/telemóvel", "/telemovel"}
+
+
+def word_text() -> str:
+    return (f"A pessoa escreveu só a palavra que liga o telemóvel e o computador. Lê {LIB}/telemovel/SKILL.md e segue-o já, "
+            "sem perguntar, do princípio ao fim.")
+
+
 def context(event: dict) -> str:
     if os.environ.get("AMG_SKILLS") == "0" or not LIB.is_dir():
         return ""
@@ -293,6 +303,8 @@ def context(event: dict) -> str:
         return (start_text(skills) if skills else "") + plans_text() + news_text()
     if name == "UserPromptSubmit":
         prompt = str(event.get("prompt") or "")
+        if prompt.strip().strip(".!«»\"'").lower() in WORD:
+            return word_text()
         if len(prompt.strip()) < 12:
             return ""
         skills = index()

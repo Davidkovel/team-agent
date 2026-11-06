@@ -2,7 +2,7 @@
 
 Claude Code runs this after every reply and pipes a JSON of the session to stdin. If it carries `rate_limits`
 (five_hour / seven_day, with used_percentage), they go to ~/.team-agent/claude_usage.json, which the widget reads.
-What it prints is the line under the prompt: «5h ██░░░░░░░░ 21% · 16:20 | Semana █░░░░░░░░░ 8% · sex 00:00».
+What it prints is the line under the prompt: «5h ██░░░░░░░░ 21% · 16:20 | Semana █░░░░░░░░░ 8% · sex 00:00 | Effort high».
 With no limits in the payload (a new window, before its first reply) it shows the ones saved in that file.
 The first payload is also kept whole in claude_statusline_sample.json so the fields can be checked.
 
@@ -54,8 +54,9 @@ def window(name, limit, now):
     return f"{text} {DIM}· {when(reset, now)}{END}" if reset is not None else text
 
 
-def line(limits, now):
+def line(limits, effort, now):
     parts = [window("5h", limits.get("five_hour"), now), window("Semana", limits.get("seven_day"), now)]
+    parts.append(f"Effort {effort}" if effort else None)
     return f" {DIM}|{END} ".join(p for p in parts if p)
 
 
@@ -79,7 +80,7 @@ def main():
     limits = data.get("rate_limits")
     if limits:
         USAGE.write_text(json.dumps({"saved_at": time.time(), "rate_limits": limits}), encoding="utf-8")
-    print(line(limits or saved_limits(), time.time()))
+    print(line(limits or saved_limits(), (data.get("effort") or {}).get("level"), time.time()))
 
 
 if __name__ == "__main__":

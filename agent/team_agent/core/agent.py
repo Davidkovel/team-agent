@@ -613,7 +613,7 @@ class TeamAgent:
         log.info("Waiting for approval: %s", action)
         self.state.pending_approval = action
         await self._set_status("WAITING", "WAITING_APPROVAL")
-        status, self.approval_note = "PENDING", ""
+        status, self.approval_note = approval.get("status") or "PENDING", ""   # «Aceitar tudo»: já vem aprovado, sem esperar
         while status == "PENDING" and not self._intent:
             await asyncio.sleep(self.cfg.approval_poll)
             current = await self._safe(self.backend.get_approval(approval["id"]), "approval status")

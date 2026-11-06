@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import crew, mail
+from .. import aceitar, crew, mail
 from ..config import settings
 from ..db import get_db
 from ..models import UNFINISHED, AgentSession, Approval, MailMessage, MailThread, Task, TaskEvent, UsageRecord, User
@@ -326,6 +326,13 @@ async def request_approval(body: ApprovalIn, user: User = Depends(agent_user), d
     if body.task_id is not None:
         await own_task(body.task_id, user, db)
     approval = Approval(user_id=user.id, **body.model_dump())
+    if aceitar.auto(user.username, approval.kind or ""):   # «Aceitar tudo» ligado: aprovado já, sem toque nem aviso
+        aceitar.approve(approval, user.id)
+        db.add(approval)
+        await db.commit()
+        await db.refresh(approval)
+        await rt.publish("approval", user.id)
+        return approval_out(approval)
     db.add(approval)
     await db.commit()
     await db.refresh(approval)

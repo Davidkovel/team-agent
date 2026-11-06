@@ -2027,6 +2027,9 @@ HUB_VIEWS.definicoes = async function () {
       <div class="panel pad stack"><div class="ph-eyebrow">${t("O meu agente")}</div>
         <p class="dim" style="margin:0">${t("O agente local corre no teu computador e precisa de um token para falar com o Hub. O token aparece uma vez e substitui o anterior.")}</p>
         <div class="rowx">${ui.btn("Gerar token do agente", "id=set-token", "", "key")}</div><div class="now" id="token-box" hidden></div></div>
+      <div class="panel pad stack"><div class="ph-eyebrow">${t("Aprovações")}</div>
+        <p class="dim" style="margin:0">${t("Ligado: os teus agentes mexem em ficheiros, correm comandos e usam o git sem te pedir o toque. Enviar e-mails, publicar ou gastar dinheiro continua a pedir. O que é perigoso continua bloqueado.")}</p>
+        <div class="rowx"><div class="segx" id="set-aceitar" style="align-self:flex-start"><button data-on="0">${t("Pedir sempre")}</button><button data-on="1">${t("Aceitar tudo")}</button></div></div></div>
       <div class="panel pad stack"><div class="ph-eyebrow">Higgsfield</div>
         <p class="dim" style="margin:0">${t("O Higgsfield não deixa ler os créditos: indica à mão quanto já gastaste.")}</p>
         <form class="rowx" id="higgs-form"><input id="higgs-range" type="range" min="0" max="100" value="0" class="grow"><b id="higgs-val" class="mono" style="width:44px;text-align:right">0%</b>
@@ -2044,6 +2047,15 @@ HUB_VIEWS.definicoes = async function () {
     const { agent_token } = await api(`/api/users/${me.username}/agent-token`, { method: "POST" });
     $("token-box").hidden = false;
     $("token-box").textContent = `TEAM_AGENT_TOKEN=${agent_token}`;
+  };
+  const showAceitar = (on) => $("set-aceitar").querySelectorAll("button").forEach((b) => b.classList.toggle("on", (b.dataset.on === "1") === on));
+  api("/api/aceitar-tudo").then((r) => showAceitar(!!r.on)).catch(() => {});
+  $("set-aceitar").onclick = async (e) => {
+    const b = e.target.closest("[data-on]");
+    if (!b) return;
+    const r = await api("/api/aceitar-tudo", { method: "PUT", body: { on: b.dataset.on === "1" } });
+    showAceitar(!!r.on);
+    flash(r.on ? t("Aceitar tudo ligado.") + (r.approved ? " " + t("{n} à espera ficaram aprovadas.", { n: r.approved }) : "") : t("Voltas a aprovar cada pedido."));
   };
   const mine = (await api("/api/team")).find((m) => m.user === me.username);
   $("higgs-range").value = mine?.higgsfield_pct ?? 0;

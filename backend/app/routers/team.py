@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import aceitar
 from ..db import get_db
 from ..models import Activity, Approval, UsageRecord, User
 from ..realtime import rt
@@ -96,3 +97,29 @@ async def decide(approval_id: int, body: Decision, owner: User = Depends(require
     await rt.publish("approval", approval.user_id)
     await rt.command(approval.user_id, {"type": "approval", "approval_id": approval.id, "status": approval.status})
     return approval_out(approval)
+
+
+class Switch(BaseModel):
+    on: bool
+
+
+@router.get("/aceitar-tudo")
+async def aceitar_get(user: User = Depends(current_user)):
+    return {"on": aceitar.is_on(user.username)}
+
+
+@router.put("/aceitar-tudo")
+async def aceitar_put(body: Switch, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Liga ou desliga «Aceitar tudo» para quem está a pedir; ao ligar, o que já espera (ficheiros, comandos, git) fica aprovado."""
+    aceitar.set_on(user.username, body.on)
+    done = 0
+    if body.on:
+        query = select(Approval).where(Approval.user_id == user.id, Approval.status == "PENDING", Approval.kind.in_(aceitar.KINDS))
+        for approval in (await db.execute(query)).scalars():
+            aceitar.approve(approval, user.id)
+            done += 1
+        await db.commit()
+        if done:
+            await rt.publish("approval", user.id)
+    return {"on": body.on, "approved": done}
+

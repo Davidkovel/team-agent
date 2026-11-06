@@ -15,6 +15,7 @@ O ficheiro tem a chave da equipa e a da Tailscale: fica fora do git e só o dono
 """
 import getpass
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -130,8 +131,9 @@ def main():
         sys.exit("Não vejo o telemóvel na Tailscale. Instala lá a app Tailscale, entra com a mesma conta deste PC e "
                  "corre isto outra vez.")
     # A chave copiada na Tailscale (botão de copiar) serve sem a colar outra vez
+    # TS_AUTHKEY: um Claude a correr isto no lugar da pessoa; o Get-Clipboard encrava quando a consola não é dela
     paste = {"darwin": ["pbpaste"], "win32": ["powershell", "-NoProfile", "-Command", "Get-Clipboard"]}.get(sys.platform)
-    clip = subprocess.run(paste, capture_output=True, text=True).stdout.strip() if paste else ""
+    clip = os.environ.get("TS_AUTHKEY") or (subprocess.run(paste, capture_output=True, text=True).stdout.strip() if paste else "")
     if clip.startswith("tskey-"):
         authkey = clip
     else:

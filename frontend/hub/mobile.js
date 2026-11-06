@@ -16,14 +16,26 @@
   ICONS.phone = '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>';
   ICONS.monitor = '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>';
 
-  /* ---------- the tabs: [id, label, icon, the pages that belong to it] ---------- */
-  const TABS = [
-    ["home", "Início", "home", ["home"]],
-    ["tarefas", "Tarefas", "tasks", ["tarefas", "aprovacoes", "semana"]],
-    ["escritorio", "Escritório", "bot", ["escritorio"]],   // the command centre, one touch away (Marco, 9 out); it has its own tabs (crew-board.js)
-    ["claude", "Claude", "chat", ["claude"]],   // 4 Nov, David: work from the phone as at the computer. The bell on top opens Avisos
-    ["empresas", "Trabalho", "building", ["empresas", "projetos", "codigo", "entregas", "baredesk", "kit"]],
-  ];
+  /* ---------- the bar at the bottom (6 nov, David: «a barra de baixo mais completa... a maior parte das salas está escondida
+     nos três pontos»). A floating glass capsule with up to 6 rooms the person chooses (kept on this phone, «Editar barra»
+     or a long press on the bar) and «Salas», which opens every room of the Hub as iPhone app icons: search, the recent ones,
+     then the five numbered sections. Any NAV entry can be a tab: [id, label, icon, the pages that belong to it]. ---------- */
+  ICONS.apps = '<rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.8"/>';
+  ICONS.mplus = '<path d="M12 6v12M6 12h12"/>';
+  ICONS.mminus = '<path d="M6 12h12"/>';
+  const SHORT = { "Sala de Trading": "Trading", "Empresa AMG": "Empresa", "Fábrica Etsy": "Etsy" };
+  const ALL_TABS = NAV.map(([label, ic, pages]) => [pages[0][0], SHORT[label] || label, pages[0][0] === "escritorio" ? "bot" : ic, pages.map(([id]) => id)]);
+  const tabDef = (id) => ALL_TABS.find(([x]) => x === id);
+  const MAX_PINS = 6, PIN_KEY = "amg.phone.bar", RECENT_KEY = "amg.phone.recent";
+  const DEFAULT_PINS = ["home", "tarefas", "mensagens", "escritorio", "claude", "empresas"];
+  const readList = (k) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return Array.isArray(v) ? v : null; } catch { return null; } };
+  let TABS = [];
+  const setPins = (ids) => {
+    TABS = [...new Set(ids)].map(tabDef).filter(Boolean).slice(0, MAX_PINS);
+    if (!TABS.length) TABS = DEFAULT_PINS.map(tabDef).filter(Boolean);
+  };
+  setPins(readList(PIN_KEY) || DEFAULT_PINS);
+  const savePins = () => { try { localStorage.setItem(PIN_KEY, JSON.stringify(TABS.map(([id]) => id))); } catch {} };
 
   // #/avisos only exists on the phone: on a computer the address falls back to Início, as any unknown one does
   const baseRoute = route;
@@ -42,16 +54,23 @@
         <button class="m-btn" id="m-bell" aria-label="Notificações">${icon("bell")}<i class="m-count" id="m-bell-n" hidden></i></button>
       </div>
     </header>
-    <nav id="m-tabs">${TABS.map(([id, label, ic]) => `<a href="#/${id}" data-tab="${id}">${icon(ic)}<span>${t(label)}</span>${
-      id === "tarefas" ? badgeHtml("tarefas") : ""}</a>`).join("")}
-      <button data-tab="more" aria-label="Mais">${icon("more")}<span>${t("Mais")}</span></button></nav>
+    <nav id="m-tabs"></nav>
     <div id="m-sheet" hidden><div class="m-bg"></div><div class="m-box"></div></div>`);
 
   const tabs = $("m-tabs"), sheet = $("m-sheet");
+  function drawTabs() {
+    tabs.innerHTML = TABS.map(([id, label, ic]) => `<a href="#/${id}" data-tab="${id}">${icon(ic)}<span>${esc(t(label))}</span>${badgeHtml(id)}</a>`).join("")
+      + `<button data-tab="more" aria-label="${t("Salas")}">${icon("apps")}<span>${t("Salas")}</span></button>`;
+    tabs.style.setProperty("--n", TABS.length + 1);
+  }
+  drawTabs();
 
   // title and highlighted tab follow the page
   // Where "back" goes from each page: Trabalho and Tarefas are drill-downs on the phone, not rows of tabs.
   const coName = (id) => companies.find((c) => c.id === id)?.name || t("Empresa");
+  const TABS_ALL = NAV.flatMap(([, , pages]) => pages);
+  // a room that is not on the bar: its «back» goes to Salas, where it came from
+  const inSalas = (tab) => tab !== "home" && tab !== "avisos" && !TABS.some(([, , , p]) => p.includes(tab)) && TABS_ALL.some(([id]) => id === tab);
   const backOf = (r) => {
     if (r.tab === "baredesk") return r.company ? ["#/baredesk", "BareDesk"] : ["#/empresas", "Trabalho"];
     if (r.tab === "empresas" && r.company) return r.section ? [`#/empresas/${r.company}`, coName(r.company)] : ["#/empresas", "Trabalho"];
@@ -62,36 +81,42 @@
     if (r.tab === "claude" && r.company) return ["#/claude", "Claude"];
     if (r.tab === "avisos") return ["#/home", "Início"];
     if (r.tab === "mensagens" && r.company) return ["#/mensagens", "Chat"];   // a conversation goes back to the list
-    if (MORE_PAGES.includes(r.tab)) return ["#more", "Mais"]; // "Mais" opens the sheet again, where the page came from
+    if (inSalas(r.tab)) return ["#more", "Salas"]; // "Salas" opens the sheet again, where the page came from
     return null;
   };
-  const MORE_PAGES = ["mensagens", "fotos", "empresa", "skills", "radar", "emails", "crm", "etsy", "novidades", "mercados", "trading", "sinal", "fundednext", "robos", "reforco", "gap", "equipa", "aovivo", "agentes", "historico", "analise", "uso", "despesas", "memoria", "saude", "definicoes"];
   const titleOf = (r, fallback) => {
     if (r.tab === "crm") return "CRM"; // sub-página do Radar, não está no menu com nome próprio
     if (r.tab === "emails") return "E-mails"; // idem
     if (r.tab === "baredesk") return r.company ? companies.find((c) => c.id === "baredesk")?.sections.find((x) => x.id === r.company)?.label || (r.company === "loja" ? "Loja" : "BareDesk") : "BareDesk";
     if (r.tab === "empresas" && r.company) return r.section ? companies.find((c) => c.id === r.company)?.sections.find((x) => x.id === r.section)?.label || coName(r.company) : coName(r.company);
     const page = TABS_ALL.find(([id]) => id === r.tab);
-    return (backOf(r) || MORE_PAGES.includes(r.tab)) && page ? page[1] : fallback; // the page's own name, never its section's ("Sistema")
+    return (backOf(r) || inSalas(r.tab)) && page ? page[1] : fallback; // the page's own name, never its section's ("Sistema")
   };
-  const TABS_ALL = NAV.flatMap(([, , pages]) => pages);
+  // the last rooms opened, newest first: the first row of Salas
+  const remember = (tab) => {
+    if (tab === "home" || tab === "avisos" || !TABS_ALL.some(([id]) => id === tab)) return;
+    const l = (readList(RECENT_KEY) || []).filter((x) => x !== tab);
+    l.unshift(tab);
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(l.slice(0, 8))); } catch {}
+  };
   const sync = () => {
     let r;
     try { r = route(); } catch { return; }
     const tab = TABS.find(([, , , pages]) => pages.includes(r.tab));
     const section = NAV.find(([, , pages]) => pages.some(([id]) => id === r.tab));
-    $("m-title").textContent = t(titleOf(r, r.tab === "avisos" ? "Notificações" : tab ? tab[1] : section ? section[0] : "Mais"));
+    $("m-title").textContent = t(titleOf(r, r.tab === "avisos" ? "Notificações" : tab ? tab[1] : section ? section[0] : "Salas"));
     const back = backOf(r);
     $("m-back").hidden = !back;
     document.documentElement.classList.toggle("m-deep", !!back);
     if (back) { $("m-back").href = back[0]; $("m-back-t").textContent = t(back[1]); }
     tabs.querySelectorAll("[data-tab]").forEach((a) => a.classList.toggle("on", a.dataset.tab === (tab ? tab[0] : "more")));
     document.documentElement.dataset.page = r.tab;
+    remember(r.tab);
   };
   window.addEventListener("hashchange", () => { sheet.hidden = true; sync(); });
   $("m-back").addEventListener("click", (e) => {
     if ($("m-back").getAttribute("href") !== "#more") return;
-    e.preventDefault(); e.stopPropagation(); openMore();
+    e.preventDefault(); e.stopPropagation(); openMore(false);
   });
   new MutationObserver(sync).observe($("view"), { childList: true });
   sync();
@@ -108,37 +133,107 @@
   $("m-bell").onclick = (e) => { e.stopPropagation(); sheet.hidden = true; location.hash = "#/avisos"; };
   $("m-search").onclick = (e) => { e.stopPropagation(); sheet.hidden = true; $("open-palette").click(); };
 
-  // "Mais": who you are on top, the rest of the Hub as chrome keys in the sidebar's five numbered sections (NAV in app.js,
-  // so a page added there shows up here by itself; the pages of the bar below are left out), then the phone's own settings
+  /* ---------- Salas: every room of the Hub as app icons (NAV in app.js, so a page added there shows up here by itself) ---------- */
   const KEY_ICON = { aovivo: "eye", robos: "bot", reforco: "target", gap: "clock", memoria: "note", saude: "pulse", definicoes: "gear" };
-  function openMore() {
-    const inBar = new Set(TABS.flatMap(([, , , pages]) => pages));
+  const plain = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  let editing = false;
+  function openMore(edit = false) {
+    editing = !!edit;
+    const byId = {};
+    NAV.forEach((e) => e[2].forEach((p) => { byId[p[0]] = [p, e]; }));
+    const pinned = new Set(TABS.map(([id]) => id)), here = location.hash;
+    const tile = (id) => {
+      const x = byId[id];
+      if (!x) return "";
+      const [[, label], entry] = x, first = entry[2][0][0], href = `#/${id}`, on = pinned.has(first);
+      return `<a class="m-app ${here === href || here.startsWith(href + "/") ? "on" : ""} ${first === id ? "" : "sub"} ${id === "tenfold" ? "gold" : ""}" href="${href}" data-entry="${first}" data-find="${esc(plain(`${label} ${entry[0]}`))}">
+        <span class="m-app-ic">${icon(KEY_ICON[id] || (first === "escritorio" ? "bot" : entry[1]))}${badgeHtml(id)}</span><b>${esc(t(label))}</b>
+        <i class="m-pin ${on ? "out" : "in"}" aria-hidden="true">${icon(on ? "mminus" : "mplus")}</i></a>`;
+    };
     const groups = [];
-    for (const [, ic, pages, sec] of NAV) {
-      const keys = pages.filter(([id, , hidden]) => !hidden && !inBar.has(id)).map(([id, label]) => [KEY_ICON[id] || ic, label, `#/${id}`]);
-      if (!keys.length) continue;
-      if (groups.length && groups[groups.length - 1].sec === sec) groups[groups.length - 1].keys.push(...keys);
-      else groups.push({ sec, keys });
+    for (const e of NAV) {
+      const ids = e[2].filter((p) => !p[2]).map((p) => p[0]), last = groups[groups.length - 1];
+      if (last && last.sec === e[3]) last.ids.push(...ids); else groups.push({ sec: e[3], ids });
     }
-    const here = location.hash;
-    sheet.querySelector(".m-box").innerHTML = `<i class="m-grab"></i>
+    const recent = (readList(RECENT_KEY) || []).filter((id) => byId[id] && !byId[id][0][2]).slice(0, 4);
+    const box = sheet.querySelector(".m-box");
+    box.classList.toggle("editing", editing);
+    box.classList.remove("finding");
+    box.innerHTML = `<i class="m-grab"></i>
+      <div class="m-salas-top"><h2>${t(editing ? "Editar a barra" : "Salas")}</h2>
+        <button class="m-pill ${editing ? "on" : ""}" data-act="edit">${t(editing ? "OK" : "Editar barra")}</button></div>
+      ${editing ? `<p class="m-hint">${t("Toca numa sala para a pôr ou tirar da barra de baixo (até {n}).", { n: MAX_PINS })}</p>
+        <div class="m-dock">${TABS.map(([id, label, ic]) => `<button class="m-dock-it" data-unpin="${id}">${icon(ic)}<span>${esc(t(label))}</span><i>${icon("mminus")}</i></button>`).join("")}${
+          Array.from({ length: MAX_PINS - TABS.length }, () => '<span class="m-dock-it empty"></span>').join("")}</div>
+        <button class="m-pill ghost" data-act="reset">${t("Repor a barra de origem")}</button>`
+      : `<label class="m-find">${icon("search")}<input type="search" placeholder="${t("Procurar uma sala")}" autocomplete="off" enterkeyhint="go"></label>
+        ${recent.length ? `<h3 class="m-sec m-recent-h">${t("Recentes")}</h3><div class="m-apps m-recent">${recent.map(tile).join("")}</div>` : ""}`}
+      ${groups.map(({ sec, ids }) => `<section class="m-group"><h3 class="m-sec"><i>${SECTIONS[sec][0]}</i>${t(SECTIONS[sec][1])}</h3>
+        <div class="m-apps">${ids.map(tile).join("")}</div></section>`).join("")}
+      <p class="m-none" hidden>${t("Nenhuma sala com esse nome.")}</p>
+      ${editing ? "" : `<h3>${t("Neste telemóvel")}</h3>
+      <div class="m-list"><button class="m-row" data-act="phone">${icon("bell")}<span>${t("Receber as notificações no telemóvel")}</span>${icon("chev")}</button></div>
       <div class="m-me">${ui.avatar(me.display_name, "lg")}<div><b>${esc(me.display_name)}</b><span>${esc(me.username)} · ${t(me.lead ? "Dirige a equipa" : "Equipa")}</span></div>
-        <img class="m-me-star" src="assets/icon-192.png" alt=""></div>
-      ${groups.map(({ sec, keys }) => `<h3 class="m-sec"><i>${SECTIONS[sec][0]}</i>${t(SECTIONS[sec][1])}</h3>
-      <div class="m-keys">${keys.map(([ic, label, href]) => `<a class="m-key ${here === href || here.startsWith(href + "/") ? "on" : ""}" href="${href}"><span>${icon(ic)}</span>${t(label)}</a>`).join("")}</div>`).join("")}
-      <h3>${t("Neste telemóvel")}</h3>
-      <div class="m-list"><button class="m-row" data-act="phone">${icon("bell")}<span>${t("Receber as notificações no telemóvel")}</span>${icon("chev")}</button></div>`;
+        <img class="m-me-star" src="assets/icon-192.png" alt=""></div>`}`;
     sheet.hidden = false;
   }
-  tabs.querySelector('[data-tab="more"]').onclick = (e) => { e.stopPropagation(); sheet.hidden ? openMore() : (sheet.hidden = true); };
+  function togglePin(id) {
+    const ids = TABS.map(([x]) => x);
+    if (ids.includes(id)) {
+      if (ids.length === 1) return flash(t("A barra precisa de pelo menos uma sala."));
+      ids.splice(ids.indexOf(id), 1);
+    } else {
+      if (ids.length >= MAX_PINS) return flash(t("A barra já tem {n} salas. Tira uma primeiro.", { n: MAX_PINS }));
+      ids.push(id);
+    }
+    navigator.vibrate?.(10);
+    setPins(ids); savePins(); drawTabs(); sync(); openMore(true);
+  }
+  // a long press anywhere on the bar opens «Editar a barra», as on the iPhone's home screen
+  let pressT = 0, pressed = false;
+  tabs.addEventListener("pointerdown", () => { pressed = false; clearTimeout(pressT); pressT = setTimeout(() => { pressed = true; navigator.vibrate?.(18); openMore(true); }, 550); });
+  ["pointerup", "pointercancel", "pointerleave", "pointermove"].forEach((k) => tabs.addEventListener(k, (e) => { if (k !== "pointermove" || Math.abs(e.movementX) + Math.abs(e.movementY) > 6) clearTimeout(pressT); }));
+  tabs.addEventListener("contextmenu", (e) => e.preventDefault());
+  tabs.addEventListener("click", (e) => {
+    if (pressed) { pressed = false; e.preventDefault(); e.stopPropagation(); return; }
+    if (!e.target.closest('[data-tab="more"]')) return;
+    e.stopPropagation();
+    if (sheet.hidden) openMore(false); else sheet.hidden = true;
+  }, true);
   const phoneSetup = () => { $("notif-panel").hidden = false; drawPhone(); };
+  sheet.addEventListener("input", (e) => {
+    if (!e.target.matches(".m-find input")) return;
+    const q = plain(e.target.value.trim()), box = sheet.querySelector(".m-box");
+    box.classList.toggle("finding", !!q);
+    let any = 0;
+    box.querySelectorAll(".m-group").forEach((g) => {
+      let n = 0;
+      g.querySelectorAll(".m-app").forEach((a) => { const ok = !q || a.dataset.find.includes(q); a.hidden = !ok; n += ok ? 1 : 0; });
+      g.hidden = !n; any += n;
+    });
+    box.querySelector(".m-none").hidden = !q || any > 0;
+  });
+  sheet.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || !e.target.matches(".m-find input")) return;
+    const a = sheet.querySelector(".m-group .m-app:not([hidden])");
+    if (a) location.hash = a.getAttribute("href");
+  });
   sheet.onclick = (e) => {
     e.stopPropagation();
     const act = e.target.closest("[data-act]");
     if (act) {
+      const a = act.dataset.act;
+      if (a === "edit") return openMore(!editing);
+      if (a === "reset") { setPins(DEFAULT_PINS); savePins(); drawTabs(); sync(); return openMore(true); }
       sheet.hidden = true;
-      if (act.dataset.act === "phone") phoneSetup();
-    } else if (e.target.closest(".m-bg, a")) sheet.hidden = true;
+      if (a === "phone") phoneSetup();
+      return;
+    }
+    const un = e.target.closest("[data-unpin]");
+    if (un) return togglePin(un.dataset.unpin);
+    const app = e.target.closest(".m-app");
+    if (app && editing) { e.preventDefault(); return togglePin(app.dataset.entry); }
+    if (e.target.closest(".m-bg, a")) sheet.hidden = true;
   };
 
   /* ---------- the screens ---------- */

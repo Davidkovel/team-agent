@@ -1,0 +1,121 @@
+/* 6 nov, David: «tudo com botões de iPhone e efeito de vidro... a barra de baixo mais completa... a maior parte das salas
+   está escondida nos três pontos». O vidro líquido do iOS no telemóvel: a barra de cima e a de baixo em vidro, a de baixo
+   é uma cápsula a flutuar com até 6 salas escolhidas + «Salas», que abre todas as salas como ícones de app (mobile.js).
+   Botões em cápsula de vidro, o principal em cromado. Tudo em html.is-phone: o PC não muda. Carrega depois do vidro.css. */
+
+html.is-phone {
+  --m-tab: 58px;
+  --lg-blur: blur(26px) saturate(190%);
+  --lg-shine: inset 0 1px 0 rgba(255, 255, 255, .38), inset 0 -1px 0 rgba(255, 255, 255, .05), inset 0 0 0 .5px rgba(255, 255, 255, .14);
+  --lg-fill: linear-gradient(180deg, rgba(255, 255, 255, .15), rgba(255, 255, 255, .05));
+}
+
+/* ---------- a barra de cima: vidro fino, botões redondos de vidro ---------- */
+html.is-phone #m-bar { background: linear-gradient(180deg, rgba(0, 0, 0, .6), rgba(0, 0, 0, .28)) !important;
+  -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur); }
+html.is-phone #m-bar::after { opacity: .16; }
+html.is-phone .m-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--lg-fill); box-shadow: var(--lg-shine);
+  transition: transform .2s cubic-bezier(.3, 1.6, .5, 1), background .2s; }
+html.is-phone .m-btn:active { transform: scale(.9); background: rgba(255, 255, 255, .22); }
+html.is-phone .m-btn svg.i { width: 19px; height: 19px; }
+html.is-phone #m-bar .m-right { gap: 8px; }
+html.is-phone .m-back { height: 34px; margin-left: 4px; padding: 0 12px 0 6px; border-radius: 17px; background: var(--lg-fill); box-shadow: var(--lg-shine);
+  color: #f2f4f7; font: 600 13px var(--ui); letter-spacing: 0; text-transform: none; }
+html.is-phone .m-back[hidden] { display: none; }
+html.is-phone .m-back:active { opacity: 1; transform: scale(.95); }
+
+/* ---------- a barra de baixo: uma cápsula de vidro a flutuar, a sala aberta numa pastilha de luz ---------- */
+html.is-phone #m-tabs { left: 10px; right: 10px; bottom: max(10px, calc(var(--m-bottom) - 14px)); padding: 4px; border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .02) 45%, rgba(255, 255, 255, .04)), rgba(20, 22, 26, .42) !important;
+  -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur);
+  border: 0 !important; box-shadow: var(--lg-shine), 0 18px 40px -10px rgba(0, 0, 0, .75), 0 2px 8px rgba(0, 0, 0, .35) !important; }
+html.is-phone #m-tabs::before { display: none; }
+html.is-phone #m-tabs a, html.is-phone #m-tabs button { height: 50px; border-radius: 25px; gap: 4px; color: rgba(235, 238, 242, .6);
+  font: 600 10px/1 var(--ui); letter-spacing: 0; text-transform: none;
+  transition: color .2s, background .25s, transform .22s cubic-bezier(.3, 1.6, .5, 1); }
+html.is-phone #m-tabs span { max-width: 100%; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-phone #m-tabs svg.i { width: 22px; height: 22px; }
+html.is-phone #m-tabs .on { color: #fff; background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .07));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 0 0 .5px rgba(255, 255, 255, .18); }
+html.is-phone #m-tabs .on::before { display: none; }
+html.is-phone #m-tabs a:active, html.is-phone #m-tabs button:active { transform: scale(.9); }
+html.is-phone #m-tabs a:active svg.i, html.is-phone #m-tabs button:active svg.i { transform: none; }
+html.is-phone #m-tabs .badge { top: 3px; box-shadow: 0 0 0 2px rgba(20, 22, 26, .9); }
+
+/* ---------- botões de iPhone: cápsulas de vidro; o principal em cromado; perigo em vermelho ---------- */
+html.is-phone .btn { border-radius: 999px !important; border: 0 !important; background: var(--lg-fill) !important; box-shadow: var(--lg-shine) !important;
+  color: #f2f4f7 !important; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1), background .2s; }
+html.is-phone .btn:active { transform: scale(.95); background: rgba(255, 255, 255, .22) !important; }
+html.is-phone .btn.primary { background: linear-gradient(180deg, #ffffff, #d6dae0) !important; color: #0b0c0e !important;
+  box-shadow: inset 0 1px 0 #fff, 0 6px 18px -6px rgba(230, 238, 250, .45) !important; }
+html.is-phone .btn.danger, html.is-phone .btn.nl-danger { background: rgba(255, 69, 58, .16) !important; color: #ff6b61 !important; box-shadow: inset 0 0 0 .5px rgba(255, 69, 58, .35) !important; }
+html.is-phone .btn.quiet { background: transparent !important; box-shadow: none !important; }
+html.is-phone .btn:disabled { opacity: .45; transform: none; }
+
+/* as abas de cada página: um controlo segmentado de vidro */
+html.is-phone .subtabs { border-radius: 999px; padding: 3px; background: rgba(28, 30, 34, .45) !important;
+  -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur); box-shadow: var(--lg-shine), 0 10px 24px -8px rgba(0, 0, 0, .6) !important; }
+html.is-phone .subtabs a { border-radius: 999px; }
+html.is-phone .subtabs a.on { background: linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, .12));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 2px 8px rgba(0, 0, 0, .35); }
+
+/* ---------- Salas: a folha de vidro com todas as salas como ícones de app ---------- */
+html.is-phone #m-sheet .m-bg { background: rgba(0, 0, 0, .35) !important; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+html.is-phone #m-sheet .m-box { left: 6px; right: 6px; bottom: 6px; max-height: 90vh; max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain;
+  padding: 8px 16px calc(var(--m-bottom) + 12px); border-radius: 34px !important; border: 0 !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .02) 30%), rgba(14, 15, 18, .64) !important;
+  -webkit-backdrop-filter: blur(34px) saturate(190%); backdrop-filter: blur(34px) saturate(190%);
+  box-shadow: var(--lg-shine), 0 -10px 50px rgba(0, 0, 0, .6) !important; }
+html.is-phone .m-salas-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 4px 14px; }
+html.is-phone .m-salas-top h2 { margin: 0; color: #fff; font: 700 28px/1.1 var(--display, var(--ui)); letter-spacing: -.02em; }
+html.is-phone .m-pill { flex: none; height: 34px; padding: 0 16px; border: 0; border-radius: 17px; background: var(--lg-fill); box-shadow: var(--lg-shine);
+  color: #fff; font: 600 14px var(--ui); cursor: pointer; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1); }
+html.is-phone .m-pill:active { transform: scale(.94); }
+html.is-phone .m-pill.on { background: linear-gradient(180deg, #ffffff, #d6dae0); color: #0b0c0e; }
+html.is-phone .m-pill.ghost { display: block; margin: 0 auto 18px; background: transparent; box-shadow: none; color: rgba(235, 238, 242, .6); font-weight: 500; }
+html.is-phone .m-find { display: flex; align-items: center; gap: 8px; height: 40px; margin: 0 0 18px; padding: 0 12px; border-radius: 12px;
+  background: rgba(118, 118, 128, .24); color: rgba(235, 235, 245, .6); }
+html.is-phone .m-find svg.i { flex: none; width: 17px; height: 17px; }
+html.is-phone .m-find input { flex: 1; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: #fff; font: 400 16px var(--ui); -webkit-appearance: none; appearance: none; }
+html.is-phone .m-find input::placeholder { color: rgba(235, 235, 245, .5); }
+html.is-phone .m-box.finding .m-recent, html.is-phone .m-box.finding .m-recent-h { display: none; }
+html.is-phone .m-group[hidden], html.is-phone .m-none[hidden] { display: none; }
+html.is-phone .m-none { margin: 6px 0 24px; text-align: center; color: rgba(235, 238, 242, .5); font: 400 14px var(--ui); }
+
+html.is-phone .m-apps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 8px; margin: 0 0 22px; }
+html.is-phone .m-app { position: relative; display: grid; justify-items: center; gap: 7px; min-width: 0; color: rgba(240, 242, 245, .92); text-decoration: none; }
+html.is-phone .m-app[hidden] { display: none; }
+html.is-phone .m-app-ic { position: relative; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 15px; color: #f4f6f8;
+  background: radial-gradient(120% 80% at 30% 0%, rgba(255, 255, 255, .24), transparent 60%), linear-gradient(160deg, rgba(62, 66, 74, .78), rgba(14, 15, 18, .88));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 0 0 .5px rgba(255, 255, 255, .16), 0 8px 18px -8px rgba(0, 0, 0, .8);
+  transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+html.is-phone .m-app-ic svg.i { width: 27px; height: 27px; stroke-width: 1.7; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
+html.is-phone .m-app b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font: 500 11.5px/1.2 var(--ui); }
+html.is-phone .m-app:active .m-app-ic { transform: scale(.88); }
+html.is-phone .m-app.on .m-app-ic { background: linear-gradient(180deg, #ffffff, #cfd4db); color: #0b0c0e; }
+html.is-phone .m-app.gold .m-app-ic { color: #e6c47a; }
+html.is-phone .m-app .badge { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  background: #ff453a; color: #fff; font: 700 12px/20px var(--ui); text-align: center; box-shadow: 0 0 0 2px rgba(10, 10, 12, .9); }
+html.is-phone .m-app .badge[hidden] { display: none; }
+
+/* Editar a barra: os ícones tremem como no ecrã principal; + põe na barra, − tira */
+html.is-phone .m-app .m-pin { display: none; position: absolute; top: -6px; left: calc(50% - 38px); width: 22px; height: 22px; border-radius: 50%;
+  place-items: center; background: rgba(120, 120, 128, .95); color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .5); }
+html.is-phone .m-app .m-pin.in { background: #fff; color: #0b0c0e; }
+html.is-phone .m-pin svg.i, html.is-phone .m-dock-it i svg.i { width: 12px; height: 12px; stroke-width: 3; }
+html.is-phone .m-box.editing .m-app .m-pin { display: grid; }
+html.is-phone .m-box.editing .m-app.sub, html.is-phone .m-box.editing .m-app .badge { display: none; }
+html.is-phone .m-box.editing .m-app-ic { animation: m-jiggle .28s ease-in-out infinite alternate; }
+html.is-phone .m-box.editing .m-app:nth-child(even) .m-app-ic { animation-delay: -.14s; }
+@keyframes m-jiggle { from { transform: rotate(-1.5deg); } to { transform: rotate(1.5deg); } }
+@media (prefers-reduced-motion: reduce) { html.is-phone .m-box.editing .m-app-ic { animation: none; } }
+html.is-phone .m-hint { margin: -4px 4px 14px; color: rgba(235, 238, 242, .6); font: 400 13.5px/1.4 var(--ui); }
+html.is-phone .m-dock { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin: 0 0 10px; padding: 8px; border-radius: 26px;
+  background: rgba(255, 255, 255, .06); box-shadow: var(--lg-shine); }
+html.is-phone .m-dock-it { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0; min-height: 50px; padding: 8px 0 6px; border: 0; border-radius: 18px;
+  background: rgba(255, 255, 255, .09); color: #fff; font: 600 9.5px var(--ui); cursor: pointer; }
+html.is-phone .m-dock-it span { max-width: 100%; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-phone .m-dock-it svg.i { width: 20px; height: 20px; }
+html.is-phone .m-dock-it i { position: absolute; top: -5px; right: -3px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(120, 120, 128, .95); }
+html.is-phone .m-dock-it.empty { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16); }
+html.is-phone #m-sheet .m-me { margin: 18px 2px 4px; padding: 16px 2px 4px; border-bottom: 0; border-top: 1px solid rgba(255, 255, 255, .07); }

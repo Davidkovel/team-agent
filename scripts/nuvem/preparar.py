@@ -117,7 +117,7 @@ def memoria():
 
 
 def main():
-    config = json.loads(CONFIG.read_text(encoding="utf-8"))
+    config = json.loads(CONFIG.read_text(encoding="utf-8-sig"))  # utf-8-sig: o PowerShell 5.1 escreve um BOM
     if not config.get("key"):
         sys.exit(f"Falta a chave da equipa («key») em {CONFIG}: sem ela a nuvem não faz sync com os PCs.")
     # Tudo o que falta confere-se antes de gastar a chave, para não criar um servidor que depois não abre no telemóvel

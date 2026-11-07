@@ -626,7 +626,7 @@ async function tqDesktop(r) {
     }
     const tick = e.target.closest("[data-done]");
     if (tick) return tqFinish(tick);
-    const row = e.target.closest(".tq-row, .tq-card");
+    const row = e.target.closest(".tq-row:not([data-plan]), .tq-card");
     const act = e.target.closest("[data-row-act]")?.dataset.rowAct;
     if (row && act) return tqRowAct(row, act, e.target.closest("[data-row-act]"));
     if (row) return openTaskModal(Number(row.dataset.id));
@@ -649,9 +649,9 @@ async function tqPlansPaint() {
   try { plans = (await api("/api/plans")).filter((p) => p.status !== "done"); } catch { return; }
   const box = $("tq-plans");
   if (!box) return;
-  paint(box, plans.length ? `<section class="tq-plans"><h3>${esc(t("Planos da equipa"))}<i>${plans.length}</i></h3>
-    ${plans.map((p) => `<button type="button" class="tq-plan" data-plan="${p.id}"><b>${esc(p.title)}</b>
-      <span class="tq-plan-bar"><i style="width:${p.total ? Math.round((p.done / p.total) * 100) : 0}%"></i></span><em>${p.done}/${p.total}</em></button>`).join("")}</section>` : "");
+  paint(box, plans.length ? `<section class="tq-grp"><h3><span>${esc(t("Planos da equipa"))}</span><i>${plans.length}</i></h3><div class="tq-list">
+    ${plans.map((p) => `<div class="tq-row" data-plan="${p.id}" role="button" tabindex="0"><span class="tq-check held"></span><div class="tq-main"><b>${esc(p.title)}</b>
+      <span class="tq-meta"><span>${esc(t("Plano da equipa · {d} de {n} passos", { d: p.done, n: p.total }))}</span></span></div></div>`).join("")}</div></section>` : "");
   box.onclick = (e) => {
     const b = e.target.closest("[data-plan]");
     if (b) planSheet(plans.find((p) => p.id === Number(b.dataset.plan)));

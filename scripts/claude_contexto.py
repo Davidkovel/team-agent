@@ -89,8 +89,9 @@ AREAS = [
       "verification-before-completion", "requesting-code-review"]),
     ("Claude, MCP e skills", r"\bskills?\b|\bmcp\b|\bplugins?\b|claude api|anthropic|agent sdk|claude\.?md|connectors?\b|"
                              r"conectores?|discord|agent-browser|respostas? curtas|responde curto|menos tokens|"
-                             r"poupar tokens|скилл",
-     ["task-observer", "caveman", "skill-creator", "writing-skills", "mcp-builder", "claude-api", "dispatching-parallel-agents"]),
+                             r"poupar tokens|скилл|agente chefe|\bchefe\b|главн\w* агент|раздай|несколько окон|"
+                             r"v[aá]rios agentes|manda os agentes",
+     ["agente-chefe", "task-observer", "caveman", "skill-creator", "writing-skills", "mcp-builder", "claude-api", "dispatching-parallel-agents"]),
     ("Operações e suporte", r"processos?\b|procedimentos?|runbook|status report|relat[oó]rio de estado|fornecedor|vendor|"
                             r"an[aá]lise de risco|risk|compliance|suporte|tickets?|reclama[cç]|\bfaq\b|base de conhecimento|"
                             r"knowledge base|inbox|caixa de entrada|\bslack\b|digest|briefing|reuni[aã]o|meetings?\b|"

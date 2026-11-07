@@ -798,6 +798,7 @@ window.CrewBoard = (function () {
     else if ((b = at("[data-ptick]"))) { const [id, n, on] = b.dataset.ptick.split(":").map(Number); planChange(id, on ? { tick: n } : { untick: n }); }
     else if ((b = at("[data-pstatus]"))) { const [id, st] = b.dataset.pstatus.split(":"); planChange(id, { status: st }, st === "done" ? "Plano fechado." : "Plano reaberto."); }
     else if ((b = at("[data-pfold]"))) { const id = b.dataset.pfold; open.delete(id); open.delete(`-${id}`); open.add(b.dataset.shown === "1" ? `-${id}` : id); draw(); }
+    else if ((b = at("[data-plan]"))) api(`/api/plans/${b.dataset.plan}`).then(planSheet).catch((err) => say(err.message));
     else if ((b = at("[data-release]"))) host.release(Number(b.dataset.release), b);
     else if ((b = at("[data-mini]"))) host.openMini();
     else if ((b = at("[data-href]"))) location.hash = b.dataset.href;

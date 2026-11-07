@@ -3022,6 +3022,8 @@
     if (e.target.closest("[data-close]")) { closePanel(); return; }
     const m = e.target.closest("[data-meet]");
     if (m) { meet(m); return; }
+    const planLink = e.target.closest("[data-plan]");
+    if (planLink) { api(`/api/plans/${planLink.dataset.plan}`).then(planSheet).catch((err) => flash(err.message)); return; }
     const link = e.target.closest("[data-href]");
     if (link) { location.hash = link.dataset.href; return; }
     const ctl = e.target.closest("[data-control]");

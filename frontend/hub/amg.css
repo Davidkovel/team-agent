@@ -592,3 +592,15 @@ img.tf-logo { display: block; flex: none; padding: 0; object-fit: cover; border-
 .tf-ch-form label { display: grid; gap: 4px; color: #b9ad94; font-size: 12px; }
 .tf-ch-form .rowx { grid-column: 1 / -1; }
 html.is-phone .tf-ch-grid { grid-template-columns: 1fr; }
+
+/* a team plan to read (planSheet in pages.js) */
+.tq-plan-sheet { display: grid; gap: 10px; }
+.tq-plan-sheet header { display: flex; justify-content: space-between; gap: 12px; }
+.tq-plan-sheet h2, .tq-plan-sheet h3, .tq-plan-sheet p { margin: 0; }
+.tq-plan-goal { line-height: 1.5; white-space: pre-wrap; }
+.tq-plan-sheet ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.tq-plan-sheet li { display: flex; gap: 10px; line-height: 1.45; }
+.tq-plan-sheet li svg.i { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.tq-plan-sheet li.ok > div > span { color: var(--muted); }
+.tq-plan-sheet li small { display: block; color: var(--muted); }
+.tq-plan-note { font-size: 13px; line-height: 1.45; }

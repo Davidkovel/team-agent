@@ -694,7 +694,7 @@ html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 14px; }
 .bv-mface svg.i { width: 16px; height: 16px; }
 .bv-mi > div { min-width: 0; }
 .bv-mi b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #f2f4f7; font: 600 13px/1.3 var(--ui); cursor: pointer; word-break: break-word; }
-.bv-mi.plan b { cursor: default; }
+.bv-mi.plan b { cursor: pointer; }
 .bv-mi small { display: flex; align-items: center; gap: 5px; margin-top: 3px; overflow: hidden; color: #7d8794; font: 500 11.5px var(--ui); white-space: nowrap; }
 .bv-mi small em { color: #dfe4ea; font: 700 10.5px var(--ui); font-style: normal; letter-spacing: .06em; }
 .bv-mi small i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--p); }

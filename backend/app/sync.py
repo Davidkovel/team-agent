@@ -344,7 +344,7 @@ def _incoming(conn, ip: str, upto: int, more: bool, reply: dict) -> bool:
     return more or reply["more"]
 
 
-PRESENCE_TTL = 20  # a few exchanges: a computer that goes off stops being heard and its person goes offline here
+PRESENCE_TTL = 60  # longer than a full round with slow peers (peers go one after another); 7 Nov: at 20 a bad Radmin link made people blink offline: a computer that goes off stops being heard and its person goes offline here
 HEARD: dict[int, float] = {}  # user id -> last time another computer said they were online there (for "visto há")
 
 
@@ -399,11 +399,11 @@ async def _round(client: httpx.AsyncClient, ip: str) -> bool:
 
 
 async def loop():
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30, connect=3)) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=3)) as client:
         while True:
             for ip in peers():
                 try:
-                    for _ in range(500):
+                    for _ in range(5):  # a peer with a backlog takes turns, it must not starve the others
                         if not await _round(client, ip):
                             break
                 except (httpx.HTTPError, OSError):

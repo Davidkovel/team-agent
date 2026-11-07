@@ -16,7 +16,7 @@ from .. import commits, week
 from ..db import get_db
 from ..models import Activity, AgentSession, Approval, ClaudeAgent, ClaudeSession, Project, Subagent, Task, UsageRecord, User
 from ..security import current_user, sees_all
-from ..services import iso, not_mistake, team_view
+from ..services import iso, not_mistake, one_each, team_view
 from .office import KEEP, _state, _topic
 from .work import aware, visible_tasks
 
@@ -82,8 +82,8 @@ async def analytics(days: int = 7, user: User = Depends(current_user), db: Async
         "people": people,
         "days": days,
         "team": {"source": "live", "people": len(team), "active_users": sum(1 for m in team if m["status"] != "OFFLINE"),
-                 "active_sessions": len(running), "tasks_created": len(created), "tasks_completed": len(completed),
-                 "tasks_open": sum(1 for t in tasks if t.status not in ("COMPLETED", "STOPPED")),
+                 "active_sessions": len(running), "tasks_created": len(one_each(created)), "tasks_completed": len(one_each(completed)),
+                 "tasks_open": sum(1 for t in one_each(tasks) if t.status not in ("COMPLETED", "STOPPED")),
                  "approvals": len(approvals), "approvals_pending": sum(1 for a in approvals if a.status == "PENDING")},
         "ai": {"source": "live" if sessions or usage else "no_data", "sessions": len(sessions), "runs": len(usage), "tokens": tokens,
                "models": [{"model": m, **v} for m, v in sorted(by_model.items(), key=lambda kv: -kv[1]["sessions"])],

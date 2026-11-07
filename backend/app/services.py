@@ -20,6 +20,27 @@ def iso(dt: datetime | None) -> str | None:
     return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).isoformat()
 
 
+def one_each(tasks) -> list[Task]:
+    """A task sent to everybody is one row per person but one job: same rule as groupAll in the Hub (hub/pages.js).
+    The job stands for its first unfinished row, so it is open until everybody did their part."""
+    tasks, out, used = list(tasks), [], set()
+    buckets: dict[tuple, list[Task]] = {}
+    for t in tasks:
+        buckets.setdefault((t.title, t.description or "", t.priority, t.deadline), []).append(t)
+    for t in tasks:
+        if t.id in used:
+            continue
+        same = [y for y in buckets[(t.title, t.description or "", t.priority, t.deadline)]
+                if y.id not in used and abs((y.created_at - t.created_at).total_seconds()) < 30]
+        if len(same) > 1 and len({y.assignee_id for y in same}) == len(same):
+            used.update(y.id for y in same)
+            out.append(next((y for y in same if TASK_STAGE.get(y.status) != "done"), t))
+        else:
+            used.add(t.id)
+            out.append(t)
+    return out
+
+
 def task_out(t: Task, completed_by: str | None = None) -> dict:
     return {
         "id": t.id, "title": t.title, "description": t.description, "goal": t.goal,

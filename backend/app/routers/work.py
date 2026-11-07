@@ -14,7 +14,7 @@ from ..db import get_db
 from ..models import TASK_STAGE, Activity, AgentSession, Approval, Expense, Memory, Notification, Project, Task, UsageRecord, User
 from ..realtime import rt
 from ..security import current_user, require_owner, sees_all
-from ..services import approval_out, iso, not_mistake, task_out, team_view
+from ..services import approval_out, iso, not_mistake, one_each, task_out, team_view
 
 router = APIRouter(prefix="/api")
 
@@ -51,10 +51,11 @@ class ProjectEdit(BaseModel):
 
 
 def project_out(p: Project, tasks: list[Task] = (), sessions: int = 0) -> dict:
-    open_tasks = [t for t in tasks if TASK_STAGE.get(t.status) in OPEN_STAGES]
+    jobs = one_each(tasks)
+    open_tasks = [t for t in jobs if TASK_STAGE.get(t.status) in OPEN_STAGES]
     return {"id": p.id, "name": p.name, "company": p.company, "status": p.status, "description": p.description,
-            "repo": p.repo, "created_at": iso(p.created_at), "tasks": len(tasks), "open_tasks": len(open_tasks),
-            "done_tasks": len(tasks) - len(open_tasks), "people": sorted({t.assignee.username for t in open_tasks}),
+            "repo": p.repo, "created_at": iso(p.created_at), "tasks": len(jobs), "open_tasks": len(open_tasks),
+            "done_tasks": len(jobs) - len(open_tasks), "people": sorted({t.assignee.username for t in tasks if TASK_STAGE.get(t.status) in OPEN_STAGES}),
             "active_sessions": sessions}
 
 
@@ -121,7 +122,7 @@ async def company_overview(company_id: str, user: User = Depends(current_user), 
     if company_id not in hub.companies():
         raise HTTPException(404, "Company not found")
     belongs = or_(Task.company == company_id, Task.project == company_id)
-    tasks = (await db.execute(visible_tasks(select(Task).where(belongs), user))).scalars().all()
+    tasks = one_each((await db.execute(visible_tasks(select(Task).where(belongs), user))).scalars().all())
     cost, runs = (await db.execute(select(func.sum(UsageRecord.cost_usd), func.count(UsageRecord.id))
                                    .join(Task, Task.id == UsageRecord.task_id).where(belongs))).one()
     ads = (await db.execute(select(Expense.currency, func.sum(Expense.amount))

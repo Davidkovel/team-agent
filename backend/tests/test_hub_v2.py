@@ -89,6 +89,20 @@ def test_project_board_and_assign_to_ai(client):
     assert detail["open_tasks"] == 1 and detail["people"] == ["mark"] and detail["ai_cost_usd"] is None
 
 
+def test_task_for_everybody_counts_once():
+    from datetime import datetime, timedelta
+    from types import SimpleNamespace as Row
+
+    now = datetime(2026, 11, 7, 12)
+    row = lambda i, who, title="Job", status="TODO", at=now: Row(id=i, assignee_id=who, title=title, description="", priority="normal", deadline=None,
+                                                                 status=status, created_at=at)
+    everybody = [row(1, 1, status="COMPLETED"), row(2, 2), row(3, 3)]
+    assert [t.id for t in services.one_each(everybody)] == [2]  # open until everybody did their part
+    assert len(services.one_each([row(1, 1), row(2, 1)])) == 2  # the same person twice: two tasks
+    assert len(services.one_each([row(1, 1), row(2, 2, at=now + timedelta(minutes=5))])) == 2  # same title, sent later
+    assert len(services.one_each([row(1, 1), row(2, 2, title="Other")])) == 2
+
+
 def test_sessions_subagents_usage_and_notifications(client):
     owner = login(client, "owner")
     mark = login(client, "mark")

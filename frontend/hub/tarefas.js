@@ -598,6 +598,7 @@ async function tqDesktop(r) {
     </section>
     <div class="tq-stats" id="tq-stats"></div>
     <div id="tq-wait"></div>
+    <div id="tq-plans"></div>
     <div class="tq-bar"><nav class="tq-seg" id="tq-seg" aria-label="${esc(t("Vistas"))}">${TQ_VIEWS.map(([v, l]) => `<button data-view="${v}" class="${v === tqView ? "on" : ""}">${t(l)}</button>`).join("")}</nav>
       <div class="tq-filters" id="tq-filters"></div></div>
     <div class="tq-body" id="tq"></div>`);
@@ -641,6 +642,30 @@ async function tqDesktop(r) {
   const linked = Number(r.company) || openTask;
   if (linked) { openTask = null; openTaskModal(linked); }
 }
+/* The team's open plans on the Tarefas page (7 Nov): to look at them yourself, without a Claude. One row each; a click opens
+   it to read: the goal, every step, who did what and the hand-over notes. Ticking and continuing stay in the Escritório. */
+async function tqPlansPaint() {
+  let plans;
+  try { plans = (await api("/api/plans")).filter((p) => p.status !== "done"); } catch { return; }
+  const box = $("tq-plans");
+  if (!box) return;
+  paint(box, plans.length ? `<section class="tq-plans"><h3>${esc(t("Planos da equipa"))}<i>${plans.length}</i></h3>
+    ${plans.map((p) => `<button type="button" class="tq-plan" data-plan="${p.id}"><b>${esc(p.title)}</b>
+      <span class="tq-plan-bar"><i style="width:${p.total ? Math.round((p.done / p.total) * 100) : 0}%"></i></span><em>${p.done}/${p.total}</em></button>`).join("")}</section>` : "");
+  box.onclick = (e) => {
+    const b = e.target.closest("[data-plan]");
+    if (b) tqPlanOpen(plans.find((p) => p.id === Number(b.dataset.plan)));
+  };
+}
+function tqPlanOpen(p) {
+  openModal(`<div class="tq-plan-sheet"><header><h2>${esc(p.title)}</h2><button type="button" class="btn quiet" data-plan-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
+    <p class="faint">${esc([t("de {n}", { n: p.by || "?" }), `${p.done}/${p.total}`, p.worker ? t("Com {n} agora", { n: p.worker }) : ""].filter(Boolean).join(" · "))}</p>
+    ${p.goal ? `<p class="tq-plan-goal">${esc(p.goal)}</p>` : ""}
+    <ol>${p.steps.map((x) => `<li class="${x.done ? "ok" : ""}">${icon(x.done ? "tick" : "dot")}<div><span>${esc(x.text)}</span>${x.done ? `<small>${esc([x.by, x.note].filter(Boolean).join(" · "))}</small>` : ""}</div></li>`).join("")}</ol>
+    ${p.notes.length ? `<h3>${esc(t("Notas"))}</h3>${p.notes.map((n) => `<p class="tq-plan-note"><b>${esc(n.by)}</b> ${esc(n.text)}</p>`).join("")}` : ""}
+    <a class="btn" href="#/escritorio" data-plan-close>${esc(t("Abrir no Escritório"))}</a></div>`);
+  $("modal-box").querySelector(".tq-plan-sheet").onclick = (e) => { if (e.target.closest("[data-plan-close]")) closeModal(); };
+}
 async function tqRefresh() {
   if ($("tq")) return tqPaintDesktop();
   if ($("m-tasks") && window.tqPhoneLoad) return window.tqPhoneLoad();
@@ -650,6 +675,7 @@ async function tqPaintDesktop() {
   await mount($("tq"), async () => {
     const [list, approvals, bin] = await Promise.all([api("/api/tasks"), api("/api/approvals").catch(() => []), api("/api/tasks/trash").catch(() => null)]);
     tqAll = list.filter((x) => !x.trashed_at);
+    tqPlansPaint();
     const withCo = companies.filter((c) => tqAll.some((x) => x.company === c.id));
     if (tqCo && tqCo !== "none" && !withCo.some((c) => c.id === tqCo)) tqCo = "";
     if (tqWho && !teamNames[tqWho] && !tqAll.some((x) => x.assignee === tqWho)) tqWho = "";
@@ -751,6 +777,7 @@ async function tqPhone(r, setReload) {
       <div class="tq-models tq-mmodels" data-models></div>
     </section>
     <div class="tq-mstats" id="tq-mstats"></div>
+    <div id="tq-plans"></div>
     <div id="tq-m-body">${ui.skeleton(5)}</div></div>`);
   const cmp = tqComposer($("tq-mcmp"), { state: s });
   $("tq-mcmp").querySelector("[data-full]").onclick = () => tqNewTask({ title: $("tq-mcmp").querySelector('[data-f="title"]').value });
@@ -758,6 +785,7 @@ async function tqPhone(r, setReload) {
     const [list, approvals] = await Promise.all([api("/api/tasks"), api("/api/approvals").catch(() => [])]);
     if (!$("m-tasks")) return;
     tqAll = list.filter((x) => !x.trashed_at);
+    tqPlansPaint();
     const withCo = companies.filter((c) => tqAll.some((x) => x.company === c.id));
     if (tqCo && tqCo !== "none" && !withCo.some((c) => c.id === tqCo)) tqCo = "";
     const hasTeam = tqAll.some((x) => !isMe(x.assignee)) || Object.keys(teamNames).length > 1;

@@ -464,3 +464,26 @@ html.is-phone .tq-meta > span { flex: none; max-width: 100%; }
 
 /* Aprovações and Semana: the Painel row of figures (27 out) */
 .tq-kpis { margin-bottom: 18px; }
+
+/* the team's open plans, to read without a Claude */
+.tq-plans { margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--line, rgba(255,255,255,.1)); border-radius: 14px; }
+.tq-plans h3 { display: flex; gap: 8px; margin: 0 0 6px; font: 600 13px var(--ui); }
+.tq-plans h3 i { color: var(--muted); font-style: normal; }
+.tq-plan { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto; gap: 12px; align-items: center; width: 100%; padding: 9px 2px; border: 0; background: none; color: inherit; font: 13px var(--ui); text-align: left; cursor: pointer; }
+.tq-plan:hover b { text-decoration: underline; }
+.tq-plan b { overflow: hidden; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.tq-plan em { color: var(--muted); font-style: normal; }
+.tq-plan-bar { height: 4px; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.1); }
+.tq-plan-bar i { display: block; height: 100%; background: currentColor; }
+.tq-plan-sheet { display: grid; gap: 10px; }
+.tq-plan-sheet header { display: flex; justify-content: space-between; gap: 12px; }
+.tq-plan-sheet h2, .tq-plan-sheet h3, .tq-plan-sheet p { margin: 0; }
+.tq-plan-goal { line-height: 1.5; white-space: pre-wrap; }
+.tq-plan-sheet ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.tq-plan-sheet li { display: flex; gap: 10px; line-height: 1.45; }
+.tq-plan-sheet li svg.i { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.tq-plan-sheet li.ok > div > span { color: var(--muted); }
+.tq-plan-sheet li small { display: block; color: var(--muted); }
+.tq-plan-note { font-size: 13px; line-height: 1.45; }
+html.is-phone .tq-plan { grid-template-columns: minmax(0, 1fr) auto; }
+html.is-phone .tq-plan-bar { display: none; }

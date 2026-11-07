@@ -661,7 +661,7 @@ function tqPlanOpen(p) {
   openModal(`<div class="tq-plan-sheet"><header><h2>${esc(p.title)}</h2><button type="button" class="btn quiet" data-plan-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
     <p class="faint">${esc([t("de {n}", { n: p.by || "?" }), `${p.done}/${p.total}`, p.worker ? t("Com {n} agora", { n: p.worker }) : ""].filter(Boolean).join(" · "))}</p>
     ${p.goal ? `<p class="tq-plan-goal">${esc(p.goal)}</p>` : ""}
-    <ol>${p.steps.map((x) => `<li class="${x.done ? "ok" : ""}">${icon(x.done ? "tick" : "dot")}<div><span>${esc(x.text)}</span>${x.done ? `<small>${esc([x.by, x.note].filter(Boolean).join(" · "))}</small>` : ""}</div></li>`).join("")}</ol>
+    <ol>${p.steps.map((x) => `<li class="${x.done ? "ok" : ""}">${x.done ? icon("tick") : '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></svg>'}<div><span>${esc(x.text)}</span>${x.done ? `<small>${esc([x.by, x.note].filter(Boolean).join(" · "))}</small>` : ""}</div></li>`).join("")}</ol>
     ${p.notes.length ? `<h3>${esc(t("Notas"))}</h3>${p.notes.map((n) => `<p class="tq-plan-note"><b>${esc(n.by)}</b> ${esc(n.text)}</p>`).join("")}` : ""}
     <a class="btn" href="#/escritorio" data-plan-close>${esc(t("Abrir no Escritório"))}</a></div>`);
   $("modal-box").querySelector(".tq-plan-sheet").onclick = (e) => { if (e.target.closest("[data-plan-close]")) closeModal(); };

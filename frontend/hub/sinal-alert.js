@@ -2,7 +2,7 @@
 // Tiny and always loaded: it only asks the Hub on each "sinal" live event (backend/app/tradingroom/sinal.py); the drawing is
 // sinal.js, fetched only then. Off on this browser with «Aviso em todo o Hub» on the page; never over the page itself.
 (function () {
-  let shown = "", busy = false, aviso = "", tick = 0;
+  let shown = "", busy = false, aviso = "";
   const PRE = 900;   // the warning opens 15 minutes before a red US figure
   const NAMES = { GOLD: "Ouro", EURUSD: "EUR/USD", GER40: "GER40", GBPUSD: "GBP/USD", AUDUSD: "AUD/USD", NZDUSD: "NZD/USD", USDJPY: "USD/JPY", USDCAD: "USD/CAD", USDCHF: "USD/CHF" };
   const VANTAGE = { GOLD: "XAUUSD", EURUSD: "EURUSD", GER40: "GER40", GBPUSD: "GBPUSD", AUDUSD: "AUDUSD", NZDUSD: "NZDUSD", USDJPY: "USDJPY", USDCAD: "USDCAD", USDCHF: "USDCHF" };
@@ -22,7 +22,6 @@
     return n ? { ...n, actual: "" } : null;
   }
   function stopAviso() {
-    clearInterval(tick);
     document.querySelector(".sn-av")?.remove();
     aviso = "";
   }
@@ -31,25 +30,18 @@
     if (old) { old.querySelector("[data-real]").textContent = money(n.actual); return; }
     const ov = document.createElement("div");
     ov.className = "sn-ov sn-av";
-    const hour = new Date(n.t * 1000).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+    const at = new Date(n.t * 1000), date = at.toLocaleDateString("pt-PT", { weekday: "short", day: "2-digit", month: "2-digit" }), hour = at.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
     ov.innerHTML = `<div class="sn-stage sn-ov-box is-flat" role="alertdialog" aria-modal="true" aria-label="${esc(t("Notícia a sair"))}">
       <button type="button" class="sn-x" data-x aria-label="${esc(t("Fechar"))}">×</button>
-      <div class="sn-meta"><span class="sn-imp high"><i></i>${esc(t("impacto alto"))}</span><span>${esc(hour)}</span></div>
+      <div class="sn-meta"><span class="sn-imp high"><i></i>${esc(t("impacto alto"))}</span></div>
       <h2 class="sn-name"><span class="sn-cur">${esc(n.cur)}</span> ${esc(n.label)}</h2>
-      <p class="sn-av-clock" data-left></p>
+      <p class="sn-av-clock">${esc(date)} · ${esc(hour)}</p>
       <dl class="sn-av-nums"><div><dt>${esc(t("Previsto"))}</dt><dd>${esc(money(n.forecast))}</dd></div><div><dt>${esc(t("Anterior"))}</dt><dd>${esc(money(n.previous))}</dd></div>
         <div><dt>${esc(t("Real"))}</dt><dd data-real>${esc(money(n.actual))}</dd></div></dl>
       <div class="sn-ov-btns">${n.assets.slice(0, 3).map((s, i) => window.vantageBtn(s, i ? "btn" : "btn primary")).join("")}</div></div>`;
     const close = () => { window.sinalClose(id); stopAviso(); };
     ov.addEventListener("click", (e) => { if (e.target === ov || e.target.closest("[data-x]")) close(); });
     document.body.append(ov);
-    const paintLeft = () => {
-      const s = Math.max(0, Math.ceil(n.t - Date.now() / 1000)), box = ov.querySelector("[data-left]");
-      box.textContent = s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : t("A sair…");
-    };
-    paintLeft();
-    clearInterval(tick);
-    tick = setInterval(paintLeft, 1000);
   }
   async function warn() {
     if (document.hidden || typeof token === "undefined" || !token) return;

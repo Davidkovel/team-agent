@@ -176,3 +176,9 @@
 /* the Painel on top (27 out) */
 .sn-kpis { margin-bottom: 16px; }
 .sn-kpis .num small { color: var(--muted); font-size: .55em; }
+
+/* the warning before a red US figure (sinal-alert.js) */
+.sn-av-clock { margin: 6px 0; font: 700 44px/1.1 var(--display); letter-spacing: -.02em; text-align: center; font-variant-numeric: tabular-nums; }
+.sn-av-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; text-align: center; }
+.sn-av-nums dt { color: var(--muted); font: 12px var(--ui); }
+.sn-av-nums dd { margin: 2px 0 0; font: 600 18px var(--display); }

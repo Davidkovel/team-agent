@@ -306,8 +306,8 @@
       : `<div class="sn-parts">${a.parts.map((P) => `<div class="sn-part is-${pside(P)}"><h3 class="sn-ph">${title(P)}</h3>${result(P)}</div>`).join("")}</div>`;
     ov.innerHTML = `<div class="sn-stage sn-ov-box is-${cls}" role="alertdialog" aria-modal="true" aria-label="${esc(t("Sinal na notícia"))}">
       <button type="button" class="sn-x" data-x aria-label="${esc(t("Fechar"))}">×</button>${meta(a)}${parts}
-      <div class="sn-ov-btns"><a class="btn primary" href="#/sinal" data-x>${esc(t("Abrir o Sinal na notícia"))}</a><button type="button" class="btn" data-x>${esc(t("Fechar"))}</button></div></div>`;
-    const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); clearTimeout(ov.t); };
+      <div class="sn-ov-btns">${[...new Set(a.parts.flatMap((P) => [asset(P), ...P.assets]))].slice(0, 3).map((s, i) => window.vantageBtn(s, i ? "btn" : "btn primary")).join("")}<a class="btn" href="#/sinal" data-x>${esc(t("Abrir o Sinal na notícia"))}</a><button type="button" class="btn" data-x>${esc(t("Fechar"))}</button></div></div>`;
+    const close = () => { window.sinalClose(a.id); ov.remove(); document.removeEventListener("keydown", onKey); clearTimeout(ov.t); };
     const onKey = (e) => { if (e.key === "Escape") close(); };
     ov.addEventListener("click", (e) => { if (e.target === ov || e.target.closest("[data-x]")) close(); });
     document.addEventListener("keydown", onKey);

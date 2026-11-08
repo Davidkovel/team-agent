@@ -297,6 +297,17 @@
     if (nx) { openDr(nx.id); document.querySelector(`.rd-row[data-row="${nx.id}"]`)?.scrollIntoView({ block: "nearest" }); }
   }
 
+  // As avaliações mais recentes do Google Maps (radar_gmaps.py): o que os clientes dizem agora, com as estrelas de 1 a 5.
+  function revBlock(n) {
+    const rv = n.avaliacoes || [], h = n.estrelas_por_nota || {}, tot = Object.values(h).reduce((a, b) => a + b, 0);
+    if (!rv.length && !tot) return "";
+    const bars = tot ? `<div class="rd-rev-bars">${[5, 4, 3, 2, 1].map((k) => { const c = h[k] || 0;
+      return `<span><em>${k}★</em><i style="--w:${Math.round(c / tot * 100)}%"></i><em>${c}</em></span>`; }).join("")}</div>` : "";
+    const list = rv.map((r) => `<li class="${r.estrelas <= 2 && (r.dias ?? 9999) <= 365 ? "bad" : ""}"><b>${"★".repeat(r.estrelas || 0)}${"☆".repeat(5 - (r.estrelas || 0))}</b>
+      <small>${esc(r.quando || "")}</small>${r.texto ? `<p>${esc(r.texto)}</p>` : ""}</li>`).join("");
+    return `<section class="rd-blk rd-rev"><h4 class="rd-h">${esc(t("O que os clientes dizem no Google (mais recentes primeiro)"))}</h4>${bars}${list ? `<ul>${list}</ul>` : ""}</section>`;
+  }
+
   function paintDr() {
     const n = SC?.negocios.find((x) => x.id === sel), dr = $("rd-dr");
     if (!n || !dr) return closeDr();
@@ -321,7 +332,7 @@
       ...tel.map((x) => [I.tel, `<a href="tel:${esc(x.replace(/\s/g, ""))}">${esc(x)}</a>`]),
       ...mails.map((e) => [I.mail, `<a href="${esc(mailto(n, e))}" data-mail="${n.id}">${esc(e)}</a>`]),
       [I.web, n.site ? `${ext(a.final || n.site, esc(host(n.site)))}${n.site_achado ? ` <em>${esc(t("· achado pelo nome, confirma"))}</em>` : ""}` : `<em class="bad">${esc(t("Não tem site"))}</em>`],
-      ...Object.entries(REDE).map(([k, nome]) => { const x = (f.redes || {})[k] || (k === "facebook" && n.facebook ? { url: n.facebook } : null);
+      ...Object.entries(REDE).map(([k, nome]) => { const x = (f.redes || {})[k] || (n[k] && /^https:\/\//.test(n[k]) ? { url: n[k] } : null);
         return x ? [`<b class="rd-ab">${nome.slice(0, 2)}</b>`, `${ext(x.url, esc(nome))}${x.seguidores != null ? ` <em>· ${esc(t("{n} seguidores", { n: big(x.seguidores) }))}</em>` : ""}`] : null; }).filter(Boolean),
       g.horario?.length ? [icon("clock"), `<details><summary>${esc(g.aberto === false ? t("Fechado (Google)") : t("Horário"))}</summary>${g.horario.map(esc).join("<br>")}</details>`] : null,
     ].filter((x) => x && x[1]);
@@ -346,6 +357,7 @@
           ${v.porque.length ? `<ul>${v.porque.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
         </section>
         <dl class="rd-info">${info.map(([ic, h]) => `<dt>${ic}</dt><dd>${h}</dd>`).join("")}</dl>
+        ${revBlock(n)}
         ${n.lat ? `<div class="rd-map"><iframe title="${esc(t("Mapa"))}" loading="lazy" referrerpolicy="no-referrer"
           src="https://www.openstreetmap.org/export/embed.html?bbox=${n.lon - 0.006},${n.lat - 0.0035},${n.lon + 0.006},${n.lat + 0.0035}&layer=mapnik&marker=${n.lat},${n.lon}"></iframe></div>` : ""}
         <section class="rd-blk"><h4 class="rd-h">${esc(t("Em que ponto está"))}</h4>

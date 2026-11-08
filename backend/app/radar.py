@@ -21,6 +21,8 @@ from pathlib import Path
 
 import httpx
 
+from . import radar_gmaps
+
 DIR = Path.home() / ".team-agent" / "radar"
 UA_BOT = "team-agent-hub/1.0 (radar de prospecao)"
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.1"
@@ -422,6 +424,17 @@ class Radar:
                             scan["fontes"].append("Google Places")
                         except Exception as e:  # noqa: BLE001  o Google é extra; o mapa chega
                             scan["erro"] = f"Google Places: {str(e)[:100]}"
+                    if radar_gmaps.ligado() and scan.get("termo"):
+                        # o Google Maps sem chave (radar_gmaps.py): estrelas, opiniões recentes, e-mail e redes
+                        job["fase"] = "a procurar no Google Maps"
+                        try:
+                            got = await radar_gmaps.procurar(scan["termo"], scan["local"], geo,
+                                                             fase=lambda t: job.update(fase=t))
+                            if got:
+                                found += got
+                                scan["fontes"].append("Google Maps")
+                        except Exception as e:  # noqa: BLE001  o Google Maps é extra; o mapa chega
+                            scan["erro"] = f"Google Maps: {str(e)[:100]}"
                 for line in lista.splitlines():
                     if line.strip():
                         nome, _, url = line.partition("|")
@@ -1077,6 +1090,12 @@ def veredicto(n: dict) -> dict:
         nao.append("Sem telefone nem email público: só pelo Facebook")
     else:
         nao.append("Sem telefone, email nem redes: difícil de contactar")
+    mas = [r for r in n.get("avaliacoes") or [] if (r.get("estrelas") or 5) <= 2 and (r.get("dias") if r.get("dias") is not None else 9999) <= 365]
+    if mas:  # o que os clientes dizem agora no Google Maps (radar_gmaps.py)
+        sim.append(("1 avaliação" if len(mas) == 1 else f"{len(mas)} avaliações") + " de 1–2 estrelas no Google no último ano"
+                   + f" ({mas[0].get('quando') or 'recente'}): precisa de cuidar da reputação")
+    if n.get("opinioes") is not None and n["opinioes"] < 15:
+        sim.append(f"Só {n['opinioes']} opiniões no Google: pouca prova para quem procura")
     viva, visto = (n.get("viva") or {}).get("estado"), (n.get("visto_mapa") or "")[:4]
     if viva == "aberta":
         sim.append("Confirmada aberta na web" + (f": {n['viva']['prova']}" if n["viva"].get("prova") else ""))

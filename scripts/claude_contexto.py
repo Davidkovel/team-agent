@@ -34,8 +34,8 @@ AREAS = [
                           r"clientes? novos|novos clientes|vendas por apanhar|\bsales\b|lead ?gen|\bcrm\b|\bdeals?\b|"
                           r"opportunit|oportunidades? de neg|fechar (o )?neg[oó]cio|obje[cç](ão|ões)|objections?|"
                           r"account plan|\bquota\b|\brfp\b|ofertas?\b|pre[cç]os?\b|pricing|quanto cobrar|"
-                          r"pacotes? de servi[cç]os?|клиент|продаж",
-     ["dossie-crescimento", "offers", "pricing", "prospecting", "cold-email"]),
+                          r"pacotes? de servi[cç]os?|google ?maps|scrap|avalia[cç](ão|ões) (do|no) google|leads?\b|клиент|продаж",
+     ["google-maps-leads", "dossie-crescimento", "offers", "pricing", "prospecting", "cold-email"]),
     ("SEO", r"\bseo\b|google (maps|search|business)|aparecer no google|posicionamento|ranking|sitemap|\bschema\b|"
             r"keywords?|palavras?-chave|backlinks?",
      ["seo", "seo-audit", "seo-local", "seo-technical", "seo-page", "seo-content", "seo-schema", "seo-plan"]),

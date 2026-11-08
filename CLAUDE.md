@@ -734,6 +734,14 @@ completa de uma empresa) e `routers/radar.py`. «Todas as empresas, não só as 
   painel **Nichos** (`paintNichos`, `hideN`) ordena pelos que têm mais «Vale a pena», liga/desliga cada um, «só» deixa um,
   Todos/Nenhum; vale para o mapa e para a lista. Benedita 5 km: 93 empresas em ~2,5 min.
 
+- **Google Maps sem chave** (8 nov, David, a partir de um reel): `backend/app/radar_gmaps.py` é mais uma fonte da pesquisa
+  normal (não da «só a localidade»). Usa o Google Maps Scraper Kit (MIT, v2.2.0 fixa): na 1.ª pesquisa cada Hub clona-o para
+  `~/.team-agent/gmaps-kit` e arranca o motor em `127.0.0.1:8091`; ninguém instala nada à mão. Dá estrelas, nº de opiniões,
+  categoria, e-mail, Instagram/Facebook/LinkedIn/TikTok e 5 avaliações com data (as «mais relevantes» do Google; o Hub põe-nas
+  por data). A ficha mostra-as (`revBlock` no `radar.js`), o veredicto avisa de 1–2★ no último ano, o CSV tem as colunas novas.
+  As horas de maior movimento o Google já não as dá a ninguém. Muitas pesquisas seguidas podem bloquear o IP umas horas.
+  `RADAR_GMAPS=0` desliga. Skill `google-maps-leads`.
+
 ### CRM: do Radar ao negócio (2 nov, pedido do David)
 
 `#/crm`, 2.º separador do Radar (`frontend/hub/crm.js` + `.css`), `backend/app/crm.py`, `routers/crm.py` (`/api/crm`), testes

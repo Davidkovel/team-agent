@@ -613,3 +613,16 @@ html.is-phone .rdm-ni-o { opacity: 1; }
 .rd-name .rd-dv { font: 500 10px var(--ui); font-style: normal; color: var(--rd-warm); border: 1px solid currentColor; border-radius: 5px; padding: 0 5px; margin-left: 4px; opacity: .85; vertical-align: 1px; cursor: help; }
 .rd-name .rd-ok { font-style: normal; color: var(--rd-green); margin-left: 3px; cursor: help; }
 .rd-name .rd-ok svg { width: 12px; height: 12px; vertical-align: -1px; }
+
+/* Avaliações recentes do Google Maps na ficha */
+.rd-rev-bars { display: grid; gap: 3px; margin: 0 0 10px; }
+.rd-rev-bars span { display: grid; grid-template-columns: 26px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
+.rd-rev-bars em { font-style: normal; color: var(--muted, #8a8f98); }
+.rd-rev-bars em:last-child { text-align: right; }
+.rd-rev-bars i { height: 6px; border-radius: 3px; background: linear-gradient(90deg, currentColor var(--w), rgba(127,127,127,.18) var(--w)); opacity: .8; }
+.rd-rev ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rd-rev li { padding: 8px 10px; border-radius: 8px; background: rgba(127,127,127,.08); }
+.rd-rev li.bad { box-shadow: inset 3px 0 0 #e5484d; }
+.rd-rev li b { letter-spacing: 1px; font-size: 12px; }
+.rd-rev li small { margin-left: 8px; color: var(--muted, #8a8f98); }
+.rd-rev li p { margin: 4px 0 0; font-size: 13px; line-height: 1.4; }

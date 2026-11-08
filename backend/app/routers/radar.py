@@ -58,14 +58,20 @@ async def export(sid: str, token: str = Query(...), db: AsyncSession = Depends(g
     out = io.StringIO()
     w = csv.writer(out, delimiter=";")
     w.writerow(["Posição", "Vale a pena?", "Nome", "Localidade", "Telefone", "Email", "Site", "Facebook", "Plataforma", "Quem fez o site", "Nota do site",
-                "Oportunidade", "Nível", "Gasto estimado €/mês", "Custo do site €", "Anúncios", "Principal problema", "O que fazemos", "Seguimento", "Notas"])
+                "Oportunidade", "Nível", "Gasto estimado €/mês", "Custo do site €", "Anúncios", "Principal problema", "O que fazemos", "Seguimento", "Notas",
+                "Categoria", "Tem site?", "Estrelas Google", "Opiniões Google", "Avaliação mais recente", "Avaliações 1–2★ (último ano)", "Instagram", "LinkedIn",
+                "TikTok", "Google Maps"])
     for i, n in enumerate(sc["negocios"], 1):
         a, g, p, ld = n.get("audit") or {}, n.get("gasto") or {}, (n.get("problemas") or [{}])[0], n.get("lead") or {}
         w.writerow([i, veredicto(n)["titulo"] if "oportunidade" in n else "", n["nome"], n.get("morada", ""), n.get("telefone", ""), n.get("email") or ", ".join(a.get("emails") or []),
                     n.get("site", ""), n.get("facebook", ""), a.get("plataforma", ""), a.get("agencia", ""), n.get("nota_site"),
                     n.get("oportunidade"), n.get("nivel", ""), f"{g.get('min', 0)}-{g.get('max', 0)}" if g.get("max") else "",
                     (lambda k: f"{k['min']}-{k['max']}" if k else "")(custo(n)), "sim" if g.get("anuncios") else "", p.get("problema", ""), p.get("solucao", ""),
-                    ESTADOS.get(ld.get("estado", ""), ""), ld.get("nota", "")])
+                    ESTADOS.get(ld.get("estado", ""), ""), ld.get("nota", ""),
+                    n.get("categoria", ""), "sim" if n.get("site") else "não", str(n["nota"]).replace(".", ",") if n.get("nota") is not None else "",
+                    n.get("opinioes", ""), ((n.get("avaliacoes") or [{}])[0]).get("quando", ""),
+                    sum(1 for r in n.get("avaliacoes") or [] if (r.get("estrelas") or 5) <= 2 and (r.get("dias") if r.get("dias") is not None else 9999) <= 365) if n.get("avaliacoes") else "",
+                    n.get("instagram", ""), n.get("linkedin", ""), n.get("tiktok", ""), n.get("maps", "")])
     nome = re.sub(r"[^a-z0-9]+", "-", f"radar-{sc['ramo']}-{sc['local'] or 'lista'}".lower()).strip("-")
     return Response("﻿" + out.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})

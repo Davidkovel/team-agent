@@ -50,6 +50,9 @@
   "catwoman",
   "joker"
  ],
+ "google-maps-leads": [
+  "riddler"
+ ],
  "gsap-frameworks": [
   "lucius"
  ],
@@ -122,6 +125,10 @@
  "realtor-landing": [
   "catwoman"
  ],
+ "reel-stand-auto": [
+  "catwoman",
+  "joker"
+ ],
  "referrals": [
   "joker"
  ],
@@ -167,9 +174,5 @@
  "webapp-testing": [
   "catwoman",
   "riddler"
- ],
- "reel-stand-auto": [
-  "catwoman",
-  "joker"
  ]
 }

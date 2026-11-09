@@ -579,12 +579,16 @@ def _prompt(scan: dict, n: dict, f: dict) -> str:
             "deste negócio (só perfis que são mesmo dele: o nome e a localidade têm de bater certo) com os seguidores que a pesquisa "
             "mostrar, e a ficha do Google Maps (estrelas e número de opiniões, se aparecerem). Não inventes perfis nem números: o que "
             "não achares fica de fora. Se a ficha tem «agencia» (quem fez o site), pesquisa também essa agência ou pessoa: o site, "
-            "a cidade, o email, o telefone, o Instagram/Facebook/LinkedIn e outros clientes que mostre.\n\n"
+            "a cidade, o email, o telefone, o Instagram/Facebook/LinkedIn e outros clientes que mostre. E pesquisa quem decide neste "
+            "negócio (CEO, dono, sócio-gerente, fundador): o nome, o cargo, o perfil pessoal do LinkedIn e o email dele se for público "
+            "(nunca adivinhado), e a página da empresa no LinkedIn.\n\n"
             "Depois devolve este JSON e mais nada:\n"
             '{"redes": {"instagram": {"url": "https://www.instagram.com/...", "seguidores": 1234}, "facebook": {"url": "...", "seguidores": 0}, '
             '"tiktok": {"url": "...", "seguidores": 0}},\n'
             ' "agencia": {"nome": "", "site": "", "cidade": "", "email": "", "telefone": "", "instagram": "", "facebook": "", "linkedin": "", '
             '"clientes": ["outros clientes que mostre"], "nota": "1 frase: que tipo de fornecedor é (freelancer, agência pequena, grande)"},\n'
+            ' "decisores": {"linkedin_empresa": "https://www.linkedin.com/company/...", "pessoas": [{"nome": "", "cargo": "", '
+            '"linkedin": "https://www.linkedin.com/in/...", "email": "", "fonte": "link onde o viste"}]},\n'
             ' "google": {"estrelas": 4.7, "opinioes": 120, "url": "link do Google Maps, se o tiveres"},\n'
             ' "resumo": "2 frases: como está a presença e a marca deste negócio hoje",\n'
             ' "ideias": [{"titulo": "o que fazer, em 6 palavras", "porque": "o que na ficha mostra que faz falta", '
@@ -617,7 +621,8 @@ async def _ai(scan: dict, n: dict, f: dict) -> dict:
             google["mapa"] = g["url"]
     ag = {k: v for k, v in (js.get("agencia") or {}).items() if v} if isinstance(js.get("agencia"), dict) else {}
     return {"agencia": ag, "resumo": str(js.get("resumo") or "").strip(), "ideias": ideias, "abordagem": str(js.get("abordagem") or "").strip(),
-            "redes": redes, "google": google, "custo_usd": round(cost, 3)}
+            "redes": redes, "google": google, "custo_usd": round(cost, 3),
+            "decisores": __import__("app.radar_pessoas", fromlist=["limpa"]).limpa(js.get("decisores"))}
 
 
 # ---------------------------------------------------------------- a ficha inteira
@@ -681,6 +686,12 @@ class Fichas:
                 except Exception as e:  # noqa: BLE001  a pesquisa corta quem pede muito: fica o que o site liga
                     f["redes_falhou"] = True
                     f["erros"].append(f"pesquisa das redes: {str(e)[:80]}")
+                self.jobs[p.stem] = "a procurar quem decide (LinkedIn)"
+                try:  # o CEO / dono e o LinkedIn dele, que fica no próprio negócio da pesquisa (radar_pessoas.py)
+                    from .radar_pessoas import PESSOAS, gratis
+                    PESSOAS._grava(scan["id"], {n["id"]: await gratis(n, local)})
+                except Exception as e:  # noqa: BLE001
+                    f["erros"].append(f"pesquisa no LinkedIn: {str(e)[:80]}")
                 self.jobs[p.stem] = "a ver a ficha do Google"
                 async with httpx.AsyncClient(timeout=15) as g:
                     try:
@@ -718,6 +729,10 @@ class Fichas:
                     if isinstance(ai_ag.get("clientes"), list):
                         cur_ag["clientes"] = [str(x)[:60] for x in ai_ag["clientes"]][:10]
                     cur_ag["fontes"] = cur_ag.get("fontes", []) + ["IA (pesquisa web)"]
+                dec = f["ia"].pop("decisores", None)
+                if dec:
+                    from .radar_pessoas import PESSOAS
+                    PESSOAS._grava(scan["id"], {n["id"]: dec})
                 gi = f["ia"].pop("google", {})
                 if gi and f["google"].get("estrelas") is None:
                     f["google"].update(gi)

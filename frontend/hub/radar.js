@@ -30,6 +30,7 @@
     web: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
     pin: svg('<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'),
     g: svg('<path d="M20 12.2c0-.6 0-1.2-.2-1.7H12v3.3h4.5a4 4 0 0 1-1.7 2.6M4.3 8.2A9 9 0 0 1 18 5.6M4.3 15.8A9 9 0 0 0 18 18.4"/>'),
+    li: svg('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>'),
     left: svg('<path d="m15 5-7 7 7 7"/>'),
     right: svg('<path d="m9 5 7 7-7 7"/>'),
   };
@@ -44,7 +45,33 @@
     return ["ok", `Site bom · ${n.nota_site}`];
   }
   const vale = (n) => n.vale || { v: "talvez", titulo: "Talvez", porque: [], passo: "Ver a ficha", pontos: n.oportunidade || 0 };
-  const emails = (n) => [...new Set([...(n.email ? [n.email] : []), ...((n.audit || {}).emails || [])])];
+  const emails = (n) => [...new Set([...(n.email ? [n.email] : []), ...((n.audit || {}).emails || []), ...(n.decisores || []).map((p) => p.email).filter(Boolean)])];
+  // quem decide (CEO, dono, sócio-gerente) e o LinkedIn dele: radar_pessoas.py; o 1.º é o que decide mais
+  const dono = (n) => (n.decisores || [])[0] || null;
+  const liBtn = (url, cls = "rd-ic") => url ? `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(t("Abrir o LinkedIn"))}">${I.li}</a>` : "";
+  function pessBlock(n) {
+    const ps = n.decisores || [], busy = !!SC?.pessoas_job;
+    const btn = `<button type="button" class="btn quiet sm" data-pess="${n.id}" ${busy ? "disabled" : ""}>${I.li}<span>${esc(t(busy ? "A procurar…" : ps.length ? "Procurar de novo" : "Procurar o CEO / dono"))}</span></button>`;
+    const li = (p) => `<li class="rd-p">
+        <span class="rd-p-av">${esc(initials(p.nome))}</span>
+        <span class="rd-p-id"><b>${esc(p.nome)}</b><small>${esc(p.cargo || t("Cargo por confirmar"))}${p.nivel === 3 ? ` · <em>${esc(t("decide"))}</em>` : ""}</small>
+          ${p.email ? `<a href="${esc(mailto(n, p.email))}" data-mail="${n.id}">${esc(p.email)}</a>` : ""}
+          ${p.fonte && /^https?:/.test(p.fonte) ? `<a class="rd-p-src" href="${esc(p.fonte)}" target="_blank" rel="noopener">${esc(t("onde se viu"))}</a>` : ""}</span>
+        ${p.linkedin ? `<a class="btn sm rd-p-li" href="${esc(p.linkedin)}" target="_blank" rel="noopener">${I.li}<span>LinkedIn</span></a>` : `<span class="rd-p-none">${esc(t("Sem LinkedIn"))}</span>`}
+      </li>`;
+    return `<section class="rd-blk rd-pess"><h4 class="rd-h">${esc(t("Com quem falar"))}</h4>
+      ${ps.length ? `<ul>${ps.map(li).join("")}</ul>` : `<p class="rd-none">${esc(t(n.pessoas_at ? "Não se achou ninguém em público (o LinkedIn e a web não mostram o dono)." : "Ainda não se procurou quem decide nesta empresa."))}</p>`}
+      ${n.linkedin && /^https:/.test(n.linkedin) ? `<p class="rd-p-co">${I.li}${ext(n.linkedin, esc(t("Página da empresa no LinkedIn")))}</p>` : ""}
+      <div class="rd-p-act">${btn}</div></section>`;
+  }
+  async function procurarPessoas(ids, b) {
+    if (b) b.disabled = true;
+    try {
+      await api(`/api/radar/${cur}/pessoas`, { method: "POST", body: ids ? { ids } : {} });
+      msg(t(ids ? "A procurar o CEO / dono desta empresa: cerca de 1 minuto." : "A procurar o CEO / dono das empresas (as que valem a pena primeiro): alguns minutos."));
+      await loadScan();
+    } catch (err) { if (b) b.disabled = false; msg(err.message); }
+  }
   const phones = (n) => [...new Set([...String(n.telefone || "").split(/[;,/]/).map((x) => x.trim()), ...((n.audit || {}).telefones || [])].filter(Boolean))];
   const town = (n) => (n.morada || "").replace(/^.*\d+[A-Za-z]?\s+/, "") || SC?.local || "";
   const gq = (n) => encodeURIComponent(`${n.nome} ${town(n)}`.trim());
@@ -118,7 +145,7 @@
     paintAll(); paintBody();
     if (sel) paintDr();
     clearTimeout(timer);
-    if (SC.job) timer = setTimeout(() => { if ($("rd") && !document.hidden) loadScan().catch(() => {}); else if ($("rd")) timer = setTimeout(loadScan, 3000); }, 2500);
+    if (SC.job || SC.pessoas_job) timer = setTimeout(() => { if ($("rd") && !document.hidden) loadScan().catch(() => {}); else if ($("rd")) timer = setTimeout(loadScan, 3000); }, 2500);
     else if (S.varreduras.find((v) => v.id === cur)?.job) { S = await api("/api/radar"); D = await api("/api/crm").catch(() => D); paintAll(); paintBody(); }
   }
 
@@ -203,7 +230,9 @@
     const sc = SC, r = sc.resumo || {}, negs = sc.negocios || [], job = sc.job;
     const where = !sc.local ? t("lista colada") : sc.raio ? t("{l} e {r} km à volta", { l: sc.local, r: sc.raio }) : t("distrito de {d}", { d: sc.distrito || sc.local });
     let html = `<div class="rd-top"><h2 class="rd-title">${esc(sc.ramo_nome)} <span>· ${esc(where)}</span></h2><div class="rd-tools">
-      ${job ? "" : `<a class="btn sm" href="#/emails" onclick="window.__emailsSid='${esc(cur)}'">${esc(t("Enviar e-mails"))}</a><a class="btn quiet sm" href="/api/radar/${cur}/csv?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">${esc(t("Excel"))}</a>
+      ${job ? "" : `${sc.pessoas_job ? `<span class="rd-pjob">${I.li}${esc(t(sc.pessoas_job.fase))} · ${sc.pessoas_job.feitos}/${sc.pessoas_job.total}</span>`
+        : `<button type="button" class="btn sm" data-pess="all" title="${esc(t("Procura o CEO / dono e o LinkedIn dele, as que valem a pena primeiro"))}">${I.li}<span>${esc(t("Procurar CEOs no LinkedIn"))}</span></button>`}
+      <a class="btn sm" href="#/emails" onclick="window.__emailsSid='${esc(cur)}'">${esc(t("Enviar e-mails"))}</a><a class="btn quiet sm" href="/api/radar/${cur}/csv?token=${encodeURIComponent(token)}" target="_blank" rel="noopener">${esc(t("Excel"))}</a>
       <button type="button" class="btn quiet sm" data-del="${cur}">${esc(t("Apagar"))}</button>`}</div></div>`;
     if (job) {
       const stepN = Math.max(0, FASES.findIndex((f) => job.fase.startsWith(f)));
@@ -229,7 +258,7 @@
     else {
       html += `<div class="rd-bar-f">
         <label class="rd-find">${icon("search")}<input class="inp" id="rd-q" value="${esc(F.q)}" placeholder="${esc(t("Procurar pelo nome ou localidade"))}"></label>
-        ${[["tel", "Com telefone"], ["mail", "Com email"], ["nosite", "Sem site"]].map(([k, l]) => `<button type="button" class="rd-chip ${F[k] ? "on" : ""}" data-flt="${k}">${esc(t(l))}</button>`).join("")}
+        ${[["tel", "Com telefone"], ["mail", "Com email"], ["li", "Com LinkedIn"], ["nosite", "Sem site"]].map(([k, l]) => `<button type="button" class="rd-chip ${F[k] ? "on" : ""}" data-flt="${k}">${esc(t(l))}</button>`).join("")}
         <select class="inp rd-sort" id="rd-sort">${[["best", "Melhores primeiro"], ["site", "Pior site primeiro"], ["name", "Por nome"]].map(([k, l]) => `<option value="${k}" ${F.sort === k ? "selected" : ""}>${esc(t(l))}</option>`).join("")}</select>
       </div><div id="rd-list"></div>
       <p class="rd-note">${esc(t("Tudo vem do que o mapa, a web e o site de cada empresa mostram hoje. «Vale a pena» junta o que lhe falta no digital, sinais de que já paga por isso e se há como lhe chegar."))}</p>`;
@@ -245,6 +274,7 @@
     if (q) list = list.filter((n) => `${n.nome} ${n.morada || ""}`.toLowerCase().includes(q));
     if (F.tel) list = list.filter((n) => phones(n).length);
     if (F.mail) list = list.filter((n) => emails(n).length);
+    if (F.li) list = list.filter((n) => dono(n)?.linkedin || /^https:/.test(n.linkedin || ""));
     if (F.nosite) list = list.filter((n) => !n.site);
     const by = { best: (a, b) => vale(b).pontos - vale(a).pontos, site: (a, b) => (a.nota_site ?? 0) - (b.nota_site ?? 0), name: (a, b) => a.nome.localeCompare(b.nome, "pt") };
     return list.slice().sort(by[F.sort] || by.best);
@@ -271,7 +301,8 @@
       <span class="rd-has">${lead ? `<span class="st ${SEG_TONE[n.lead.estado]}"><i></i>${esc(t(S.estados[n.lead.estado]))}</span>`
         : `${tel ? `<a class="rd-ic" href="tel:${esc(tel.replace(/\s/g, ""))}" title="${esc(t("Ligar {n}", { n: tel }))}">${I.tel}</a>` : `<span class="rd-ic off">${I.tel}</span>`}
            ${mail ? `<a class="rd-ic" href="${esc(mailto(n, mail))}" data-mail="${n.id}" title="${esc(t("Email para {e}", { e: mail }))}">${I.mail}</a>` : `<span class="rd-ic off">${I.mail}</span>`}
-           ${n.site ? `<a class="rd-ic" href="${esc((n.audit || {}).final || n.site)}" target="_blank" rel="noopener" title="${esc(host(n.site))}">${I.web}</a>` : `<span class="rd-ic off">${I.web}</span>`}`}</span>
+           ${n.site ? `<a class="rd-ic" href="${esc((n.audit || {}).final || n.site)}" target="_blank" rel="noopener" title="${esc(host(n.site))}">${I.web}</a>` : `<span class="rd-ic off">${I.web}</span>`}
+           ${liBtn(dono(n)?.linkedin || (/^https:/.test(n.linkedin || "") ? n.linkedin : "")) || `<span class="rd-ic off">${I.li}</span>`}`}</span>
       <span class="rd-chev">${icon("chevron")}</span>
     </div>`;
   }
@@ -356,6 +387,7 @@
           <div class="rd-verd-h"><b>${esc(t(v.titulo))}</b><span>${esc(t("Primeiro passo: {p}", { p: t(v.passo) }))}</span></div>
           ${v.porque.length ? `<ul>${v.porque.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
         </section>
+        ${pessBlock(n)}
         <dl class="rd-info">${info.map(([ic, h]) => `<dt>${ic}</dt><dd>${h}</dd>`).join("")}</dl>
         ${revBlock(n)}
         ${n.lat ? `<div class="rd-map"><iframe title="${esc(t("Mapa"))}" loading="lazy" referrerpolicy="no-referrer"
@@ -579,8 +611,9 @@
     if (await dashClick(e)) return;
     if (e.target.closest("a")) return;  // ligar, ver o site: o link faz o seu trabalho
     if (e.target.closest("#rd-scrim")) return closeDr();
-    const b = e.target.closest("[data-tab],[data-row],[data-copy],[data-del],[data-retry],[data-lead],[data-seg],[data-fx],[data-termo],[data-km],[data-flt],[data-step],[data-close]");
+    const b = e.target.closest("[data-tab],[data-row],[data-copy],[data-del],[data-retry],[data-lead],[data-seg],[data-fx],[data-termo],[data-km],[data-flt],[data-step],[data-close],[data-pess]");
     if (!b) return;
+    if (b.dataset.pess) return procurarPessoas(b.dataset.pess === "all" ? null : [b.dataset.pess], b);
     if (b.dataset.termo) { $("rd-termo").value = b.dataset.termo; say(); if (!$("rd-local").value) $("rd-local").focus(); return; }
     if (b.dataset.km != null) return setKm(Number(b.dataset.km));
     if (b.dataset.flt) { F[b.dataset.flt] = !F[b.dataset.flt]; b.classList.toggle("on", F[b.dataset.flt]); return paintList(); }
@@ -1056,6 +1089,7 @@
       `<option value="${v.id}" ${v.id === cur ? "selected" : ""}>${esc(`${v.ramo_nome} · ${v.local || t("lista")} · ${day(v.at)}`)}</option>`).join("")}</select></label>` : ""}
       <button type="button" class="rdm-new" data-newf="1">${IC.plus}<span>${esc(t("Nova pesquisa"))}</span></button>
       ${SC && !job ? `<button type="button" class="rdm-new" data-viva="1" title="${esc(SC.verificado ? t("Confirmado na web a {d}. Volta a procurar cada empresa e tira as que fecharam.", { d: day(SC.verificado) }) : t("Procura cada empresa na web e tira as que já fecharam."))}">${icon("tick")}<span>${esc(t(SC.verificado ? "Confirmar de novo" : "Confirmar abertas"))}</span></button>` : ""}
+      ${SC && !job ? `<button type="button" class="rdm-new" data-pess="all" ${SC.pessoas_job ? "disabled" : ""} title="${esc(t("Procura o CEO / dono de cada empresa e o LinkedIn dele, as que valem a pena primeiro"))}">${I.li}<span>${esc(SC.pessoas_job ? `${t("A procurar CEOs")} ${SC.pessoas_job.feitos}/${SC.pessoas_job.total}` : t("CEOs no LinkedIn"))}</span></button>` : ""}
       ${SC?.fechadas?.length ? `<span class="rdm-gone" title="${esc(SC.fechadas.map((n) => `${n.nome}: ${n.viva?.prova || t("fechada")}`).join("\n"))}">${esc(t("{n} fechadas tiradas", { n: SC.fechadas.length }))}</span>` : ""}`);
     M.none = none; noteDraw();
     const over = $("rdm-over");
@@ -1231,6 +1265,9 @@
         <div><span class="rdc-ic star">${IC.star}</span><div><small>${esc(t("Potencial"))}</small><b>${v.pontos}<u>/100</u>${diff ? `<span class="rdc-delta ${diff > 0 ? "up" : "dn"}" title="${esc(t("Em relação à média desta pesquisa"))}">${diff > 0 ? IC.up : IC.down}${diff > 0 ? "+" : ""}${diff}</span>` : ""}</b></div></div>
         <div><span class="rdc-ic">${IC.clock}</span><div><small>${esc(t("Última atividade"))}</small><b class="tx">${esc(rel(when))}</b></div></div>
       </div>
+      ${(() => { const p = dono(n); return p ? `<div class="rdc-who"><span class="rd-p-av">${esc(initials(p.nome))}</span><div><b>${esc(p.nome)}</b><small>${esc(p.cargo || t("Quem decide"))}</small></div>
+          ${p.linkedin ? `<a class="rdc-b" href="${esc(p.linkedin)}" target="_blank" rel="noopener">${I.li}LinkedIn</a>` : ""}</div>`
+        : `<div class="rdc-who none"><small>${esc(t(n.pessoas_at ? "Sem CEO / dono em público" : "Quem decide ainda por procurar"))}</small><button type="button" class="rdc-b" data-pess="${n.id}" ${SC?.pessoas_job ? "disabled" : ""}>${I.li}${esc(t("Procurar"))}</button></div>`; })()}
       <div class="rdc-acts">
         <button type="button" class="rdc-b main" data-open="${n.id}">${IC.diamond}${esc(t("Ver Detalhes"))}</button>
         ${tel ? `<a class="rdc-b" href="tel:${esc(tel.replace(/\s/g, ""))}" title="${esc(tel)}">${I.tel}${esc(t("Ligar"))}</a>` : `<span class="rdc-b off" title="${esc(t("Sem telefone à vista"))}">${I.tel}${esc(t("Ligar"))}</span>`}
@@ -1348,7 +1385,8 @@
 
   // os cliques do painel; devolve true quando o clique era dele
   async function dashClick(e) {
-    const b = e.target.closest("[data-temp],[data-pin],[data-open],[data-addcrm],[data-ctab],[data-zoom],[data-recenter],[data-fs],[data-newf],[data-closeq],[data-lf],[data-scan],[data-run],[data-ni],[data-nionly],[data-niall],[data-nifold]");
+    const b = e.target.closest("[data-temp],[data-pin],[data-open],[data-addcrm],[data-ctab],[data-zoom],[data-recenter],[data-fs],[data-newf],[data-closeq],[data-lf],[data-scan],[data-run],[data-ni],[data-nionly],[data-niall],[data-nifold],[data-pess]");
+    if (b?.dataset.pess) return procurarPessoas(b.dataset.pess === "all" ? null : [b.dataset.pess], b);
     if (e.target === $("rd-modal")) { closeForm(); return true; }
     if (!b) return false;
     const d = b.dataset;

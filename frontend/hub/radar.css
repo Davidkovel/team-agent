@@ -626,3 +626,31 @@ html.is-phone .rdm-ni-o { opacity: 1; }
 .rd-rev li b { letter-spacing: 1px; font-size: 12px; }
 .rd-rev li small { margin-left: 8px; color: var(--muted, #8a8f98); }
 .rd-rev li p { margin: 4px 0 0; font-size: 13px; line-height: 1.4; }
+
+/* Com quem falar: o CEO / dono e o LinkedIn dele (radar_pessoas.py, 9 nov) */
+.rd-pess ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rd-p { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; }
+.rd-p-av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; letter-spacing: .02em;
+  background: color-mix(in srgb, var(--text, #fff) 9%, transparent); color: var(--text, #fff); flex: none; }
+.rd-p-id { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rd-p-id b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-p-id small { color: var(--muted); font-size: 12px; }
+.rd-p-id small em { font-style: normal; color: var(--ok, #3ecf8e); }
+.rd-p-id a { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-p-id .rd-p-src { color: var(--muted); }
+.rd-p-li { display: inline-flex; align-items: center; gap: 6px; }
+.rd-p-li svg, .rd-pess .btn svg, .rd-p-co svg, .rd-pjob svg, .rdc-who svg, [data-pess] svg { width: 15px; height: 15px; }
+.rd-p-none { color: var(--muted); font-size: 12px; }
+.rd-p-co { display: flex; align-items: center; gap: 7px; margin: 10px 2px 0; font-size: 12.5px; }
+.rd-p-act { margin-top: 10px; }
+.rd-p-act .btn { display: inline-flex; align-items: center; gap: 6px; }
+.rd-pjob { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.rd-tools [data-pess] { display: inline-flex; align-items: center; gap: 6px; }
+.rdc-who { flex: none; display: flex; align-items: center; gap: 10px; margin-top: 11px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; }
+.rdc-who > div { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.rdc-who b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rdc-who small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rdc-who.none small { flex: 1; }
+.rdc-who .rdc-b { flex: none; }
+html.is-phone .rd-p { grid-template-columns: 30px 1fr; }
+html.is-phone .rd-p .rd-p-li, html.is-phone .rd-p .rd-p-none { grid-column: 2; justify-self: start; }

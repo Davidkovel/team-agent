@@ -1068,6 +1068,8 @@ def veredicto(n: dict) -> dict:
     a, op = n.get("audit") or {}, n.get("oportunidade") or 0
     tel = bool(n.get("telefone") or a.get("telefones"))
     mail = bool(n.get("email") or a.get("emails"))
+    dono = next((p for p in n.get("decisores") or [] if p.get("linkedin") or p.get("email")), None)  # radar_pessoas.py
+    mail = mail or bool(dono and dono.get("email"))
     sim, nao = [], []
     if not n.get("site"):
         sim.append("Não tem site: é a venda mais fácil" + (" (já se mexe no Facebook)" if n.get("facebook") else ""))
@@ -1086,10 +1088,14 @@ def veredicto(n: dict) -> dict:
             f"{str(n['nota']).replace('.', ',')} ★ com {n['opinioes']} opiniões no Google")
     if tel or mail:
         sim.append("Dá para falar já: " + " e ".join(x for x, ok in (("telefone", tel), ("email", mail)) if ok))
+    elif dono:
+        pass
     elif n.get("facebook"):
         nao.append("Sem telefone nem email público: só pelo Facebook")
     else:
         nao.append("Sem telefone, email nem redes: difícil de contactar")
+    if dono:
+        sim.append(f"Quem decide: {dono['nome']}" + (f" ({dono['cargo']})" if dono.get("cargo") else "") + (", tem LinkedIn" if dono.get("linkedin") else ""))
     mas = [r for r in n.get("avaliacoes") or [] if (r.get("estrelas") or 5) <= 2 and (r.get("dias") if r.get("dias") is not None else 9999) <= 365]
     if mas:  # o que os clientes dizem agora no Google Maps (radar_gmaps.py)
         sim.append(("1 avaliação" if len(mas) == 1 else f"{len(mas)} avaliações") + " de 1–2 estrelas no Google no último ano"
@@ -1103,9 +1109,10 @@ def veredicto(n: dict) -> dict:
         nao.append("Não encontrei sinal de vida recente na web: confirma que ainda está aberta antes de ligar")
     elif not viva and visto and int(visto) <= int(time.strftime("%Y")) - 3 and not n.get("site"):
         nao.append(f"O mapa não a confirma desde {visto}: pode já ter fechado")
-    pontos = op + (10 if tel or mail else -25) - (15 if viva == "duvida" else 0)
+    pontos = op + (10 if tel or mail else -10 if dono else -25) - (15 if viva == "duvida" else 0)
     v = "sim" if pontos >= 60 else "talvez" if pontos >= 40 else "nao"
-    passo = ("Ligar" if tel else "Mandar email" if mail else "Mensagem no Facebook" if n.get("facebook") else "Ir lá ou procurar o contacto") if v != "nao" else "Deixar para depois"
+    passo = ("Ligar" if tel else "Mandar email" if mail else f"Mensagem no LinkedIn a {dono['nome']}" if dono and dono.get("linkedin")
+             else "Mensagem no Facebook" if n.get("facebook") else "Ir lá ou procurar o contacto") if v != "nao" else "Deixar para depois"
     return {"v": v, "titulo": {"sim": "Vale a pena", "talvez": "Talvez", "nao": "Não vale a pena"}[v],
             "porque": (sim + nao) if v != "nao" else (nao + sim), "passo": passo, "pontos": max(0, min(100, round(pontos)))}
 

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import radar_doc, radar_share
 from ..radar_ficha import FICHAS, custo
+from ..radar_pessoas import PESSOAS
 from ..db import get_db
 from ..models import User
 from ..radar import ESTADOS, RADAR, RAMOS, veredicto
@@ -60,7 +61,7 @@ async def export(sid: str, token: str = Query(...), db: AsyncSession = Depends(g
     w.writerow(["Posição", "Vale a pena?", "Nome", "Localidade", "Telefone", "Email", "Site", "Facebook", "Plataforma", "Quem fez o site", "Nota do site",
                 "Oportunidade", "Nível", "Gasto estimado €/mês", "Custo do site €", "Anúncios", "Principal problema", "O que fazemos", "Seguimento", "Notas",
                 "Categoria", "Tem site?", "Estrelas Google", "Opiniões Google", "Avaliação mais recente", "Avaliações 1–2★ (último ano)", "Instagram", "LinkedIn",
-                "TikTok", "Google Maps"])
+                "TikTok", "Google Maps", "Quem decide", "Cargo", "LinkedIn de quem decide", "Email de quem decide"])
     for i, n in enumerate(sc["negocios"], 1):
         a, g, p, ld = n.get("audit") or {}, n.get("gasto") or {}, (n.get("problemas") or [{}])[0], n.get("lead") or {}
         w.writerow([i, veredicto(n)["titulo"] if "oportunidade" in n else "", n["nome"], n.get("morada", ""), n.get("telefone", ""), n.get("email") or ", ".join(a.get("emails") or []),
@@ -71,7 +72,8 @@ async def export(sid: str, token: str = Query(...), db: AsyncSession = Depends(g
                     n.get("categoria", ""), "sim" if n.get("site") else "não", str(n["nota"]).replace(".", ",") if n.get("nota") is not None else "",
                     n.get("opinioes", ""), ((n.get("avaliacoes") or [{}])[0]).get("quando", ""),
                     sum(1 for r in n.get("avaliacoes") or [] if (r.get("estrelas") or 5) <= 2 and (r.get("dias") if r.get("dias") is not None else 9999) <= 365) if n.get("avaliacoes") else "",
-                    n.get("instagram", ""), n.get("linkedin", ""), n.get("tiktok", ""), n.get("maps", "")])
+                    n.get("instagram", ""), n.get("linkedin", ""), n.get("tiktok", ""), n.get("maps", ""),
+                    *(lambda d: [d.get("nome", ""), d.get("cargo", ""), d.get("linkedin", ""), d.get("email", "")])((n.get("decisores") or [{}])[0])])
     nome = re.sub(r"[^a-z0-9]+", "-", f"radar-{sc['ramo']}-{sc['local'] or 'lista'}".lower()).strip("-")
     return Response("﻿" + out.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})
@@ -135,7 +137,17 @@ def one(sid: str, user: User = Depends(viewer)):
     for n in sc.get("negocios", []):
         n["custo_site"] = custo(n)  # quanto custou o site, pelo que o scan viu (a ficha completa afina)
         n["vale"] = veredicto(n) if "oportunidade" in n else None  # vale a pena ou não, com o porquê
+    sc["pessoas_job"] = PESSOAS.jobs.get(sid)
     return sc
+
+
+@router.post("/{sid}/pessoas")
+def pessoas(sid: str, body: dict | None = None, user: User = Depends(viewer)):
+    """Procura quem decide (CEO, dono, sócio-gerente) e o LinkedIn dele: as empresas pedidas, ou as que ainda não têm (as que valem a pena primeiro)."""
+    try:
+        return PESSOAS.start(sid, (body or {}).get("ids") or None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.delete("/{sid}")

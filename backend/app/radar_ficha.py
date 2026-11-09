@@ -580,7 +580,7 @@ def _prompt(scan: dict, n: dict, f: dict) -> str:
             "mostrar, e a ficha do Google Maps (estrelas e número de opiniões, se aparecerem). Não inventes perfis nem números: o que "
             "não achares fica de fora. Se a ficha tem «agencia» (quem fez o site), pesquisa também essa agência ou pessoa: o site, "
             "a cidade, o email, o telefone, o Instagram/Facebook/LinkedIn e outros clientes que mostre. E pesquisa quem decide neste "
-            "negócio (CEO, dono, sócio-gerente, fundador): o nome, o cargo, o perfil pessoal do LinkedIn e o email dele se for público "
+            "negócio (CEO, dono, sócio-gerente, fundador; senão o CTO ou o diretor de marketing, digital ou comercial): o nome, o cargo, o perfil pessoal do LinkedIn e o email dele se for público "
             "(nunca adivinhado), e a página da empresa no LinkedIn.\n\n"
             "Depois devolve este JSON e mais nada:\n"
             '{"redes": {"instagram": {"url": "https://www.instagram.com/...", "seguidores": 1234}, "facebook": {"url": "...", "seguidores": 0}, '

@@ -18,7 +18,9 @@ from .radar import DIR, GENERIC, RADAR, _norm
 NIVEIS = [
     (3, r"\b(ceo|founder|co-?founder|fundador|fundadora|cofundador|owner|propriet[aá]ri[oa]|don[oa]|s[oó]ci[oa][- ]gerente|"
         r"gerente|managing director|diretor[a]? geral|director[a]? geral|administrador[a]?|presidente|general manager|partner|s[oó]ci[oa])\b"),
-    (2, r"\b(diretor[a]?|director[a]?|head|manager|respons[aá]vel|coordenador[a]?|chefe|lead)\b"),
+    # 9 nov, David: «se não o CEO, o CTO, por exemplo: as pessoas a quem importa o que oferecemos» (site, IA, marketing)
+    (2, r"\b(cto|cmo|cio|cdo|coo|chief|diretor[a]?|director[a]?|head|manager|respons[aá]vel|coordenador[a]?|chefe|lead|marketing|digital|"
+        r"inform[aá]tica|tecnologia|technology|it|sistemas|comunica[cç][aã]o|comercial|vendas|sales|e-?commerce|growth|brand|marca)\b"),
 ]
 IN = re.compile(r"https?://(?:[a-z]{2,3}\.)?linkedin\.com/in/([A-Za-z0-9_\-%]{3,100})", re.I)
 CO = re.compile(r"https?://(?:[a-z]{2,3}\.)?linkedin\.com/company/([A-Za-z0-9_\-%.]{2,80})", re.I)
@@ -94,10 +96,12 @@ def _prompt(lote: list[dict], local: str) -> str:
     linhas = "\n".join(f'{n["id"]} | {n["nome"]} | {n.get("morada") or local} | {n.get("site") or ""} | {n.get("linkedin") or ""}' for n in lote)
     return ("Empresas (id | nome | localidade | site | LinkedIn da empresa, se já se sabe):\n" + linhas + "\n\n"
             "Para cada uma, pesquisa na web (o site «sobre nós/equipa», o LinkedIn, o registo comercial, notícias, a página do Facebook) "
-            "quem é o CEO / dono / sócio-gerente: o nome, o cargo, o perfil pessoal do LinkedIn (linkedin.com/in/...) e o email dele se "
+            "quem é o CEO / dono / sócio-gerente e, se não o achares (ou além dele), quem decide sobre o que vendemos (site, IA, "
+            "marketing, redes, tecnologia): o CTO, o diretor de marketing, digital, informática, comunicação ou comercial. Para cada "
+            "pessoa: o nome, o cargo, o perfil pessoal do LinkedIn (linkedin.com/in/...) e o email dela se "
             "for público (no site, num perfil, numa notícia; nunca adivinhado pelo formato). Também a página da empresa no LinkedIn "
             "(linkedin.com/company/...). O perfil tem de ser mesmo dessa pessoa nessa empresa (nome da empresa e zona batem certo). "
-            "Até 2 pessoas por empresa, a que decide primeiro.\n\n"
+            "Até 3 pessoas por empresa, a que decide primeiro.\n\n"
             'Devolve só: [{"id": "...", "linkedin_empresa": "", "pessoas": [{"nome": "", "cargo": "", "linkedin": "https://www.linkedin.com/in/...", '
             '"email": "", "fonte": "link onde o viste"}]}]')
 

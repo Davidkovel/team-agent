@@ -498,7 +498,7 @@ html.is-phone .wf.tf-folder .wf-lib { grid-template-columns: repeat(2, minmax(0,
 .pc-now { grid-area: now; display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 7px; padding-top: 9px; border-top: 1px solid rgba(255, 255, 255, .06); color: #8f969f; font-size: 11.5px; }
 .pc-now > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pc-now b { color: #eef1f4; font-weight: 500; }
-.pc-now i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #4ee07a; box-shadow: 0 0 8px #4ee07a; animation: pc-live 1.6s ease-in-out infinite; }
+.pc-now i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #4ee07a; box-shadow: 0 0 8px #4ee07a; animation: pc-live 1.6s ease-in-out 3; }
 @keyframes pc-live { 50% { opacity: .35; } }
 
 /* "Por pessoa": a column per partner, the colour along its top; yours lit faintly in it */

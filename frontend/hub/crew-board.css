@@ -643,7 +643,7 @@ html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 14px; }
 .bv-side { display: grid; justify-items: end; gap: 5px; white-space: nowrap; }
 .bv-side em { display: flex; align-items: center; gap: 6px; color: var(--c); font: 700 11px var(--ui); font-style: normal; }
 .bv-side em i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
-.bv-job:not(.need) .bv-side em i { animation: bv-beat 1.6s ease-in-out infinite; }
+.bv-job:not(.need) .bv-side em i { animation: bv-beat 1.6s ease-in-out 3; }
 @keyframes bv-beat { 50% { opacity: .35; } }
 .bv-side span { color: #6b7380; font: 600 11px var(--ui); }
 .bv-btn { display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 8px; border: 0; background: #eef1f4; color: #0b0c0e; font: 700 11.5px var(--ui); cursor: pointer; }

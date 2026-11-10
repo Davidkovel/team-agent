@@ -344,7 +344,9 @@ const md = (text) => esc(text).replace(/^#{1,4} +(.+)$/gm, "<b>$1</b>").replace(
 // Fill an element from the Hub: a skeleton while it loads, the content, or an error with a way to try again.
 async function mount(el, render, lines = 3) {
   if (!el) return;
-  if (!el._html) el.innerHTML = ui.skeleton(lines);
+  // `== null`, not `!`: a part that came back empty ("") stayed a skeleton forever, since paint() saw nothing new, and
+  // its shimmer kept the central at 40% CPU (10 Nov).
+  if (el._html == null) el.innerHTML = ui.skeleton(lines);
   try {
     paint(el, await render());
   } catch (e) {

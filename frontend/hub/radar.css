@@ -297,7 +297,7 @@ html.is-phone #view:has(#rd) { padding: 8px 10px 90px !important; }
 .rdh-raio select option, .rdx-sel select option, .rdm-pick select option { background: #11151a; color: #eef1f4; }
 .rdh-at { margin-left: 10px; display: inline-flex; align-items: center; gap: 7px; color: #a2acb6; font: 400 12px var(--ui); white-space: nowrap; }
 .rdh-at i { width: 7px; height: 7px; border-radius: 50%; background: var(--rd-green); box-shadow: 0 0 8px var(--rd-green); }
-.rdh-at.busy i { background: var(--rd-warm); box-shadow: 0 0 8px var(--rd-warm); animation: rd-blink 1.1s ease-in-out infinite; }
+.rdh-at.busy i { background: var(--rd-warm); box-shadow: 0 0 8px var(--rd-warm); animation: rd-blink 1.1s ease-in-out 3; }
 @keyframes rd-blink { 50% { opacity: .35; } }
 .rdh-fs { all: unset; cursor: pointer; margin-left: 10px; width: 33px; height: 33px; display: grid; place-items: center; border-radius: 9px; color: #dbe1e7; }
 .rdh-fs:hover { background: rgba(255, 255, 255, .08); }

@@ -163,7 +163,7 @@ kbd { padding: 1px 5px; border: 1px solid var(--line-2); border-radius: 5px; col
 .st { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font: 500 11.5px var(--ui); white-space: nowrap; }
 .st i { width: 7px; height: 7px; border-radius: 50%; background: var(--idle); flex: none; transition: background .3s, box-shadow .3s; }
 .st.ok i { background: var(--ok); }
-.st.busy i { background: var(--ok); box-shadow: 0 0 0 0 rgba(95, 207, 140, .5); animation: breathe 2.4s ease-in-out infinite; }
+.st.busy i { background: var(--ok); box-shadow: 0 0 0 0 rgba(95, 207, 140, .5); animation: breathe 2.4s ease-in-out 3; }
 .st.wait i { background: var(--warn); }
 .st.bad i { background: var(--bad); }
 .st.ai i { background: var(--ai); }
@@ -684,7 +684,7 @@ html:not(.is-phone) body:has(.hub.paneled) #ai-fab { right: 324px; }
 @keyframes doing-pop { 0% { transform: scale(.86); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
 @keyframes doing-burst { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.5); } }
 .dl-ring { position: relative; display: inline-grid; place-items: center; flex: none; padding: 2px; border-radius: 50%;
-  background: conic-gradient(from var(--dl-a), #5fe08a, #eef1f4 25%, rgba(95, 224, 138, .1) 55%, #5fe08a); animation: dl-spin 2.4s linear infinite;
+  background: conic-gradient(from var(--dl-a), #5fe08a, #eef1f4 25%, rgba(95, 224, 138, .1) 55%, #5fe08a); animation: dl-spin 2.4s linear 3;
   box-shadow: 0 0 12px rgba(95, 224, 138, .45); }
 .dl-ring .av { border: 2px solid #0b0c0e; }
 .doer-live { display: inline-flex; align-items: center; gap: 7px; flex: none; }
@@ -836,7 +836,7 @@ html.is-mini body { background: #030407; }
 
 /* «Tarefa para ti»: a card at the top of any page when a task is sent to me (shell.js, taskNews), and the lit number of the
    sidebar's Tarefas */
-.badge.hot { background: #ff2d4f !important; color: #fff !important; box-shadow: 0 0 0 0 rgba(255, 45, 79, .55); animation: tpop-ping 1.8s ease-out infinite; }
+.badge.hot { background: #ff2d4f !important; color: #fff !important; box-shadow: 0 0 0 0 rgba(255, 45, 79, .55); animation: tpop-ping 1.8s ease-out 3; }
 @keyframes tpop-ping { 0% { box-shadow: 0 0 0 0 rgba(255, 45, 79, .55); } 70% { box-shadow: 0 0 0 7px rgba(255, 45, 79, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 45, 79, 0); } }
 .tpop { position: fixed; z-index: 85; top: 18px; left: 50%; width: min(460px, calc(100vw - 24px)); transform: translateX(-50%); overflow: hidden; padding: 16px 16px 14px;
   border-radius: 18px; background: linear-gradient(180deg, #14171c, #0a0c10); border: 1px solid rgba(255, 255, 255, .14);
@@ -847,7 +847,7 @@ html.is-mini body { background: #030407; }
 .tpop header { display: flex; align-items: center; gap: 9px; }
 .tpop header b { font: 700 11px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: #fff; }
 .tpop header em { padding: 2px 8px; border-radius: 999px; background: rgba(255, 45, 79, .16); color: #ff8a9c; font: 700 10.5px var(--ui); font-style: normal; }
-.tpop-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff2d4f; box-shadow: 0 0 10px #ff2d4f; animation: tpop-ping 1.8s ease-out infinite; }
+.tpop-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff2d4f; box-shadow: 0 0 10px #ff2d4f; animation: tpop-ping 1.8s ease-out 3; }
 .tpop-x { margin-left: auto; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .06); color: #aeb5bf; cursor: pointer; }
 .tpop-x .i { width: 13px; height: 13px; }
 .tpop-from { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; color: #8b95a1; font-size: 12.5px; }

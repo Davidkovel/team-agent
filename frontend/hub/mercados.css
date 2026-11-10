@@ -9,7 +9,7 @@
 .mk-live:empty { display: none; }
 .mk-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--faint); vertical-align: 1px; }
 .mk-dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(95, 207, 140, .7); }
-.mk-dot.live { width: 6px; height: 6px; margin-right: 5px; background: var(--down); animation: mk-pulse 1.4s ease-in-out infinite; }
+.mk-dot.live { width: 6px; height: 6px; margin-right: 5px; background: var(--down); animation: mk-pulse 1.4s ease-in-out 3; }
 @keyframes mk-pulse { 50% { opacity: .35; } }
 
 /* the Hub says color-scheme: dark; an iframe whose page says nothing is then painted opaque white behind TradingView's
@@ -124,7 +124,7 @@
 .mk-ask-off svg.i { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--warn); }
 .mk-ask-off b { display: block; color: var(--text); margin-bottom: 2px; }
 .mk-think { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12.5px; }
-.mk-think i { width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--ai-rgb)); animation: mk-pulse 1s infinite; }
+.mk-think i { width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--ai-rgb)); animation: mk-pulse 1s 3; }
 .mk-think i:nth-child(2) { animation-delay: .15s; } .mk-think i:nth-child(3) { animation-delay: .3s; }
 .mk-think span { margin-left: 6px; }
 

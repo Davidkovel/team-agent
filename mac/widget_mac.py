@@ -146,6 +146,33 @@ def on_this_desktop(widget) -> bool:
     return bool(ns_window) and get_bool(ns_window, objc.sel_registerName(b"isOnActiveSpace"))
 
 
+def seen(widget) -> bool:
+    """Na secretária onde estás e não tapada por outras janelas (occlusionState, bit «visible»)."""
+    objc, msg = _objc()
+    get_ulong = ctypes.CFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p, ctypes.c_void_p)(msg)
+    ns_window = ns_window_of(widget)
+    return on_this_desktop(widget) and bool(get_ulong(ns_window, objc.sel_registerName(b"occlusionState")) & (1 << 1))
+
+
+def rest_when_unseen(widget, frozen: dict):
+    """O David (10 nov): a central ficou aberta noutra secretária e gastou 117% do CPU durante 4 dias. Para o Qt ela
+    continuava visível e a página desenhava sem parar (50 a 80% aberta). Tapada ou noutra secretária, a página fica
+    escondida e congelada (0%, como minimizada); quando volta a ver-se, fica como estava."""
+    from PySide6.QtWebEngineCore import QWebEnginePage
+    from PySide6.QtWebEngineWidgets import QWebEngineView
+
+    unseen = not seen(widget)
+    for view in widget.findChildren(QWebEngineView):
+        page = view.page()
+        if unseen and page not in frozen and view.isVisible():
+            frozen[page] = page.lifecycleState()
+            page.setVisible(False)
+            page.setLifecycleState(QWebEnginePage.LifecycleState.Frozen)
+        elif not unseen and page in frozen:
+            page.setLifecycleState(frozen.pop(page))
+            page.setVisible(view.isVisible())
+
+
 def goes_everywhere(widget) -> bool:
     """O David (16 out): só a estrela do canto (horas e Mercedes) vai para todas as secretárias. O painel e o Hub abrem
     na secretária onde ele está e ficam lá; ir atrás dele de secretária em secretária ficava tudo encavalitado."""
@@ -163,6 +190,7 @@ class MacApp(QApplication):
         # Revê-se de meio em meio segundo porque o Qt cria uma janela nova do macOS quando muda «sempre por cima»,
         # e porque a mesma janela é a estrela (todas as secretárias) e o painel (só uma).
         self._set = {}
+        self._frozen = {}  # página -> estado que tinha antes de congelar por não se ver
         self._spaces = QTimer(self)
         self._spaces.timeout.connect(self._follow_desktops)
         self._spaces.start(500)
@@ -181,6 +209,8 @@ class MacApp(QApplication):
                 # Painel aberto noutra secretária: volta a ser estrela, que aparece logo na secretária onde estás.
                 elif isinstance(w, WidgetWindow) and w.mode == "panel" and not on_this_desktop(w):
                     w.collapse()
+                elif type(w).__name__ in ("HubExpander", "MiniWindow") and not getattr(w, "_busy", False):
+                    rest_when_unseen(w, self._frozen)
             except Exception:  # noqa: BLE001 — nunca deixar isto partir o widget
                 pass
 

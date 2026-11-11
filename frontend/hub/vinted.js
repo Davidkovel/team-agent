@@ -3,7 +3,10 @@
 // números, as categorias (ligar/desligar cada uma, juntar uma nova), os limites da regra e as oportunidades encontradas.
 // Tudo vem do radar.db do vinted-radar deste PC: o que falta aparece como «Sem dados». A compra é sempre à mão.
 (function () {
-  let V = null, timer = 0;
+  let V = null, timer = 0, ordem = localStorage.getItem("vt-ordem") || "desconto", cat = "";
+  const desc = (a) => (a.mediana ? 1 - a.preco / a.mediana : 0);
+  const ORDENS = { desconto: ["Maior desconto", (a, b) => desc(b) - desc(a)], lucro: ["Maior lucro", (a, b) => (b.lucro || 0) - (a.lucro || 0)],
+    barato: ["Mais barato", (a, b) => a.preco - b.preco], novo: ["Mais recentes", (a, b) => String(b.alertado_em || b.visto_em).localeCompare(String(a.alertado_em || a.visto_em))] };
   const eur = (n, d = 0) => (n == null ? "—" : `${Number(n).toLocaleString("pt-PT", { maximumFractionDigits: d })} €`);
   const ago = (s) => (s ? fmt.ago(new Date(s.replace(" ", "T")).toISOString()) : t("nunca"));
 
@@ -24,10 +27,10 @@
     </label>`;
   }
 
-  function alerta(a) {
+  function alerta(a, i) {
     const pct = a.mediana ? Math.round((1 - a.preco / a.mediana) * 100) : null;
-    return `<a class="vt-deal panel" href="${esc(a.link)}" target="_blank" rel="noopener">
-      <div class="vt-ph">${a.foto ? `<img src="${esc(a.foto)}" alt="" loading="lazy">` : ""}${pct != null ? `<span>−${pct}%</span>` : ""}</div>
+    return `<a class="vt-deal panel ${i < 3 && ordem !== "novo" ? "top" : ""}" href="${esc(a.link)}" target="_blank" rel="noopener">
+      <div class="vt-ph">${a.foto ? `<img src="${esc(a.foto)}" alt="" loading="lazy">` : ""}${pct != null ? `<span>−${pct}%</span>` : ""}${i < 3 && ordem !== "novo" ? `<em>#${i + 1}</em>` : ""}</div>
       <div class="vt-dt">
         <small>${esc(a.marca || "")} · ${esc(a.nicho)}</small>
         <b>${esc(a.titulo)}</b>
@@ -57,6 +60,9 @@
       return;
     }
     paintCtl();
+    const cats = [...new Set(V.alertas.map((a) => a.nicho))];
+    if (cat && !cats.includes(cat)) cat = "";
+    const lista = V.alertas.filter((a) => !cat || a.nicho === cat).sort(ORDENS[ordem][1]);
     const st = V.estado || {}, ativos = V.nichos.filter((n) => n.ativo).length;
     const kpis = ui.kpis([
       ui.kpi({ label: "Oportunidades hoje", value: V.alertas_hoje, sub: t("{n} no total", { n: V.alertas.length }), cls: "hi" }),
@@ -70,8 +76,9 @@
       <div class="vt-cats">${V.nichos.map(nicho).join("")}
         <form class="vt-cat vt-new" data-new><input name="pesquisa" placeholder="${esc(t("Nova: ex. barbour jacket"))}" maxlength="80">
           <button class="btn quiet" type="submit">${icon("plus")}${esc(t("Juntar"))}</button></form></div>
-      ${ui.sec("Oportunidades", `<span class="vt-aside">${esc(t("bem abaixo do mercado, com comparáveis reais"))}</span>`)}
-      ${V.alertas.length ? `<div class="vt-deals">${V.alertas.map(alerta).join("")}</div>`
+      ${ui.sec("Oportunidades", `<div class="vt-seg">${Object.entries(ORDENS).map(([k, [l]]) => `<button type="button" data-ordem="${k}" class="${k === ordem ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`)}
+      ${cats.length > 1 ? `<div class="vt-seg vt-fcat"><button type="button" data-fcat="" class="${cat ? "" : "on"}">${esc(t("Todas"))}</button>${cats.map((c) => `<button type="button" data-fcat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}</div>` : ""}
+      ${lista.length ? `<div class="vt-deals">${lista.map(alerta).join("")}</div>`
         : `<div class="panel">${ui.empty("bag", "Ainda sem oportunidades", V.ligado ? "O radar está a procurar. Aparecem aqui quando um artigo sair bem abaixo do mercado." : "Escolhe as categorias e carrega em «Ligar o radar».")}</div>`}
       ${tg}
       ${ui.sec("Limites da regra")}${limites()}
@@ -113,7 +120,9 @@
         const limites = {};
         v.querySelectorAll("[data-lim]").forEach((i) => { if (i.value !== "") limites[i.dataset.lim] = i.dataset.pct ? Number(i.value) / 100 : Number(i.value); });
         send("/api/vinted/config", { limites }, "Limites guardados.");
-      } else if (e.target.closest("[data-retry]")) load();
+      } else if (e.target.closest("[data-ordem]")) { ordem = e.target.closest("[data-ordem]").dataset.ordem; localStorage.setItem("vt-ordem", ordem); draw(); }
+      else if (e.target.closest("[data-fcat]")) { cat = e.target.closest("[data-fcat]").dataset.fcat; draw(); }
+      else if (e.target.closest("[data-retry]")) load();
     };
     v.onchange = (e) => {
       if (!e.target.matches("[data-cat]")) return;

@@ -144,7 +144,8 @@ def config(body: dict, user: User = Depends(viewer)):
             raise HTTPException(400, "Escreve o que procurar")
         if any(n["nome"].lower() == (nome or pesq).lower() for n in cfg["nichos"]):
             raise HTTPException(400, "Essa categoria já existe")
-        cfg["nichos"].append({"nome": nome or pesq, "pesquisa": pesq, "tamanhos": [], "ativo": True})
+        tech = any(w in pesq.lower() for w in ("iphone", "macbook", "ipad"))   # modelo + armazenamento em vez do tipo de roupa
+        cfg["nichos"].append({"nome": nome or pesq, "pesquisa": pesq, "tamanhos": [], "ativo": True, **({"tech": True, "preco_max": 1200} if tech else {})})
     tirar = body.get("tirar")
     if tirar:
         cfg["nichos"] = [n for n in cfg["nichos"] if n["nome"] != tirar]

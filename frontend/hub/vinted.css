@@ -48,3 +48,13 @@ html.is-phone .vt-cats { grid-template-columns: 1fr; }
 html.is-phone .vt-deals { grid-template-columns: 1fr; }
 html.is-phone .vt-ph { flex-basis: 84px; height: 112px; }
 html.is-phone .vt-x { opacity: 1; }
+
+/* ordem e filtro das oportunidades; os 3 melhores marcados */
+.vt-seg { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.vt-seg button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; padding: 4px 11px;
+  font: inherit; font-size: 12px; cursor: pointer; }
+.vt-seg button.on { color: var(--text); border-color: var(--line-2); background: rgba(255, 255, 255, .07); }
+.vt-fcat { margin: -2px 0 12px; }
+.vt-deal.top { border-color: var(--line-2); background: rgba(255, 255, 255, .045); }
+.vt-ph em { position: absolute; right: 6px; top: 6px; padding: 2px 7px; border-radius: 999px; background: #e9e9ea; color: #0a0a0a;
+  font-style: normal; font-size: 12px; font-weight: 700; }

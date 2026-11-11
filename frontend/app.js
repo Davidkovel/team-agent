@@ -218,6 +218,7 @@ const NAV = [
   ["Radar", "target", [["radar", "Radar"], ["emails", "E-mails"], ["crm", "CRM"]], "negocios"],   // E-mails (3 nov): do Radar à resposta; CRM (2 nov): o seguimento do Radar até ao negócio
   ["Fábrica Etsy", "bag", [["etsy", "Fábrica Etsy"]], "negocios"],
   ["Afiliados", "link", [["afiliados", "Afiliados"]], "negocios"],   // 3 nov, Marco: affiliate marketing, aprender e registar
+  ["Vinted", "bag", [["vinted", "Vinted Radar"]], "negocios"],   // 11 nov, David: artigos do Vinted abaixo do preço de mercado
   ["Sala de Trading", "trend", [["trading", "Sala de Trading"], ["sinal", "Sinal na notícia"], ["fundednext", "FundedNext"], ["robos", "Robôs"], ["reforco", "Reforço na notícia"], ["gap", "Gap da manhã"]], "trading"],
   ["Mercados", "candles", [["mercados", "Mercados"]], "trading"],
   ["Análise", "chart", [["analise", "Análise"], ["uso", "Uso de IA"], ["despesas", "Despesas"]], "sistema"],

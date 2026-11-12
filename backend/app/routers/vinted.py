@@ -7,6 +7,7 @@ janela, lê a pesquisa pública do Vinted de 5 em 5 min e guarda em `radar.db`. 
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import signal
@@ -31,8 +32,12 @@ LIMITES = ("margem_min_eur", "margem_min_pct", "max_pct_do_mercado", "percentil_
 
 
 def _python() -> str:
-    """O Python de fora do venv do Hub: é lá que está o Selenium."""
-    return os.environ.get("VINTED_PYTHON") or getattr(sys, "_base_executable", "") or sys.executable
+    """O Python que tem o Selenium: o do venv do Hub se o tiver (Mac), senão o de fora do venv."""
+    if os.environ.get("VINTED_PYTHON"):
+        return os.environ["VINTED_PYTHON"]
+    if importlib.util.find_spec("selenium"):
+        return sys.executable
+    return getattr(sys, "_base_executable", "") or sys.executable
 
 
 def _pid() -> int | None:

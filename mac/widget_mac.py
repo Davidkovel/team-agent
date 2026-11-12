@@ -63,7 +63,7 @@ def own_hub():
 
 
 MAC_LETTERS = 1.2
-os.environ.setdefault("TEAM_WIDGET_NEED", "905")
+os.environ.setdefault("TEAM_WIDGET_NEED", "790")
 
 
 def compact_panel():
@@ -72,7 +72,7 @@ def compact_panel():
     Mac já mostra (a hora e a data, na barra de cima) e o botão de teste «Ficar offline»: fica mais baixo e lê-se logo.
     12 nov (Marco, MacBook Air: «tá tudo carregado»): a 96/72 as letras do Mac, mais largas que as Segoe, batiam nas bordas
     das caixas («Mensagens», «FundedNext») e o «Claude 5 h» colava-se aos minutos. Ficam a 1,2; e como a central do Mac
-    mede ~905 px, o team_widget.fit encolhe tudo por igual quando o ecrã é mais baixo que isso (TEAM_WIDGET_NEED)."""
+    mede ~750 px (era 905 antes da central nova), o team_widget.fit encolhe tudo por igual quando o ecrã é mais baixo que isso (TEAM_WIDGET_NEED)."""
     from team_widget.ui import window
 
     original_font = window.font

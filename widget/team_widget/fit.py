@@ -10,7 +10,7 @@ import os
 import platform
 import sys
 
-NEED = 990      # px the open cockpit takes with its shadow, at the size it was drawn
+NEED = 800      # px the open cockpit takes with its shadow, at the size it was drawn (756 on 12 Nov, and some air)
 SMALLEST = 0.75  # below this the letters stop being readable: better cut than tiny
 STEP = 0.05
 

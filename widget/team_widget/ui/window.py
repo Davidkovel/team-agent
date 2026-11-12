@@ -554,6 +554,14 @@ class Platter(QWidget):
             self.box.addSpacing(4)
             self.head = head
 
+    on_press = None   # set to a function and a click anywhere on the module that no button took calls it
+
+    def mousePressEvent(self, e):
+        if self.on_press is not None and e.button() == Qt.LeftButton:
+            self.on_press()
+        else:
+            super().mousePressEvent(e)
+
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -1240,9 +1248,10 @@ class ClaudeRow(Hover):
 
 
 class Kpi(Hover):
-    """One figure of the central's top row, as the Hub's Painel (ui.kpi): a round icon, the figure big, its name under
-    it. The first of the row is lit (raised graphite, a chrome disc); the rest are dark glass. A click opens its destaque."""
-    H = 84
+    """One figure of the central's top row: the figure big, its name under it in small capitals. Since 12 Nov the four
+    share one strip of glass (`Strip`) instead of a box each with a round icon (Marco: «tá tudo carregado»; the boxes took
+    84 px and the names touched their edges on the Mac). A click opens its destaque."""
+    H = 58
 
     def __init__(self, key: str, name: str, lit=False):
         super().__init__()
@@ -1250,7 +1259,7 @@ class Kpi(Hover):
         self.value, self.colour = "—", TEXT
         self.setFixedHeight(self.H)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self._f_value, self._f_name = font(17, QFont.DemiBold, DISPLAY), font(7.5, QFont.DemiBold, UI)
+        self._f_value, self._f_name = font(17, QFont.DemiBold, DISPLAY), font(6.4, QFont.DemiBold, UI, spacing=0.7)
         self._count_t0 = None   # counting up from 0 since then (the central opening), as the reel's dashboard
         self.zero = False       # drawn at 0, for the picture the central opens from
 
@@ -1289,41 +1298,48 @@ class Kpi(Hover):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect()).adjusted(0.5 + self.press, 0.5 + self.press, -0.5 - self.press, -0.5 - self.press)
-        shape = QPainterPath()
-        shape.addPath(cut_path(r, 16, 16))
-        clear_glass(p, shape, r)   # clear glass (29 Oct); the lit one a touch brighter
-        p.setPen(QPen(QColor(255, 255, 255, int(60 * self.hover)), 1) if self.hover else Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, 14 if self.lit else 0))
-        p.drawPath(shape)
-        self.paint_wave(p, shape)
-        disc = QRectF(r.left() + 10, r.top() + 10, 26, 26)
-        if self.lit:
-            chrome = QLinearGradient(0, disc.top(), 0, disc.bottom())
-            chrome.setColorAt(0, QColor(238, 240, 244))
-            chrome.setColorAt(1, QColor(160, 166, 174))
+        r = QRectF(self.rect())
+        shape = cut_path(r.adjusted(4, 4, -4, -4), 12, 12)
+        if self.hover:
             p.setPen(Qt.NoPen)
-            p.setBrush(chrome)
-        else:
-            p.setPen(QPen(QColor(255, 255, 255, 30), 1))
-            p.setBrush(QColor(255, 255, 255, 12))
-        p.drawEllipse(disc)
-        p.drawPixmap(QPointF(disc.center().x() - 7, disc.center().y() - 7),
-                     glyph(self.key, 14, "#0b0b0d" if self.lit else "#d5d8dc", self.devicePixelRatioF()))
+            p.setBrush(QColor(255, 255, 255, int(16 * self.hover)))
+            p.drawPath(shape)
+        self.paint_wave(p, shape)
         p.setFont(self._f_value)
         p.setPen(QColor(self.colour))
-        p.drawText(QRectF(r.left() + 11, r.top() + 38, r.width() - 14, 26), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(self._f_value).elidedText(self._shown(), Qt.ElideRight, r.width() - 14))
+        p.drawText(QRectF(r.left() + 4, r.top() + 8 + self.press, r.width() - 8, 26), Qt.AlignHCenter | Qt.AlignVCenter,
+                   QFontMetricsF(self._f_value).elidedText(self._shown(), Qt.ElideRight, r.width() - 8))
         p.setFont(self._f_name)
         p.setPen(QColor(TEXT if self.hover > 0.5 else "#aeb3ba"))
-        p.drawText(QRectF(r.left() + 11, r.top() + 62, r.width() - 14, 14), Qt.AlignLeft | Qt.AlignVCenter, self.name)
+        p.drawText(QRectF(r.left(), r.top() + 35 + self.press, r.width(), 14), Qt.AlignHCenter | Qt.AlignVCenter, self.name.upper())
+
+
+class Strip(QWidget):
+    """The one plate of glass the figures sit on, a hairline between each."""
+
+    def __init__(self, n: int):
+        super().__init__()
+        self.n = n
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        clear_glass(p, cut_path(r, 16, 16), r)
+        p.setPen(QPen(QColor(255, 255, 255, 28), 1))
+        for i in range(1, self.n):
+            x = round(r.left() + r.width() * i / self.n) + 0.5
+            p.drawLine(QPointF(x, r.top() + 13), QPointF(x, r.bottom() - 13))
 
 
 class TeamPick(QWidget):
     """The partners as three big photos, like «A tua equipa» on the Hub's Início: a ring in their state's colour (green
     with a Claude working, amber when one waits for an answer), their name, and how many Claudes they have working. A
-    click picks whose Claudes and limits show under it (28 Oct, Marco: «controlar o meu, o do Kovel e o do David»)."""
-    H, PHOTO = 92, 50
+    click picks whose Claudes and limits show under it (28 Oct, Marco: «controlar o meu, o do Kovel e o do David»).
+    12 Nov (Marco: «uma pessoa tinha que ver... e ficar wow»): each photo is a dial. Two arcs open at the bottom go round
+    it, the outer the Claude 5 h and the inner the week, white, amber and red as the Hub's meters, so the limits of the
+    three read at once without picking anybody. The state is the dot in the opening of the dial."""
+    H, PHOTO = 110, 52
 
     def __init__(self, on_pick):
         super().__init__()
@@ -1376,7 +1392,7 @@ class TeamPick(QWidget):
                 p.setBrush(QColor(255, 255, 255, 14 if picked else 7))
                 cut(p, cell.adjusted(3, 0, -3, 0), 16, 16)
             s = self.PHOTO
-            box = QRectF(cell.center().x() - s / 2, 8, s, s)
+            box = QRectF(cell.center().x() - s / 2, 13, s, s)
             online = bool(person.get("online"))
             pic = photos().photo(person["user"], s, dpr)
             p.setOpacity(1.0 if online else 0.45)
@@ -1386,22 +1402,25 @@ class TeamPick(QWidget):
                 p.drawPixmap(box.toRect(), avatar(online, dpr))
             p.setOpacity(1.0)
             asks = live.get("waiting") and live.get("wait") in ("permission", "answer")
-            ring = COLORS["WAITING"] if asks else COLORS["WORKING"] if live.get("working") else None
+            plan = live.get("limits") or {}
             p.setBrush(Qt.NoBrush)
-            if ring:
-                p.setPen(QPen(QColor(ring), 2.2))
-                p.drawEllipse(box.adjusted(-3, -3, 3, 3))
-            elif picked:
-                p.setPen(QPen(QColor(255, 255, 255, 150), 1.6))
-                p.drawEllipse(box.adjusted(-3, -3, 3, 3))
-            dot = QPointF(box.right() - 4, box.bottom() - 4)
+            p.setOpacity(1.0 if online else 0.5)
+            for pct, grow, width in ((plan.get("five"), 9.0, 3.0), (plan.get("week"), 4.0, 1.8)):
+                ring = box.adjusted(-grow, -grow, grow, grow)
+                p.setPen(pen(QColor(255, 255, 255, 30), width))
+                p.drawArc(ring, 225 * 16, -270 * 16)   # from the bottom left, clockwise, to the bottom right
+                if pct is not None:
+                    p.setPen(pen(QColor(meter_color(pct)), width))
+                    p.drawArc(ring, 225 * 16, -round(270 * 16 * max(0.0, min(100.0, pct)) / 100))
+            p.setOpacity(1.0)
+            dot = QPointF(box.center().x(), box.bottom() + 8)
             p.setPen(QPen(QColor(14, 14, 16), 2.5))
-            p.setBrush(QColor(COLORS["ONLINE"] if online else COLORS["OFFLINE"]))
+            p.setBrush(QColor(COLORS["WAITING"] if asks else COLORS["WORKING"] if live.get("working") else COLORS["ONLINE"] if online else COLORS["OFFLINE"]))
             p.drawEllipse(dot, 4.6, 4.6)
             name = "Tu" if person["user"] == self.me else person.get("name", "")
             p.setFont(self._f_name)
             p.setPen(QColor(TEXT if online or picked else MUTED))
-            p.drawText(QRectF(cell.left(), box.bottom() + 5, cell.width(), 15), Qt.AlignHCenter | Qt.AlignVCenter, name)
+            p.drawText(QRectF(cell.left(), box.bottom() + 15, cell.width(), 15), Qt.AlignHCenter | Qt.AlignVCenter, name)
             n = live.get("working") or 0
             if asks:
                 state = "Espera por ti" if person["user"] == self.me else "À espera"
@@ -1411,7 +1430,7 @@ class TeamPick(QWidget):
                 state = "online" if online else "offline"
             p.setFont(self._f_state)
             p.setPen(QColor(COLORS["WAITING"] if asks else COLORS["WORKING"] if n else FAINT))
-            p.drawText(QRectF(cell.left(), box.bottom() + 19, cell.width(), 13), Qt.AlignHCenter | Qt.AlignVCenter, state)
+            p.drawText(QRectF(cell.left(), box.bottom() + 29, cell.width(), 13), Qt.AlignHCenter | Qt.AlignVCenter, state)
 
 
 def tokens_text(n) -> str:
@@ -2581,14 +2600,14 @@ class WidgetWindow(QWidget):
         # each opens the same destaque as its icon on the clock, so the clock, the destaque and the central say the same
         figures = QHBoxLayout()
         figures.setContentsMargins(0, 0, 0, 0)
-        figures.setSpacing(6)
+        figures.setSpacing(0)
         self.kpis = {}
         for i, (key, name) in enumerate((("equipa", "Claudes"), ("mensagens", "Mensagens"), ("tarefas", "Tarefas"), ("ponto", "Ponto"))):
             k = Kpi(key, name, lit=i == 0)
             k.clicked.connect(lambda _=False, key=key, k=k: self._spot_from(key, k))
             figures.addWidget(k)
             self.kpis[key] = k
-        row_w = QWidget()
+        row_w = Strip(4)
         row_w.setLayout(figures)
         col.addWidget(row_w)
         self._head_n = col.count()   # the top bar and the figures: what the bubble grows into; the modules come in after (Cascade)
@@ -2626,9 +2645,11 @@ class WidgetWindow(QWidget):
 
         # 02 No relógio: the icons over the minimized clock, chosen here (23 Oct, Marco: «quero ativar os tokens, quero
         # ativar as câmaras»; 24 Oct: options «que combinem com a funcionalidade de uma empresa»)
-        side = Platter("Na estrela", "", "02")
+        # 12 Nov: shut in one line and last, it opens only to change the icons (it was the tallest module and is set once)
+        side = Platter("Na estrela", "MUDAR ›", "03")
         self.side_note = side.sub
-        tiles = QGridLayout()
+        tiles_w = QWidget()
+        tiles = QGridLayout(tiles_w)
         tiles.setContentsMargins(0, 0, 0, 2)
         tiles.setSpacing(6)
         saved = prefs.load().get("pins")
@@ -2647,13 +2668,19 @@ class WidgetWindow(QWidget):
         on = len([k for k in self.pins if self.pins[k].on])
         side.sub.setText(f"{on} de {len(GAUGES)} ligados")
         prefs.save(pins=[k for k, pin in self.pins.items() if pin.on])
-        side.box.addLayout(tiles)
-        col.addWidget(side)
+        tiles_w.hide()
+        side.box.addWidget(tiles_w)
+        side.setCursor(Qt.PointingHandCursor)
+
+        def open_side():
+            tiles_w.setVisible(tiles_w.isHidden())
+            side.note.setText("MUDAR ›" if tiles_w.isHidden() else "FECHAR")
+        side.on_press = open_side
 
         # «Controlo»: the buttons that were only in the tray menu, as the iPhone's Control Centre
-        controls = Platter("Controlo", "", "03")
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 4, 0, 2)
+        controls = QWidget()   # 12 Nov: no plate and no heading, the keys say what they are
+        row = QHBoxLayout(controls)
+        row.setContentsMargins(4, 8, 4, 0)
         row.setSpacing(0)
         self.ctl_ponto = Control("ponto", "Ponto", "Bater o ponto")
         self.ctl_ponto.clicked.connect(self.punch_ponto)
@@ -2669,7 +2696,6 @@ class WidgetWindow(QWidget):
         self.ctl_hub.clicked.connect(self._open_hub)
         for button in (self.ctl_ponto, self.ctl_agent, self.ctl_stop, self.ctl_top, self.ctl_away, self.ctl_hub):
             row.addWidget(button)
-        controls.box.addLayout(row)
         col.addWidget(controls)
         self._render_controls()
 
@@ -2677,7 +2703,7 @@ class WidgetWindow(QWidget):
         head = QHBoxLayout()
         head.setContentsMargins(14, 4, 14, 0)
         head.setSpacing(7)
-        head.addWidget(label("04", 7.5, FAINT, QFont.DemiBold, MONO))
+        head.addWidget(label("02", 7.5, FAINT, QFont.DemiBold, MONO))
         head.addWidget(label("ATALHOS", 7.8, "#d5d8dc", QFont.Bold, UI, spacing=1.8))
         head.addWidget(label("o Hub, página a página", 7.8, MUTED))
         head.addStretch(1)
@@ -2697,6 +2723,7 @@ class WidgetWindow(QWidget):
             self.apps[glyph_key] = icon
 
         col.addWidget(apps)
+        col.addWidget(side)
 
         # the FundedNext account (the Hub's #/fundednext in a few numbers); only on a PC with the account
         self.fn = Platter("FundedNext", "", "04")

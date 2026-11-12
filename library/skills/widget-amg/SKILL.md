@@ -37,6 +37,12 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 - **A central** (24 out): Equipa logo por baixo da hora com o 5 h e a semana de cada um (o número grande de tokens em
   milhares/milhões saiu: «texto desnecessário»), «No relógio» (8 opções), Claude agora, **Controlo** (os botões que só
   estavam no menu da bandeja: ponto, pausar/retomar, parar, por cima, invisível, Hub) e as apps com ícones cromados.
+- **A central de 12 nov** (Marco: «tá tudo carregado», «uma pessoa tinha que ver o de antigamente e ficar wow»): os quatro
+  números numa só faixa de vidro (`Strip` + `Kpi`, 58 px, sem ícone redondo); na Equipa cada foto é um mostrador com dois
+  arcos abertos em baixo, o de fora o Claude 5 h e o de dentro a semana, nas cores dos medidores (`TeamPick`), e o estado é
+  o ponto na abertura; o Controlo é uma fila de teclas sem placa nem título; «Na estrela» vai para o fim, fechada numa
+  linha, e abre ao clicar (`Platter.on_press`). Ficou com ~750 px em vez de ~940. `team_widget/fit.py` encolhe tudo por
+  igual (QT_SCALE_FACTOR, antes da app existir) num ecrã mais baixo que a central; num ecrã alto não muda nada.
 - **Lê-se em qualquer fundo pela sombra fixa, não por um cartão.** Nunca trocar de cor a olhar para o fundo (salta e parece
   avariado) e nunca letras sem sombra: testar sempre por cima de escuro, cinzento médio e branco.
 - **Arrastar só move o cartão**, nada se reorganiza a meio; ao largar volta para dentro do ecrã se passou de uma borda, e

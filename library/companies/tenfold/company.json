@@ -52,12 +52,78 @@
       "label": "Instagram",
       "icon": "📱",
       "kind": "photos",
-      "description": "Carrossel «Who we are & how we work» (1080×1350), pronto a publicar.",
+      "description": "Perfil, posts numerados, destaques e capas de Reels. As legendas estão em Documentos e os vídeos em Vídeos.",
       "sources": [
         {
           "source": "library",
           "path": "companies/tenfold/instagram",
-          "label": "Carrossel"
+          "label": "Carrossel original",
+          "recursive": false
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Pronto-a-publicar/01-Perfil",
+          "label": "01 · Perfil"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Pronto-a-publicar/02-Posts",
+          "label": "02 · Posts por ordem"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Pronto-a-publicar/03-Destaques",
+          "label": "03 · Destaques — capas e Stories"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Pronto-a-publicar/04-Capas-de-Reels",
+          "label": "04 · Capas de Reels"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Arquivo-da-conversa/TenFold-Mobile/Posts",
+          "label": "05 · Posts alternativos"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Selecao-Mobile",
+          "label": "Arquivo · Seleção mobile"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Selecao-Editorial",
+          "label": "Arquivo · Seleção editorial"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Arquivo-da-conversa/Originais-em-alta-resolucao",
+          "label": "Arquivo · Originais-em-alta-resolucao"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Arquivo-da-conversa/Referencias",
+          "label": "Arquivo · Referencias"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Arquivo-da-conversa/Ten-Fold-Instagram-previa.png",
+          "label": "Arquivo · Prévia do Instagram"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Arquivo-da-conversa/Ten-Fold-Lancamento",
+          "label": "Arquivo · Ten-Fold-Lancamento"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Arquivo-da-conversa/Ten-Fold-PRONTO-A-PUBLICAR",
+          "label": "Arquivo · Ten-Fold-PRONTO-A-PUBLICAR"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/instagram/Arquivo-da-conversa/tenfold",
+          "label": "Arquivo · tenfold"
         }
       ]
     },
@@ -71,7 +137,13 @@
         {
           "source": "library",
           "path": "companies/tenfold/videos",
-          "label": "Reels"
+          "label": "Reels",
+          "recursive": false
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/videos/Reels-Instagram",
+          "label": "Reels para Instagram"
         }
       ]
     },

@@ -33,6 +33,10 @@ log = logging.getLogger("team.sync")
 ID_EPOCH = datetime(2026, 10, 1, tzinfo=timezone.utc).timestamp()
 UNKNOWN_NODE = 3  # a computer whose VPN address is not one of the team's
 CHUNK = 1000
+# One exchange carries at most about this much text. 12 Nov: a Mac that had just taken the team's database sent 1000 rows in
+# one go, 35 MB of them photos; the upload ran past the 15 s timeout, the round failed without a word and, as who is online
+# comes in the reply, that Mac never saw anybody online.
+CHUNK_BYTES = 2_000_000
 
 ACTIVE = False
 NODE = UNKNOWN_NODE
@@ -190,9 +194,10 @@ def _private(conn, table, pk: str) -> bool:
 def _changes(conn, since: int) -> tuple[list[dict], int, bool]:
     """(what changed here after `since`, the new cursor, whether there is more)."""
     entries = conn.execute(select(LOG).where(LOG.c.seq > since).order_by(LOG.c.seq).limit(CHUNK)).all()
-    out = []
+    out, size, upto = [], 0, since
     for e in entries:
         if e.tbl in Base.metadata.tables and not e.deleted and _private(conn, Base.metadata.tables[e.tbl], e.pk):
+            upto = e.seq
             continue
         item = {"tbl": e.tbl, "pk": e.pk, "mt": e.mt, "node": e.node, "deleted": bool(e.deleted)}
         table = Base.metadata.tables.get(e.tbl)
@@ -201,8 +206,12 @@ def _changes(conn, since: int) -> tuple[list[dict], int, bool]:
             item["deleted"] = True
         else:
             item["row"] = {k: v.isoformat() if isinstance(v, datetime) else v for k, v in row._mapping.items()}
+            size += sum(len(v) for v in item["row"].values() if isinstance(v, str))
+        if out and size > CHUNK_BYTES:
+            return out, upto, True   # the rest goes in the next round: a big row never travels with a thousand others
         out.append(item)
-    return out, (entries[-1].seq if entries else since), len(entries) == CHUNK
+        upto = e.seq
+    return out, upto, len(entries) == CHUNK
 
 
 def _uniques(table):

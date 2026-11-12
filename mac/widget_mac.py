@@ -62,14 +62,21 @@ def own_hub():
     python.chmod(0o755)
 
 
+MAC_LETTERS = 1.2
+os.environ.setdefault("TEAM_WIDGET_NEED", "905")
+
+
 def compact_panel():
     """No Mac o Qt conta 72 pontos por polegada e o Windows 96: as letras saíam 25% mais pequenas dentro das mesmas
     caixas, e o painel era grande com tudo miúdo. Aqui as letras ficam do tamanho do Windows, e o painel perde o que o
-    Mac já mostra (a hora e a data, na barra de cima) e o botão de teste «Ficar offline»: fica mais baixo e lê-se logo."""
+    Mac já mostra (a hora e a data, na barra de cima) e o botão de teste «Ficar offline»: fica mais baixo e lê-se logo.
+    12 nov (Marco, MacBook Air: «tá tudo carregado»): a 96/72 as letras do Mac, mais largas que as Segoe, batiam nas bordas
+    das caixas («Mensagens», «FundedNext») e o «Claude 5 h» colava-se aos minutos. Ficam a 1,2; e como a central do Mac
+    mede ~905 px, o team_widget.fit encolhe tudo por igual quando o ecrã é mais baixo que isso (TEAM_WIDGET_NEED)."""
     from team_widget.ui import window
 
     original_font = window.font
-    window.font = lambda size, *a, **k: original_font(size * 96 / 72, *a, **k)
+    window.font = lambda size, *a, **k: original_font(size * MAC_LETTERS, *a, **k)
     original_build = window.WidgetWindow._build
 
     def build(self, col):

@@ -13,6 +13,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from . import selfupdate
+from . import fit
 from .api.agent_client import AgentClient
 from .state.store import StateStore
 from .ui.tray import start_tray
@@ -104,6 +105,7 @@ def main():
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("team.agent.widget")
         except Exception:
             pass
+    fit.apply()   # before the application exists: a short screen gets the whole widget a little smaller
     app = QApplication(sys.argv)
     app.setApplicationName("Agente AMG")
     app.setQuitOnLastWindowClosed(False)  # closing the widget hides it to the tray

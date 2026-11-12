@@ -22,7 +22,9 @@ from ..models import User
 from .tradingroom import viewer
 
 router = APIRouter(prefix="/api/vinted")
-DIR = Path(os.environ.get("VINTED_RADAR_DIR") or Path.home() / "vinted-radar")
+_HOME_DIR = Path.home() / "vinted-radar"
+# Ordem: VINTED_RADAR_DIR > ~/vinted-radar (o PC do David, com os dados dele) > a cópia que vem no team-agent.
+DIR = Path(os.environ.get("VINTED_RADAR_DIR") or (_HOME_DIR if _HOME_DIR.exists() else Path(__file__).resolve().parents[3] / "vinted-radar"))
 CFG = DIR / "config" / "nichos.json"
 PIDF = Path.home() / ".team-agent" / "vinted.json"
 LIMITES = ("margem_min_eur", "margem_min_pct", "max_pct_do_mercado", "percentil_max", "preco_max", "intervalo_min")

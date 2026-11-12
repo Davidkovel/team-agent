@@ -1,0 +1,115 @@
+{
+  "pais": "pt",
+  "preco_max": 200,
+  "intervalo_min": 5,
+  "pausa_entre_paginas_s": [
+    6,
+    11
+  ],
+  "margem_min_eur": 30,
+  "margem_min_pct": 0.35,
+  "max_pct_do_mercado": 0.55,
+  "percentil_max": 0.1,
+  "min_comparaveis": 12,
+  "portes_compra_eur": 4.0,
+  "protecao_comprador": {
+    "fixo": 0.7,
+    "pct": 0.05
+  },
+  "estados_aceites": [
+    "Novo com etiquetas",
+    "Novo sem etiquetas",
+    "Muito bom",
+    "Bom"
+  ],
+  "palavras_rejeitar": [
+    "replica",
+    "réplica",
+    "fake",
+    "falso",
+    "imitação",
+    "copia",
+    "cópia",
+    "rasgado",
+    "rasgão",
+    "buraco",
+    "mancha",
+    "defeito",
+    "danificado",
+    "partido",
+    "strappo",
+    "macchia",
+    "difettoso",
+    "rotto",
+    "roto",
+    "agujero",
+    "mancha",
+    "trou",
+    "tache",
+    "déchiré",
+    "abîmé",
+    "damaged",
+    "hole",
+    "stain",
+    "ripped"
+  ],
+  "nichos": [
+    {
+      "nome": "Casacos de nylon / corta-vento",
+      "pesquisa": "nylon jacket",
+      "tamanhos": []
+    },
+    {
+      "nome": "The North Face Nuptse",
+      "pesquisa": "north face nuptse",
+      "tamanhos": []
+    },
+    {
+      "nome": "Patagonia",
+      "pesquisa": "patagonia",
+      "tamanhos": []
+    },
+    {
+      "nome": "Arc'teryx",
+      "pesquisa": "arcteryx",
+      "tamanhos": []
+    },
+    {
+      "nome": "Stone Island",
+      "pesquisa": "stone island",
+      "tamanhos": []
+    },
+    {
+      "nome": "Carhartt WIP",
+      "pesquisa": "carhartt jacket",
+      "tamanhos": []
+    },
+    {
+      "nome": "Ralph Lauren",
+      "pesquisa": "ralph lauren",
+      "tamanhos": []
+    },
+    {
+      "nome": "Salomon XT-6",
+      "pesquisa": "salomon xt-6",
+      "tamanhos": []
+    },
+    {
+      "nome": "iPhone",
+      "pesquisa": "iphone",
+      "tamanhos": [],
+      "tech": true,
+      "preco_max": 700,
+      "ativo": true
+    },
+    {
+      "nome": "MacBook",
+      "pesquisa": "macbook",
+      "tamanhos": [],
+      "tech": true,
+      "preco_max": 1200,
+      "ativo": true
+    }
+  ],
+  "tech_min_pct_do_mercado": 0.4
+}

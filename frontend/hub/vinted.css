@@ -58,3 +58,48 @@ html.is-phone .vt-x { opacity: 1; }
 .vt-deal.top { border-color: var(--line-2); background: rgba(255, 255, 255, .045); }
 .vt-ph em { position: absolute; right: 6px; top: 6px; padding: 2px 7px; border-radius: 999px; background: #e9e9ea; color: #0a0a0a;
   font-style: normal; font-size: 12px; font-weight: 700; }
+
+/* 12 nov: abas por tema, o interruptor «Contínuo 24 h», a guarda, ligar/desligar um tema, esconder o que já se viu */
+.vt-ctl { flex-wrap: wrap; justify-content: flex-end; }
+.vt-sw { display: inline-flex; align-items: center; gap: 8px; background: none; border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px 6px 7px; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; transition: border-color .15s, color .15s; }
+.vt-sw i { position: relative; width: 30px; height: 18px; border-radius: 999px; background: rgba(255, 255, 255, .12); transition: background .15s; }
+.vt-sw i::after { content: ""; position: absolute; left: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: #9a9ea5; transition: transform .15s, background .15s; }
+.vt-sw.on { color: var(--text); border-color: var(--line-2); }
+.vt-sw.on i { background: #2f9e57; }
+.vt-sw.on i::after { transform: translateX(12px); background: #fff; }
+.vt-sw:focus-visible, .vt-tabs button:focus-visible, .vt-hide:focus-visible { outline: 2px solid #e9e9ea; outline-offset: 2px; }
+
+.vt-guard { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; padding: 12px 14px; border-left: 2px solid var(--line-2); }
+.vt-guard b { display: flex; align-items: center; gap: 7px; font-weight: 600; }
+.vt-guard b svg { width: 15px; height: 15px; }
+.vt-guard span { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.vt-guard.ok { border-left-color: #2f9e57; }
+.vt-guard.bad { border-left-color: #ff453a; }
+
+.vt-tabs { display: flex; gap: 8px; margin: 18px 0 2px; overflow-x: auto; }
+.vt-tabs button { flex: 1 1 0; min-width: 120px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px;
+  background: none; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); font: inherit; cursor: pointer; text-align: left;
+  transition: border-color .15s, background .15s, color .15s; }
+.vt-tabs button:hover { border-color: var(--line-2); }
+.vt-tabs b { font-family: var(--display, inherit); font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.vt-tabs small { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.vt-tabs button.on { color: var(--text); border-color: rgba(255, 255, 255, .55); background: rgba(255, 255, 255, .1); box-shadow: inset 0 -2px 0 #e9e9ea; }
+
+.vt-bulk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.vt-bulk .btn { padding: 4px 11px; font-size: 12px; }
+.vt-mv { position: absolute; right: 30px; top: 7px; opacity: 0; background: #111; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 8px; font: inherit; font-size: 11px; padding: 1px 2px; cursor: pointer; }
+.vt-cat:hover .vt-mv, .vt-mv:focus { opacity: 1; }
+.vt-grp { display: flex; align-items: baseline; gap: 8px; margin: 16px 2px 8px; font-size: 12px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); }
+.vt-grp small { color: var(--faint); font-weight: 500; letter-spacing: 0; }
+.vt-deal { position: relative; }
+.vt-hide { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; display: grid; place-items: center; opacity: 0;
+  background: rgba(0, 0, 0, .6); border: 1px solid var(--line); border-radius: 50%; color: var(--muted); cursor: pointer; padding: 0; }
+.vt-hide svg { width: 12px; height: 12px; }
+.vt-deal:hover .vt-hide, .vt-hide:focus { opacity: 1; }
+.vt-linkb { background: none; border: 0; padding: 0; color: var(--text); font: inherit; text-decoration: underline; cursor: pointer; }
+html.is-phone .vt-tabs button { min-width: 104px; }
+html.is-phone .vt-mv, html.is-phone .vt-hide { opacity: 1; }
+html.is-phone .vt-ctl { justify-content: flex-start; }

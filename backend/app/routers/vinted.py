@@ -4,12 +4,23 @@ oportunidades (artigos bem abaixo do preço de mercado).
 O motor é o repositório vinted-radar (`~/vinted-radar` ou `VINTED_RADAR_DIR`): `radar.py correr` abre um Chrome sem
 janela, lê a pesquisa pública do Vinted de 5 em 5 min e guarda em `radar.db`. O Hub só lê esse SQLite, escreve o
 `config/nichos.json` e arranca/pára o processo. Por PC, nada vai por sync. Compra sempre manual.
+
+12 nov (Marco: «sempre que seleciono Ligado Contínuo... tenha sempre um agente de 24 horas que sempre olhe», «organizar
+tudo por temas e grupos dos produtos»):
+- Grupos: cada categoria pertence a um tema (`grupo` no nichos.json; sem ele, Tecnologia se for `tech`, senão Roupa).
+- Contínuo: com `continuo` no ~/.team-agent/vinted.json a guarda (`loop`, de minuto a minuto, dentro do Hub) volta a
+  arrancar o coletor se ele morrer ou ficar preso, e arranca-o quando o Hub abre. Não é um Claude: não gasta tokens.
+  Se ele morrer três vezes logo ao arrancar (falta o Selenium ou o Chrome), a guarda espera 10 min e diz porquê.
+- Procurar agora (reinicia o coletor: a primeira coisa que ele faz é uma volta) e esconder oportunidades já vistas.
 """
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
+import logging
 import os
+import shutil
 import signal
 import sqlite3
 import subprocess
@@ -28,6 +39,14 @@ _HOME_DIR = Path.home() / "vinted-radar"
 DIR = Path(os.environ.get("VINTED_RADAR_DIR") or (_HOME_DIR if _HOME_DIR.exists() else Path(__file__).resolve().parents[3] / "vinted-radar"))
 CFG = DIR / "config" / "nichos.json"
 PIDF = Path.home() / ".team-agent" / "vinted.json"
+log = logging.getLogger("team.vinted")
+GRUPOS = ("Roupa", "Tecnologia", "Casa", "Outros")
+TECH_PALAVRAS = ("iphone", "macbook", "ipad", "airpods", "apple watch", "samsung", "galaxy", "pixel", "playstation", "ps4", "ps5",
+                 "xbox", "nintendo", "switch", "gopro", "kindle", "portátil", "portatil", "laptop", "monitor", "teclado",
+                 "headphones", "auscultadores", "câmara", "camera", "drone", "steam deck", "bose", "sony", "dyson")
+VIGIA_S = 60          # de quanto em quanto a guarda olha
+MORTE_CEDO_S = 45     # morrer antes disto depois de arrancar = não consegue correr (falta qualquer coisa)
+ESPERA_S = 600        # depois de três mortes cedo seguidas
 LIMITES = ("margem_min_eur", "margem_min_pct", "max_pct_do_mercado", "percentil_max", "preco_max", "intervalo_min")
 
 
@@ -40,15 +59,80 @@ def _python() -> str:
     return getattr(sys, "_base_executable", "") or sys.executable
 
 
-def _pid() -> int | None:
+def _ficha() -> dict:
     try:
-        pid = json.loads(PIDF.read_text())["pid"]
+        return json.loads(PIDF.read_text())
     except Exception:
+        return {}
+
+
+def _guardar_ficha(**kw) -> dict:
+    f = {**_ficha(), **kw}
+    PIDF.parent.mkdir(parents=True, exist_ok=True)
+    PIDF.write_text(json.dumps(f, ensure_ascii=False))
+    return f
+
+
+def grupo_de(n: dict) -> str:
+    return n.get("grupo") or ("Tecnologia" if n.get("tech") else "Roupa")
+
+
+def _chrome() -> bool:
+    if sys.platform == "darwin":
+        return any(Path(p).exists() for p in ("/Applications/Google Chrome.app", str(Path.home() / "Applications/Google Chrome.app")))
+    if os.name == "nt":
+        return any((Path(os.environ.get(v, "")) / "Google/Chrome/Application/chrome.exe").exists()
+                   for v in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA") if os.environ.get(v))
+    return bool(shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser"))
+
+
+def _selenium() -> bool:
+    py = _python()
+    if py == sys.executable:
+        return importlib.util.find_spec("selenium") is not None
+    try:
+        return subprocess.run([py, "-c", "import selenium"], capture_output=True, timeout=20,
+                              creationflags=0x08000000 if os.name == "nt" else 0).returncode == 0
+    except Exception:
+        return False
+
+
+_pronto_cache: tuple[float, dict] = (0.0, {})
+
+
+def _pronto() -> dict:
+    """O que o coletor precisa neste PC. Visto no máximo de 5 em 5 min: perguntar ao outro Python custa."""
+    global _pronto_cache
+    if time.time() - _pronto_cache[0] > 300 or not _pronto_cache[1]:
+        sel = _selenium()
+        # sem Chrome instalado o Selenium (4.11+) descarrega o seu («Chrome for Testing», em ~/.cache/selenium): visto no Mac a 12 nov
+        _pronto_cache = (time.time(), {"selenium": sel, "chrome": sel or _chrome()})
+    return _pronto_cache[1]
+
+
+def _ultimo_erro() -> str:
+    """A última linha do radar.log quando o coletor morreu: é quase sempre o porquê."""
+    try:
+        linhas = [x.strip() for x in (DIR / "radar.log").read_text(encoding="utf-8", errors="replace")[-4000:].splitlines() if x.strip()]
+    except OSError:
+        return ""
+    fim = linhas[-1] if linhas else ""
+    return fim[:200] if ("Error" in fim or "Exception" in fim or "erro" in fim.lower()) else ""
+
+
+def _pid() -> int | None:
+    pid = _ficha().get("pid")
+    if not pid:
         return None
     if os.name == "nt":
         out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True,
                              creationflags=0x08000000).stdout
         return pid if str(pid) in out else None
+    try:
+        if os.waitpid(pid, os.WNOHANG)[0] == pid:   # era filho deste Hub e já morreu: sem isto ficava «vivo» (zombie) para sempre
+            return None
+    except OSError:
+        pass   # não é filho deste Hub (arrancou-o um Hub anterior)
     try:
         os.kill(pid, 0)
         return pid
@@ -62,9 +146,9 @@ def _start():
     log = open(DIR / "radar.log", "a", encoding="utf-8")
     flags = 0x08000000 | 0x00000200 if os.name == "nt" else 0   # sem janela, grupo próprio
     p = subprocess.Popen([_python(), "-u", "radar.py", "correr"], cwd=DIR, stdout=log, stderr=subprocess.STDOUT,
-                         creationflags=flags, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
-    PIDF.parent.mkdir(parents=True, exist_ok=True)
-    PIDF.write_text(json.dumps({"pid": p.pid, "desde": time.strftime("%Y-%m-%d %H:%M:%S")}))
+                         creationflags=flags, env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                         start_new_session=os.name != "nt")   # grupo próprio: parar leva também o Chrome que ele abriu
+    _guardar_ficha(pid=p.pid, desde=time.strftime("%Y-%m-%d %H:%M:%S"), arrancou=time.time())
 
 
 def _stop():
@@ -74,7 +158,66 @@ def _stop():
     if os.name == "nt":   # leva também o Chrome e o chromedriver que ele abriu
         subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, creationflags=0x08000000)
     else:
-        os.kill(pid, signal.SIGTERM)
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except OSError:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+
+
+def _preso(intervalo_min: float) -> bool:
+    """O processo existe mas o status.json não mexe há muito: Chrome pendurado."""
+    try:
+        st = json.loads((DIR / "status.json").read_text(encoding="utf-8"))
+        visto = time.mktime(time.strptime(st["em"], "%Y-%m-%d %H:%M:%S"))
+    except Exception:
+        return False
+    arrancou = _ficha().get("arrancou") or 0
+    return time.time() - max(visto, arrancou) > max(20 * 60, 3 * intervalo_min * 60 + 600)
+
+
+def vigiar():
+    """Uma volta da guarda do modo contínuo."""
+    f = _ficha()
+    if not f.get("continuo") or not CFG.exists():
+        return
+    if time.time() < (f.get("espera_ate") or 0):
+        return
+    pid = _pid()
+    if pid:
+        if _preso(_cfg().get("intervalo_min", 5)):
+            log.warning("Vinted Radar preso: a guarda reinicia-o")
+            _stop()
+            time.sleep(1)
+            _start()
+            _guardar_ficha(reinicios=(f.get("reinicios") or 0) + 1, ultimo_reinicio=time.strftime("%Y-%m-%d %H:%M:%S"), motivo="estava preso")
+        elif f.get("cedo") and time.time() - (f.get("arrancou") or 0) > MORTE_CEDO_S:
+            _guardar_ficha(cedo=0, erro_guarda="")   # aguentou: está a correr
+        return
+    cedo = (f.get("cedo") or 0) + 1 if time.time() - (f.get("arrancou") or 0) < MORTE_CEDO_S + VIGIA_S else 1
+    if cedo >= 3:
+        pronto = _pronto()
+        porque = ("Falta o Selenium no Python do coletor" if not pronto["selenium"] else "Falta o Google Chrome neste computador"
+                  if not pronto["chrome"] else _ultimo_erro() or "O coletor morre logo ao arrancar")
+        _guardar_ficha(cedo=0, espera_ate=time.time() + ESPERA_S, erro_guarda=porque)
+        log.warning("Vinted Radar não arranca (%s): a guarda volta a tentar em %d min", porque, ESPERA_S // 60)
+        return
+    _start()
+    _guardar_ficha(cedo=cedo, reinicios=(f.get("reinicios") or 0) + (1 if f.get("ja_correu") else 0), ja_correu=True,
+                   ultimo_reinicio=time.strftime("%Y-%m-%d %H:%M:%S"), motivo="tinha parado")
+
+
+async def loop():
+    """A guarda de 24 h: enquanto o modo contínuo estiver ligado, o coletor não fica parado."""
+    await asyncio.sleep(20)   # o Hub primeiro
+    while True:
+        try:
+            await asyncio.to_thread(vigiar)
+        except Exception:
+            log.exception("A guarda do Vinted Radar falhou")
+        await asyncio.sleep(VIGIA_S)
 
 
 def _cfg() -> dict:
@@ -106,15 +249,27 @@ def _view() -> dict:
     hoje = time.strftime("%Y-%m-%d")
     novos_hoje = {n: k for n, k in _rows("SELECT nicho, count(*) FROM anuncios WHERE origem='novo' AND visto_em>=? "
                                          "GROUP BY nicho", (hoje,))}
-    nichos = [{"nome": n["nome"], "pesquisa": n["pesquisa"], "ativo": n.get("ativo", True),
+    f = _ficha()
+    escondidos = set(f.get("escondidos") or [])
+    grupo = {n["nome"]: grupo_de(n) for n in cfg["nichos"]}
+    nichos = [{"nome": n["nome"], "pesquisa": n["pesquisa"], "ativo": n.get("ativo", True), "grupo": grupo_de(n),
                "anuncios": por.get(n["nome"], (0, None))[0], "ultimo": por.get(n["nome"], (0, None))[1],
                "hoje": novos_hoje.get(n["nome"], 0)} for n in cfg["nichos"]]
     cols = ["id", "nicho", "titulo", "marca", "tamanho", "estado", "preco", "foto", "link", "visto_em",
             "mediana", "lucro", "comparaveis", "alertado_em"]
     alertas = [dict(zip(cols, r)) for r in _rows(f"SELECT {','.join(cols)} FROM anuncios WHERE alertado=1 "
-                                                  "ORDER BY coalesce(alertado_em, visto_em) DESC LIMIT 60")]
+                                                  "ORDER BY coalesce(alertado_em, visto_em) DESC LIMIT 200")]
+    n_escondidos = sum(1 for a in alertas if a["id"] in escondidos)
+    alertas = [{**a, "grupo": grupo.get(a["nicho"], "Outros")} for a in alertas if a["id"] not in escondidos][:120]
     pid = _pid()
+    ordem = [g for g in GRUPOS if any(n["grupo"] == g for n in nichos)] + sorted({n["grupo"] for n in nichos} - set(GRUPOS))
+    espera = max(0, int((f.get("espera_ate") or 0) - time.time()))
     return {"instalado": True, "ligado": bool(pid), "estado": st if pid else {}, "nichos": nichos, "alertas": alertas,
+            "grupos": ordem, "grupos_possiveis": list(GRUPOS), "escondidos": n_escondidos, "desde": f.get("desde") if pid else None,
+            "continuo": bool(f.get("continuo")), "pronto": _pronto(),
+            "guarda": {"reinicios": f.get("reinicios") or 0, "ultimo_reinicio": f.get("ultimo_reinicio"), "motivo": f.get("motivo"),
+                       "erro": f.get("erro_guarda") or "", "espera_s": espera, "desde": f.get("continuo_desde")},
+            "ultimo_erro": "" if pid or not f.get("querido") else _ultimo_erro(),   # só se devia estar ligado e não está
             "limites": {k: cfg.get(k) for k in LIMITES}, "pais": cfg.get("pais", "pt"),
             "telegram": bool((DIR / ".env").exists() and "TELEGRAM_BOT_TOKEN=" in (DIR / ".env").read_text()
                              and "TELEGRAM_BOT_TOKEN=\n" not in (DIR / ".env").read_text()),
@@ -131,8 +286,43 @@ def view(user: User = Depends(viewer)):
 def ligar(body: dict, user: User = Depends(viewer)):
     if not CFG.exists():
         raise HTTPException(404, f"Falta o vinted-radar em {DIR}")
-    _start() if body.get("on") else _stop()
+    if "continuo" in body:   # o modo contínuo: a guarda mantém-no ligado, e ligá-lo liga já o coletor
+        on = bool(body["continuo"])
+        _guardar_ficha(continuo=on, cedo=0, espera_ate=0, erro_guarda="", **({"querido": True, "continuo_desde": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                                                              "reinicios": 0, "ja_correu": True} if on else {}))
+        if on:
+            _start()
+    elif body.get("on"):
+        _guardar_ficha(cedo=0, espera_ate=0, erro_guarda="", querido=True)
+        _start()
+    else:
+        _guardar_ficha(continuo=False, querido=False)   # desligar à mão desliga também a guarda, senão ela voltava a ligá-lo
+        _stop()
     time.sleep(0.5)
+    return _view()
+
+
+@router.post("/agora")
+def agora(user: User = Depends(viewer)):
+    """Uma volta já: o coletor recomeça, e a primeira coisa que faz é ver todas as categorias ligadas."""
+    if not CFG.exists():
+        raise HTTPException(404, f"Falta o vinted-radar em {DIR}")
+    _stop()
+    time.sleep(1)
+    _guardar_ficha(cedo=0, espera_ate=0, erro_guarda="", querido=True)
+    _start()
+    time.sleep(0.5)
+    return _view()
+
+
+@router.post("/esconder")
+def esconder(body: dict, user: User = Depends(viewer)):
+    """Tirar da lista uma oportunidade já vista (fica no radar.db; só deixa de aparecer aqui). `repor` mostra todas outra vez."""
+    f = _ficha()
+    if body.get("repor"):
+        _guardar_ficha(escondidos=[])
+    elif isinstance(body.get("id"), int):
+        _guardar_ficha(escondidos=(list(f.get("escondidos") or []) + [body["id"]])[-500:])
     return _view()
 
 
@@ -152,7 +342,16 @@ def config(body: dict, user: User = Depends(viewer)):
         if any(n["nome"].lower() == (nome or pesq).lower() for n in cfg["nichos"]):
             raise HTTPException(400, "Essa categoria já existe")
         tech = any(w in pesq.lower() for w in ("iphone", "macbook", "ipad"))   # modelo + armazenamento em vez do tipo de roupa
-        cfg["nichos"].append({"nome": nome or pesq, "pesquisa": pesq, "tamanhos": [], "ativo": True, **({"tech": True, "preco_max": 1200} if tech else {})})
+        g = str(novo.get("grupo") or "").strip()[:30]
+        if g not in GRUPOS:
+            g = "Tecnologia" if tech or any(w in pesq.lower() for w in TECH_PALAVRAS) else "Roupa"
+        cfg["nichos"].append({"nome": nome or pesq, "pesquisa": pesq, "tamanhos": [], "ativo": True, "grupo": g,
+                              **({"tech": True, "preco_max": 1200} if tech else {"preco_max": 600} if g == "Tecnologia" else {})})
+    mover = body.get("mover")   # {"nome":..., "grupo":...}: a categoria passa para outro tema
+    if isinstance(mover, dict) and mover.get("grupo") in GRUPOS:
+        for n in cfg["nichos"]:
+            if n["nome"] == mover.get("nome"):
+                n["grupo"] = mover["grupo"]
     tirar = body.get("tirar")
     if tirar:
         cfg["nichos"] = [n for n in cfg["nichos"] if n["nome"] != tirar]

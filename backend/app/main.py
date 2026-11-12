@@ -133,7 +133,10 @@ async def lifespan(app: FastAPI):
     recalling = asyncio.create_task(recall_share.loop()) if settings.sync else None  # the Claude conversations to the person's own other computers
     mirroring = asyncio.create_task(espelho.loop()) if settings.sync else None  # the person's work, also on their cloud
     radaring = asyncio.create_task(radar_loop()) if settings.sync else None  # Radar: confirms again, weekly, who is still open
+    vinting = asyncio.create_task(vinted.loop()) if settings.sync else None  # Vinted Radar: the guard of «Contínuo» keeps this PC's collector up
     yield
+    if vinting:
+        vinting.cancel()
     if mirroring:
         mirroring.cancel()
     if radaring:

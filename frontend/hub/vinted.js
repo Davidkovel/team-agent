@@ -6,6 +6,15 @@
 // Hub volta a ligar o coletor se ele parar, e diz o que fez); «Procurar agora»; ligar/desligar um tema inteiro; esconder o que já se viu.
 (function () {
   let V = null, timer = 0, ordem = localStorage.getItem("vt-ordem") || "desconto", cat = "", grupo = localStorage.getItem("vt-grupo") || "";
+  // 13 nov (Marco: «nem dá para ver as fotos ou as páginas dos produtos... uma espécie de cérebro... um CRM mas em produtos»):
+  // a página passa a ter cinco partes. Painel (o estado e as oportunidades), Produtos (todos os anúncios que o radar guardou,
+  // com foto, filtros e a ficha de cada um), Pipeline (Na mira, A negociar, Comprado, À venda, Vendido), Mercado (o cérebro:
+  // preços do meio por categoria e marca, ritmo de anúncios) e Definições (categorias, limites).
+  const ABAS = [["painel", "Painel", "grid"], ["produtos", "Produtos", "bag"], ["pipeline", "Pipeline", "flag"], ["mercado", "Mercado", "chart"], ["definicoes", "Definições", "sliders"]];
+  let aba = localStorage.getItem("vt-aba") || "painel", P = null, PL = null, MK = null, ficha = null;
+  const F = { q: "", nicho: "", marca: "", estado: "", so: "", etapa: "", ordem: localStorage.getItem("vt-p-ordem") || "recente", pmin: "", pmax: "", n: 60 };
+  const ETAPA = { mira: ["Na mira", "eye"], negociar: ["A negociar", "chat"], comprado: ["Comprado", "tick"], venda: ["À venda", "bag"], vendido: ["Vendido", "trend"], descartado: ["Descartado", "x"] };
+  const etapaChip = (e) => (e && ETAPA[e] ? `<span class="vt-et et-${e}">${icon(ETAPA[e][1])}${esc(t(ETAPA[e][0]))}</span>` : "");
   const desc = (a) => (a.mediana ? 1 - a.preco / a.mediana : 0);
   const ORDENS = { desconto: ["Maior desconto", (a, b) => desc(b) - desc(a)], lucro: ["Maior lucro", (a, b) => (b.lucro || 0) - (a.lucro || 0)],
     barato: ["Mais barato", (a, b) => a.preco - b.preco], novo: ["Mais recentes", (a, b) => String(b.alertado_em || b.visto_em).localeCompare(String(a.alertado_em || a.visto_em))] };
@@ -119,6 +128,7 @@
       <div class="vt-best-l"><i>${esc(t("Lucro"))}</i>${a.lucro != null ? "+" + eur(a.lucro) : "—"}</div>
       <div class="vt-best-a"><a class="btn primary" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(t("Ver no Vinted"))}${icon("arrow")}</a>
         <button type="button" class="btn quiet" data-comprei="${a.id}">${icon("tick")}${esc(t("Comprei"))}</button>
+        <button type="button" class="btn quiet" data-ficha="${a.id}">${icon("doc")}${esc(t("Ficha"))}</button>
         <button type="button" class="btn quiet" data-esconder="${a.id}">${esc(t("Já vi"))}</button></div></div>`;
   }
 
@@ -133,7 +143,7 @@
         <div class="vt-nums"><span><i>${esc(t("Preço"))}</i>${eur(a.preco, 2)}</span><span><i>${esc(t("Mercado"))}</i>${eur(a.mediana)}</span>
           <span class="up"><i>${esc(t("Lucro"))}</i>${a.lucro != null ? "+" + eur(a.lucro) : "—"}</span></div>
         <div class="vt-meta">${vendedor(a)}${selo(a)}</div>
-        <span class="vt-go">${esc(t("Ver no Vinted"))}${icon("arrow")}<button type="button" class="vt-buyb" data-comprei="${a.id}">${icon("tick")}${esc(t("Comprei"))}</button></span>
+        <span class="vt-go">${esc(t("Ver no Vinted"))}${icon("arrow")}<button type="button" class="vt-buyb" data-ficha="${a.id}">${icon("doc")}${esc(t("Ficha"))}</button><button type="button" class="vt-buyb" data-comprei="${a.id}">${icon("tick")}${esc(t("Comprei"))}</button></span>
         <p>${esc([a.tamanho, a.estado].filter(Boolean).join(" · "))}${a.comparaveis ? ` · ${esc(t("mediana de {n} anúncios", { n: a.comparaveis }))}` : ""} · ${esc(ago(a.alertado_em || a.visto_em))}</p>
       </div></a>`;
   }
@@ -187,24 +197,236 @@
     const chave = cat ? null : grupo ? "nicho" : "grupo";
     const blocos = chave ? [...new Set(lista.map((a) => a[chave]))].map((k) => [k, lista.filter((a) => a[chave] === k).sort(ORDENS[ordem][1])]) : [["", lista.sort(ORDENS[ordem][1])]];
     const deals = blocos.map(([k, as]) => `${k && blocos.length > 1 ? `<h4 class="vt-grp"><span class="vt-ico sm">${ico(as[0].grupo)}</span>${esc(k)}<small>${as.length}</small><i>${esc(t("até +{v} de lucro", { v: eur(Math.max(...as.map((a) => a.lucro || 0))) }))}</i></h4>` : ""}<div class="vt-deals">${as.map(alerta).join("")}</div>`).join("");
-    paint($("vt-body"), `${guarda()}${kpis}${destaque(doGrupo)}
-      ${head("wallet", "Orçamento", `<span class="vt-aside">${esc(t("O dinheiro que a empresa pode usar no Vinted, neste computador"))}</span>`)}${orcamento()}
-      ${abas}
-      ${head("layers", grupo ? t("Categorias de {g}", { g: grupo }) : "Categorias", massa)}
+    paintNav();
+    if (aba !== "painel" && aba !== "definicoes") { schedule(); return; }
+    const defs = `${head("layers", grupo ? t("Categorias de {g}", { g: grupo }) : "Categorias", massa)}
       <div class="vt-cats">${nichos.map(nicho).join("")}
         <form class="vt-cat vt-new" data-new><input name="pesquisa" placeholder="${esc(grupo === "Tecnologia" ? t("Nova: ex. airpods pro") : t("Nova: ex. barbour jacket"))}" maxlength="80">
           <button class="btn quiet" type="submit">${icon("plus")}${esc(t("Juntar"))}</button></form></div>
+      ${tg}
+      ${head("sliders", "Limites da regra", `<span class="vt-aside">${esc(t("O que conta como oportunidade"))}</span>`)}${limites()}
+      <p class="vt-foot">${esc(t("O coletor abre a pesquisa pública do Vinted num Chrome sem janela, devagar e sem contornar bloqueios. A compra é sempre tua."))}</p>`;
+    if (aba === "definicoes") { paint($("vt-body"), `${guarda()}${abas}${defs}`); schedule(); return; }
+    paint($("vt-body"), `${guarda()}${kpis}${destaque(doGrupo)}
+      ${head("wallet", "Orçamento", `<span class="vt-aside">${esc(t("O dinheiro que a empresa pode usar no Vinted, neste computador"))}</span>`)}${orcamento()}
+      ${abas}
       ${head("target", grupo ? t("Oportunidades de {g}", { g: grupo }) : "Oportunidades", `<div class="vt-seg">${Object.entries(ORDENS).map(([k, [l]]) => `<button type="button" data-ordem="${k}" class="${k === ordem ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`)}
       ${cats.length > 1 ? `<div class="vt-seg vt-fcat"><button type="button" data-fcat="" class="${cat ? "" : "on"}">${esc(t("Todas"))}</button>${cats.map((c) => `<button type="button" data-fcat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}</div>` : ""}
       ${lista.length ? deals
         : `<div class="panel">${ui.empty("bag", grupo ? t("Ainda sem oportunidades em {g}", { g: grupo }) : "Ainda sem oportunidades", V.ligado ? "O radar está a procurar. Aparecem aqui quando um artigo sair bem abaixo do mercado." : "Escolhe as categorias e carrega em «Ligar o radar».")}</div>`}
       ${V.escondidos ? `<p class="vt-note">${esc(t("{n} oportunidade(s) escondida(s).", { n: V.escondidos }))} <button type="button" class="vt-linkb" data-repor>${esc(t("Mostrar outra vez"))}</button></p>` : ""}
-      ${compras()}
-      ${tg}
-      ${head("sliders", "Limites da regra", `<span class="vt-aside">${esc(t("O que conta como oportunidade"))}</span>`)}${limites()}
-      <p class="vt-foot">${esc(t("O coletor abre a pesquisa pública do Vinted num Chrome sem janela, devagar e sem contornar bloqueios. A compra é sempre tua."))}</p>`);
+      ${compras()}`);
+    schedule();
+  }
+
+  function schedule() {
     clearTimeout(timer);
-    timer = setTimeout(() => $("vt-body") && load(), V.ligado ? 10000 : 30000);
+    timer = setTimeout(() => $("vt-body") && load(), V.ligado ? 15000 : 30000);
+  }
+
+  // ---------------------------------------------------------------- as cinco partes
+  function paintNav() {
+    const n = { produtos: V.total || 0, pipeline: null, painel: V.alertas.length || null };
+    paint($("vt-nav"), ABAS.map(([k, l, ic]) => `<button type="button" role="tab" data-aba="${k}" class="${k === aba ? "on" : ""}" aria-selected="${k === aba}">${icon(ic)}<span>${esc(t(l))}</span>${n[k] ? `<em>${fmt.int(n[k])}</em>` : ""}</button>`).join(""));
+  }
+
+  function irPara(k) {
+    aba = k;
+    localStorage.setItem("vt-aba", k);
+    $("view").scrollIntoView?.({ block: "start" });
+    if (k === "painel" || k === "definicoes") return draw();
+    paintNav();
+    paint($("vt-body"), ui.skeleton(6));
+    if (k === "produtos") loadProdutos();
+    else if (k === "pipeline") loadPipeline();
+    else if (k === "mercado") loadMercado();
+  }
+
+  // Produtos: todos os anúncios, com foto. Um clique abre a ficha; o Vinted abre no browser.
+  const qs = () => new URLSearchParams(Object.entries({ q: F.q, nicho: F.nicho, marca: F.marca, estado: F.estado, so: F.so, etapa: F.etapa,
+    ordem: F.ordem, pmin: F.pmin, pmax: F.pmax, grupo, limit: F.n }).filter(([, v]) => v !== "" && v != null)).toString();
+  async function loadProdutos() {
+    try {
+      P = await api(`/api/vinted/produtos?${qs()}`);
+      if (aba === "produtos") drawProdutos();
+    } catch (e) { if ($("vt-body")) $("vt-body").innerHTML = ui.error(e.message); }
+  }
+  const refTxt = (a) => (a.ref ? t(a.ref_base === "marca" ? "mediana de {n} da marca" : a.ref_base === "radar" ? "mediana do radar ({n})" : "mediana de {n} da categoria", { n: a.ref_n }) : t("sem parecidos suficientes"));
+  function card(a) {
+    const pct = a.desconto != null ? Math.round(a.desconto * 100) : null;
+    const forte = pct != null && pct >= 30;
+    return `<article class="vt-pc ${a.alertado ? "hot" : ""}" data-ficha="${a.id}" tabindex="0">
+      <div class="vt-pc-ph">${a.foto ? `<img src="${esc(a.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="vt-noph">${ico(a.grupo)}</span>`}
+        ${pct != null && pct > 0 ? `<span class="vt-off ${forte ? "up" : ""}">−${pct}%</span>` : ""}${a.alertado ? `<em class="vt-hot">${icon("target")}${esc(t("Oportunidade"))}</em>` : ""}
+        <div class="vt-pc-q">
+          <button type="button" class="${a.etapa === "mira" ? "on" : ""}" data-et="${a.id}" data-v="${a.etapa === "mira" ? "" : "mira"}" title="${esc(t(a.etapa === "mira" ? "Tirar da mira" : "Pôr na mira"))}">${icon("eye")}</button>
+          <a href="${esc(a.link)}" target="_blank" rel="noopener" title="${esc(t("Abrir no Vinted"))}">${icon("arrow")}</a></div></div>
+      <div class="vt-pc-in">
+        <div class="vt-pc-p"><b>${eur(a.preco, 2)}</b>${a.ref ? `<s title="${esc(refTxt(a))}">${eur(a.ref)}</s>` : ""}${a.lucro_est != null && a.lucro_est > 0 ? `<i class="up">+${eur(a.lucro_est)}</i>` : ""}</div>
+        <span class="vt-pc-t">${esc(a.titulo)}</span>
+        <small>${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small>
+        <div class="vt-pc-f">${etapaChip(a.etapa)}<span>${esc(ago(a.visto_em))}</span></div></div></article>`;
+  }
+  const temas = () => (V.grupos.length > 1 ? `<div class="vt-seg vt-temas">${["", ...V.grupos].map((g) => `<button type="button" data-grupo="${esc(g)}" class="${g === grupo ? "on" : ""}">${ico(g)}${esc(t(g || "Tudo"))}</button>`).join("")}</div>` : "");
+  function drawProdutos() {
+    if (!P || !$("vt-body")) return;
+    const sel = (k, label, opts) => `<label class="vt-f"><span>${esc(t(label))}</span><select data-f="${k}"><option value="">${esc(t("Todas"))}</option>${opts.map(([v, n]) => `<option value="${esc(v)}" ${String(F[k]) === String(v) ? "selected" : ""}>${esc(v)}${n != null ? ` (${n})` : ""}</option>`).join("")}</select></label>`;
+    const chipF = (k, v, l, n) => `<button type="button" data-fs="${k}" data-v="${v}" class="${F[k] === v ? "on" : ""}">${esc(t(l))}${n != null ? ` <i>${fmt.int(n)}</i>` : ""}</button>`;
+    const ords = { recente: "Mais recentes", desconto: "Maior desconto", lucro: "Maior lucro", barato: "Mais barato", caro: "Mais caro" };
+    const bar = `<div class="panel vt-pbar">
+      <div class="vt-pbar-1"><label class="vt-q">${icon("search")}<input type="search" data-fq value="${esc(F.q)}" placeholder="${esc(t("Procurar: marca, modelo, tamanho…"))}"></label>
+        <div class="vt-seg">${chipF("so", "", "Todos", P.todos)}${chipF("so", "abaixo", "Abaixo do mercado", P.abaixo)}${chipF("so", "oport", "Oportunidades", null)}${chipF("etapa", "crm", "No CRM", null)}</div></div>
+      <div class="vt-pbar-2">${sel("nicho", "Categoria", P.nichos)}${sel("marca", "Marca", P.marcas)}
+        <label class="vt-f"><span>${esc(t("Estado"))}</span><select data-f="estado"><option value="">${esc(t("Todos"))}</option><option value="novo" ${F.estado === "novo" ? "selected" : ""}>${esc(t("Novo"))}</option><option value="usado" ${F.estado === "usado" ? "selected" : ""}>${esc(t("Usado"))}</option></select></label>
+        <label class="vt-f sm"><span>${esc(t("De €"))}</span><input type="number" min="0" data-f="pmin" value="${esc(F.pmin)}"></label>
+        <label class="vt-f sm"><span>${esc(t("Até €"))}</span><input type="number" min="0" data-f="pmax" value="${esc(F.pmax)}"></label>
+        <label class="vt-f"><span>${esc(t("Ordem"))}</span><select data-f="ordem">${Object.entries(ords).map(([k, l]) => `<option value="${k}" ${F.ordem === k ? "selected" : ""}>${esc(t(l))}</option>`).join("")}</select></label>
+        ${F.q || F.nicho || F.marca || F.estado || F.pmin || F.pmax || F.so || F.etapa ? `<button type="button" class="btn quiet" data-limpar>${icon("x")}${esc(t("Limpar"))}</button>` : ""}</div></div>`;
+    const lista = P.itens.length ? `<div class="vt-grid">${P.itens.map(card).join("")}</div>
+      ${P.total > P.itens.length ? `<div class="vt-more"><button type="button" class="btn quiet" data-mais>${esc(t("Mostrar mais ({n} de {t})", { n: P.itens.length, t: P.total }))}</button></div>` : ""}`
+      : `<div class="panel">${ui.empty("bag", P.todos ? "Nenhum produto com estes filtros" : "Ainda sem produtos", P.todos ? "Tira um filtro ou procura outra coisa." : "Liga o radar: cada volta guarda aqui os anúncios das categorias ligadas, com foto e link.")}</div>`;
+    paint($("vt-body"), `${temas()}${bar}<div class="vt-count">${esc(t("{n} produto(s)", { n: fmt.int(P.total) }))}${grupo ? ` · ${esc(grupo)}` : ""}<span>${esc(t("Clica num produto para ver a ficha; a seta abre a página no Vinted."))}</span></div>${lista}`);
+  }
+
+  // A ficha de um produto (por cima da página): foto, preços, onde fica no mercado, quem vende, a etapa e as notas.
+  async function abrirFicha(id) {
+    try {
+      ficha = await api(`/api/vinted/produto/${id}`);
+      pintarFicha();
+    } catch (e) { flash(e.message); }
+  }
+  function faixa(d) {
+    const ps = d.precos, a = d.item;
+    if (ps.length < 3) return "";
+    const lo = ps[0], hi = ps[ps.length - 1], x = (v) => (hi > lo ? ((v - lo) / (hi - lo)) * 100 : 50);
+    return `<div class="vt-fx"><div class="vt-fx-l">${ps.map((p) => `<i style="left:${x(p).toFixed(1)}%"></i>`).join("")}
+        ${a.ref ? `<u style="left:${x(a.ref).toFixed(1)}%" title="${esc(t("Mediana"))}"></u>` : ""}<b style="left:${x(a.preco).toFixed(1)}%"></b></div>
+      <div class="vt-fx-n"><span>${eur(lo)}</span><span>${esc(d.posicao != null ? t("mais barato que {p}% dos parecidos", { p: Math.round((1 - d.posicao) * 100) }) : "")}</span><span>${eur(hi)}</span></div></div>`;
+  }
+  function pintarFicha() {
+    const d = ficha, a = d.item, c = a.compra, pct = a.desconto != null ? Math.round(a.desconto * 100) : null;
+    const passo = (k, extra = "") => { const [l, ic] = ETAPA[k], on = a.etapa === k;
+      return `<button type="button" class="vt-step ${on ? "on" : ""}" data-passo="${k}" ${extra}>${icon(ic)}${esc(t(l))}</button>`; };
+    const acoes = c ? `<div class="vt-steps">${passo("comprado")}${passo("venda")}${passo("vendido")}</div>
+        <div class="vt-fi-row">${c.vendido == null ? `<label class="vt-f"><span>${esc(t("À venda por €"))}</span><input type="number" min="0" id="vt-av" value="${c.a_venda || ""}"></label><button type="button" class="btn quiet" data-avenda>${esc(t("Guardar"))}</button>
+          <label class="vt-f"><span>${esc(t("Vendi por €"))}</span><input type="number" min="0" id="vt-vd"></label><button type="button" class="btn primary" data-vendeu>${esc(t("Vendido"))}</button>`
+          : `<span class="vt-fi-ok">${esc(t("Vendido por {v} · lucro real {l}", { v: eur(c.vendido, 2), l: (c.vendido - c.custo >= 0 ? "+" : "−") + eur(Math.abs(c.vendido - c.custo), 2) }))}</span><button type="button" class="btn quiet" data-desvendi="${a.id}">${esc(t("Ainda não vendi"))}</button>`}</div>
+        <p class="vt-fi-s">${esc(t("Comprado {d} por {v} (com taxa e portes).", { d: ago(c.quando), v: eur(c.custo, 2) }))} <button type="button" class="vt-linkb" data-compra-tirar="${a.id}">${esc(t("Desfazer compra"))}</button></p>`
+      : `<div class="vt-steps">${passo("mira")}${passo("negociar")}<button type="button" class="vt-step" data-comprei="${a.id}">${icon("tick")}${esc(t("Comprei"))}</button>${passo("descartado")}</div>
+        <div class="vt-fi-row"><label class="vt-f"><span>${esc(t("Oferta feita €"))}</span><input type="number" min="0" id="vt-of" value="${a.oferta || ""}"></label><button type="button" class="btn quiet" data-oferta>${esc(t("Guardar oferta"))}</button></div>`;
+    const par = d.parecidos.length ? `<h4 class="vt-fi-h">${esc(t("Parecidos que dão o preço"))}<small>${esc(refTxt(a))}</small></h4>
+      <div class="vt-mini">${d.parecidos.map((b) => `<button type="button" class="vt-mi" data-ficha="${b.id}">${b.foto ? `<img src="${esc(b.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<b>${eur(b.preco, 2)}</b><small>${esc(b.titulo)}</small></button>`).join("")}</div>` : "";
+    const hist = d.historia.length ? `<ul class="vt-hist">${d.historia.slice().reverse().map((h) => `<li><b>${esc(h.o)}</b><span>${esc(h.quem)} · ${esc(ago(h.em))}</span></li>`).join("")}</ul>` : "";
+    openModal(`<div class="vt-fi">
+      <button type="button" class="vt-fi-x" data-close aria-label="${esc(t("Fechar"))}">${icon("x")}</button>
+      <a class="vt-fi-ph" href="${esc(a.link)}" target="_blank" rel="noopener">${a.foto ? `<img src="${esc(a.foto)}" alt="" referrerpolicy="no-referrer">` : ico(a.grupo)}<span>${esc(t("Abrir no Vinted"))}${icon("arrow")}</span></a>
+      <div class="vt-fi-in">
+        <span class="vt-eyebrow">${ico(a.grupo)}${esc(a.nicho)}${a.alertado ? ` · ${esc(t("Oportunidade do radar"))}` : ""}</span>
+        <h3>${esc(a.titulo)}</h3>
+        <p class="vt-fi-s">${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))} · ${esc(t("visto {d}", { d: ago(a.visto_em) }))}</p>
+        <div class="vt-fi-n"><span><i>${esc(t("Preço"))}</i>${eur(a.preco, 2)}</span><span><i>${esc(t("Custo real"))}</i>${eur(a.custo, 2)}</span>
+          <span><i>${esc(t("Mercado"))}</i>${a.ref ? eur(a.ref) : `<em>${esc(t("Sem dados"))}</em>`}</span>
+          <span class="${pct > 0 ? "up" : ""}"><i>${esc(t("Desconto"))}</i>${pct != null ? (pct > 0 ? "−" : "+") + Math.abs(pct) + "%" : "—"}</span>
+          <span class="${a.lucro_est > 0 ? "up" : a.lucro_est < 0 ? "bad" : ""}"><i>${esc(t("Lucro estimado"))}</i>${a.lucro_est != null ? (a.lucro_est >= 0 ? "+" : "−") + eur(Math.abs(a.lucro_est)) : "—"}</span></div>
+        ${faixa(d)}
+        <div class="vt-meta">${vendedor(a)}${etapaChip(a.etapa)}</div>
+        ${acoes}
+        <label class="vt-f vt-nota"><span>${esc(t("Notas da equipa"))}</span><textarea id="vt-nota" rows="3" placeholder="${esc(t("Ex.: pedir fotos da etiqueta; vendedor responde rápido"))}">${esc(a.nota || "")}</textarea></label>
+        <div class="vt-fi-row"><button type="button" class="btn quiet" data-nota>${esc(t("Guardar nota"))}</button>
+          <a class="btn primary" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(t("Ver no Vinted"))}${icon("arrow")}</a></div>
+        ${hist}${par}
+      </div></div>`);
+    const box = $("modal-box");
+    box.className = "modal-box vt-modal";
+    box.onclick = onFicha;
+  }
+  async function crm(body, msg) {
+    try {
+      ficha = await api("/api/vinted/produto", { method: "POST", body: { id: ficha.item.id, ...body } });
+      pintarFicha();
+      refrescar();
+      if (msg) flash(t(msg));
+    } catch (e) { flash(e.message); }
+  }
+  async function compraF(body, msg) {
+    try {
+      V = await api("/api/vinted/compra", { method: "POST", body });
+      await abrirFicha(ficha.item.id);
+      refrescar();
+      if (msg) flash(t(msg));
+    } catch (e) { flash(e.message); }
+  }
+  function refrescar() {
+    if (aba === "produtos") loadProdutos(); else if (aba === "pipeline") loadPipeline(); else if (aba === "painel") draw();
+  }
+  function onFicha(e) {
+    if (!$("modal-box").classList.contains("vt-modal")) return;   // outra janela do Hub usa a mesma caixa
+    const a = ficha && ficha.item, num = (id) => { const i = $(id); return i && i.value !== "" ? Number(i.value) : null; };
+    const go = e.target.closest("[data-ficha]"), p = e.target.closest("[data-passo]");
+    if (go) return abrirFicha(Number(go.dataset.ficha));
+    if (p) { const k = p.dataset.passo;
+      if (k === "mira" || k === "negociar" || k === "descartado") return crm({ etapa: a.etapa === k ? "" : k }, a.etapa === k ? "Tirado do CRM." : `${ETAPA[k][0]}.`);
+      return; }
+    if (e.target.closest("[data-comprei]")) return compraF({ id: a.id }, "Compra registada: saiu do orçamento disponível.");
+    if (e.target.closest("[data-oferta]")) return crm({ oferta: num("vt-of"), etapa: "negociar" }, "Oferta guardada.");
+    if (e.target.closest("[data-nota]")) return crm({ nota: $("vt-nota").value }, "Nota guardada.");
+    if (e.target.closest("[data-avenda]")) return compraF({ a_venda: { id: a.id, valor: num("vt-av") } }, "Posto à venda.");
+    if (e.target.closest("[data-vendeu]")) { const v = num("vt-vd"); if (v == null) { flash(t("Escreve por quanto vendeste.")); return $("vt-vd").focus(); }
+      return compraF({ vendido: { id: a.id, valor: v } }, "Venda registada."); }
+    if (e.target.closest("[data-desvendi]")) return compraF({ vendido: { id: a.id, valor: null } });
+    if (e.target.closest("[data-compra-tirar]")) return compraF({ tirar: a.id }, "Compra desfeita.");
+  }
+
+  // Pipeline: o caminho de cada produto, da mira à venda, com o dinheiro de cada coluna.
+  async function loadPipeline() {
+    try { PL = await api("/api/vinted/pipeline"); if (aba === "pipeline") drawPipeline(); }
+    catch (e) { if ($("vt-body")) $("vt-body").innerHTML = ui.error(e.message); }
+  }
+  function drawPipeline() {
+    const C = PL.colunas, o = PL.orcamento;
+    const soma = (xs, f) => xs.reduce((s, x) => s + (f(x) || 0), 0);
+    const cols = [["mira", soma(C.mira, (x) => x.preco), "em preço"], ["negociar", soma(C.negociar, (x) => x.oferta || x.preco), "em ofertas"],
+      ["comprado", soma(C.comprado, (x) => x.compra.custo), "investido"], ["venda", soma(C.venda, (x) => x.compra.a_venda), "pedido"],
+      ["vendido", soma(C.vendido, (x) => x.compra.vendido - x.compra.custo), "lucro real"]];
+    const total = Object.values(C).reduce((s, x) => s + x.length, 0);
+    const kc = (x) => `<button type="button" class="vt-kc" data-ficha="${x.id}">${x.foto ? `<img src="${esc(x.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="vt-noph">${ico(x.grupo)}</span>`}
+      <span><b>${esc(x.titulo)}</b><small>${eur(x.preco, 2)}${x.oferta ? ` · ${esc(t("oferta"))} ${eur(x.oferta, 2)}` : ""}${x.compra && x.compra.a_venda ? ` · ${esc(t("pede"))} ${eur(x.compra.a_venda)}` : ""}${x.compra && x.compra.vendido != null ? ` · ${esc(t("vendido"))} ${eur(x.compra.vendido)}` : ""}</small>
+      ${x.lucro_est != null && !(x.compra && x.compra.vendido != null) ? `<i class="${x.lucro_est > 0 ? "up" : ""}">${x.lucro_est > 0 ? "+" : ""}${eur(x.lucro_est)} ${esc(t("previsto"))}</i>` : ""}${x.nota ? `<em>${icon("note")}${esc(x.nota)}</em>` : ""}</span></button>`;
+    paint($("vt-body"), `<div class="vt-kpis">${ui.kpis([
+        ui.kpi({ label: "No pipeline", value: total, sub: t("{a} na mira · {b} a negociar", { a: C.mira.length, b: C.negociar.length }), cls: "hi", viz: chip("flag") }),
+        ui.kpi({ label: "Em stock", value: C.comprado.length + C.venda.length, sub: t("{v} investido", { v: eur(o.investido, 2) }), viz: chip("bag") }),
+        ui.kpi({ label: "Disponível", value: o.total ? eur(o.disponivel) : t("Sem dados"), sub: o.total ? t("de {v}", { v: eur(o.total) }) : t("põe o orçamento no Painel"), viz: chip("wallet") }),
+        ui.kpi({ label: "Lucro real", value: o.lucro_real != null ? eur(o.lucro_real, 2) : t("Sem dados"), sub: t("{n} vendido(s)", { n: o.vendidas }), cls: o.lucro_real > 0 ? "up" : "", viz: chip("trend", o.lucro_real > 0 ? "ok" : "") })])}</div>
+      ${total ? "" : `<div class="panel vt-tip">${ui.empty("flag", "O pipeline está vazio", "Em Produtos, carrega no olho de um produto para o pôr na mira, ou abre a ficha e muda a etapa. Cada produto anda por aqui até ser vendido.", `<button type="button" class="btn primary" data-aba="produtos">${esc(t("Ver produtos"))}</button>`)}</div>`}
+      <div class="vt-board">${cols.map(([k, v, l]) => `<section class="vt-col col-${k}"><header>${icon(ETAPA[k][1])}<b>${esc(t(ETAPA[k][0]))}</b><em>${C[k].length}</em>
+          <small>${C[k].length ? `${k === "vendido" && v >= 0 ? "+" : ""}${eur(v)} ${esc(t(l))}` : ""}</small></header>
+        <div class="vt-col-in">${C[k].map(kc).join("") || `<p class="vt-col-0">${esc(t("Nada aqui"))}</p>`}</div></section>`).join("")}</div>`);
+  }
+
+  // Mercado: o cérebro. O preço normal de cada categoria e marca, a partir de tudo o que o radar já viu.
+  async function loadMercado() {
+    try { MK = await api("/api/vinted/mercado"); if (aba === "mercado") drawMercado(); }
+    catch (e) { if ($("vt-body")) $("vt-body").innerHTML = ui.error(e.message); }
+  }
+  function drawMercado() {
+    const cats = MK.categorias.filter((c) => !grupo || c.grupo === grupo);
+    const dias = MK.dias.map((d) => ({ label: new Date(d.dia + "T12:00").toLocaleDateString("pt-PT", { day: "2-digit", month: "short" }), value: d.n, tip: t("{n} anúncios novos", { n: d.n }) }));
+    const catP = (c) => { const x = (v) => (c.max > c.min ? ((v - c.min) / (c.max - c.min)) * 100 : 50);
+      return `<div class="panel vt-mk">
+        <div class="vt-mk-h"><span class="vt-ico">${ico(c.grupo)}</span><div><b>${esc(c.nicho)}</b><small>${esc(t("{n} anúncios vistos", { n: fmt.int(c.n) }))}</small></div>
+          <button type="button" class="btn quiet" data-vercat="${esc(c.nicho)}">${esc(t("Ver produtos"))}${icon("chevron")}</button></div>
+        <div class="vt-fi-n"><span><i>${esc(t("Preço do meio"))}</i>${eur(c.mediana)}</span><span><i>${esc(t("Normal"))}</i>${eur(c.p25)}–${eur(c.p75)}</span><span><i>${esc(t("Mais barato"))}</i>${eur(c.min, 2)}</span><span><i>${esc(t("Mais caro"))}</i>${eur(c.max)}</span></div>
+        <div class="vt-rng"><i style="left:${x(c.p25).toFixed(1)}%;width:${(x(c.p75) - x(c.p25)).toFixed(1)}%"></i><b style="left:${x(c.mediana).toFixed(1)}%"></b></div>
+        <table class="vt-tb"><thead><tr><th>${esc(t("Marca"))}</th><th>${esc(t("Anúncios"))}</th><th>${esc(t("Preço do meio"))}</th><th>${esc(t("Mais barato"))}</th><th></th></tr></thead>
+          <tbody>${c.marcas.map((m) => `<tr data-vermarca="${esc(m.marca)}" data-mcat="${esc(c.nicho)}"><td><b>${esc(m.marca)}</b></td><td>${m.n}</td><td>${eur(m.mediana)}</td><td>${eur(m.min, 2)}</td><td>${icon("chevron")}</td></tr>`).join("")}</tbody></table></div>`; };
+    paint($("vt-body"), `<div class="vt-kpis">${ui.kpis([
+        ui.kpi({ label: "Anúncios vistos", value: fmt.int(MK.total), sub: t("a base do cérebro"), cls: "hi", viz: chip("layers") }),
+        ui.kpi({ label: "Com preço de mercado", value: MK.total ? `${Math.round((MK.com_ref / MK.total) * 100)}%` : t("Sem dados"), sub: t("têm parecidos suficientes"), viz: chip("chart") }),
+        ui.kpi({ label: "Abaixo do mercado", value: fmt.int(MK.abaixo), sub: t("30% ou mais abaixo do preço do meio"), viz: chip("target", MK.abaixo ? "ok" : "") }),
+        ui.kpi({ label: "Categorias", value: cats.length || t("Sem dados"), sub: grupo || t("todos os temas"), viz: chip("grid") })])}</div>
+      ${temas()}${head("pulse", "Anúncios novos por dia", `<span class="vt-aside">${esc(t("últimos 14 dias"))}</span>`)}<div class="panel vt-days">${ui.bars(dias)}</div>
+      ${head("chart", "Preços por categoria e marca", `<span class="vt-aside">${esc(t("Clica numa marca para ver os produtos dela"))}</span>`)}
+      ${cats.length ? cats.map(catP).join("") : `<div class="panel">${ui.empty("chart", "Ainda sem mercado", "Liga o radar: o preço normal de cada categoria e marca aparece aqui à medida que ele vê anúncios.")}</div>`}`);
   }
 
   async function load() {
@@ -230,12 +452,26 @@
   HUB_VIEWS.vinted = async function () {
     page(`${ui.head("Negócios", t("Vinted Radar"), t("Anúncios novos do Vinted bem abaixo do preço de mercado, minutos depois de aparecerem."),
       `<div class="vt-ctl" id="vt-ctl"></div>`)}
+      <nav class="vt-nav" id="vt-nav" role="tablist"></nav>
       <div id="vt-body">${ui.skeleton(6)}</div>`);
     const v = $("view");
     v.onclick = (e) => {
       const b = e.target.closest("[data-vt]"), x = e.target.closest("[data-tirar]"), s = e.target.closest("[data-save]");
       const c = e.target.closest("[data-cont]"), h = e.target.closest("[data-esconder]"), m = e.target.closest("[data-massa]"), g = e.target.closest("[data-grupo]");
       const k = e.target.closest("[data-comprei]"), vd = e.target.closest("[data-vendi]");
+      const ab = e.target.closest("[data-aba]"), fi = e.target.closest("[data-ficha]"), et = e.target.closest("[data-et]");
+      if (ab) return irPara(ab.dataset.aba);
+      if (et) { e.preventDefault(); e.stopPropagation();
+        return api("/api/vinted/produto", { method: "POST", body: { id: Number(et.dataset.et), etapa: et.dataset.v } })
+          .then(() => { flash(t(et.dataset.v ? "Na mira: está no Pipeline." : "Tirado da mira.")); loadProdutos(); }).catch((x) => flash(x.message)); }
+      if (e.target.closest(".vt-pc-q a")) return;
+      if (fi) { e.preventDefault(); return abrirFicha(Number(fi.dataset.ficha)); }
+      const fs = e.target.closest("[data-fs]");
+      if (fs) { const k2 = fs.dataset.fs, v2 = fs.dataset.v; if (k2 === "so") { F.so = v2; F.etapa = ""; } else { F.etapa = F.etapa === v2 ? "" : v2; F.so = ""; } F.n = 60; return loadProdutos(); }
+      if (e.target.closest("[data-limpar]")) { Object.assign(F, { q: "", nicho: "", marca: "", estado: "", so: "", etapa: "", pmin: "", pmax: "", n: 60 }); return loadProdutos(); }
+      if (e.target.closest("[data-mais]")) { F.n += 60; return loadProdutos(); }
+      const vc = e.target.closest("[data-vercat]"), vm = e.target.closest("[data-vermarca]");
+      if (vc || vm) { Object.assign(F, { q: "", estado: "", so: "", etapa: "", pmin: "", pmax: "", n: 60, nicho: vc ? vc.dataset.vercat : vm.dataset.mcat, marca: vm ? vm.dataset.vermarca : "" }); return irPara("produtos"); }
       if (k) { e.preventDefault(); k.disabled = true; send("/api/vinted/compra", { id: Number(k.dataset.comprei) }, "Compra registada: saiu do orçamento disponível."); }
       else if (vd) { const i = $("vt-v-" + vd.dataset.vendi), val = i && i.value !== "" ? Number(i.value) : null;
         if (val == null) { flash(t("Escreve por quanto vendeste.")); i && i.focus(); } else send("/api/vinted/compra", { vendido: { id: Number(vd.dataset.vendi), valor: val } }, "Venda registada."); }
@@ -252,7 +488,7 @@
         const on = m.dataset.massa === "1";
         const ativos = V.nichos.filter((n) => (!grupo || n.grupo === grupo) ? on : n.ativo).map((n) => n.nome);
         send("/api/vinted/config", { ativos }, on ? "Categorias ligadas." : "Categorias desligadas.");
-      } else if (g) { grupo = g.dataset.grupo; cat = ""; localStorage.setItem("vt-grupo", grupo); draw(); }
+      } else if (g) { grupo = g.dataset.grupo; cat = ""; localStorage.setItem("vt-grupo", grupo); F.nicho = ""; F.marca = ""; irPara(aba); }
       else if (b) { b.disabled = true; send("/api/vinted/ligar", { on: b.dataset.vt === "on" }, b.dataset.vt === "on" ? "Radar ligado: a primeira volta junta os preços de mercado." : "Radar desligado."); }
       else if (x) { e.preventDefault(); send("/api/vinted/config", { tirar: x.dataset.tirar }, "Categoria tirada."); }
       else if (s) {
@@ -263,7 +499,15 @@
       else if (e.target.closest("[data-fcat]")) { cat = e.target.closest("[data-fcat]").dataset.fcat; draw(); }
       else if (e.target.closest("[data-retry]")) load();
     };
+    let qT = 0;
+    v.oninput = (e) => {
+      if (!e.target.matches("[data-fq]")) return;
+      clearTimeout(qT);
+      qT = setTimeout(() => { F.q = e.target.value.trim(); F.n = 60; loadProdutos().then(() => { const i = v.querySelector("[data-fq]"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 300);
+    };
+    v.onkeydown = (e) => { const c = e.target.closest("[data-ficha]"); if (c && (e.key === "Enter" || e.key === " ") && e.target === c) { e.preventDefault(); abrirFicha(Number(c.dataset.ficha)); } };
     v.onchange = (e) => {
+      if (e.target.matches("[data-f]")) { F[e.target.dataset.f] = e.target.value; F.n = 60; if (e.target.dataset.f === "ordem") localStorage.setItem("vt-p-ordem", F.ordem); return loadProdutos(); }
       if (e.target.matches("[data-mover]")) return send("/api/vinted/config", { mover: { nome: e.target.dataset.mover, grupo: e.target.value } }, "Categoria mudada de tema.");
       if (!e.target.matches("[data-cat]")) return;
       // as categorias de outros temas não estão no ecrã: ficam como estavam
@@ -279,5 +523,6 @@
       if (q) send("/api/vinted/config", { novo: { pesquisa: q, grupo } }, "Categoria juntada.");
     };
     await load();
+    if (aba !== "painel" && aba !== "definicoes") irPara(aba);
   };
 })();

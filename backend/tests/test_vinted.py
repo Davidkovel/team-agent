@@ -91,3 +91,57 @@ def test_o_plano_escolhe_o_maior_lucro_que_cabe():
 
 def test_o_custo_real_soma_protecao_e_portes():
     assert vinted._custo(100, {"protecao_comprador": {"fixo": 0.7, "pct": 0.05}, "portes_compra_eur": 4.0}) == 109.7
+
+
+def _db(radar_dir, linhas):
+    import sqlite3
+    c = sqlite3.connect(radar_dir / "radar.db")
+    c.execute("CREATE TABLE anuncios (id INTEGER PRIMARY KEY, nicho TEXT, titulo TEXT, marca TEXT, tamanho TEXT, estado TEXT, preco REAL,"
+              " foto TEXT, link TEXT, visto_em TEXT, origem TEXT, alertado INTEGER DEFAULT 0, mediana REAL, lucro REAL, comparaveis INTEGER, alertado_em TEXT)")
+    c.executemany("INSERT INTO anuncios (id, nicho, titulo, marca, tamanho, estado, preco, foto, link, visto_em, origem) VALUES (?,?,?,?,?,?,?,?,?,?,?)", linhas)
+    c.commit()
+    c.close()
+
+
+class _U:
+    username = "mark"
+
+
+@pytest.fixture
+def catalogo(radar, tmp_path, monkeypatch):
+    monkeypatch.setattr(vinted, "_CAT", {"chave": None, "itens": [], "mercado": {}})
+    linhas = [(i, "Patagonia", f"Casaco {i}", "Patagonia", "M", "Muito bom", float(p), f"http://f/{i}.webp", f"http://v/{i}", f"2026-11-13 10:{i:02d}:00", "novo")
+              for i, p in enumerate([40, 42, 45, 50, 50, 55, 60, 12], start=1)]
+    _db(tmp_path, linhas)
+    return tmp_path
+
+
+def test_todos_os_produtos_aparecem_com_foto_link_e_preco_de_mercado(catalogo):
+    r = vinted.produtos(q="", grupo="", nicho="", marca="", estado="", etapa="", so="", ordem="desconto", pmin=0, pmax=0, offset=0, limit=60, user=_U)
+    assert r["total"] == 8 and r["itens"][0]["id"] == 8   # o de 12 € é o maior desconto
+    a = r["itens"][0]
+    assert a["foto"] and a["link"] and a["ref"] == 47.5 and a["ref_base"] == "marca" and a["desconto"] > 0.7
+    assert vinted.produtos(q="casaco 3", grupo="", nicho="", marca="", estado="", etapa="", so="", ordem="recente", pmin=0, pmax=0, offset=0, limit=60, user=_U)["total"] == 1
+    assert vinted.produtos(q="", grupo="", nicho="", marca="", estado="", etapa="", so="abaixo", ordem="recente", pmin=0, pmax=0, offset=0, limit=60, user=_U)["total"] == 1
+
+
+def test_um_produto_anda_pelo_pipeline_ate_ser_vendido(catalogo):
+    d = vinted.produto_crm({"id": 8, "etapa": "mira", "nota": "pedir etiqueta"}, _U)
+    assert d["item"]["etapa"] == "mira" and d["item"]["nota"] == "pedir etiqueta" and d["historia"][-1]["o"] == "Na mira"
+    vinted.produto_crm({"id": 8, "oferta": 10, "etapa": "negociar"}, _U)
+    assert [x["id"] for x in vinted.pipeline(_U)["colunas"]["negociar"]] == [8]
+    vinted.compra({"id": 8}, _U)
+    col = vinted.pipeline(_U)["colunas"]
+    assert col["negociar"] == [] and col["comprado"][0]["compra"]["lucro_previsto"] is not None
+    vinted.compra({"a_venda": {"id": 8, "valor": 45}}, _U)
+    assert vinted.pipeline(_U)["colunas"]["venda"][0]["id"] == 8
+    vinted.compra({"vendido": {"id": 8, "valor": 44}}, _U)
+    assert vinted.pipeline(_U)["colunas"]["vendido"][0]["id"] == 8
+    vinted.produto_crm({"id": 3, "etapa": "descartado"}, _U)
+    assert vinted.produtos(q="", grupo="", nicho="", marca="", estado="", etapa="", so="", ordem="recente", pmin=0, pmax=0, offset=0, limit=60, user=_U)["total"] == 7
+
+
+def test_o_mercado_diz_o_preco_do_meio_de_cada_categoria_e_marca(catalogo):
+    m = vinted.mercado(_U)
+    c = m["categorias"][0]
+    assert c["nicho"] == "Patagonia" and c["n"] == 8 and c["marcas"][0]["marca"] == "Patagonia" and m["abaixo"] == 1

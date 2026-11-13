@@ -419,3 +419,110 @@ html.is-phone .vt-fi-ph { max-height: 46vh; }
 html.is-phone .vt-fi-in { max-height: none; overflow: visible; padding: 16px; }
 html.is-phone .vt-board { grid-template-columns: repeat(5, 78vw); }
 @media (max-width: 760px) { .vt-fi { grid-template-columns: 1fr; grid-template-rows: none; height: auto; max-height: 92vh; overflow-y: auto; } .vt-fi-ph { max-height: 46vh; } .vt-fi-in { max-height: none; overflow: visible; } }
+
+/* 13 nov, a Caça: pagas -> vale -> ganhas, o veredito e porquê */
+.vt-vd { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .01em; }
+.vt-vd i { font-style: normal; font-weight: 600; font-size: 11px; padding: 0 6px; border-radius: 999px; background: rgba(0, 0, 0, .18); font-variant-numeric: tabular-nums; }
+.vt-vd.vd-ok { background: #4ade80; color: #04140a; }
+.vt-vd.vd-mid { background: rgba(255, 196, 0, .16); color: #ffd36b; border: 1px solid rgba(255, 196, 0, .35); }
+.vt-vd.vd-no { background: rgba(255, 255, 255, .06); color: var(--faint); border: 1px solid var(--line); }
+.vt-vd.vd-mid i, .vt-vd.vd-no i { background: rgba(255, 255, 255, .08); }
+.vt-conf { font-size: 11.5px; color: var(--faint); display: inline-flex; align-items: center; gap: 6px; }
+.vt-conf::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #ff6b6b; }
+.vt-conf.c-media::before { background: #ffc400; }
+.vt-conf.c-alta::before { background: #4ade80; }
+
+.vt-flow { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.vt-flow span { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; font: 600 15px/1.1 var(--display, inherit); letter-spacing: -.02em; }
+.vt-flow i { font: 500 10px/1 var(--ui, inherit); letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-style: normal; }
+.vt-flow b { color: var(--faint); display: grid; }
+.vt-flow b svg { width: 12px; height: 12px; }
+.vt-flow .win { color: #4ade80; }
+.vt-flow .lose { color: var(--faint); }
+.vt-flow .na { font: 400 13px var(--ui, inherit); color: var(--faint); }
+.vt-flow.big { gap: 10px; padding: 12px 14px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, .03); }
+.vt-flow.big span { font-size: 24px; }
+.vt-flow.big .win { font-size: 30px; }
+.vt-flow.big b svg { width: 16px; height: 16px; }
+.vt-why { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.vt-why li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.vt-why svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; }
+.vt-why .ok svg { color: #4ade80; }
+.vt-why .warn svg { color: #ffc400; }
+.vt-why .bad { color: #ffb3b3; }
+.vt-why .bad svg { color: #ff6b6b; }
+.vt-sel.bad { color: #ff6b6b; }
+.vt-how { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; margin: 4px 0 6px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.vt-how svg { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 1px; color: var(--text); }
+
+.vt-heroes { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
+.vt-hero { display: grid; grid-template-columns: 150px minmax(0, 1fr); border: 1px solid var(--line-2); border-radius: 18px; overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .015)); }
+.vt-hero-ph { position: relative; padding: 0; border: 0; background: #050505; cursor: pointer; min-height: 100%; }
+.vt-hero-ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.vt-hero-ph em { position: absolute; left: 10px; top: 10px; padding: 3px 9px; border-radius: 999px; background: #e9e9ea; color: #0a0a0a; font-style: normal; font-weight: 800; font-size: 13px; }
+.vt-hero-in { display: flex; flex-direction: column; gap: 9px; padding: 14px 16px 16px; min-width: 0; }
+.vt-hero-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vt-hero-t { font: 600 16px/1.3 var(--display, inherit); letter-spacing: -.01em; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.vt-hero-in > small { color: var(--faint); font-size: 12px; margin-top: -6px; }
+.vt-hero-in .vt-flow.big span { font-size: 20px; }
+.vt-hero-in .vt-flow.big .win { font-size: 24px; }
+.vt-hero-s { margin: 0; color: var(--muted); font-size: 12.5px; }
+.vt-hero-a { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
+.vt-hero-a .btn svg { width: 14px; height: 14px; }
+.vt-hero-a .btn.on { background: #e9e9ea; color: #0a0a0a; }
+
+.vt-rows { padding: 4px; }
+.vt-row { display: grid; grid-template-columns: 24px 44px minmax(0, 1fr) auto auto 30px; align-items: center; gap: 12px; padding: 8px 10px;
+  border-radius: 12px; cursor: pointer; }
+.vt-row + .vt-row { border-top: 1px solid rgba(255, 255, 255, .04); }
+.vt-row:hover { background: rgba(255, 255, 255, .04); }
+.vt-row > em { font-style: normal; color: var(--faint); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.vt-row > img, .vt-row > .vt-noph { width: 44px; height: 58px; border-radius: 8px; object-fit: cover; position: static; }
+.vt-row-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vt-row-t b { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vt-row-t small { color: var(--faint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vt-row-t .vt-meta:empty { display: none; }
+.vt-row-go { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+.vt-row-go:hover { background: rgba(255, 255, 255, .08); color: var(--text); }
+.vt-row-go svg { width: 14px; height: 14px; }
+
+.vt-pc-v { display: flex; margin-bottom: 2px; }
+.vt-pc .vt-flow span { font-size: 14px; }
+
+.vt-dec { display: flex; flex-direction: column; gap: 10px; }
+.vt-dec-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.vt-dec-h .vt-vd { font-size: 14px; padding: 6px 14px; }
+.vt-dec-r { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.vt-fi-pc { display: flex; flex-direction: column; min-height: 0; background: #050505; }
+.vt-fi-pc .vt-fi-ph { flex: 1; min-height: 0; }
+.vt-thumbs { display: flex; gap: 6px; padding: 8px; overflow-x: auto; }
+.vt-thumbs:empty { display: none; }
+.vt-thumbs button { flex: 0 0 52px; height: 70px; padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: none; cursor: pointer; opacity: .7; }
+.vt-thumbs button.on { border-color: #e9e9ea; opacity: 1; }
+.vt-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vt-desc { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.vt-desc summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.vt-desc summary svg { width: 14px; height: 14px; }
+.vt-desc summary small { margin-left: auto; color: var(--faint); font-weight: 400; font-size: 11.5px; }
+.vt-desc p { margin: 8px 0 0; white-space: pre-line; color: var(--muted); font-size: 13px; line-height: 1.5; max-height: 220px; overflow-y: auto; }
+
+html.is-phone .vt-hero { grid-template-columns: 1fr; }
+html.is-phone .vt-hero-ph { height: 260px; }
+html.is-phone .vt-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+html.is-phone .vt-row > em, html.is-phone .vt-row .vt-flow, html.is-phone .vt-row-go { display: none; }
+html.is-phone .vt-flow.big span { font-size: 18px; }
+
+/* iguais à venda no Vinted (a pesquisa do radar pelo mesmo produto) */
+.vt-cmp { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, .02); }
+.vt-cmp .vt-fi-h { margin: 0; align-items: center; }
+.vt-cmp .vt-fi-h svg { width: 15px; height: 15px; }
+.vt-cmp-f { display: flex; gap: 8px; flex-wrap: wrap; }
+.vt-cmp-f .vt-q { flex: 1 1 220px; height: 38px; }
+.vt-cmp-f .btn svg { width: 14px; height: 14px; }
+.vt-cmp-s { display: flex; gap: 8px; align-items: flex-start; margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.vt-cmp-s svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 1px; }
+.vt-cmp-s.ok { color: var(--text); }
+.vt-cmp-s.ok svg { color: #4ade80; }
+.vt-cmp-s.wait svg { color: #ffc400; }
+a.vt-mi { text-decoration: none; }

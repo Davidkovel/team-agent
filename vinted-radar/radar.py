@@ -44,6 +44,11 @@ def ligar():
     for col in ("mediana REAL", "lucro REAL", "comparaveis INTEGER", "alertado_em TEXT", "vendedor TEXT", "estrelas REAL", "avaliacoes INTEGER"):
         if col.split()[0] not in cols:
             c.execute(f"ALTER TABLE anuncios ADD COLUMN {col}")
+    # 13 nov (Marco: «procuras no Vinted produtos iguais a esse e ficas a avaliar o preço que as pessoas estão a pôr»): para
+    # cada produto que o Hub pede, uma pesquisa no Vinted pelo mesmo produto; os anúncios encontrados ficam aqui.
+    c.execute("""CREATE TABLE IF NOT EXISTS copias (alvo INTEGER, id INTEGER, titulo TEXT, marca TEXT, tamanho TEXT, estado TEXT,
+        preco REAL, foto TEXT, link TEXT, visto_em TEXT, PRIMARY KEY (alvo, id))""")
+    c.execute("CREATE TABLE IF NOT EXISTS comparado (alvo INTEGER PRIMARY KEY, pesquisa TEXT, em TEXT, n INTEGER)")
     return c
 
 
@@ -269,6 +274,52 @@ def ciclo(b, c, primeira=False):
     return alertas
 
 
+FILA = os.path.join(RAIZ, "comparar.json")
+
+
+def comparar(b, c, maximo=4):
+    """Faz as pesquisas pedidas pelo Hub (comparar.json: [{"id", "pesquisa"}]), no máximo `maximo` de cada vez, com a mesma
+    pausa entre páginas que o resto do radar. Guarda os anúncios iguais em `copias`."""
+    try:
+        fila = json.load(open(FILA, encoding="utf-8"))
+    except Exception:
+        return 0
+    feitos = 0
+    for p in list(fila)[:maximo]:
+        estado(fase=f"A comparar: {p['pesquisa']}")
+        try:
+            itens = ler_anuncios(b, p["pesquisa"], CFG["pais"], n=96, preco_max=5000, ordem="relevance")
+        except Exception as e:
+            print(f"comparar {p['id']}: {str(e)[:120]}")
+            break
+        c.execute("DELETE FROM copias WHERE alvo=?", (p["id"],))
+        c.executemany("INSERT OR IGNORE INTO copias VALUES (?,?,?,?,?,?,?,?,?,?)",
+                      [(p["id"], a["id"], a["titulo"], a["marca"], a["tamanho"], a["estado"], a["preco"], a["foto"], a["link"], a["visto_em"])
+                       for a in itens if a["preco"] is not None and a["id"] != p["id"]])
+        c.execute("INSERT OR REPLACE INTO comparado VALUES (?,?,?,?)", (p["id"], p["pesquisa"], time.strftime("%Y-%m-%d %H:%M:%S"), len(itens)))
+        c.commit()
+        feitos += 1
+        try:   # tira da fila o que já fez (o Hub pode ter juntado mais entretanto)
+            agora = json.load(open(FILA, encoding="utf-8"))
+            json.dump([x for x in agora if x["id"] != p["id"]], open(FILA, "w", encoding="utf-8"), ensure_ascii=False)
+        except Exception:
+            pass
+        pausa()
+    return feitos
+
+
+def esperar(b, c, segundos):
+    """A espera entre voltas: de 15 em 15 s vê se o Hub pediu comparações (para a ficha não ficar à espera 5 minutos)."""
+    fim = time.time() + segundos
+    while time.time() < fim:
+        try:
+            if comparar(b, c):
+                estado(fase="À espera do próximo ciclo")
+        except Exception as e:
+            print(f"comparar: {str(e)[:120]}")
+        time.sleep(15)
+
+
 def correr():
     c, b = ligar(), abrir_browser()
     falhas, primeira = 0, True
@@ -293,7 +344,7 @@ def correr():
             except Exception:
                 pass
             b = abrir_browser()
-        time.sleep(CFG["intervalo_min"] * 60)
+        esperar(b, c, CFG["intervalo_min"] * 60)
 
 
 def mostrar_mercado():

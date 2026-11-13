@@ -145,3 +145,24 @@ def test_o_mercado_diz_o_preco_do_meio_de_cada_categoria_e_marca(catalogo):
     m = vinted.mercado(_U)
     c = m["categorias"][0]
     assert c["nicho"] == "Patagonia" and c["n"] == 8 and c["marcas"][0]["marca"] == "Patagonia" and m["abaixo"] == 1
+
+
+def test_o_valor_vem_dos_iguais_a_venda_no_vinted(catalogo):
+    import sqlite3
+    assert vinted.pesquisa_de({"titulo": "Veste Carhartt WIP Terrace Jacket vintage Y2K – Taille M", "marca": "Carhartt"}) == "carhartt wip terrace"
+    assert vinted.pesquisa_de({"titulo": "Vintage Errea Navy Windbreaker Lightweight Track Top Size M", "marca": "Erreà"}) == "errea track"
+    vinted.produtos(q="", grupo="", nicho="", marca="", estado="", etapa="", so="caca", ordem="melhor", pmin=0, pmax=0, offset=0, limit=40, user=_U)
+    assert any(x["id"] == 8 for x in vinted._fila())   # o melhor foi para a fila do radar
+    c = sqlite3.connect(catalogo / "radar.db")
+    c.execute("CREATE TABLE copias (alvo INTEGER, id INTEGER, titulo TEXT, marca TEXT, tamanho TEXT, estado TEXT, preco REAL, foto TEXT, link TEXT, visto_em TEXT, PRIMARY KEY (alvo, id))")
+    c.execute("CREATE TABLE comparado (alvo INTEGER PRIMARY KEY, pesquisa TEXT, em TEXT, n INTEGER)")
+    precos = [30, 32, 34, 35, 36, 38, 40, 900]   # 900 é um extremo: não conta
+    c.executemany("INSERT INTO copias VALUES (8,?,?,?,?,?,?,?,?,?)", [(100 + i, f"Patagonia casaco {i}", "Patagonia", "M", "Bom", p, "", "", "") for i, p in enumerate(precos)]
+                  + [(200, "Nike casaco", "Nike", "M", "Bom", 5, "", "", "")])   # outra marca: não conta
+    c.execute("INSERT INTO comparado VALUES (8, 'patagonia casaco', '2026-11-13 11:00:00', 9)")
+    c.commit(); c.close()
+    vinted._CAT["chave"] = None
+    d = vinted.produto(8, _U)
+    a = d["item"]
+    assert a["ref_base"] == "vinted" and a["ref_n"] == 7 and a["ref"] == 35 and len(d["copias"]) == 7
+    assert a["porque"][0][1].startswith("No Vinted pedem ~35 €")

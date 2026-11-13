@@ -495,6 +495,199 @@ def _quantil(v: list, q: float) -> float:
     return round(v[min(len(v) - 1, int(q * len(v)))], 2)
 
 
+# ------------------------------------------------------------------ cópias no Vinted (13 nov, Marco)
+# «Procuras no Vinted produtos iguais a esse e ficas a avaliar o preço que as pessoas estão a pôr... o objetivo é o Vinted, não
+# o que vale na internet»: para cada produto, o radar faz uma pesquisa no Vinted pelo mesmo produto (marca + modelo) e guarda os
+# anúncios em `copias`. O «Vale» passa a ser o preço do meio que as outras pessoas pedem por esses iguais (tirados os extremos).
+# O Hub só escreve a fila (comparar.json); quem abre o Vinted é o coletor, devagar, como no resto.
+FILA_MAX = 30
+MIN_COPIAS = 5
+GENERICAS = set("""vintage retro y2k 90s 80s 00s anos homme femme uomo donna hombre mujer men women mens womens man woman unisex kids
+taille size tamanho taglia talla gr größe new novo nuovo neuf nueva nuevo com sem con sin avec sans with without etiqueta etiquetas
+cartellino tags tag original originale authentic rare raro très tres very bom boa muito bon bonne buono good great excellent perfeito
+état etat condition estado couleur color colour cor colore bleu blue azul blu noir black preto nero rouge red vermelho rosso vert
+green verde blanc white branco bianco gris grey gray cinza grigio beige marron brown castanho navy marinho rose pink rosa jaune yellow
+amarelo giallo violet purple roxo orange laranja multicolor colorblock oversize oversized slim regular fit look style estilo the and
+bianca bianco nera nero negro negra blanco blanca rojo roja azzurro azzurra marine kaki khaki olive oliva bordeaux burgundy camel
+lightweight light leve leger ligera leggera top superbe super beau belle bella bello linda lindo nice cool usado used worn porte
+for de du des la le les et e da do das dos di del della per pour para por em en in un une uno una a o of""".split())
+TIPO_PALAVRAS = set("""veste jacket giacca giubbotto chaqueta casaco blouson coupe vent coupe-vent windbreaker anorak parka manteau
+cappotto abrigo doudoune puffer piumino hoodie sweat sweatshirt pull pullover camisola felpa sudadera jumper fleece polaire polar
+shirt camisa chemise camicia tee t-shirt tshirt polo pants calças pantalon pantaloni jeans shorts gilet colete vest""".split())
+
+
+FAMILIAS = {   # o tipo de peça: um casaco não se compara com umas calças do mesmo modelo
+    "casaco": "veste jacket giacca giubbotto giacchetto chaqueta casaco blouson coupe-vent windbreaker anorak parka manteau cappotto abrigo doudoune puffer piumino gilet colete bodywarmer smanicato shell jacke",
+    "camisola": "hoodie sweat sweatshirt pull pullover camisola felpa sudadera jumper fleece polaire polar cardigan maglione",
+    "camisa": "shirt camisa chemise camicia tee t-shirt tshirt polo maglietta camiseta maillot jersey trikot",
+    "calcas": "pant pants pantalon pantalons pantaloni calcas jeans shorts calcoes bermuda trousers jogger joggers survetement",
+    "chapeu": "cap casquette bone visor visiere beanie gorro bonnet hat chapeau cappello gorra bucket",
+    "mala": "bag sac mala borsa bolso backpack mochila sacoche tote",
+    "calcado": "shoes sneakers baskets tenis sapatilhas scarpe zapatillas boots botas",
+}
+_FAM = {w: f for f, ws in FAMILIAS.items() for w in ws.split()}
+
+
+def familia(txt: str) -> str | None:
+    for w in _palavras(txt):
+        if w in _FAM:
+            return _FAM[w]
+    return None
+
+
+def _palavras(txt: str) -> list:
+    import re
+    import unicodedata
+    t = unicodedata.normalize("NFKD", (txt or "").lower()).encode("ascii", "ignore").decode()   # «erreà» = «errea»
+    return re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)?", t)
+
+
+def pesquisa_de(a: dict) -> str:
+    """A pesquisa no Vinted pelo mesmo produto: a marca e as palavras do modelo (sem tamanho, cor, estado nem «vintage»).
+    Sem modelo, a marca e o tipo de peça."""
+    marca = " ".join(_palavras(a.get("marca")))
+    mp = set(marca.split())
+    modelo, tipo = [], ""
+    for w in _palavras(a.get("titulo")):
+        if w in mp or w in GENERICAS or len(w) < 3 or w.isdigit() or w in ("xs", "xxl", "xxxl"):
+            continue
+        if w in TIPO_PALAVRAS:
+            tipo = tipo or w
+            continue
+        if w not in modelo:
+            modelo.append(w)
+    partes = [marca] if marca else []
+    partes += modelo[:2] if modelo else ([tipo] if tipo else [])
+    if not modelo and tipo and marca:
+        pass
+    return " ".join(p for p in partes if p)[:80] or (a.get("titulo") or "")[:60]
+
+
+def valor_vinted(a: dict, copias: list, pesquisa: str | None = None) -> dict | None:
+    """Preço do meio e preço de venda rápida dos iguais à venda no Vinted. Só conta os que têm a mesma marca (quando se sabe) e
+    pelo menos uma palavra do modelo; tira os extremos (fora de 1,5 x o intervalo do meio). None se ficarem menos de 5."""
+    marca = (a.get("marca") or "").lower()
+    modelo = [w for w in _palavras(pesquisa or pesquisa_de(a)) if w not in _palavras(marca)]
+    fam = familia(a.get("titulo"))
+    iguais = []
+    for c in copias:
+        t = set(_palavras(f"{c['titulo']} {c.get('marca') or ''}"))
+        fc = familia(c["titulo"])
+        if fam and fc and fc != fam:
+            continue
+        if marca and (c.get("marca") or "").lower() != marca and not set(_palavras(marca)) <= t:
+            continue
+        if modelo and not any(w in t for w in modelo):
+            continue
+        iguais.append(c)
+    precos = sorted(c["preco"] for c in iguais)
+    if len(precos) >= 8:
+        q1, q3 = _quantil(precos, .25), _quantil(precos, .75)
+        lo, hi = q1 - 1.5 * (q3 - q1), q3 + 1.5 * (q3 - q1)
+        iguais = [c for c in iguais if lo <= c["preco"] <= hi]
+        precos = sorted(c["preco"] for c in iguais)
+    if len(precos) < MIN_COPIAS:
+        return {"n": len(precos), "iguais": iguais, "so_marca": not modelo}
+    return {"so_marca": not modelo, "n": len(precos), "mediana": _med(precos), "rapido": _quantil(precos, .25), "min": precos[0], "max": precos[-1], "iguais": iguais}
+
+
+def _copias_todas() -> dict:
+    out = {}
+    for alvo, i, ti, ma, tam, est, pr, fo, li, vi in _rows("SELECT alvo, id, titulo, marca, tamanho, estado, preco, foto, link, visto_em FROM copias"):
+        out.setdefault(alvo, []).append({"id": i, "titulo": ti, "marca": ma, "tamanho": tam, "estado": est, "preco": pr, "foto": fo, "link": li, "visto_em": vi})
+    return out
+
+
+def _comparados() -> dict:
+    return {a: {"pesquisa": p, "em": e, "n": n} for a, p, e, n in _rows("SELECT alvo, pesquisa, em, n FROM comparado")}
+
+
+def _fila() -> list:
+    try:
+        return json.loads((DIR / "comparar.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
+def pedir_comparar(pedidos: list) -> int:
+    """Junta à fila do radar [{"id", "pesquisa"}] (sem repetidos, no máximo 30 à espera). Devolve quantos ficaram na fila."""
+    fila = _fila()
+    ja = {x["id"] for x in fila}
+    for p in pedidos:
+        if p["id"] not in ja and len(fila) < FILA_MAX:
+            fila.append({"id": p["id"], "pesquisa": p["pesquisa"][:80]})
+            ja.add(p["id"])
+    (DIR / "comparar.json").write_text(json.dumps(fila, ensure_ascii=False), encoding="utf-8")
+    return len(fila)
+
+
+def _veredito(a: dict, rejeitar: list, aceites: list, live: dict | None = None) -> dict:
+    """Vale a pena? Em vez de só o preço: quanto vale (preço do meio dos parecidos), por quanto se vende depressa (o quarto mais
+    barato dos parecidos), quanto se ganha nos dois casos, quão certo é, e o que pode correr mal. Daí sai «Compra», «Vale ver»
+    ou «Não compensa» e pontos de 0 a 100 para ordenar a caça."""
+    ref, custo = a.get("ref"), a["custo"]
+    if not ref:
+        return {"veredito": "sem", "pontos": 0, "ganho": None, "ganho_rapido": None, "roi": None, "confianca": "baixa",
+                "porque": [["bad", "Ainda poucos parecidos para saber quanto vale"]]}
+    ganho = round(ref - custo, 2)
+    ganho_r = round((a.get("rapido") or ref) - custo, 2)
+    roi = round(ganho / custo, 2) if custo else None
+    n = a.get("ref_n") or 0
+    if a.get("ref_base") == "vinted":
+        conf = "alta" if n >= 8 and not a.get("so_marca") else "media"
+    else:
+        conf = "alta" if n >= 20 and a.get("ref_base") != "categoria" else "media" if n >= 10 else "baixa"
+    porque, alertas = [], []
+    if a.get("ref_base") == "vinted":
+        porque.append(["ok" if ganho > 0 else "bad", f"No Vinted pedem ~{ref:.0f} € por {n} iguais (de {a['rapido']:.0f} € para cima nos mais baratos)"])
+    elif ganho > 0:
+        porque.append(["ok", f"Vale ~{ref:.0f} € (preço do meio de {n} parecidos" + (" da mesma marca)" if a.get("ref_base") in ("marca", "radar") else " da categoria)")])
+    if ganho_r > 0:
+        porque.append(["ok", f"Mesmo a vender depressa ({a['rapido']:.0f} €) ainda ganhas {ganho_r:.0f} €"])
+    if a.get("ref_base") == "vinted" and a.get("so_marca"):
+        alertas.append(["warn", "O título não diz o modelo: comparado com tudo da marca"])
+    if a.get("ref_base") != "vinted":
+        alertas.append(["warn", "Ainda não comparado com os iguais à venda no Vinted" + (": valor da categoria inteira" if a.get("ref_base") == "categoria" else "")])
+    if a.get("ref_base") == "categoria":
+        pass
+    elif conf == "baixa":
+        alertas.append(["warn", f"Só {n} parecidos: o valor ainda é incerto"])
+    t = f" {a.get('titulo') or ''} ".lower()
+    if any(w in t for w in rejeitar):
+        alertas.append(["bad", "O título fala de defeito (mancha, rasgão, buraco…)"])
+    if a.get("estado") and aceites and a["estado"] not in aceites:
+        alertas.append(["bad", f"Estado: {a['estado']}"])
+    if a["preco"] < ref * 0.2:
+        alertas.append(["warn", "Muito abaixo do normal: vê se é original e se está como diz"])
+    est, av = (live or {}).get("estrelas", a.get("estrelas")), (live or {}).get("avaliacoes", a.get("avaliacoes"))
+    if est is not None:
+        if est >= 4.5 and (av or 0) >= 5:
+            porque.append(["ok", f"Vendedor {est:.1f}★ com {av} avaliações"])
+        else:
+            alertas.append(["warn", f"Vendedor {est:.1f}★ com {av or 0} avaliações"])
+    elif live and live.get("vendedor"):
+        alertas.append(["warn", "Vendedor sem avaliações"])
+    if live and live.get("fechado"):
+        alertas.append(["bad", "Já foi vendido ou retirado"])
+    elif live and live.get("reservado"):
+        alertas.append(["warn", "Está reservado para outra pessoa"])
+    if live and (live.get("favoritos") or 0) >= 10:
+        porque.append(["ok", f"{live['favoritos']} pessoas têm nos favoritos: há procura"])
+    graves = any(k == "bad" for k, _ in alertas)
+    if ganho >= 20 and (roi or 0) >= 0.5 and ganho_r >= 5 and conf != "baixa" and not graves and a.get("ref_base") == "vinted":
+        v = "compra"
+    elif ganho >= 8 and (roi or 0) >= 0.3 and not graves:
+        v = "ver"
+    else:
+        v = "nao"
+    if ganho <= 0:
+        porque.insert(0, ["bad", f"Custa {custo:.0f} € com taxa e portes e vale ~{ref:.0f} €: não sobra nada"])
+    pontos = max(0, min(100, round(min(ganho, 80) / 80 * 45 + min(max(roi or 0, 0), 2) / 2 * 30 + {"alta": 15, "media": 9, "baixa": 3}[conf]
+                                 + (10 if ganho_r > 0 else 0) - 12 * len([1 for k, _ in alertas if k == "bad"]) - 4 * len([1 for k, _ in alertas if k == "warn"]))))
+    return {"veredito": v, "pontos": pontos if ganho > 0 else 0, "ganho": ganho, "ganho_rapido": ganho_r, "roi": roi, "confianca": conf,
+            "porque": porque + alertas}
+
+
 def _catalogo() -> dict:
     """Todos os anúncios do radar.db com o preço de referência de cada um (mediana dos parecidos: mesma categoria, marca e
     estado; se forem poucos, mesma categoria e estado). Refeito só quando o radar.db muda."""
@@ -519,21 +712,33 @@ def _catalogo() -> dict:
         a["eg"] = _estado_g(a["estado"])
         por_marca.setdefault((a["nicho"], a["marca"].lower(), a["eg"]), []).append(a["preco"])
         por_cat.setdefault((a["nicho"], a["eg"]), []).append(a["preco"])
-    meds = {k: _med(v) for k, v in {**por_marca, **{("cat",) + k: v for k, v in por_cat.items()}}.items() if len(v) >= MIN_REF}
+    grupos_p = {**por_marca, **{("cat",) + k: v for k, v in por_cat.items()}}
+    meds = {k: _med(v) for k, v in grupos_p.items() if len(v) >= MIN_REF}
+    copias, comparados = _copias_todas(), _comparados()
+    p25s = {k: _quantil(v, .25) for k, v in grupos_p.items() if len(v) >= MIN_REF}
     for a in itens:
         km, kc = (a["nicho"], a["marca"].lower(), a["eg"]), ("cat", a["nicho"], a["eg"])
-        if a["alertado"] and a["mediana"]:
-            ref, base, n = a["mediana"], "radar", a["comparaveis"]
-        elif a["marca"] and km in meds:
-            ref, base, n = meds[km], "marca", len(por_marca[km])
+        if a["marca"] and km in meds:
+            ref, base, n, rap = meds[km], "marca", len(por_marca[km]), p25s[km]
         elif kc in meds:
-            ref, base, n = meds[kc], "categoria", len(por_cat[kc[1:]])
+            ref, base, n, rap = meds[kc], "categoria", len(por_cat[kc[1:]]), p25s[kc]
         else:
-            ref, base, n = None, None, 0
+            ref, base, n, rap = None, None, 0, None
+        if a["alertado"] and a["mediana"]:   # o radar comparou com o mesmo tipo de artigo: é a referência mais fina
+            ref, base, n, rap = a["mediana"], "radar", a["comparaveis"], min(rap or a["mediana"], a["mediana"])
+        vv = valor_vinted(a, copias[a["id"]], (comparados.get(a["id"]) or {}).get("pesquisa")) if a["id"] in copias else None
+        a["so_marca"] = bool(vv and vv.get("so_marca"))
+        if vv and vv.get("mediana"):   # o preço que as pessoas pedem pelos iguais no Vinted ganha a tudo o resto
+            ref, base, n, rap = vv["mediana"], "vinted", vv["n"], vv["rapido"]
+        a["comparado"] = comparados.get(a["id"])
         custo = _custo(a["preco"], cfg)
-        a.update(ref=ref, ref_base=base, ref_n=n, custo=custo,
+        a.update(ref=ref, ref_base=base, ref_n=n, custo=custo, rapido=min(rap, ref) if ref and rap else None,
                  desconto=round(1 - a["preco"] / ref, 3) if ref else None,
-                 lucro_est=round(a["lucro"], 2) if a["alertado"] and a["lucro"] is not None else (round(ref - custo, 2) if ref else None))
+                 lucro_est=round(ref - custo, 2) if ref else None)
+    rejeitar = [w.lower() for w in cfg.get("palavras_rejeitar") or []]
+    aceites = cfg.get("estados_aceites") or []
+    for a in itens:
+        a.update(_veredito(a, rejeitar, aceites))
     itens.sort(key=lambda a: a["visto_em"] or "", reverse=True)
     mercado = {}
     for nicho in {a["nicho"] for a in itens}:
@@ -589,17 +794,22 @@ def produtos(q: str = "", grupo: str = "", nicho: str = "", marca: str = "", est
             continue
         if so == "oport" and not a["alertado"]:
             continue
+        if so == "caca" and (a["veredito"] not in ("compra", "ver") or (_LIVE.get(a["id"]) or {}).get("fechado")):
+            continue   # na caça só o que compensa e ainda está à venda
         lista.append(a)
     chaves = {"recente": lambda a: a["visto_em"] or "", "desconto": lambda a: a["desconto"] if a["desconto"] is not None else -9,
               "lucro": lambda a: a["lucro_est"] if a["lucro_est"] is not None else -9e9, "barato": lambda a: -a["preco"],
-              "caro": lambda a: a["preco"]}
+              "caro": lambda a: a["preco"], "melhor": lambda a: (a["pontos"], a["ganho"] or 0)}
     lista.sort(key=chaves.get(ordem, chaves["recente"]), reverse=True)
     base = [a for a in cat["itens"] if (not grupo or a["grupo"] == grupo)]
     contar = lambda k: sorted(((v, sum(1 for a in base if a[k] == v)) for v in {a[k] for a in base if a[k]}), key=lambda x: -x[1])
     limit = max(1, min(120, limit))
-    return {"total": len(lista), "offset": offset, "itens": [_publico(a, crm, compras) for a in lista[offset:offset + limit]],
+    if so == "caca":   # os melhores ainda sem comparação vão para a fila do radar
+        pedir_comparar([{"id": a["id"], "pesquisa": pesquisa_de(a)} for a in lista[:12] if not a.get("comparado")])
+    return {"total": len(lista), "fila": len(_fila()), "offset": offset, "itens": [_publico(a, crm, compras) for a in lista[offset:offset + limit]],
             "nichos": contar("nicho"), "marcas": contar("marca")[:40], "todos": len(cat["itens"]),
-            "abaixo": sum(1 for a in base if a["desconto"] is not None and a["desconto"] >= 0.3)}
+            "abaixo": sum(1 for a in base if a["desconto"] is not None and a["desconto"] >= 0.3),
+            "vereditos": {k: sum(1 for a in base if a["veredito"] == k) for k in ("compra", "ver", "nao", "sem")}}
 
 
 @router.get("/produto/{pid}")
@@ -618,7 +828,13 @@ def produto(pid: int, user: User = Depends(viewer)):
     precos = sorted(b["preco"] for b in par)
     pos = round(sum(p < a["preco"] for p in precos) / len(precos), 3) if precos else None
     parecidos = sorted((b for b in par if b["id"] != pid), key=lambda b: abs(b["preco"] - (a["ref"] or a["preco"])))[:12]
-    return {"item": _publico(a, crm, compras), "posicao": pos, "precos": precos[:400],
+    cop = _copias_todas().get(pid, [])
+    vv = valor_vinted(a, cop, (a.get("comparado") or {}).get("pesquisa")) if cop else None
+    na_fila = any(x["id"] == pid for x in _fila())
+    return {"item": _publico(a, crm, compras), "posicao": pos if a["ref_base"] != "vinted" else None, "precos": precos[:400] if a["ref_base"] != "vinted" else sorted(c["preco"] for c in vv["iguais"]),
+            "copias": sorted((vv or {}).get("iguais") or [], key=lambda c: c["preco"])[:24], "copias_todas": len(cop),
+            "comparado": a.get("comparado"), "na_fila": na_fila, "pesquisa": (a.get("comparado") or {}).get("pesquisa") or pesquisa_de(a),
+            "radar_ligado": bool(_pid()),
             "parecidos": [_publico(b, crm, compras) for b in sorted(parecidos, key=lambda b: b["preco"])],
             "mercado": cat["mercado"].get(a["nicho"]), "historia": (crm.get(str(pid)) or {}).get("historia") or []}
 
@@ -697,3 +913,91 @@ def mercado(user: User = Depends(viewer)):
         s["n"] = dias.get(s["dia"], 0)
     return {"categorias": sorted(cat["mercado"].values(), key=lambda m: -m["n"]), "dias": serie, "total": len(cat["itens"]),
             "com_ref": sum(1 for a in cat["itens"] if a["ref"]), "abaixo": sum(1 for a in cat["itens"] if (a["desconto"] or 0) >= 0.3)}
+
+
+
+# ------------------------------------------------------------------ o que o Vinted diz do artigo (13 nov, Marco)
+# «Às vezes não consigo perceber se o produto vale a pena... o contacto dos vendedores, as avaliações»: a página pública do
+# artigo traz as fotos todas, a descrição, quem vende (nome, nota, avaliações), quantos o têm nos favoritos e se ainda está à
+# venda. Lida com um pedido HTTP normal (sem Chrome), só quando se abre a ficha ou para os primeiros da caça, e guardada 6 h.
+_LIVE: dict = {}
+LIVE_S = 6 * 3600
+UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
+
+
+def ler_pagina(html: str) -> dict:
+    """Tira da página do artigo o que interessa. O que não encontrar fica None (a página do Vinted muda de vez em quando)."""
+    import re
+    u = html.replace('\\"', '"')
+    def num(k):
+        m = re.search(rf'"{k}":(\d+(?:\.\d+)?)', u)
+        return float(m.group(1)) if m else None
+    def flag(k):
+        m = re.search(rf'"{k}":(true|false)', u)
+        return None if not m else m.group(1) == "true"
+    fotos = list(dict.fromkeys(re.findall(r'"type":"thumb428x624","url":"(https://images\d?\.vinted\.net/[^"]+)"', u)))
+    desc = None
+    for m in re.finditer(r'"description":"((?:[^"\\]|\\.)*)"', u):
+        txt = m.group(1)
+        if not txt.startswith("$") and len(txt) > len(desc or ""):
+            desc = txt
+    if desc:
+        try:
+            desc = json.loads(f'"{desc}"')
+        except ValueError:
+            desc = desc.replace("\\n", "\n")
+    vend = re.search(r'"feedback_count":(\d+),"feedback_reputation":([\d.]+)[^{}]*?"name":"([^"]+)"', u)
+    if desc:   # a página escapa duas vezes: sobra «\n» escrito
+        desc = desc.replace("\\n", "\n").replace('\\"', '"')
+    return {"fotos": fotos[:20], "descricao": (desc or "").strip()[:3000] or None,
+            "vendedor": vend.group(3) if vend else None, "avaliacoes": int(vend.group(1)) if vend else None,
+            "estrelas": round(float(vend.group(2)) * 5, 1) if vend and int(vend.group(1)) > 0 else None,
+            "favoritos": int(num("favourite_count")) if num("favourite_count") is not None else None,
+            "fechado": flag("is_closed"), "reservado": flag("is_reserved")}
+
+
+def _live(a: dict) -> dict:
+    c = _LIVE.get(a["id"])
+    if c and time.time() - c["em"] < LIVE_S:
+        return c
+    import httpx
+    try:
+        r = httpx.get(a["link"], headers={"User-Agent": UA, "Accept-Language": "pt-PT,pt;q=0.9"}, timeout=10, follow_redirects=True)
+        info = ler_pagina(r.text) if r.status_code == 200 else {"erro": f"O Vinted respondeu {r.status_code}"}
+        if r.status_code == 404:
+            info = {"fechado": True}
+    except Exception as e:  # noqa: BLE001 — sem rede ou o Vinted lento: a ficha mostra o que já sabe
+        info = {"erro": "Não deu para abrir a página no Vinted agora"}
+    info["em"] = time.time()
+    _LIVE[a["id"]] = info
+    if len(_LIVE) > 2000:
+        for k in sorted(_LIVE, key=lambda k: _LIVE[k]["em"])[:500]:
+            _LIVE.pop(k, None)
+    return info
+
+
+@router.get("/produto/{pid}/vinted")
+def produto_vinted(pid: int, user: User = Depends(viewer)):
+    """As fotos todas, a descrição, o vendedor, os favoritos e se ainda está à venda, lidos agora na página do artigo, e o
+    veredito outra vez com isso tudo."""
+    a = _catalogo()["por_id"].get(pid)
+    if not a:
+        raise HTTPException(404, "Esse artigo já não está no radar")
+    live = _live(a)
+    cfg = _cfg()
+    v = _veredito(a, [w.lower() for w in cfg.get("palavras_rejeitar") or []], cfg.get("estados_aceites") or [], live)
+    return {"id": pid, "live": {k: x for k, x in live.items() if k != "em"}, "lido": time.strftime("%H:%M", time.localtime(live["em"])), **v}
+
+
+
+@router.post("/comparar")
+def comparar(body: dict, user: User = Depends(viewer)):
+    """Pedir ao radar para procurar no Vinted os iguais a um produto. {"id", "pesquisa"?} (a pesquisa pode ser corrigida à mão)."""
+    a = _catalogo()["por_id"].get(body.get("id"))
+    if not a:
+        raise HTTPException(404, "Esse artigo já não está no radar")
+    q = str(body.get("pesquisa") or "").strip() or pesquisa_de(a)
+    fila = [x for x in _fila() if x["id"] != a["id"]]
+    (DIR / "comparar.json").write_text(json.dumps(fila, ensure_ascii=False), encoding="utf-8")
+    n = pedir_comparar([{"id": a["id"], "pesquisa": q}])
+    return {"na_fila": True, "fila": n, "pesquisa": q, "radar_ligado": bool(_pid())}

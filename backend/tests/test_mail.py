@@ -165,9 +165,9 @@ def test_auto_bounce_and_stranger(client, owner, fake_world, monkeypatch):
     bounce.set_content("Final-Recipient: rfc822; tres@escola.pt\nStatus: 5.1.1")
     assert ingest(mail.parse(bounce.as_bytes())) == "devolvido"
     assert threads(client, owner)["tres@escola.pt"]["status"] == "falhou"
-    # someone we never wrote to: shown, no ringing
-    assert ingest(incoming("Ana <ana@fora.pt>", "Olá", "Vi o vosso site")) == "outro"
-    assert threads(client, owner)["ana@fora.pt"]["status"] == "outro"
+    # a newsletter: shown, no ringing
+    assert ingest(incoming("Loja <news@loja.pt>", "Promoções", "Só hoje", List_Unsubscribe="<mailto:sair@loja.pt>")) == "outro"
+    assert threads(client, owner)["news@loja.pt"]["status"] == "outro"
 
 
 def test_pacing_cap_and_again(client, owner, fake_world, monkeypatch):
@@ -212,3 +212,27 @@ def test_account_is_not_in_the_page(client, owner, monkeypatch):
     assert client.get("/api/mail", headers=owner).json()["conta"]["address"] == "ola@amg.pt"
     monkeypatch.setattr(mail, "check_account", lambda acc: (_ for _ in ()).throw(ValueError("Não entrou")))
     assert client.post("/api/mail/account", json={"address": "ola@amg.pt", "password": "z"}, headers=owner).json()["detail"] == "Não entrou"
+
+
+def test_client_question_and_sale(client, owner, fake_world):
+    from app.models import MailThread, Task
+
+    # a client we never wrote to: it rings and Marketing gets the answer to write (sent only after a yes)
+    assert ingest(incoming("Ana <ana@cliente.pt>", "Orçamento", "Quanto custa um site?")) == "pergunta"
+    assert threads(client, owner)["ana@cliente.pt"]["status"] == "respondeu"
+
+    async def task_of(addr):
+        async with SessionLocal() as db:
+            th = (await db.execute(select(MailThread).where(MailThread.email == addr))).scalars().first()
+            return await db.get(Task, th.task_id) if th.task_id else None
+    task = run(task_of("ana@cliente.pt"))
+    assert task and task.crew == "joker" and "send_emails" in task.description and "Quanto custa" in task.description
+    # writing again while the answer is being written: no second task
+    assert ingest(incoming("Ana <ana@cliente.pt>", "Re: Orçamento", "Esqueci: é para uma escola")) == "resposta"
+    assert run(task_of("ana@cliente.pt")).id == task.id
+
+    # a sale rings as a sale, twice from the same shop too, and never becomes a client's answer
+    assert ingest(incoming("Etsy <transaction@etsy.com>", "You made a sale on Etsy! Ship by Nov 20", "Order #123")) == "compra"
+    assert ingest(incoming("Etsy <transaction@etsy.com>", "You made a sale on Etsy! Ship by Nov 21", "Order #124")) == "compra"
+    assert threads(client, owner)["transaction@etsy.com"]["status"] == "compra"
+    assert run(task_of("transaction@etsy.com")) is None

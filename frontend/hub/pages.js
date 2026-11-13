@@ -1964,7 +1964,7 @@ function tfChannels(c) {
       ${card("email", "E-mail", em.address,
         `<div class="tf-mail"><input id="tf-m-to" placeholder="${esc(t("para: cliente@empresa.com"))}"><input id="tf-m-nome" placeholder="${esc(t("nome"))}"><input id="tf-m-emp" placeholder="${esc(t("empresa"))}">
           <select id="tf-m-tpl">${Object.entries(TF_MAILS).map(([k, [l]]) => `<option value="${k}">${esc(t(l))}</option>`).join("")}</select></div>`
-        + b("m-send", "Escrever") + b("m-copy", "Copiar texto") + a("https://app.tuta.com/", "Abrir caixa") + b("m-addr", "Copiar endereço")
+        + b("m-send", "Escrever") + b("m-copy", "Copiar texto") + a("https://mail.google.com/mail/u/?authuser=" + encodeURIComponent(em.address || ""), "Abrir caixa") + b("m-addr", "Copiar endereço")
         + `<a class="tf-btn" href="#/emails">${t("E-mails do Radar")}</a>`)}
       ${card("site", "Site", site.url && site.url.replace(/^https?:\/\//, "").replace(/\/$/, ""),
         a(site.url, "Abrir", true) + (site.url ? b("site-copy", "Copiar link") : none("Falta o link")) + `<a class="tf-btn" href="#/tenfold/sites">${t("Ver aqui")}</a>`)}

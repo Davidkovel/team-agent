@@ -16,6 +16,7 @@
   const STATE = {
     rascunho: ["off", "Por aprovar"], fila: ["wait", "Na fila"], enviado: ["off", "Enviado"], respondeu: ["ok", "Respondeu"],
     falhou: ["bad", "Falhou"], removido: ["bad", "Não quer e-mails"], ignorado: ["off", "Ignorado"], outro: ["off", "Recebido"],
+    compra: ["ok", "Compra"],
   };
   const $ = (id) => document.getElementById(id);
   const when = (s) => {

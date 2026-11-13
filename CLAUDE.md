@@ -107,6 +107,8 @@ the admin console (DNS → HTTPS Certificates), then `tailscale serve --bg 8000`
 - **Nada sai sem um clique.** Saem em dias úteis, 9h às 18h, 3 a 5 minutos entre cada um, com limite diário. REMOVER é definitivo. Respostas às empresas saem logo.
 - **A palavra-passe da conta nunca passa pelo sync:** fica em `~/.team-agent/mail-account.json` (0600) só no Hub que envia, a nuvem. O formulário de qualquer Hub reencaminha para lá. Nunca a escrevas por ninguém: quem a tem escreve-a no formulário.
 - **«Visto» é visto por nós.** Saber se o cliente abriu exigia um píxel escondido, mau para a entrega e para a lei: não usamos.
+- **A conta é o Gmail da Ten Fold** (`tenfoldagency11@gmail.com`, 13 nov): liga-se no formulário de `#/emails` com uma palavra-passe de app do Google (verificação em 2 passos ligada), escrita pelo David.
+- **E-mails que chegam sem lhes termos escrito** (13 nov, David: «avisar quando foi efetuada uma compra… responder aos clientes»): uma venda (Etsy, Shopify, Stripe, PayPal..., `SALE_FROM` + `SALE_WORDS`) fica «Compra» e toca `mail_sale`; uma newsletter ou um no-reply fica calado em Recebidos; uma pessoa toca e o Marketing (joker) recebe a tarefa de escrever a resposta (`answer_task`), que sai por `send_emails`, por isso só depois de um sim. Uma resposta a um e-mail do Radar continua a pedir a decisão (PDF, condições, ignorar).
 - **Agentes:** o `send_emails` usa a fila do Hub quando a conta está ligada. Depois de atualizar o código, os agentes da nuvem precisam de um reinício.
 - **Testar:** nunca com dados falsos no Hub real, a Base sincroniza. Usa um Hub à parte com `HOME` e `DATABASE_URL` temporários e `SYNC=false`. `backend/tests/test_mail.py` usa SMTP e IMAP falsos.
 

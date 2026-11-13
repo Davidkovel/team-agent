@@ -779,7 +779,8 @@ async function tokensBody() {
   const dates = c.dates || [], people = (c.people || []).filter((p) => p.tokens).sort((a, b) => b.tokens - a.tokens);
   const day = (d) => people.reduce((n, p) => n + (p.by_day?.[d] || 0), 0);
   const top = Math.max(1, ...dates.map(day)), total = people.reduce((n, p) => n + p.tokens, 0);
-  const shade = (i) => `rgba(255, 255, 255, ${[.92, .5, .26, .14][i] ?? .1})`;
+  // 11.ª volta: cada pessoa com a cor dela, a mesma das Tarefas (pages.js, tintOf): David rosa, Kovel roxo, Marco azul
+  const shade = (i) => tintOf(people[i]?.user);
   return `<a class="gz-h" href="#/uso">${icon("token")}<span>${t("Tokens esta semana")}</span>${icon("chevron")}</a>
     <div class="tkw">
       <div class="tkw-n"><b>${tokK(total)}</b><span>${t("hoje {n}", { n: tokK(day(dates[dates.length - 1])) })}</span></div>
@@ -869,10 +870,10 @@ async function teamDayBody() {
         ${r.d.map((x) => `<button class="td-w td-done" ${x.task_id ? `data-task="${x.task_id}"` : ""}><span class="td-ok">${icon("tick")}</span>
           <span class="td-wt"><b>${esc(x.message.replace(/^concluiu:\s*/, ""))}</b><span>${t("Tarefa acabada")}</span></span><time>${fmt.hhmm(x.created_at)}</time></button>`).join("")}
       </div>` : "";
-    return `<button class="td ${on ? "open" : ""}" data-day="${esc(r.u)}" aria-expanded="${on}">
+    return `<button class="td ${on ? "open" : ""}" data-day="${esc(r.u)}" aria-expanded="${on}" style="${whoVar(r.u)}">
         <span class="td-av">${ui.avatar(r.name, "sm")}${r.live ? "<i></i>" : ""}</span>
         <span class="td-t"><b>${esc(r.name)}</b><span><em>${r.w.length}</em> ${t(r.w.length === 1 ? "conversa" : "conversas")} · <em>${r.d.length}</em> ${t(r.d.length === 1 ? "tarefa" : "tarefas")}${tok[r.u] ? ` · <em>${tokK(tok[r.u])}</em> tokens` : ""}</span></span>
-        <span class="td-bars" title="${esc(t("Trabalho ao longo do dia, de 2 em 2 horas"))}">${bars}</span>${icon("chevron")}</button>${detail}`;
+        <span class="td-bars" title="${esc(t("Trabalho ao longo do dia, de 2 em 2 horas"))}">${bars}</span>${icon("chevron")}</button>${detail ? detail.replace('<div class="td-x">', `<div class="td-x" style="${whoVar(r.u)}">`) : ""}`;
   };
   return `<div class="gz-h">${icon("pulse")}<span>${t("Hoje na equipa")}</span></div><div class="td-list">${rows.map(person).join("")}</div>`;
 }
@@ -905,7 +906,7 @@ async function iosHead() {
   const fin = p.doneToday.length, all = fin + p.today.length, pct = all ? Math.round((fin / all) * 100) : 0;
   return `<b>${t("Tarefas")}</b>
     <div class="io-seg" role="tablist">${DAY_TABS.map(([id, label]) => `<button role="tab" data-tab="${id}" class="${id === tasksTab ? "on" : ""}" aria-selected="${id === tasksTab}">${t(label === "Esta semana" ? "Semana" : label)}</button>`).join("")}</div>
-    <div class="io-prog"><span class="io-pct">${pct}%</span><span class="io-pbar"><i style="width:${pct}%"></i></span>
+    <div class="io-prog" style="${whoVar(me.username)}"><span class="io-pct">${pct}%</span><span class="io-pbar"><i style="width:${pct}%"></i></span>
       <span class="io-n">${t("{d} de {n} feitas hoje", { d: fin, n: all })}${late ? ` · <em>${t("{n} atrasadas", { n: late })}</em>` : ""}${hot ? ` · <b>${t("{n} prioritárias", { n: hot })}</b>` : ""}</span></div>`;
 }
 
@@ -921,15 +922,16 @@ function iosRow(x, done) {
     : held ? `<span class="io-ck held" title="${t("O agente está a tratar dela")}"></span>`
     : `<button class="io-ck" data-${own ? "done" : "task"}="${(own || x).id}" aria-label="${t("Concluir")}"></button>`;
   const chip = (text, cls = "") => `<span class="io-chip ${cls}">${text}</span>`;
-  const steps = x.group && `<span class="io-steps" title="${esc(t("{d} de {n} feitas", { d: x.group.filter((y) => y.stage === "done").length, n: x.group.length }))}">${x.group.map((y) => `<i class="${y.stage === "done" ? "on" : ""}"></i>`).join("")}</span>`;
+  const steps = x.group && `<span class="io-steps" title="${esc(t("{d} de {n} feitas", { d: x.group.filter((y) => y.stage === "done").length, n: x.group.length }))}">${x.group.map((y) => `<i class="${y.stage === "done" ? "on" : ""}" style="${whoVar(y.assignee)}"></i>`).join("")}</span>`;
   const meta = [when && chip(`${icon("clock")}${esc(when)}`, late ? "late" : ""), chip(esc(tagOf(x))), steps,
     doer && chip(esc(t("{n} a fazer", { n: nameOf(doer.assignee) })), "on"), held && chip(t("o agente está nela"), "on")].filter(Boolean);
   const who = (x.group ? x.group.map((y) => y.assignee) : [x.assignee]).filter(Boolean).slice(0, 3);
   const fx = !done && !held && !mineDone && own && own.stage !== "done" && !doer
     ? `<button class="io-fx" data-fx-start="25" data-fx-id="${own.id}" data-fx-title="${esc(x.title)}" title="${t("Foco de 25 min")}">${icon("play")}</button>` : "";
   const pri = !done && x.priority === "urgent" ? "pri-u" : !done && x.priority === "high" ? "pri-h" : "";
-  return `<div class="io ${done ? "done" : ""} ${pri}">${check}<button class="io-t" data-task="${(own || x).id}"><b>${esc(x.title)}</b><span class="io-meta">${meta.join("")}</span></button>
-    ${fx}<span class="io-who">${who.map((u) => ui.avatar(nameOf(u), "sm")).join("")}</span></div>`;
+  const bang = pri ? `<i class="io-bang">${pri === "pri-u" ? "!!" : "!"}</i>` : "";
+  return `<div class="io ${done ? "done" : ""} ${pri}" style="${whoVar(x.group ? me.username : x.assignee)}">${check}<button class="io-t" data-task="${(own || x).id}"><b>${bang}${esc(x.title)}</b><span class="io-meta">${meta.join("")}</span></button>
+    ${fx}<span class="io-who">${who.map((u) => `<span class="io-face" style="${whoVar(u)}">${ui.avatar(nameOf(u), "sm")}</span>`).join("")}</span></div>`;
 }
 async function iosTasks() {
   const p = planOf(asOne(await api("/api/tasks")));

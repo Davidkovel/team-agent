@@ -1439,3 +1439,30 @@ button.td-w { cursor: pointer; } button.td-w:hover { background: rgba(255, 255, 
 .bz-c.down { border-color: rgba(255, 107, 97, .45); box-shadow: 0 0 22px -8px rgba(255, 107, 97, .6); }
 .gz-side .tr-g { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .bz-c em { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+
+/* ---------- 11.ª volta, 13 nov (David: «as cores das tarefas no Início não combinam com a página Tarefas; quero as nossas cores
+   em todo o lado»): cada pessoa com a cor dela, a mesma das Tarefas e da parede da Empresa AMG (pages.js, PERSON_TINT):
+   David rosa, Kovel roxo, Marco azul. É a risca e o círculo das tarefas, o anel das caras, a barra do dia e as barras de
+   tokens e de «Hoje na equipa». A prioridade passa a ser o «!» vermelho antes do título, como nas Tarefas. ---------- */
+.io { background: linear-gradient(90deg, rgba(var(--who-rgb), .07), rgba(var(--who-rgb), 0) 45%); }
+.io:hover { background: linear-gradient(90deg, rgba(var(--who-rgb), .12), rgba(255, 255, 255, .03) 60%); }
+.io::after, .io.pri-u::after, .io.pri-h::after { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--who); box-shadow: 0 0 10px rgba(var(--who-rgb), .55); }
+.io.done::after, .io-more::after, .io-mate::after { display: none; }
+button.io-ck { border-color: rgba(var(--who-rgb), .75); }
+button.io-ck:hover { border-color: var(--who); box-shadow: 0 0 10px rgba(var(--who-rgb), .5); }
+.io-ck.on { background: var(--who); }
+.io.done .io-ck.on { background: rgba(255, 255, 255, .5); }
+.io-bang { margin-right: 6px; color: #ff6b61; }
+.io-face .av { box-shadow: 0 0 0 1.5px var(--who), 0 0 0 3px rgba(10, 11, 13, .9); }
+.io-face + .io-face { margin-left: -7px; }
+.io-who .av + .av { margin-left: 0; }
+.io-pct { color: var(--who); }
+.io-pbar i { background: linear-gradient(90deg, rgba(var(--who-rgb), .55), var(--who)); box-shadow: 0 0 10px rgba(var(--who-rgb), .6); }
+.td-av .av { box-shadow: 0 0 0 1.5px var(--who); }
+.td-t b { color: var(--who); }
+.td-bars i { background: var(--who); opacity: .85; }
+.td-bars i.fut { background: rgba(255, 255, 255, .08); opacity: 1; }
+.td.open, .td:hover { background: rgba(var(--who-rgb), .08); }
+.td-x { border-left-color: rgba(var(--who-rgb), .45); }
+.io-steps i.on { background: var(--who); box-shadow: 0 0 6px rgba(var(--who-rgb), .7); }

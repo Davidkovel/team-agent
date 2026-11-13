@@ -16,19 +16,19 @@
   const ABAS = [["caca", "Caça", "target"], ["produtos", "Produtos", "bag"], ["pipeline", "Pipeline", "flag"], ["mercado", "Mercado", "chart"], ["painel", "Controlo", "wallet"], ["definicoes", "Definições", "sliders"]];
   let aba = localStorage.getItem("vt-aba2") || "caca", P = null, PL = null, MK = null, ficha = null, CA = null;
   const LIVE = {};   // id -> o que a página do Vinted diz agora (fotos, vendedor, favoritos, se ainda está à venda) + veredito
-  const VER = { compra: ["Compra", "ok"], ver: ["Vale ver", "mid"], nao: ["Não compensa", "no"], sem: ["Sem dados", "no"] };
+  const VER = { compra: ["Compra", "ok"], ver: ["Vale ver", "mid"], nao: ["Não compensa", "no"], sem: ["Sem dados", "no"], suspeito: ["Suspeito", "bad"] };
   const sinal = (n) => (n > 0 ? "+" : n < 0 ? "−" : "") + eur(Math.abs(n));
   const verd = (a) => { const L = LIVE[a.id], v = (L && L.veredito) || a.veredito || "sem";
     return `<span class="vt-vd vd-${VER[v][1]}">${esc(t(VER[v][0]))}${(L ? L.pontos : a.pontos) ? `<i>${L ? L.pontos : a.pontos}</i>` : ""}</span>`; };
   // pagas -> vale -> ganhas: o que um olhar de fora tem de perceber num segundo
-  const fluxo = (a, big = false) => (a.ref ? `<div class="vt-flow ${big ? "big" : ""}">
+  const fluxo = (a, big = false) => (a.veredito === "suspeito" ? `<div class="vt-flow sus">${icon("alert")}<span>${esc(t((a.porque && a.porque[0] && a.porque[0][1]) || "Anúncio suspeito"))}</span></div>` : a.ref ? `<div class="vt-flow ${big ? "big" : ""}">
       <span><i>${esc(t("Pagas"))}</i>${eur(a.custo, a.custo < 100 ? 1 : 0)}</span><b>${icon("chevron")}</b>
       <span><i>${esc(t("Vale"))}</i>${eur(a.ref)}</span><b>${icon("chevron")}</b>
       <span class="${a.ganho > 0 ? "win" : "lose"}"><i>${esc(t("Ganhas"))}</i>${sinal(a.ganho)}</span></div>` : `<div class="vt-flow"><span><i>${esc(t("Pagas"))}</i>${eur(a.custo, 1)}</span><span class="na"><i>${esc(t("Vale"))}</i>${esc(t("Sem dados"))}</span></div>`);
   // 13 nov (Marco: «não te podes esquecer dos portes»): o que se paga, às claras
   const conta = (a) => (a.custo_det ? `<p class="vt-conta">${icon("bag")}${esc(t("Pagas {p} + {x} proteção do comprador + {e} portes", { p: eur(a.custo_det.preco, 2), x: eur(a.custo_det.protecao, 2), e: eur(a.custo_det.portes, 2) }))}</p>` : "");
   const razoes = (lista, n = 9) => `<ul class="vt-why">${lista.slice(0, n).map(([k, x]) => `<li class="${k}">${icon(k === "ok" ? "tick" : "alert")}${esc(t(x))}</li>`).join("")}</ul>`;
-  const F = { q: "", nicho: "", marca: "", estado: "", so: "", etapa: "", ordem: localStorage.getItem("vt-p-ordem") || "melhor", pmin: "", pmax: "", n: 60 };
+  const F = { q: "", nicho: "", marca: "", estado: "", so: "bons", etapa: "", ordem: localStorage.getItem("vt-p-ordem") || "melhor", pmin: "", pmax: "", n: 60 };
   const ETAPA = { mira: ["Na mira", "eye"], negociar: ["A negociar", "chat"], comprado: ["Comprado", "tick"], venda: ["À venda", "bag"], vendido: ["Vendido", "trend"], descartado: ["Descartado", "x"] };
   const etapaChip = (e) => (e && ETAPA[e] ? `<span class="vt-et et-${e}">${icon(ETAPA[e][1])}${esc(t(ETAPA[e][0]))}</span>` : "");
   const desc = (a) => (a.mediana ? 1 - a.preco / a.mediana : 0);
@@ -343,6 +343,7 @@
         ${fluxo(a)}
         <span class="vt-pc-t">${esc(a.titulo)}</span>
         <small>${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small>
+        ${a.vendedor || (LIVE[a.id] && LIVE[a.id].live && LIVE[a.id].live.vendedor) ? `<small class="vt-pc-s">${icon("users")}${esc((LIVE[a.id] && LIVE[a.id].live.vendedor) || a.vendedor)}${a.estrelas != null ? ` · ★ ${String(a.estrelas).replace(".", ",")}` : ""}</small>` : ""}
         <div class="vt-pc-f">${etapaChip(a.etapa)}<span>${esc(ago(a.visto_em))}</span></div></div></article>`;
   }
   const temas = () => (V.grupos.length > 1 ? `<div class="vt-seg vt-temas">${["", ...V.grupos].map((g) => `<button type="button" data-grupo="${esc(g)}" class="${g === grupo ? "on" : ""}">${ico(g)}${esc(t(g || "Tudo"))}</button>`).join("")}</div>` : "");
@@ -353,13 +354,13 @@
     const ords = { melhor: "Melhor negócio", recente: "Mais recentes", desconto: "Maior desconto", lucro: "Maior lucro", barato: "Mais barato", caro: "Mais caro" };
     const bar = `<div class="panel vt-pbar">
       <div class="vt-pbar-1"><label class="vt-q">${icon("search")}<input type="search" data-fq value="${esc(F.q)}" placeholder="${esc(t("Procurar: marca, modelo, tamanho…"))}"></label>
-        <div class="vt-seg">${chipF("so", "", "Todos", P.todos)}${chipF("so", "abaixo", "Abaixo do mercado", P.abaixo)}${chipF("so", "oport", "Oportunidades", null)}${chipF("etapa", "crm", "No CRM", null)}</div></div>
+        <div class="vt-seg">${chipF("so", "bons", "Que compensam", (P.vereditos || {}).compra + (P.vereditos || {}).ver)}${chipF("so", "oport", "Oportunidades do radar", null)}${chipF("etapa", "crm", "No CRM", null)}${chipF("so", "suspeitos", "Suspeitos", (P.vereditos || {}).suspeito)}${chipF("so", "", "Todos", P.todos)}</div></div>
       <div class="vt-pbar-2">${sel("nicho", "Categoria", P.nichos)}${sel("marca", "Marca", P.marcas)}
         <label class="vt-f"><span>${esc(t("Estado"))}</span><select data-f="estado"><option value="">${esc(t("Todos"))}</option><option value="novo" ${F.estado === "novo" ? "selected" : ""}>${esc(t("Novo"))}</option><option value="usado" ${F.estado === "usado" ? "selected" : ""}>${esc(t("Usado"))}</option></select></label>
         <label class="vt-f sm"><span>${esc(t("De €"))}</span><input type="number" min="0" data-f="pmin" value="${esc(F.pmin)}"></label>
         <label class="vt-f sm"><span>${esc(t("Até €"))}</span><input type="number" min="0" data-f="pmax" value="${esc(F.pmax)}"></label>
         <label class="vt-f"><span>${esc(t("Ordem"))}</span><select data-f="ordem">${Object.entries(ords).map(([k, l]) => `<option value="${k}" ${F.ordem === k ? "selected" : ""}>${esc(t(l))}</option>`).join("")}</select></label>
-        ${F.q || F.nicho || F.marca || F.estado || F.pmin || F.pmax || F.so || F.etapa ? `<button type="button" class="btn quiet" data-limpar>${icon("x")}${esc(t("Limpar"))}</button>` : ""}</div></div>`;
+        ${F.q || F.nicho || F.marca || F.estado || F.pmin || F.pmax || F.so !== "bons" || F.etapa ? `<button type="button" class="btn quiet" data-limpar>${icon("x")}${esc(t("Limpar"))}</button>` : ""}</div></div>`;
     const lista = P.itens.length ? `<div class="vt-grid">${P.itens.map(card).join("")}</div>
       ${P.total > P.itens.length ? `<div class="vt-more"><button type="button" class="btn quiet" data-mais>${esc(t("Mostrar mais ({n} de {t})", { n: P.itens.length, t: P.total }))}</button></div>` : ""}`
       : `<div class="panel">${ui.empty("bag", P.todos ? "Nenhum produto com estes filtros" : "Ainda sem produtos", P.todos ? "Tira um filtro ou procura outra coisa." : "Liga o radar: cada volta guarda aqui os anúncios das categorias ligadas, com foto e link.")}</div>`;
@@ -606,10 +607,10 @@
       if (fi) { e.preventDefault(); return abrirFicha(Number(fi.dataset.ficha)); }
       const fs = e.target.closest("[data-fs]");
       if (fs) { const k2 = fs.dataset.fs, v2 = fs.dataset.v; if (k2 === "so") { F.so = v2; F.etapa = ""; } else { F.etapa = F.etapa === v2 ? "" : v2; F.so = ""; } F.n = 60; return loadProdutos(); }
-      if (e.target.closest("[data-limpar]")) { Object.assign(F, { q: "", nicho: "", marca: "", estado: "", so: "", etapa: "", pmin: "", pmax: "", n: 60 }); return loadProdutos(); }
+      if (e.target.closest("[data-limpar]")) { Object.assign(F, { q: "", nicho: "", marca: "", estado: "", so: "bons", etapa: "", pmin: "", pmax: "", n: 60 }); return loadProdutos(); }
       if (e.target.closest("[data-mais]")) { F.n += 60; return loadProdutos(); }
       const vc = e.target.closest("[data-vercat]"), vm = e.target.closest("[data-vermarca]");
-      if (vc || vm) { Object.assign(F, { q: "", estado: "", so: "", etapa: "", pmin: "", pmax: "", n: 60, nicho: vc ? vc.dataset.vercat : vm.dataset.mcat, marca: vm ? vm.dataset.vermarca : "" }); return irPara("produtos"); }
+      if (vc || vm) { Object.assign(F, { q: "", estado: "", so: "bons", etapa: "", pmin: "", pmax: "", n: 60, nicho: vc ? vc.dataset.vercat : vm.dataset.mcat, marca: vm ? vm.dataset.vermarca : "" }); return irPara("produtos"); }
       if (k) { e.preventDefault(); k.disabled = true; send("/api/vinted/compra", { id: Number(k.dataset.comprei) }, "Compra registada: saiu do orçamento disponível."); }
       else if (vd) { const i = $("vt-v-" + vd.dataset.vendi), val = i && i.value !== "" ? Number(i.value) : null;
         if (val == null) { flash(t("Escreve por quanto vendeste.")); i && i.focus(); } else send("/api/vinted/compra", { vendido: { id: Number(vd.dataset.vendi), valor: val } }, "Venda registada."); }

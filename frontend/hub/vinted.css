@@ -534,3 +534,13 @@ a.vt-mi { text-decoration: none; }
 .vt-po svg { width: 11px; height: 11px; }
 .vt-po input { width: 46px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255, 255, 255, .04); color: var(--text); font: inherit; font-size: 11.5px; text-align: right; }
 .vt-cat { padding-bottom: 34px; }
+
+/* suspeitos (capas, caixas, burlas, preços impossíveis) e letra maior nos cartões */
+.vt-vd.vd-bad { background: rgba(255, 69, 58, .14); color: #ff8a80; border: 1px solid rgba(255, 69, 58, .4); }
+.vt-flow.sus { gap: 8px; align-items: flex-start; color: #ff8a80; }
+.vt-flow.sus span { white-space: normal; font: 500 12.5px/1.4 var(--ui, inherit); letter-spacing: 0; }
+.vt-flow.sus svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; }
+.vt-pc-t { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.vt-pc-in small { font-size: 12px; }
+.vt-pc-s { display: flex; align-items: center; gap: 4px; color: var(--muted) !important; }
+.vt-pc-s svg { width: 12px; height: 12px; flex: 0 0 auto; }

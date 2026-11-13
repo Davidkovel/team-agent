@@ -180,3 +180,12 @@ def test_tecnologia_compara_o_mesmo_modelo_e_os_portes_contam(radar):
                {"titulo": "iPhone 13 128GB", "marca": "", "preco": 380}]
     v = vinted.valor_vinted(a, copias)
     assert v["n"] == 5 and v["mediana"] == 540
+
+
+def test_capas_caixas_burlas_e_precos_impossiveis_sao_suspeitos(radar):
+    tech = {"grupo": "Tecnologia", "custo": 20.0, "ref": 450.0, "ref_n": 10, "ref_base": "marca", "rapido": 400.0}
+    for titulo, preco in [("Coque iPhone 15 Pro", 15), ("iPhone 16 paiement virement", 60), ("iPhone 14 Pro Max", 1)]:
+        v = vinted._veredito({**tech, "titulo": titulo, "preco": preco}, [], [])
+        assert v["veredito"] == "suspeito" and v["ganho"] is None, titulo
+    v = vinted._veredito({**tech, "titulo": "iPhone 13 pro max - Read before buying", "preco": 300, "custo": 320}, [], [])
+    assert v["veredito"] == "nao"

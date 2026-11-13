@@ -702,11 +702,41 @@ def pedir_comparar(pedidos: list) -> int:
     return len(fila)
 
 
+# 13 nov (Marco: «iPhones de 15 euros... são mentiras... como é que dizes que custa 15,70 e ganhas 334 €?»): um anúncio que não
+# é o produto (capa, caixa vazia, peças) ou que é burla (pagar por transferência, fora do Vinted) não tem ganho nenhum: é «Suspeito».
+BURLA = ["virement", "transferencia", "transferência", "bank transfer", "bonifico", "whatsapp", "telegram", "fora do vinted",
+         "hors vinted", "fuera de vinted", "paypal amigos", "paypal ami", "mbway", "troca", "trade", "échange", "echange", "scambio",
+         "intercambio", "reservado para", "não comprar", "ne pas acheter", "non comprare", "no comprar", "test", "teste"]
+
+
+LER_DESCRICAO = ["lire la description", "lire description", "voir description", "read before", "read description", "read the description",
+                 "lee la descrip", "leer descrip", "leggere descrizione", "leggi descrizione", "leggere la descrizione", "ler descri",
+                 "leia a descri", "ver descri", "beschreibung lesen", "description !", "descrição !"]
+
+
+def suspeito(a: dict, ref: float | None) -> str | None:
+    """Porque é que este anúncio não é o que parece, ou None."""
+    t = f" {(a.get('titulo') or '').lower()} "
+    if any(w in t for w in BURLA):
+        return "Fala de transferência, troca ou pagar fora do Vinted: é como as burlas começam"
+    if _tech(a) and any(w in t for w in TECH_REJEITAR):
+        return "Não é o aparelho: é capa, caixa, peças, acessório ou está bloqueado"
+    if ref and _tech(a) and a["preco"] < ref * 0.4:
+        return f"{a['preco']:.0f} € por um aparelho que vale ~{ref:.0f} €: preço impossível, quase sempre burla ou avariado"
+    if ref and a["preco"] < ref * 0.15:
+        return f"{a['preco']:.0f} € por uma peça que vale ~{ref:.0f} €: preço de isco, confirma muito bem"
+    return None
+
+
 def _veredito(a: dict, rejeitar: list, aceites: list, live: dict | None = None) -> dict:
     """Vale a pena? Em vez de só o preço: quanto vale (preço do meio dos parecidos), por quanto se vende depressa (o quarto mais
     barato dos parecidos), quanto se ganha nos dois casos, quão certo é, e o que pode correr mal. Daí sai «Compra», «Vale ver»
     ou «Não compensa» e pontos de 0 a 100 para ordenar a caça."""
     ref, custo = a.get("ref"), a["custo"]
+    porque_s = suspeito(a, ref)
+    if porque_s:
+        return {"veredito": "suspeito", "pontos": 0, "ganho": None, "ganho_rapido": None, "roi": None, "confianca": "baixa",
+                "porque": [["bad", porque_s]]}
     if not ref:
         return {"veredito": "sem", "pontos": 0, "ganho": None, "ganho_rapido": None, "roi": None, "confianca": "baixa",
                 "porque": [["bad", "Ainda poucos parecidos para saber quanto vale"]]}
@@ -736,6 +766,8 @@ def _veredito(a: dict, rejeitar: list, aceites: list, live: dict | None = None) 
     t = f" {a.get('titulo') or ''} ".lower()
     if any(w in t for w in rejeitar):
         alertas.append(["bad", "O título fala de defeito (mancha, rasgão, buraco…)"])
+    if any(w in t for w in LER_DESCRICAO):
+        alertas.append(["bad", "O título manda ler a descrição: quase sempre esconde defeito, bloqueio ou peça em falta"])
     if _tech(a) and any(w in t for w in TECH_REJEITAR):
         alertas.append(["bad", "Parece acessório, peças, caixa vazia ou bloqueado"])
     if _tech(a) and a["preco"] < ref * 0.4:
@@ -837,6 +869,8 @@ def _catalogo() -> dict:
     aceites = cfg.get("estados_aceites") or []
     for a in itens:
         a.update(_veredito(a, rejeitar, aceites))
+        if a["veredito"] == "suspeito":
+            a["lucro_est"] = None
     itens.sort(key=lambda a: a["visto_em"] or "", reverse=True)
     mercado = {}
     for nicho in {a["nicho"] for a in itens}:
@@ -888,12 +922,14 @@ def produtos(q: str = "", grupo: str = "", nicho: str = "", marca: str = "", est
         e = _etapa(a, crm, compras)
         if etapa == "crm" and not e or etapa and etapa != "crm" and e != etapa or not etapa and e == "descartado":
             continue
-        if so == "abaixo" and not (a["desconto"] is not None and a["desconto"] >= 0.3):
+        if so == "abaixo" and not (a["desconto"] is not None and a["desconto"] >= 0.3 and a["veredito"] != "suspeito"):
             continue
         if so == "oport" and not a["alertado"]:
             continue
-        if so == "caca" and (a["veredito"] not in ("compra", "ver") or (_LIVE.get(a["id"]) or {}).get("fechado")):
-            continue   # na caça só o que compensa e ainda está à venda
+        if so in ("caca", "bons") and (a["veredito"] not in ("compra", "ver") or (_LIVE.get(a["id"]) or {}).get("fechado")):
+            continue   # na caça e por omissão só o que compensa e ainda está à venda
+        if so == "suspeitos" and a["veredito"] != "suspeito":
+            continue
         lista.append(a)
     chaves = {"recente": lambda a: a["visto_em"] or "", "desconto": lambda a: a["desconto"] if a["desconto"] is not None else -9,
               "lucro": lambda a: a["lucro_est"] if a["lucro_est"] is not None else -9e9, "barato": lambda a: -a["preco"],
@@ -906,8 +942,8 @@ def produtos(q: str = "", grupo: str = "", nicho: str = "", marca: str = "", est
         pedir_comparar([{"id": a["id"], "pesquisa": pesquisa_de(a)} for a in lista[:12] if not a.get("comparado")])
     return {"total": len(lista), "fila": len(_fila()), "offset": offset, "itens": [_publico(a, crm, compras) for a in lista[offset:offset + limit]],
             "nichos": contar("nicho"), "marcas": contar("marca")[:40], "todos": len(cat["itens"]),
-            "abaixo": sum(1 for a in base if a["desconto"] is not None and a["desconto"] >= 0.3),
-            "vereditos": {k: sum(1 for a in base if a["veredito"] == k) for k in ("compra", "ver", "nao", "sem")}}
+            "abaixo": sum(1 for a in base if a["desconto"] is not None and a["desconto"] >= 0.3 and a["veredito"] != "suspeito"),
+            "vereditos": {k: sum(1 for a in base if a["veredito"] == k) for k in ("compra", "ver", "nao", "sem", "suspeito")}}
 
 
 @router.get("/produto/{pid}")

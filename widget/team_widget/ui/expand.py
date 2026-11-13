@@ -16,7 +16,7 @@ import os
 os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS",
                       "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-smooth-scrolling")
 
-from PySide6.QtCore import QElapsedTimer, QEasingCurve, QEvent, QFile, QIODevice, QObject, QRect, QRectF, Qt, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QElapsedTimer, QEasingCurve, QEvent, QFile, QIODevice, QObject, QRect, QRectF, Qt, QTimer, QUrl, QUrlQuery, Signal, Slot
 from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineScript
@@ -95,6 +95,38 @@ class Bridge(QObject):
         self.mini.emit(url)
 
 
+def _outside_url(url: QUrl) -> QUrl:
+    """A mailto: becomes the Gmail compose page: the window has no mail app behind it, and the browser has Gmail signed in."""
+    if url.scheme() != "mailto":
+        return url
+    q = QUrlQuery(url)
+    gm = QUrlQuery()
+    gm.addQueryItem("view", "cm")
+    gm.addQueryItem("fs", "1")
+    gm.addQueryItem("to", url.path(QUrl.FullyDecoded))
+    for key, name in (("subject", "su"), ("body", "body"), ("cc", "cc"), ("bcc", "bcc")):
+        if q.hasQueryItem(key):
+            gm.addQueryItem(name, q.queryItemValue(key, QUrl.FullyDecoded))
+    out = QUrl("https://mail.google.com/mail/")
+    out.setQuery(gm)
+    return out
+
+
+class HubPage(QWebEnginePage):
+    """The Hub stays in the window; every other site (Gmail above all: Google refuses to sign in inside an app's window and
+    shows an error) and every mailto: goes to the browser instead."""
+
+    hub_host = ""
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        if not is_main_frame or url.scheme() in ("data", "blob", "about", "qrc", "file"):
+            return True
+        if url.scheme() == "mailto" or (url.scheme() in ("http", "https") and url.host() not in (self.hub_host, "127.0.0.1", "localhost")):
+            QDesktopServices.openUrl(_outside_url(url))
+            return False
+        return True
+
+
 def _channel_script() -> QWebEngineScript:
     """Qt's qwebchannel.js, run before the Hub's own scripts so `QWebChannel` exists when app.js starts."""
     f = QFile(":/qtwebchannel/qwebchannel.js")
@@ -155,6 +187,7 @@ class HubExpander(QWidget):
         row.addWidget(shrink)
 
         self.view = QWebEngineView()
+        self.view.setPage(HubPage(self.view))
         page = self.view.page()
         page.setBackgroundColor(BG)
         # A crashed page used to leave a dead, frozen window: now it comes back by itself.
@@ -195,8 +228,8 @@ class HubExpander(QWidget):
 
     def _open_outside(self, request):
         url = request.requestedUrl()
-        if url.scheme() in ("http", "https"):
-            QDesktopServices.openUrl(url)
+        if url.scheme() in ("http", "https", "mailto"):
+            QDesktopServices.openUrl(_outside_url(url))
 
     def _open_mini(self, url: str):
         """The cave's «Mini janela»: the cave in its own small window on top, and the big window goes back to the widget."""
@@ -314,6 +347,7 @@ class HubExpander(QWidget):
         self._origin = QRect(origin)
         self._full = False
         self._set_page_state(QWebEnginePage.LifecycleState.Active)
+        self.view.page().hub_host = QUrl(url).host()
         if self.view.url().toString() != url:
             self.view.load(QUrl(url))  # loads while it grows, so the Hub is ready when the motion ends
         else:

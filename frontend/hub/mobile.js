@@ -374,8 +374,9 @@
         <span>${esc(date[0].toUpperCase() + date.slice(1))}</span><div class="m-amg-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" alt="" decoding="async"></div></header>
       <span id="in-apps-mark" hidden></span>${shortcutsHtml()}
       <div id="m-new"></div><div id="m-alert"></div><div class="m-stats" id="m-stats">${ui.skeleton(1)}</div><div id="m-now"></div><div id="m-todo"></div><div id="m-team"></div>
-      <section class="m-sec"><header><b>${t("Negócios")}</b></header><div id="m-biz"></div></section><div id="m-last"></div></div>`);
-    shortcutsFill(); // os atalhos e os negócios são os mesmos do computador (home.js)
+      <section class="m-sec m-cmd"><header><b>${t("Comando")}</b></header>${askHtml()}<div id="m-biz"></div></section><div id="m-last"></div></div>`);
+    shortcutsFill(); // os atalhos e o Comando são os mesmos do computador (home.js)
+    $("ck-ask").onsubmit = ckSend; $("ck-in").oninput = ckRoute;
     const load = async () => {
       const [tasks, team, inbox] = await Promise.all([api("/api/tasks"), api("/api/team"), request("/api/notifications?limit=100")]);
       if (!$("m-home")) return;
@@ -399,13 +400,17 @@
       paint($("m-todo"), `<section class="m-sec"><header><b>${t("A seguir")}</b><a href="#/tarefas" data-goto="hoje">${rest.length > 5 ? t("Ver as {n}", { n: rest.length }) : t("Ver todas")}</a></header>${next.length
         ? `<div class="m-list">${next.map((x) => taskRow(x, teamView)).join("")}</div>`
         : `<div class="m-empty">${icon("check")}<span>${t(p.hoje.urgent.length ? "Fora as urgentes, mais nada para hoje." : "Nada por fazer hoje. Bom trabalho.")}</span></div>`}</section>`);
-      bizBody().then((html) => $("m-biz") && paint($("m-biz"), html)).catch(() => {});
+      cmdBody().then((html) => $("m-biz") && paint($("m-biz"), html)).catch(() => {});
       paint($("m-last"), `<section class="m-sec"><header><b>${t("Últimos avisos")}</b><a href="#/avisos">${t("Ver todos")}</a></header>${inbox.items.length
         ? `<div class="m-list">${inbox.items.slice(0, 3).map(nrow).join("")}</div>` : `<div class="m-empty">${icon("bell")}<span>${t("Sem avisos novos.")}</span></div>`}</section>`);
     };
     reload = load;
     $("view").onclick = async (e) => {
       if (await newTaskClick(e)) return load();
+      const fill = e.target.closest("[data-fill]");
+      if (fill) { $("ck-in").value = fill.dataset.fill; $("ck-in").focus(); return ckRoute(); }
+      const jump = e.target.closest(".ck-tip[data-go]");
+      if (jump) { location.hash = jump.dataset.go; return; }
       const done = e.target.closest("[data-done]");
       if (done) {
         e.preventDefault(); done.disabled = true;

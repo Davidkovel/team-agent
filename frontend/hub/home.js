@@ -331,34 +331,100 @@ async function pulseBody() {
   </div>`;
 }
 
-/* ---------- «Negócios»: o melhor de cada frente, para decidir sem abrir a página ---------- */
+/* ---------- «Comando»: pedir trabalho ao escritório sem sair do Início (13 nov, David: «a aba do e-mail já temos de
+   lado... funcionalidades inovadoras, que dê jeito à sala do início») ---------- */
+// Em cima, uma caixa: escreve-se o que se quer feito e, enquanto se escreve, o Hub diz que departamento o leva e quantas tem
+// à frente (o mesmo /api/tasks/route do compositor); Enter manda-o já para o escritório. Por baixo, sugestões tiradas dos
+// dados de agora (e-mails por ver, desenhos por aprovar, a pechincha, a próxima notícia), quem do escritório está a
+// trabalhar e em quê, e um radar de três vidros. Os e-mails ficaram na doca e na faixa «Hoje».
 const eur = (n) => `${Number(n).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
-async function bizBody() {
-  const [mail, vinted, etsy, cal] = await Promise.all([soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
+const DEPT = { batman: "DEV", lucius: "ENG", riddler: "PES", catwoman: "DSG", joker: "MKT", alfred: "REV", robin: "QA", gordon: "OPS",
+  huntress: "CAC", penguin: "MAC", twoface: "TEC" };
+const untilOf = (ts) => {
+  const m = Math.round((ts * 1000 - Date.now()) / 60e3);
+  return m <= 0 ? t("agora") : m < 60 ? t("em {n} min", { n: m }) : m < 24 * 60 ? t("em {h} h {m}", { h: Math.floor(m / 60), m: String(m % 60).padStart(2, "0") }) : `${dayOf(ts)} ${hhmmOf(ts)}`;
+};
+
+function askHtml() {
+  return `<form class="ck-ask" id="ck-ask" autocomplete="off">
+    <span class="ck-ask-ic">${icon("spark")}</span>
+    <input id="ck-in" name="q" maxlength="200" placeholder="${esc(t("Pede ao escritório…"))}" aria-label="${esc(t("Pedir ao escritório"))}">
+    <button class="ck-go" aria-label="${esc(t("Mandar"))}">${icon("arrow")}</button></form>
+    <div class="ck-route idle" id="ck-route">${t("Escreve e vês logo quem o faz.")}</div>`;
+}
+
+let ckTurn = 0, ckTimer = null;
+function ckRoute() {
+  clearTimeout(ckTimer);
+  ckTimer = setTimeout(async () => {
+    const line = $("ck-route"), q = $("ck-in")?.value.trim(), my = ++ckTurn;
+    if (!line) return;
+    if (!q) { line.className = "ck-route idle"; line.textContent = t("Escreve e vês logo quem o faz."); return; }
+    try {
+      const r = await api("/api/tasks/route", { method: "POST", body: { title: q, description: "" } });
+      if (my !== ckTurn || !line.isConnected) return;
+      line.className = "ck-route";
+      line.innerHTML = `<i class="ck-mono">${esc(DEPT[r.crew] || "AMG")}</i><span>${t("Vai para")} <b>${esc(r.name)}</b></span>
+        <em>${esc(r.ahead ? t(r.ahead === 1 ? "1 à frente" : "{n} à frente", { n: r.ahead }) : t("começa já"))}</em>`;
+    } catch { /* sem resposta: fica a frase de antes */ }
+  }, 200);
+}
+async function ckSend(e) {
+  e.preventDefault();
+  const input = $("ck-in"), title = input.value.trim();
+  if (!title) { input.focus(); return; }
+  const form = $("ck-ask");
+  form.classList.add("sending");
+  try {
+    const made = await api("/api/tasks", { method: "POST", body: { title, description: "", assignee: me.username, for_ai: true, crew: "" } });
+    flash(t("Mandada para {d}. O agente começa sozinho.", { d: made.crew_name || t("o escritório") }));
+    input.value = ""; ckRoute();
+    form.classList.add("sent"); setTimeout(() => form.classList.remove("sent"), 900);
+    loadHome(["plan", "biz"]);
+  } catch (err) { flash(err.message); }
+  form.classList.remove("sending");
+}
+
+async function cmdBody() {
+  const [tasks, mail, vinted, etsy, cal] = await Promise.all([api("/api/tasks"), soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
   const best = vinted ? (vinted.alertas || []).filter((a) => a.lucro > 0).sort((a, b) => b.lucro - a.lucro)[0] : null;
-  const threads = mail ? (mail.threads || []).slice().sort((a, b) => (b.por_ver > 0) - (a.por_ver > 0)).slice(0, 3) : [];
-  const news = nextNews(cal).slice(0, 3);
-  const head = (ic, title, href, label = "Abrir") => `<header class="bz-h">${icon(ic)}<b>${esc(t(title))}</b><a href="${href}">${esc(t(label))}${icon("chevron")}</a></header>`;
-  const vin = best ? `<a class="bz-deal" href="#/vinted">${best.foto ? `<img src="${esc(best.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="bz-noimg">${icon("bag")}</span>`}
-      <span class="bz-dt"><b>${esc(best.titulo)}</b><span>${esc([best.marca, best.tamanho].filter(Boolean).join(" · "))}</span>
-      <span class="bz-money"><em>${eur(best.preco)}</em><i>${t("vale")} ${eur(best.mediana)}</i><strong>+${eur(best.lucro)}</strong></span></span></a>`
-    : `<p class="bz-empty">${t(vinted ? "Ainda sem pechinchas que compensem." : "O Vinted Radar não respondeu.")}</p>`;
-  const em = !mail ? `<p class="bz-empty">${t("Sem dados do Gmail.")}</p>` : !mail.conta?.address
-    ? `<p class="bz-empty">${t("O Gmail da Ten Fold ainda não está ligado.")} <a href="#/emails">${t("Ligar")}</a></p>`
-    : threads.length ? `<div class="bz-list">${threads.map((x) => `<a class="bz-row" href="#/emails"><i class="${x.por_ver > 0 ? "on" : ""}"></i>
-        <span><b>${esc(x.empresa || x.nome || x.to || x.email || "—")}</b><span>${esc(x.assunto || x.subject || "")}</span></span></a>`).join("")}</div>`
-    : `<p class="bz-empty">${esc(mail.conta.address)}<br>${t("Caixa limpa: nenhuma conversa por decidir.")}</p>`;
-  const et = !etsy ? `<p class="bz-empty">${t("A Fábrica Etsy não respondeu.")}</p>`
-    : `<div class="bz-nums"><div><b>${etsy.counts?.published ?? 0}</b><span>${t("publicados")}</span></div><div><b>${etsy.counts?.new ?? 0}</b><span>${t("por aprovar")}</span></div>
-        <div><b>${(etsy.sales || []).length}</b><span>${t("vendas")}</span></div><div><b>${eur(etsy.revenue || 0)}</b><span>${t("faturado")}</span></div></div>`;
-  const tr = news.length ? `<div class="bz-list">${news.map((e) => `<a class="bz-row news" href="#/sinal"><time>${esc(dayOf(e.ts))}<b>${hhmmOf(e.ts)}</b></time>
-      <span><b>${esc(e.title)}</b><span>${esc(e.currency)} · ${t("prev.")} ${esc(e.forecast || "—")} · ${t("ant.")} ${esc(e.previous || "—")}</span></span></a>`).join("")}</div>`
-    : `<p class="bz-empty">${t(cal ? "Sem notícias vermelhas o resto da semana." : "O calendário não respondeu.")}</p>`;
-  return `<div class="bz">
-    <section class="bz-c">${head("bag", "Vinted · melhor pechincha", "#/vinted")}${vin}</section>
-    <section class="bz-c">${head("mail", "E-mails · Ten Fold", "#/emails")}${em}</section>
-    <section class="bz-c">${head("layers", "Etsy · AnimeDriveStudio", "#/etsy")}${et}</section>
-    <section class="bz-c">${head("trend", "Trading · próximas notícias", "#/sinal")}${tr}</section></div>`;
+  const porVer = mail ? (mail.threads || []).filter((x) => x.por_ver > 0).length : 0;
+  const news = nextNews(cal)[0];
+  const office = tasks.filter((x) => x.crew && x.stage !== "done" && !x.trashed_at);
+  const busy = office.filter((x) => x.stage === "in_progress" || x.status === "RUNNING" || x.status === "IN_PROGRESS");
+  const queued = office.length - busy.length;
+
+  // sugestões: o que os dados dizem que dá jeito fazer agora; «fill» escreve o pedido na caixa, «go» abre a página
+  const tips = [
+    porVer ? ["fill", "mail", t(porVer === 1 ? "Responder ao e-mail por ver" : "Responder aos {n} e-mails", { n: porVer }), t("Responde aos e-mails por ver da Ten Fold e mostra-me as respostas antes de enviar")] : null,
+    etsy?.counts?.new ? ["go", "layers", t("Rever {n} desenhos Etsy", { n: etsy.counts.new }), "#/etsy"] : null,
+    best ? ["go", "bag", t("Pechincha +{v}", { v: eur(best.lucro) }), "#/vinted"] : null,
+    news ? ["go", "trend", `${news.currency} ${untilOf(news.ts)}`, "#/sinal"] : null,
+    ["fill", "search", t("Procurar clientes"), t("Vai ao Radar e encontra 10 negócios perto de mim que precisam de site")],
+  ].filter(Boolean).slice(0, 4);
+  const tipHtml = `<div class="ck-tips">${tips.map(([k, ic, label, v]) => `<button type="button" class="ck-tip" data-${k === "fill" ? "fill" : "go"}="${esc(v)}">${icon(ic)}<span>${esc(label)}</span></button>`).join("")}</div>`;
+
+  const workHtml = busy.length ? `<div class="ck-work">${busy.slice(0, 3).map((x) => {
+      const p = Number(x.progress) || 0;
+      return `<button class="ck-job" data-task="${x.id}"><i class="ck-mono live">${esc(DEPT[x.crew] || "AMG")}</i>
+        <span class="ck-job-t"><b>${esc(x.title)}</b><span>${esc(x.current_action || x.last_action || x.crew_name || "")}</span>
+        ${p ? `<span class="ck-bar"><i style="width:${Math.min(100, p)}%"></i></span>` : ""}</span></button>`;
+    }).join("")}</div>`
+    : `<p class="ck-quiet">${t("Ninguém a trabalhar agora. Escreve em cima e o escritório arranca.")}</p>`;
+
+  const deal = best ? `<a class="ck-tile deal" href="#/vinted">${best.foto ? `<img src="${esc(best.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}
+      <span class="ck-tl">${icon("bag")}${t("Vinted")}</span><b>+${eur(best.lucro)}</b><span class="ck-ts">${esc(best.titulo)} · ${eur(best.preco)}</span></a>`
+    : `<a class="ck-tile" href="#/vinted"><span class="ck-tl">${icon("bag")}${t("Vinted")}</span><b>—</b><span class="ck-ts">${t(vinted ? "Sem pechinchas" : "Sem dados")}</span></a>`;
+  const shop = `<a class="ck-tile" href="#/etsy"><span class="ck-tl">${icon("layers")}${t("Etsy")}</span><b>${etsy ? eur(etsy.revenue || 0) : "—"}</b>
+      <span class="ck-ts">${etsy ? t("{v} vendas · {p} na loja", { v: (etsy.sales || []).length, p: etsy.counts?.published ?? 0 }) : t("Sem dados")}</span></a>`;
+  const nw = `<a class="ck-tile ${news && news.ts * 1000 - Date.now() < 3600e3 ? "hot" : ""}" href="#/sinal"><span class="ck-tl">${icon("trend")}${t("Notícia")}</span>
+      <b>${news ? hhmmOf(news.ts) : "—"}</b><span class="ck-ts">${news ? `${esc(news.currency)} · ${esc(news.title)}` : t(cal ? "Nenhuma vermelha" : "Sem dados")}</span></a>`;
+
+  return `${tipHtml}
+    <div class="ck-sec"><b>${t("No escritório")}</b><span>${busy.length ? t("{n} a trabalhar", { n: busy.length }) : ""}${queued ? ` · ${t("{n} na fila", { n: queued })}` : ""}</span><a href="#/escritorio">${t("Abrir")}${icon("chevron")}</a></div>
+    ${workHtml}
+    <div class="ck-sec"><b>${t("Radar")}</b></div>
+    <div class="ck-tiles">${deal}${shop}${nw}</div>`;
 }
 
 let tasksTab = "today";
@@ -511,6 +577,8 @@ async function homeClick(e) {
   if (act === "task") return newTask();
   if (act === "agenda") return openAgenda();
   if (act === "alerts") return openNotices();
+  const fill = e.target.closest("[data-fill]");
+  if (fill) { const input = $("ck-in"); input.value = fill.dataset.fill; input.focus(); return ckRoute(); }
   const go = e.target.closest("[data-go]");
   if (go) { location.hash = go.dataset.go; return; }
   const notice = e.target.closest("[data-n]");
@@ -556,7 +624,7 @@ async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
   if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5));
   if (parts.includes("act")) jobs.push(mount($("in-act"), activityBody, 3));
-  if (parts.includes("biz")) jobs.push(mount($("in-biz"), bizBody, 4));
+  if (parts.includes("biz") || parts.includes("plan")) jobs.push(mount($("in-biz"), cmdBody, 4));
   await Promise.all(jobs);
 }
 
@@ -588,10 +656,12 @@ HUB_VIEWS.home = async function viewHome() {
     <div id="in-alert" class="in-alert"></div><div id="in-pulse" class="in-pulse"></div><div id="in-doing" class="in-doing"></div>
     <div class="in-main">
       <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
-      <section class="in-card in-bizc">${cardHead("layers", "Negócios", "", "")}<div id="in-biz"></div></section>
+      <section class="in-card in-bizc">${cardHead("spark", "Comando", "", seeAll("Escritório", "#/escritorio"))}${askHtml()}<div id="in-biz"></div></section>
       <section class="in-card in-feed">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section>
     </div></div>`;
   $("view").onclick = homeClick;
+  $("ck-ask").onsubmit = ckSend;
+  $("ck-in").oninput = ckRoute;
   startHomeClock();
   loadHome();
   shortcutsFill();

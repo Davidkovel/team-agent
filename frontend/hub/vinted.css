@@ -526,3 +526,11 @@ html.is-phone .vt-flow.big span { font-size: 18px; }
 .vt-cmp-s.ok svg { color: #4ade80; }
 .vt-cmp-s.wait svg { color: #ffc400; }
 a.vt-mi { text-decoration: none; }
+
+/* os portes às claras */
+.vt-conta { display: flex; align-items: center; gap: 6px; margin: -2px 0 0; color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+.vt-conta svg { width: 12px; height: 12px; flex: 0 0 auto; }
+.vt-po { position: absolute; right: 34px; bottom: 10px; display: inline-flex; align-items: center; gap: 3px; color: var(--faint); font-size: 11.5px; }
+.vt-po svg { width: 11px; height: 11px; }
+.vt-po input { width: 46px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255, 255, 255, .04); color: var(--text); font: inherit; font-size: 11.5px; text-align: right; }
+.vt-cat { padding-bottom: 34px; }

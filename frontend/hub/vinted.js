@@ -25,6 +25,8 @@
       <span><i>${esc(t("Pagas"))}</i>${eur(a.custo, a.custo < 100 ? 1 : 0)}</span><b>${icon("chevron")}</b>
       <span><i>${esc(t("Vale"))}</i>${eur(a.ref)}</span><b>${icon("chevron")}</b>
       <span class="${a.ganho > 0 ? "win" : "lose"}"><i>${esc(t("Ganhas"))}</i>${sinal(a.ganho)}</span></div>` : `<div class="vt-flow"><span><i>${esc(t("Pagas"))}</i>${eur(a.custo, 1)}</span><span class="na"><i>${esc(t("Vale"))}</i>${esc(t("Sem dados"))}</span></div>`);
+  // 13 nov (Marco: «não te podes esquecer dos portes»): o que se paga, às claras
+  const conta = (a) => (a.custo_det ? `<p class="vt-conta">${icon("bag")}${esc(t("Pagas {p} + {x} proteção do comprador + {e} portes", { p: eur(a.custo_det.preco, 2), x: eur(a.custo_det.protecao, 2), e: eur(a.custo_det.portes, 2) }))}</p>` : "");
   const razoes = (lista, n = 9) => `<ul class="vt-why">${lista.slice(0, n).map(([k, x]) => `<li class="${k}">${icon(k === "ok" ? "tick" : "alert")}${esc(t(x))}</li>`).join("")}</ul>`;
   const F = { q: "", nicho: "", marca: "", estado: "", so: "", etapa: "", ordem: localStorage.getItem("vt-p-ordem") || "melhor", pmin: "", pmax: "", n: 60 };
   const ETAPA = { mira: ["Na mira", "eye"], negociar: ["A negociar", "chat"], comprado: ["Comprado", "tick"], venda: ["À venda", "bag"], vendido: ["Vendido", "trend"], descartado: ["Descartado", "x"] };
@@ -76,6 +78,7 @@
       <span class="vt-cat-in"><b>${esc(n.nome)}</b><small>«${esc(n.pesquisa)}»</small>
         <em>${n.anuncios ? `${n.anuncios} ${esc(t("anúncios"))}${n.hoje ? ` · <u>+${n.hoje} ${esc(t("hoje"))}</u>` : ""}` : esc(t("Sem dados"))}</em></span>
       <span class="vt-tog" aria-hidden="true"><i></i></span>
+      <span class="vt-po" title="${esc(t("Portes de envio que pagas ao comprar nesta categoria"))}">${icon("bag")}<input type="number" min="0" step="0.5" data-portes="${esc(n.nome)}" value="${n.portes}" aria-label="${esc(t("Portes €"))}">€</span>
       <select class="vt-mv" data-mover="${esc(n.nome)}" title="${esc(t("Mudar de tema"))}">${V.grupos_possiveis.map((g) => `<option ${g === n.grupo ? "selected" : ""}>${esc(g)}</option>`).join("")}</select>
       <button type="button" class="vt-x" data-tirar="${esc(n.nome)}" title="${esc(t("Tirar categoria"))}">${icon("x")}</button>
     </label>`;
@@ -171,6 +174,7 @@
       ${f("percentil_max", "Entre os mais baratos", 1, "% dos comparáveis", true)}
       ${f("preco_max", "Preço até", 5, "€ por artigo")}
       ${f("intervalo_min", "De quantos em quantos", 1, "minutos")}
+      ${f("portes_compra_eur", "Portes da compra", 0.5, "€ por artigo (cada categoria pode ter os seus)")}
       <button type="button" class="btn quiet" data-save>${esc(t("Guardar limites"))}</button></div>`;
   }
 
@@ -284,7 +288,7 @@
         <div class="vt-hero-top">${verd(a)}<span class="vt-conf c-${v.confianca}">${esc(t("Confiança {c}", { c: t(v.confianca === "media" ? "média" : v.confianca) }))}</span></div>
         <b class="vt-hero-t" data-ficha="${a.id}">${esc(a.titulo)}</b>
         <small>${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small>
-        ${fluxo(a, true)}
+        ${fluxo(a, true)}${conta(a)}
         <p class="vt-hero-s">${esc(t("Retorno {r}% do que pagas", { r: Math.round((a.roi || 0) * 100) }))}${rap != null ? ` · ${esc(t("a vender depressa ({p}) ganhas {g}", { p: eur(a.rapido), g: sinal(rap) }))}` : ""}</p>
         ${razoes(v.porque || [], 4)}
         <div class="vt-meta">${quem(a)}</div>
@@ -454,7 +458,7 @@
     const L = LIVE[a.id], v = L ? { ...a, ...L } : a, rap = a.rapido ? a.rapido - a.custo : null;
     return `<div class="vt-dec-h">${verd(a)}<span class="vt-conf c-${v.confianca}">${esc(t("Confiança {c}", { c: t(v.confianca === "media" ? "média" : v.confianca) }))}</span>
         ${a.ref ? `<span class="vt-dec-r">${esc(t("Retorno {r}%", { r: Math.round((a.roi || 0) * 100) }))}</span>` : ""}</div>
-      ${fluxo(a, true)}
+      ${fluxo(a, true)}${conta(a)}
       ${rap != null ? `<p class="vt-hero-s">${esc(t("Vendes normalmente por ~{v} ({n} parecidos). A vender depressa, por ~{r}, ganhas {g}.", { v: eur(a.ref), n: a.ref_n, r: eur(a.rapido), g: sinal(Math.round(rap)) }))}</p>` : ""}
       ${razoes(v.porque || [])}`;
   }
@@ -642,6 +646,7 @@
     v.onkeydown = (e) => { const c = e.target.closest("[data-ficha]"); if (c && (e.key === "Enter" || e.key === " ") && e.target === c) { e.preventDefault(); abrirFicha(Number(c.dataset.ficha)); } };
     v.onchange = (e) => {
       if (e.target.matches("[data-f]")) { F[e.target.dataset.f] = e.target.value; F.n = 60; if (e.target.dataset.f === "ordem") localStorage.setItem("vt-p-ordem", F.ordem); return loadProdutos(); }
+      if (e.target.matches("[data-portes]")) return send("/api/vinted/config", { portes: { nome: e.target.dataset.portes, valor: e.target.value === "" ? null : Number(e.target.value) } }, "Portes guardados: as contas já os usam.");
       if (e.target.matches("[data-mover]")) return send("/api/vinted/config", { mover: { nome: e.target.dataset.mover, grupo: e.target.value } }, "Categoria mudada de tema.");
       if (!e.target.matches("[data-cat]")) return;
       // as categorias de outros temas não estão no ecrã: ficam como estavam

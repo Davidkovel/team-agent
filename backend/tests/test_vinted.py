@@ -166,3 +166,17 @@ def test_o_valor_vem_dos_iguais_a_venda_no_vinted(catalogo):
     a = d["item"]
     assert a["ref_base"] == "vinted" and a["ref_n"] == 7 and a["ref"] == 35 and len(d["copias"]) == 7
     assert a["porque"][0][1].startswith("No Vinted pedem ~35 €")
+
+
+def test_tecnologia_compara_o_mesmo_modelo_e_os_portes_contam(radar):
+    cfg = {"portes_compra_eur": 4.0, "protecao_comprador": {"fixo": 0.7, "pct": 0.05}, "nichos": [{"nome": "PS5", "portes": 9.0}]}
+    d = vinted._custo_det(100, cfg, "PS5")
+    assert d == {"preco": 100, "protecao": 5.7, "portes": 9.0, "total": 114.7} and vinted._custo(100, cfg) == 109.7
+    assert vinted.modelo_tech("iPhone 13 Pro 128GB") == "iphone 13 pro|128gb"
+    assert vinted.pesquisa_de({"titulo": "Apple MacBook Air M1 256GB", "grupo": "Tecnologia"}) == "macbook air m1 256gb"
+    a = {"titulo": "iPhone 13 Pro 128GB azul", "grupo": "Tecnologia", "marca": ""}
+    copias = [{"titulo": f"iPhone 13 Pro 128GB {i}", "marca": "", "preco": p} for i, p in enumerate([500, 520, 540, 560, 580])]
+    copias += [{"titulo": "iPhone 13 Pro 256GB", "marca": "", "preco": 700}, {"titulo": "Capa iPhone 13 Pro 128GB", "marca": "", "preco": 10},
+               {"titulo": "iPhone 13 128GB", "marca": "", "preco": 380}]
+    v = vinted.valor_vinted(a, copias)
+    assert v["n"] == 5 and v["mediana"] == 540

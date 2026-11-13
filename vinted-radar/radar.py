@@ -107,19 +107,21 @@ def tipo(titulo):
     return None
 
 
-TECH_REJEITAR = ["capa", "case", "cover", "funda", "coque", "cover", "película", "pelicula", "protector", "vidro temperado",
-    "carregador", "charger", "cabo", "cable", "caixa vazia", "só caixa", "so caixa", "solo scatola", "empty box", "box only",
-    "icloud", "bloqueado", "blocked", "locked", "peças", "pecas", "parts", "ricambi", "piezas", "avariado", "não liga",
-    "nao liga", "partido", "cracked", "broken", "rotto", "roto", "cassé", "hs ", "faceid", "face id não", "sem face",
-    "custodia", "sleeve", "bolsa", "housse", "adaptador", "adapter", " hub", "sem ssd", "sans ssd", "senza ssd",
-    "sin ssd", "no ssd", "lote", "boîte vide", "boite vide", "boîte seule", "caja vacía", "caja vacia", "solo caja",
-    "scatola vuota", "só a caixa", "cx vazia", "pour pièces", "pour pieces", "hors service", "écran cassé", "dummy", "réplica", "replica", "fake", "skin", "sticker", "suporte", "stand", "teclado", "keyboard", "mouse", "rato"]
+TECH_REJEITAR = ["capa", "case", "cover", "funda", "coque", "película", "pelicula", "protector", "vidro temperado", "carregador",
+    "charger", "cabo", "cable", "caixa vazia", "só caixa", "so caixa", "solo scatola", "empty box", "box only", "icloud", "bloqueado",
+    "blocked", "locked", "peças", "pecas", "parts", "ricambi", "piezas", "avariado", "não liga", "nao liga", "partido", "cracked",
+    "broken", "rotto", "roto", "cassé", "faceid", "face id não", "sem face", "custodia", "sleeve", "housse", "adaptador", "adapter",
+    "sem ssd", "sans ssd", "senza ssd", "sin ssd", "no ssd", "lote", "boîte vide", "boite vide", "caja vacía", "caja vacia",
+    "scatola vuota", "cx vazia", "pour pièces", "pour pieces", "hors service", "écran cassé", "dummy", "réplica", "replica", "fake",
+    "skin", "sticker", "suporte", "stand", "comando só", "manette seule", "jogo", "game only", "solo juego"]
 
 
 def modelo_tech(titulo):
-    """Chave de comparação para tecnologia: modelo + armazenamento (ex. «iphone 13 pro|128gb», «macbook air m1|256gb»)."""
+    """Chave de comparação para tecnologia: modelo + armazenamento (ex. «iphone 13 pro|128gb», «macbook air m1|256gb»,
+    «airpods pro 2|», «ps5 digital|», «switch oled|», «apple watch series 8|45mm»). None quando não se percebe o modelo."""
+    import re
     t = titulo.lower().replace("-", " ")
-    gb = re.search(r"(\d{2,4})\s?(?:gb|go)|(\d)\s?(?:tb|to)", t)
+    gb = re.search(r"(\d{2,4})\s?(?:gb|go)|(\d)\s?(?:tb|to)", t)
     gb = (gb.group(1) + "gb") if gb and gb.group(1) else (gb.group(2) + "tb" if gb else "")
     m = re.search(r"iphone\s?(\d{1,2}|xs|xr|x|se)(\s?(pro max|pro|plus|max|mini))?", t)
     if m:
@@ -127,12 +129,25 @@ def modelo_tech(titulo):
     m = re.search(r"macbook\s?(air|pro)?.*?\b(m[1-4])(\s?(pro|max))?\b", t)
     if m:
         return f"macbook {m.group(1) or ''} {m.group(2)}{(' ' + m.group(4)) if m.group(4) else ''}|{gb}".replace("  ", " ")
-    m = re.search(r"mac\s?book\s?(air|pro)?.*?\b(20[01]\d|2020)\b", t)   # os Intel: modelo + ano
+    m = re.search(r"mac\s?book\s?(air|pro)?.*?\b(20[01]\d|2020)\b", t)
     if m:
         return f"macbook {m.group(1) or ''} {m.group(2)}|{gb}".replace("  ", " ")
     m = re.search(r"ipad\s?(air|pro|mini)?", t)
     if m and gb:
-        return f"ipad {m.group(1) or ''}|{gb}"
+        return f"ipad {m.group(1) or ''}|{gb}".replace(" |", "|")
+    m = re.search(r"airpods?\s?(pro|max)?\s?(\d)?", t)
+    if m:
+        return f"airpods {m.group(1) or ''} {m.group(2) or ''}".strip().replace("  ", " ") + "|"
+    m = re.search(r"\b(?:ps5|playstation\s?5)\b", t)
+    if m:
+        return "ps5 " + ("digital" if re.search(r"digital|digitale|sem leitor|sans lecteur|senza lettore", t) else "standard") + ("|pro" if " pro" in t else "|")
+    m = re.search(r"\bswitch\b\s?(oled|lite|2)?", t)
+    if m and "nintendo" in t:
+        return f"switch {m.group(1) or 'v1'}|"
+    m = re.search(r"apple\s?watch\s?(?:series\s?)?(\d{1,2}|ultra\s?\d?|se)", t)
+    if m:
+        mm = re.search(r"(\d{2})\s?mm", t)
+        return f"apple watch {m.group(1).replace(' ', '')}|{mm.group(1) + 'mm' if mm else ''}"
     return None
 
 
@@ -197,7 +212,7 @@ def avaliar(c, nicho, a):
     if sum(p < a["preco"] for p in precos) / n > CFG["percentil_max"]:
         return None
     prot = CFG["protecao_comprador"]
-    custo = a["preco"] + prot["fixo"] + a["preco"] * prot["pct"] + CFG["portes_compra_eur"]
+    custo = a["preco"] + prot["fixo"] + a["preco"] * prot["pct"] + ncfg.get("portes", CFG["portes_compra_eur"])   # portes da categoria
     lucro = med - custo
     if lucro < CFG["margem_min_eur"] or lucro / custo < CFG["margem_min_pct"]:
         return None

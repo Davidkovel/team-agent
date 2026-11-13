@@ -54,7 +54,7 @@ TECH_PALAVRAS = ("iphone", "macbook", "ipad", "airpods", "apple watch", "samsung
 VIGIA_S = 60          # de quanto em quanto a guarda olha
 MORTE_CEDO_S = 45     # morrer antes disto depois de arrancar = não consegue correr (falta qualquer coisa)
 ESPERA_S = 600        # depois de três mortes cedo seguidas
-LIMITES = ("margem_min_eur", "margem_min_pct", "max_pct_do_mercado", "percentil_max", "preco_max", "intervalo_min")
+LIMITES = ("margem_min_eur", "margem_min_pct", "max_pct_do_mercado", "percentil_max", "preco_max", "intervalo_min", "portes_compra_eur")
 
 
 def _python() -> str:
@@ -244,10 +244,22 @@ def _rows(q: str, args=()) -> list:
         c.close()
 
 
-def _custo(preco: float, cfg: dict) -> float:
-    """O que um artigo custa de facto a comprar: preço + proteção do comprador + portes (a mesma conta do radar.py)."""
+def _portes(cfg: dict, nicho: str | None = None) -> float:
+    """Portes de envio da compra: os da categoria (um portátil ou uma consola custam mais a enviar) ou os gerais."""
+    n = next((x for x in cfg.get("nichos") or [] if x["nome"] == nicho), {}) if nicho else {}
+    return float(n.get("portes") if n.get("portes") is not None else cfg.get("portes_compra_eur", 4.0))
+
+
+def _custo_det(preco: float, cfg: dict, nicho: str | None = None) -> dict:
+    """O que um artigo custa de facto a comprar: preço + proteção do comprador (taxa do Vinted) + portes."""
     prot = cfg.get("protecao_comprador") or {}
-    return round(preco + prot.get("fixo", 0.7) + preco * prot.get("pct", 0.05) + cfg.get("portes_compra_eur", 4.0), 2)
+    p = round(prot.get("fixo", 0.7) + preco * prot.get("pct", 0.05), 2)
+    e = _portes(cfg, nicho)
+    return {"preco": preco, "protecao": p, "portes": e, "total": round(preco + p + e, 2)}
+
+
+def _custo(preco: float, cfg: dict, nicho: str | None = None) -> float:
+    return _custo_det(preco, cfg, nicho)["total"]
 
 
 def _contas(f: dict) -> dict:
@@ -300,7 +312,7 @@ def _view() -> dict:
     grupo = {n["nome"]: grupo_de(n) for n in cfg["nichos"]}
     nichos = [{"nome": n["nome"], "pesquisa": n["pesquisa"], "ativo": n.get("ativo", True), "grupo": grupo_de(n),
                "anuncios": por.get(n["nome"], (0, None))[0], "ultimo": por.get(n["nome"], (0, None))[1],
-               "hoje": novos_hoje.get(n["nome"], 0)} for n in cfg["nichos"]]
+               "hoje": novos_hoje.get(n["nome"], 0), "portes": _portes(cfg, n["nome"]), "tech": bool(n.get("tech"))} for n in cfg["nichos"]]
     cols = ["id", "nicho", "titulo", "marca", "tamanho", "estado", "preco", "foto", "link", "visto_em",
             "mediana", "lucro", "comparaveis", "alertado_em"]
     ha = {r[1] for r in _rows("PRAGMA table_info(anuncios)")}   # um radar.db de antes de 13 nov ainda não tem o vendedor
@@ -310,7 +322,7 @@ def _view() -> dict:
     n_escondidos = sum(1 for a in alertas if a["id"] in escondidos)
     compradas = {c["id"] for c in f.get("compras") or []}
     contas = _contas(f)
-    alertas = [{"vendedor": None, "estrelas": None, "avaliacoes": None, **a, "grupo": grupo.get(a["nicho"], "Outros"), "custo": _custo(a["preco"], cfg)}
+    alertas = [{"vendedor": None, "estrelas": None, "avaliacoes": None, **a, "grupo": grupo.get(a["nicho"], "Outros"), "custo": _custo(a["preco"], cfg, a["nicho"])}
                for a in alertas if a["id"] not in escondidos and a["id"] not in compradas][:120]
     plano = _plano(alertas, contas)
     for a in alertas:
@@ -395,7 +407,7 @@ def compra(body: dict, user: User = Depends(viewer)):
         if not r:
             raise HTTPException(404, "Esse artigo já não está no radar")
         i, nicho, titulo, preco, link, foto, lucro = r[0]
-        custo = body.get("custo") if isinstance(body.get("custo"), (int, float)) and body["custo"] > 0 else _custo(preco, _cfg())
+        custo = body.get("custo") if isinstance(body.get("custo"), (int, float)) and body["custo"] > 0 else _custo(preco, _cfg(), nicho)
         if lucro is None:   # comprado a partir do catálogo (não era oportunidade): o lucro previsto vem do preço de referência
             lucro = (_catalogo()["por_id"].get(i) or {}).get("lucro_est")
         compras.append({"id": i, "nicho": nicho, "titulo": titulo, "preco": preco, "custo": round(float(custo), 2), "link": link, "foto": foto,
@@ -455,6 +467,15 @@ def config(body: dict, user: User = Depends(viewer)):
         for n in cfg["nichos"]:
             if n["nome"] == mover.get("nome"):
                 n["grupo"] = mover["grupo"]
+    pn = body.get("portes")   # {"nome", "valor"}: portes de uma categoria (None volta aos gerais)
+    if isinstance(pn, dict):
+        for n in cfg["nichos"]:
+            if n["nome"] == pn.get("nome"):
+                v = pn.get("valor")
+                if isinstance(v, (int, float)) and 0 <= v <= 100:
+                    n["portes"] = round(float(v), 2)
+                else:
+                    n.pop("portes", None)
     tirar = body.get("tirar")
     if tirar:
         cfg["nichos"] = [n for n in cfg["nichos"] if n["nome"] != tirar]
@@ -542,9 +563,61 @@ def _palavras(txt: str) -> list:
     return re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)?", t)
 
 
+TECH_REJEITAR = ["capa", "case", "cover", "funda", "coque", "película", "pelicula", "protector", "vidro temperado", "carregador",
+    "charger", "cabo", "cable", "caixa vazia", "só caixa", "so caixa", "solo scatola", "empty box", "box only", "icloud", "bloqueado",
+    "blocked", "locked", "peças", "pecas", "parts", "ricambi", "piezas", "avariado", "não liga", "nao liga", "partido", "cracked",
+    "broken", "rotto", "roto", "cassé", "faceid", "face id não", "sem face", "custodia", "sleeve", "housse", "adaptador", "adapter",
+    "sem ssd", "sans ssd", "senza ssd", "sin ssd", "no ssd", "lote", "boîte vide", "boite vide", "caja vacía", "caja vacia",
+    "scatola vuota", "cx vazia", "pour pièces", "pour pieces", "hors service", "écran cassé", "dummy", "réplica", "replica", "fake",
+    "skin", "sticker", "suporte", "stand", "comando só", "manette seule", "jogo", "game only", "solo juego"]
+
+
+def modelo_tech(titulo):
+    """Chave de comparação para tecnologia: modelo + armazenamento (ex. «iphone 13 pro|128gb», «macbook air m1|256gb»,
+    «airpods pro 2|», «ps5 digital|», «switch oled|», «apple watch series 8|45mm»). None quando não se percebe o modelo."""
+    import re
+    t = titulo.lower().replace("-", " ")
+    gb = re.search(r"(\d{2,4})\s?(?:gb|go)|(\d)\s?(?:tb|to)", t)
+    gb = (gb.group(1) + "gb") if gb and gb.group(1) else (gb.group(2) + "tb" if gb else "")
+    m = re.search(r"iphone\s?(\d{1,2}|xs|xr|x|se)(\s?(pro max|pro|plus|max|mini))?", t)
+    if m:
+        return f"iphone {m.group(1)}{(' ' + m.group(3)) if m.group(3) else ''}|{gb}"
+    m = re.search(r"macbook\s?(air|pro)?.*?\b(m[1-4])(\s?(pro|max))?\b", t)
+    if m:
+        return f"macbook {m.group(1) or ''} {m.group(2)}{(' ' + m.group(4)) if m.group(4) else ''}|{gb}".replace("  ", " ")
+    m = re.search(r"mac\s?book\s?(air|pro)?.*?\b(20[01]\d|2020)\b", t)
+    if m:
+        return f"macbook {m.group(1) or ''} {m.group(2)}|{gb}".replace("  ", " ")
+    m = re.search(r"ipad\s?(air|pro|mini)?", t)
+    if m and gb:
+        return f"ipad {m.group(1) or ''}|{gb}".replace(" |", "|")
+    m = re.search(r"airpods?\s?(pro|max)?\s?(\d)?", t)
+    if m:
+        return f"airpods {m.group(1) or ''} {m.group(2) or ''}".strip().replace("  ", " ") + "|"
+    m = re.search(r"\b(?:ps5|playstation\s?5)\b", t)
+    if m:
+        return "ps5 " + ("digital" if re.search(r"digital|digitale|sem leitor|sans lecteur|senza lettore", t) else "standard") + ("|pro" if " pro" in t else "|")
+    m = re.search(r"\bswitch\b\s?(oled|lite|2)?", t)
+    if m and "nintendo" in t:
+        return f"switch {m.group(1) or 'v1'}|"
+    m = re.search(r"apple\s?watch\s?(?:series\s?)?(\d{1,2}|ultra\s?\d?|se)", t)
+    if m:
+        mm = re.search(r"(\d{2})\s?mm", t)
+        return f"apple watch {m.group(1).replace(' ', '')}|{mm.group(1) + 'mm' if mm else ''}"
+    return None
+
+
+def _tech(a: dict) -> bool:
+    return a.get("grupo") == "Tecnologia" or bool(a.get("tech"))
+
+
 def pesquisa_de(a: dict) -> str:
     """A pesquisa no Vinted pelo mesmo produto: a marca e as palavras do modelo (sem tamanho, cor, estado nem «vintage»).
-    Sem modelo, a marca e o tipo de peça."""
+    Sem modelo, a marca e o tipo de peça. Na tecnologia: o modelo e a capacidade («iphone 13 pro 128gb»)."""
+    if _tech(a):
+        k = modelo_tech(a.get("titulo") or "")
+        if k:
+            return k.replace("|", " ").strip()
     marca = " ".join(_palavras(a.get("marca")))
     mp = set(marca.split())
     modelo, tipo = [], ""
@@ -570,6 +643,14 @@ def valor_vinted(a: dict, copias: list, pesquisa: str | None = None) -> dict | N
     modelo = [w for w in _palavras(pesquisa or pesquisa_de(a)) if w not in _palavras(marca)]
     fam = familia(a.get("titulo"))
     iguais = []
+    chave = modelo_tech(a.get("titulo") or "") if _tech(a) else None
+    if chave:   # tecnologia: só o mesmo modelo e capacidade, e nada de capas, peças, caixas vazias ou bloqueados
+        for c in copias:
+            tl = f" {c['titulo'].lower()} "
+            if modelo_tech(c["titulo"]) == chave and not any(w in tl for w in TECH_REJEITAR):
+                iguais.append(c)
+        copias = []
+        marca, modelo, fam = "", [], None
     for c in copias:
         t = set(_palavras(f"{c['titulo']} {c.get('marca') or ''}"))
         fc = familia(c["titulo"])
@@ -655,9 +736,13 @@ def _veredito(a: dict, rejeitar: list, aceites: list, live: dict | None = None) 
     t = f" {a.get('titulo') or ''} ".lower()
     if any(w in t for w in rejeitar):
         alertas.append(["bad", "O título fala de defeito (mancha, rasgão, buraco…)"])
+    if _tech(a) and any(w in t for w in TECH_REJEITAR):
+        alertas.append(["bad", "Parece acessório, peças, caixa vazia ou bloqueado"])
+    if _tech(a) and a["preco"] < ref * 0.4:
+        alertas.append(["bad", "Tecnologia a menos de 40% do valor: muitas vezes é burla, avariado ou bloqueado"])
     if a.get("estado") and aceites and a["estado"] not in aceites:
         alertas.append(["bad", f"Estado: {a['estado']}"])
-    if a["preco"] < ref * 0.2:
+    if not _tech(a) and a["preco"] < ref * 0.2:
         alertas.append(["warn", "Muito abaixo do normal: vê se é original e se está como diz"])
     est, av = (live or {}).get("estrelas", a.get("estrelas")), (live or {}).get("avaliacoes", a.get("avaliacoes"))
     if est is not None:
@@ -700,6 +785,7 @@ def _catalogo() -> dict:
         return _CAT
     cfg = _cfg()
     grupo = {n["nome"]: grupo_de(n) for n in cfg["nichos"]}
+    tech_n = {n["nome"]: bool(n.get("tech")) for n in cfg["nichos"]}
     ha = {r[1] for r in _rows("PRAGMA table_info(anuncios)")}
     cols = ["id", "nicho", "titulo", "marca", "tamanho", "estado", "preco", "foto", "link", "visto_em", "origem", "alertado",
             "mediana", "lucro", "comparaveis", "alertado_em"] + [c for c in ("vendedor", "estrelas", "avaliacoes") if c in ha]
@@ -710,6 +796,14 @@ def _catalogo() -> dict:
         a["marca"] = (a["marca"] or "").strip()
         a["grupo"] = grupo.get(a["nicho"], "Outros")
         a["eg"] = _estado_g(a["estado"])
+        a["tech"] = bool(tech_n.get(a["nicho"]))
+        if _tech(a):   # na tecnologia a «marca» de comparação é o modelo + capacidade
+            k = modelo_tech(a["titulo"])
+            a["marca_cmp"] = k or ""
+            if k and not any(w in f" {a['titulo'].lower()} " for w in TECH_REJEITAR):
+                por_marca.setdefault((a["nicho"], k, a["eg"]), []).append(a["preco"])
+            continue
+        a["marca_cmp"] = a["marca"].lower()
         por_marca.setdefault((a["nicho"], a["marca"].lower(), a["eg"]), []).append(a["preco"])
         por_cat.setdefault((a["nicho"], a["eg"]), []).append(a["preco"])
     grupos_p = {**por_marca, **{("cat",) + k: v for k, v in por_cat.items()}}
@@ -717,10 +811,12 @@ def _catalogo() -> dict:
     copias, comparados = _copias_todas(), _comparados()
     p25s = {k: _quantil(v, .25) for k, v in grupos_p.items() if len(v) >= MIN_REF}
     for a in itens:
-        km, kc = (a["nicho"], a["marca"].lower(), a["eg"]), ("cat", a["nicho"], a["eg"])
-        if a["marca"] and km in meds:
+        km, kc = (a["nicho"], a["marca_cmp"], a["eg"]), ("cat", a["nicho"], a["eg"])
+        if _tech(a) and not a["marca_cmp"]:
+            kc = None   # um artigo de tecnologia sem modelo percebido não se compara com a categoria inteira
+        if a["marca_cmp"] and km in meds:
             ref, base, n, rap = meds[km], "marca", len(por_marca[km]), p25s[km]
-        elif kc in meds:
+        elif kc and kc in meds:
             ref, base, n, rap = meds[kc], "categoria", len(por_cat[kc[1:]]), p25s[kc]
         else:
             ref, base, n, rap = None, None, 0, None
@@ -731,7 +827,9 @@ def _catalogo() -> dict:
         if vv and vv.get("mediana"):   # o preço que as pessoas pedem pelos iguais no Vinted ganha a tudo o resto
             ref, base, n, rap = vv["mediana"], "vinted", vv["n"], vv["rapido"]
         a["comparado"] = comparados.get(a["id"])
-        custo = _custo(a["preco"], cfg)
+        det = _custo_det(a["preco"], cfg, a["nicho"])
+        a["custo_det"] = det
+        custo = det["total"]
         a.update(ref=ref, ref_base=base, ref_n=n, custo=custo, rapido=min(rap, ref) if ref and rap else None,
                  desconto=round(1 - a["preco"] / ref, 3) if ref else None,
                  lucro_est=round(ref - custo, 2) if ref else None)

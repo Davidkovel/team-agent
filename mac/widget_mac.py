@@ -161,23 +161,43 @@ def seen(widget) -> bool:
     return on_this_desktop(widget) and bool(get_ulong(ns_window, objc.sel_registerName(b"occlusionState")) & (1 << 1))
 
 
+UNSEEN_S = 120   # só congela depois de 2 min sem se ver
+
+
 def rest_when_unseen(widget, frozen: dict):
     """O David (10 nov): a central ficou aberta noutra secretária e gastou 117% do CPU durante 4 dias. Para o Qt ela
     continuava visível e a página desenhava sem parar (50 a 80% aberta). Tapada ou noutra secretária, a página fica
-    escondida e congelada (0%, como minimizada); quando volta a ver-se, fica como estava."""
+    escondida e congelada (0%, como minimizada); quando volta a ver-se, fica como estava.
+
+    O Marco (13 nov): «o scroll no Mac fica parado de funcionar». Cada vez que a página era escondida e voltava (bastava
+    uma janela por cima um instante), o Chromium do Qt podia deixar de receber o touchpad (um problema conhecido do
+    QtWebEngine com páginas escondidas e mostradas outra vez). Agora só congela depois de 2 min sem se ver, e ao voltar
+    a vista é escondida e mostrada de novo, o que volta a ligar o rato e o touchpad à página."""
+    import time
     from PySide6.QtWebEngineCore import QWebEnginePage
     from PySide6.QtWebEngineWidgets import QWebEngineView
 
     unseen = not seen(widget)
+    now = time.monotonic()
     for view in widget.findChildren(QWebEngineView):
         page = view.page()
         if unseen and page not in frozen and view.isVisible():
+            since = frozen.setdefault(("since", page), now)
+            if now - since < UNSEEN_S:
+                continue
+            frozen.pop(("since", page), None)
             frozen[page] = page.lifecycleState()
             page.setVisible(False)
             page.setLifecycleState(QWebEnginePage.LifecycleState.Frozen)
-        elif not unseen and page in frozen:
-            page.setLifecycleState(frozen.pop(page))
-            page.setVisible(view.isVisible())
+        elif not unseen:
+            frozen.pop(("since", page), None)
+            if page in frozen:
+                page.setLifecycleState(frozen.pop(page))
+                page.setVisible(view.isVisible())
+                if view.isVisible():   # volta a ligar o input nativo à página (sem isto o scroll podia ficar morto)
+                    view.hide()
+                    view.show()
+                    view.setFocus()
 
 
 def goes_everywhere(widget) -> bool:

@@ -618,3 +618,91 @@ html.is-phone .hub .pl-row { grid-template-columns: repeat(2, minmax(0, 1fr)); g
 html.is-phone .hub .pl { padding: 12px 13px; border-radius: 18px; }
 html.is-phone .hub .pl b { font-size: 26px; }
 html.is-phone .hub .in-main, html.is-phone .hub .bz { grid-template-columns: minmax(0, 1fr); }
+
+/* ---------- Início numa só vista, 13 nov (David: «não quero dar scroll... vidro mais claro, como o widget») ---------- */
+.page.inicio { --gl: linear-gradient(160deg, rgba(255, 255, 255, .17), rgba(255, 255, 255, .06) 55%, rgba(255, 255, 255, .09));
+  --gl-line: rgba(255, 255, 255, .2); --gl-hi: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 -1px 0 rgba(255, 255, 255, .05), 0 18px 40px -22px rgba(0, 0, 0, .85);
+  gap: 12px; }
+.hub > main:has(> .page.inicio) { padding-top: 16px; }
+/* A saudação numa linha baixa; o carro é um pormenor à direita, não metade do ecrã. */
+.inicio .in-hero { display: flex; align-items: flex-end; gap: 18px; min-height: 0; padding: 4px 0 0; }
+.inicio .hero-copy { max-width: none; padding: 0; flex: 1; min-width: 0; }
+.inicio .hero-eyebrow { display: none; }
+.inicio .in-hero h1 { margin: 0; font: 650 30px/1.1 var(--display); letter-spacing: -.03em; }
+.inicio .hero-date { margin: 6px 0 0; font-size: 12.5px; }
+.inicio .hero-car { position: absolute; right: 0; bottom: -18px; width: 300px; transform: none; opacity: .55; z-index: 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%); mask-image: linear-gradient(90deg, transparent, #000 45%); }
+.hero-team { position: relative; z-index: 2; display: flex; gap: 6px; }
+.hero-team:empty { display: none; }
+.ht-p { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 50px; color: inherit; text-decoration: none; }
+.ht-p .av { width: 34px; height: 34px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 255, 255, .14); }
+.ht-p.on .av { box-shadow: 0 0 0 2px var(--ok); } .ht-p.work .av { box-shadow: 0 0 0 2px #0a84ff; }
+.ht-p.off .av { opacity: .55; filter: grayscale(.6); }
+.ht-p b { max-width: 100%; color: #c9ced4; font: 600 10.5px var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inicio .in-newsbar { position: absolute; top: 0; right: 0; max-width: min(60%, 560px); }
+.inicio .in-hero { min-height: 78px; }
+.hero-team > div { display: flex; gap: 4px; }
+.ht-p b { display: none; }
+.ht-p { width: auto; }
+
+/* A doca: mais pequena, vidro claro. */
+.inicio .in-apps { grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: 8px 4px; margin: 0; padding: 10px 10px 8px; border-radius: 22px;
+  background: var(--gl); border-color: var(--gl-line); box-shadow: var(--gl-hi); backdrop-filter: blur(28px) saturate(1.6); -webkit-backdrop-filter: blur(28px) saturate(1.6); }
+.inicio .in-app { gap: 5px; }
+.inicio .in-app-ic { width: 44px; height: 44px; border-radius: 13px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .1) 60%, rgba(255, 255, 255, .16)); border-color: rgba(255, 255, 255, .3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 8px 18px -10px rgba(0, 0, 0, .8); }
+.inicio .in-app-ic svg.i { width: 21px; height: 21px; }
+.inicio .in-app-l { font-size: 10.5px; }
+.inicio .in-app-n { top: -5px; right: -5px; min-width: 17px; height: 17px; font-size: 10px; line-height: 17px; padding: 0 4px; }
+
+/* «Hoje»: seis vidros numa fila. */
+.inicio .pl-row { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.inicio .pl { padding: 10px 12px 9px; border-radius: 16px; background: var(--gl); border-color: var(--gl-line); box-shadow: var(--gl-hi);
+  backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5); }
+.inicio .pl-ic { top: 9px; right: 9px; width: 22px; height: 22px; border-radius: 7px; background: rgba(255, 255, 255, .14); }
+.inicio .pl-ic svg.i { width: 13px; height: 13px; }
+.inicio .pl b { font-size: 22px; }
+.inicio .pl-l { margin-top: 4px; font-size: 11.5px; }
+.inicio .pl-s { font-size: 10.5px; color: rgba(235, 238, 242, .55); }
+
+/* O dia e os negócios lado a lado, mesma altura; cada cartão rola por dentro se for preciso, a página não. */
+.inicio .in-main { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .85fr); gap: 12px; margin: 0; align-items: stretch; }
+.inicio .in-main .in-card { padding: 12px 14px; border-radius: 20px; background: var(--gl); border-color: var(--gl-line); box-shadow: var(--gl-hi);
+  backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5); min-height: 0; overflow: auto; scrollbar-width: none; }
+.inicio .in-main .in-card::-webkit-scrollbar { display: none; }
+.inicio .in-main .in-card::before { display: none; }
+.inicio .ch { margin-bottom: 8px; }
+.inicio .in-bizc .bz { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.inicio .in-bizc .bz-c { padding: 9px 0; border: 0; border-top: 1px solid rgba(255, 255, 255, .1); border-radius: 0; background: none; }
+.inicio .in-bizc .bz-c:first-child { border-top: 0; padding-top: 0; }
+.inicio .bz-h { margin-bottom: 7px; }
+.inicio .bz-deal img, .inicio .bz-noimg { width: 46px; height: 58px; border-radius: 9px; }
+.inicio .bz-dt > b { -webkit-line-clamp: 1; }
+.inicio .bz-money em { font-size: 15px; }
+.inicio .bz-nums { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.inicio .bz-nums b { font-size: 17px; }
+.inicio .bz-list .bz-row:nth-child(n+3) { display: none; }
+.inicio .bz-row { padding: 4px 6px; }
+.inicio .bz-empty { font-size: 12px; }
+.inicio .in-doing:empty, .inicio .in-pulse:empty { display: none; }
+@container (max-width: 560px) { .inicio .pl-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (max-width: 600px) { .inicio .in-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .inicio .in-feed { display: none; } }
+@media (max-width: 900px) { .inicio .in-main { grid-template-columns: minmax(0, 1fr); } .inicio .in-main .in-card { height: auto; } }
+.page.inicio { container-type: inline-size; }
+/* «Agora» como lista compacta na coluna da direita. */
+.inicio .in-feed .arow { padding: 7px 0; gap: 10px; }
+.inicio .in-feed .arow-av .av { width: 26px; height: 26px; }
+.inicio .in-feed .arow-t b { font-size: 12px; }
+.inicio .in-feed .arow-t span { font-size: 11px; }
+.inicio .in-feed time { font-size: 10.5px; }
+.inicio .trows .trow, .inicio .trow { padding-top: 8px; padding-bottom: 8px; }
+.inicio #in-team.hero-team { flex-direction: row; align-self: flex-end; }
+.inicio .in-tasks .doer-row { display: none; }
+.inicio .in-tasks .ttag { padding: 2px 7px; }
+.inicio .day-tabs button { padding: 0 10px; white-space: nowrap; }
+.inicio .ch-t b::before { display: none; }
+.inicio .bz-nums span { white-space: nowrap; font-size: 10.5px; }
+/* A página tem a altura da janela: o dia, os negócios e o Agora esticam até ao fundo e rolam por dentro. */
+@media (min-width: 901px) { html:not(.is-phone) .page.inicio { height: calc(100vh - 90px); }
+  html:not(.is-phone) .inicio .in-main { flex: 1; min-height: 260px; } }

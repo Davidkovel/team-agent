@@ -69,10 +69,8 @@ function heroHtml(now, ignite) {
       <div class="hero-eyebrow">${t("Centro de comando")}</div>
       <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
       <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
-      <p class="hero-quote">“${esc(t(quoteOfDay()))}”</p>
     </div>
-    <div class="hero-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" srcset="assets/amg-front-1200.webp 1200w, assets/amg-front-2400.webp 2400w"
-      sizes="(max-width: 700px) 100vw, (max-width: 1150px) 62vw, min(54vw, 860px)" alt="" decoding="async"></div>
+    <div id="in-team" class="hero-team"></div>
   </header>`;
 }
 
@@ -131,6 +129,19 @@ async function teamCard() {
   const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
   return `${cardHead("users", "A tua equipa", `${online} ${t("de")} ${team.length} ${t("online")}`, seeAll("Ver", "#/equipa"))}
     <div class="people">${order.map(personHtml).join("")}</div>`;
+}
+
+// 13 nov (David: «quero tudo visível sem scroll»): no Início a equipa é uma fila de caras ao lado da saudação, com o anel
+// verde de quem está online; o cartão grande ficou para a página Equipa.
+async function teamMini() {
+  const team = await api("/api/team");
+  const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
+  return order.map((m) => {
+    const on = m.status !== "OFFLINE", work = m.doing || (m.status === "WORKING" && m.task);
+    const line = work ? `${t("A trabalhar")}: ${m.doing ? m.doing.title : m.task}` : on ? t("Online") : m.last_seen ? fmt.ago(m.last_seen) : t("Offline");
+    return `<a class="ht-p ${work ? "work" : on ? "on" : "off"}" href="${m.doing ? `#/tarefas/${m.doing.id}` : "#/equipa"}" title="${esc(`${m.display_name} · ${line}`)}">
+      ${ui.avatar(m.display_name)}<b>${esc(m.user === me.username ? t("Tu") : m.display_name)}</b></a>`;
+  }).join("");
 }
 
 /* ---------- notifications: the latest beside the team, the whole history one click away ---------- */
@@ -433,7 +444,7 @@ async function activityBody() {
   // the last thing each person did, so the card is the whole team and not only whoever moved last; then what else is recent
   const real = items.filter((a) => !NOISE.includes(a.kind));
   const last = team.map((m) => real.find((a) => a.user === m.user)).filter(Boolean);
-  const shown = [...last, ...real.filter((a) => !last.includes(a))].slice(0, Math.max(4, last.length)).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+  const shown = [...last, ...real.filter((a) => !last.includes(a))].slice(0, Math.max(8, last.length)).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
   if (!shown.length) return `<p class="in-empty">${t("Ainda não aconteceu nada.")}</p>`;
   return `<div class="arows">${shown.map((a) => {
     const [what, detail] = splitActivity(a);
@@ -538,7 +549,7 @@ function startHomeClock() {
 async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   if (!$("in-team")) return;
   const jobs = [];
-  if (parts.includes("team")) jobs.push(mount($("in-team"), teamCard, 3));
+  if (parts.includes("team")) jobs.push(mount($("in-team"), teamMini, 1));
   if (parts.includes("team") || parts.includes("plan")) jobs.push(mount($("in-doing"), doingBody, 1));
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
@@ -570,21 +581,16 @@ document.addEventListener("click", async (e) => {
 HUB_VIEWS.home = async function viewHome() {
   let ignite = false; // the car comes out of the dark once per session; after that it is simply there
   try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: no start-up */ }
-  // 13 nov (David: «abas grandes, confuso... quero o início muito bonito»): saudação e atalhos, a faixa «Hoje», o dia de cada um
-  // ao lado da equipa e do que está a acontecer, e por fim os negócios. Saíram o anel de progresso, o calendário vazio e a citação.
+  // 13 nov (David: «quero tudo visível só de olhar, sem scroll»): saudação com a equipa ao lado, a doca, a faixa «Hoje», e
+  // por baixo o dia de cada um ao lado dos negócios. O que está a acontecer vive em Ao vivo; o progresso em Análise.
   $("view").innerHTML = `<div class="page inicio"><div id="in-newsbar" class="in-newsbar"></div>${heroHtml(new Date(), ignite)}
     <span id="in-apps-mark" hidden></span>${shortcutsHtml()}
-    <div id="in-alert" class="in-alert"></div>
-    <div class="in-sec"><b>${t("Hoje")}</b><span>${t("a empresa num relance")}</span></div><div id="in-pulse" class="in-pulse"></div>
-    <div id="in-doing" class="in-doing"></div>
+    <div id="in-alert" class="in-alert"></div><div id="in-pulse" class="in-pulse"></div><div id="in-doing" class="in-doing"></div>
     <div class="in-main">
       <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
-      <div class="in-side">
-        <section class="in-card" id="in-team"></section>
-        <section class="in-card">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section>
-      </div>
-    </div>
-    <div class="in-sec"><b>${t("Negócios")}</b><span>${t("o melhor de cada frente")}</span></div><div id="in-biz"></div></div>`;
+      <section class="in-card in-bizc">${cardHead("layers", "Negócios", "", "")}<div id="in-biz"></div></section>
+      <section class="in-card in-feed">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section>
+    </div></div>`;
   $("view").onclick = homeClick;
   startHomeClock();
   loadHome();

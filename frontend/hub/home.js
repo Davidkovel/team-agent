@@ -815,25 +815,24 @@ async function tradesBody() {
 // o Radar da 7.ª volta, tal e qual, num cartão de vidro. A próxima notícia vermelha com contagem, e um botão por negócio com a
 // foto da pechincha da Vinted por trás e o número grande à direita.
 async function radarBody() {
+  // 10.ª volta (David: «a Vinted do Radar troca de sítio com as trades, com o design das trades, os números todos e botões
+  // giros»): o Radar sobe para a faixa, ao lado dos tokens, em quatro botões de vidro como os das trades. Cada um leva à página
+  // dele; a Vinted tem a foto da melhor pechincha por trás.
   const [mail, vinted, etsy, cal] = await Promise.all([soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
-  const news = nextNews(cal), first = news[0], best = bestDeal(vinted);
+  const news = nextNews(cal)[0], best = bestDeal(vinted), deals = (vinted?.alertas || []).filter((a) => a.lucro > 0);
   const porVer = mail ? (mail.threads || []).filter((x) => x.por_ver > 0).length : null;
-  const soon = first && first.ts * 1000 - Date.now() < 3600e3;
-  const head = first ? `<a class="rd-news ${soon ? "hot" : ""}" href="#/sinal">
-      <span class="rd-k">${icon("trend")}${t("Próxima notícia vermelha")}</span>
-      <b class="rd-cd" data-until="${first.ts}">${esc(untilOf(first.ts))}</b>
-      <span class="rd-nt"><em>${esc(first.currency)}</em>${esc(first.title)} · ${esc(dayOf(first.ts))} ${hhmmOf(first.ts)}</span>
-      ${news.slice(1, 3).map((n) => `<span class="rd-next"><em>${esc(n.currency)}</em><span>${esc(n.title)}</span><time>${esc(dayOf(n.ts))} ${hhmmOf(n.ts)}</time></span>`).join("")}</a>`
-    : `<a class="rd-news" href="#/sinal"><span class="rd-k">${icon("trend")}${t("Notícias vermelhas")}</span><b class="rd-cd">—</b>
-      <span class="rd-nt">${t(cal ? "Nenhuma esta semana" : "Calendário sem dados")}</span></a>`;
-  const tile = (href, ic, label, big, sub, tone = "", img = "") => `<a class="rd-t ${tone}" href="${href}">${img}<span class="rd-k">${icon(ic)}${esc(t(label))}</span><b>${big}</b><span>${esc(sub)}</span></a>`;
+  const soon = news && news.ts * 1000 - Date.now() < 3600e3;
+  const cell = (href, ic, label, big, sub, tone = "", img = "") => `<a class="tr-c bz-c ${tone}" href="${href}">${img}
+    <small>${icon(ic)}${esc(t(label))}</small><b>${big}</b><em>${esc(sub)}</em></a>`;
   return `<div class="gz-h">${icon("search")}<span>${t("Radar")}</span></div>
-    ${head}
-    <div class="rd-tiles">
-      ${best ? tile("#/vinted", "bag", "Vinted", `+${eur(best.lucro)}`, `${best.titulo} · ${eur(best.preco)}`, "ok", best.foto ? `<img src="${esc(best.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : "")
-        : tile("#/vinted", "bag", "Vinted", "—", t(vinted ? "Sem pechinchas hoje" : "Sem dados"))}
-      ${tile("#/etsy", "layers", "Etsy", etsy ? eur(etsy.revenue || 0) : "—", etsy ? t("{n} por aprovar · {p} na loja", { n: etsy.counts?.new || 0, p: etsy.counts?.published ?? 0 }) : t("Sem dados"), etsy?.counts?.new ? "lit" : "")}
-      ${tile("#/emails", "mail", "E-mails", porVer ?? "—", mail?.conta?.address ? t("por ver · {n} enviados hoje", { n: mail.conta.hoje || 0 }) : t("Gmail por ligar"), porVer ? "lit" : "")}
+    <div class="tr-g">
+      ${cell("#/vinted", "bag", "Vinted", best ? `+${eur(best.lucro)}` : "—",
+        best ? t("{n} pechinchas · {p}", { n: deals.length, p: best.titulo }) : t(vinted ? "Sem pechinchas hoje" : "Sem dados"), best ? "up" : "",
+        best?.foto ? `<img src="${esc(best.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : "")}
+      ${cell("#/etsy", "layers", "Etsy", etsy ? eur(etsy.revenue || 0) : "—", etsy ? t("{n} por aprovar · {p} na loja", { n: etsy.counts?.new || 0, p: etsy.counts?.published ?? 0 }) : t("Sem dados"), etsy?.counts?.new ? "lit" : "")}
+      ${cell("#/emails", "mail", "E-mails", porVer ?? "—", mail?.conta?.address ? t("por ver · {n} enviados hoje", { n: mail.conta.hoje || 0 }) : t("Gmail por ligar"), porVer ? "lit" : "")}
+      ${news ? cell("#/sinal", "news", "Notícia vermelha", `<span data-until="${news.ts}">${esc(untilOf(news.ts))}</span>`, `${news.currency} · ${news.title} · ${dayOf(news.ts)} ${hhmmOf(news.ts)}`, soon ? "down" : "")
+        : cell("#/sinal", "news", "Notícia vermelha", "—", t(cal ? "Nenhuma esta semana" : "Calendário sem dados"))}
     </div>`;
 }
 
@@ -1164,10 +1163,10 @@ HUB_VIEWS.home = async function viewHome() {
   $("view").innerHTML = `<div class="page inicio v6 v8">${heroHtml(new Date(), ignite)}
     <section class="v6-agents"><div id="in-agents"></div></section>
     <div id="in-alert" class="in-alert"></div>
-    <section class="gz-strip"><div class="gz" id="in-tokens"></div><div class="gz" id="in-trades"></div></section>
+    <section class="gz-strip"><div class="gz" id="in-tokens"></div><div class="gz" id="in-radar"></div></section>
     <section class="gz-main">
       <div class="gz-tasks"><header class="io-h" id="in-thead"></header>${quickHtml()}<div id="in-tasks"></div></div>
-      <div class="gz-side"><div class="gz rd-card" id="in-radar"></div><div class="gz td-card" id="in-day"></div></div>
+      <div class="gz-side"><div class="gz" id="in-trades"></div><div class="gz td-card" id="in-day"></div></div>
     </section></div>`;
   $("view").onclick = homeClick;
   $("qk").onsubmit = (e) => { e.preventDefault(); quickSend(false); };

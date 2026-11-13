@@ -70,7 +70,7 @@ function heroHtml(now, ignite) {
       <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
       <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
     </div>
-    <div class="hero-side"><div id="in-focus" class="in-focus"></div><div id="in-newsbar" class="in-newsbar"></div><div id="in-team" class="hero-team"></div></div>
+    <div class="hero-side"><div id="in-focus" class="in-focus"></div><div id="in-newsbar" class="in-newsbar"></div></div>
   </header>`;
 }
 
@@ -130,19 +130,6 @@ async function teamCard() {
   const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
   return `${cardHead("users", "A tua equipa", `${online} ${t("de")} ${team.length} ${t("online")}`, seeAll("Ver", "#/equipa"))}
     <div class="people">${order.map(personHtml).join("")}</div>`;
-}
-
-// 13 nov (David: «quero tudo visível sem scroll»): no Início a equipa é uma fila de caras ao lado da saudação, com o anel
-// verde de quem está online; o cartão grande ficou para a página Equipa.
-async function teamMini() {
-  const team = await api("/api/team");
-  const order = [...team].sort((a, b) => (a.status === "OFFLINE") - (b.status === "OFFLINE") || (b.user === me.username) - (a.user === me.username));
-  return order.map((m) => {
-    const on = m.status !== "OFFLINE", work = m.doing || (m.status === "WORKING" && m.task);
-    const line = work ? `${t("A trabalhar")}: ${m.doing ? m.doing.title : m.task}` : on ? t("Online") : m.last_seen ? fmt.ago(m.last_seen) : t("Offline");
-    return `<a class="ht-p ${work ? "work" : on ? "on" : "off"}" href="${m.doing ? `#/tarefas/${m.doing.id}` : "#/equipa"}" title="${esc(`${m.display_name} · ${line}`)}">
-      ${ui.avatar(m.display_name)}<b>${esc(m.user === me.username ? t("Tu") : m.display_name)}</b></a>`;
-  }).join("");
 }
 
 /* ---------- notifications: the latest beside the team, the whole history one click away ---------- */
@@ -378,13 +365,72 @@ async function ckSend(e) {
   const form = $("ck-ask");
   form.classList.add("sending");
   try {
-    const made = await api("/api/tasks", { method: "POST", body: { title, description: "", assignee: me.username, for_ai: true, crew: "" } });
+    const to = $("ck-to")?.value || "";   // o «Para» da barra do computador: vazio é o escritório (o teu agente escolhe o departamento)
+    const made = await api("/api/tasks", { method: "POST", body: { title, description: "", assignee: to || me.username, for_ai: true, crew: "" } });
     flash(t("Mandada para {d}. O agente começa sozinho.", { d: made.crew_name || t("o escritório") }));
     input.value = ""; ckRoute();
     form.classList.add("sent"); setTimeout(() => form.classList.remove("sent"), 900);
     loadHome(["plan", "biz"]);
   } catch (err) { flash(err.message); }
   form.classList.remove("sending");
+}
+
+/* ---------- 13 nov, 5.ª volta (David: «mete os agentes lá e o nível de tokens de cada um, tudo mais pequeno; o pede ao
+   escritório não sei para que serve e está muito grande») ---------- */
+// A barra de ordens do computador: diz o que faz (dá uma tarefa e o agente faz sozinho), escolhe para quem, e tem ao lado os
+// botões que se usam todos os dias. O telemóvel continua com askHtml.
+function orderHtml() {
+  return `<div class="ob-line"><form class="ob" id="ck-ask" autocomplete="off">
+      <label class="ob-to" title="${esc(t("Quem recebe a tarefa"))}"><span>${t("Para")}</span><select id="ck-to"><option value="">${t("Escritório")}</option></select>${icon("chevron")}</label>
+      <input id="ck-in" name="q" maxlength="200" placeholder="${esc(t("Dá uma tarefa aos agentes. Ex.: faz 3 desenhos novos para a Etsy"))}" aria-label="${esc(t("Tarefa para os agentes"))}">
+      <button class="ob-go">${t("Mandar")}${icon("arrow")}</button></form>
+    <nav class="ob-quick">
+      <button type="button" class="obq" data-act="task" title="${esc(t("Nova tarefa com prazo e pormenores"))}">${icon("plus")}<span>${t("Tarefa")}</span></button>
+      <a class="obq" href="#/emails">${icon("inbox")}<span>${t("E-mails")}</span></a>
+      <a class="obq" href="#/claude">${icon("spark")}<span>Claude</span></a>
+      <a class="obq" href="#/escritorio">${icon("bot")}<span>${t("Escritório")}</span></a></nav></div>
+    <div class="ob-sub"><div class="ck-route idle" id="ck-route">${t("Escreve e vês logo quem o faz.")}</div><div id="in-biz" class="ob-tips"></div></div>`;
+}
+
+// Os agentes, um por pessoa: o anel é o Claude de 5 horas já gasto (o mesmo /api/limits/team da página Escritório; o teu vem do
+// /api/limits, que é lido aqui), as barras são 5 h e semana, e os tokens são os das janelas mexidas hoje, com os subagentes.
+const tokK = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(".", ",")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n || 0));
+const levelOf = (p) => (p == null ? "" : p >= 90 ? "bad" : p >= 70 ? "warn" : "ok");
+const winTok = (x) => (x.tokens || 0) + (x.agents || []).reduce((n, a) => n + (a.tokens || 0), 0);
+function ringSvg(p) {
+  const r = 23, c = 2 * Math.PI * r, v = p == null ? 0 : Math.max(0, Math.min(100, p));
+  return `<svg class="ag-ring" viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="${r}"/><circle class="v" cx="27" cy="27" r="${r}" stroke-dasharray="${(c * v / 100).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
+}
+async function agentsBody() {
+  const [team, lims, mine, office] = await Promise.all([api("/api/team"), soft("/api/limits/team"), soft("/api/limits"), soft("/api/office")]);
+  const wins = office?.sessions || [], fresh = (x) => Date.now() - new Date(x.updated_at) < 12 * 3600e3;
+  const order = [...team].sort((a, b) => (b.user === me.username) - (a.user === me.username) || (a.status === "OFFLINE") - (b.status === "OFFLINE"));
+  const sel = $("ck-to");
+  if (sel && sel.options.length < 2) sel.insertAdjacentHTML("beforeend", order.map((m) => `<option value="${esc(m.user)}">${esc(m.user === me.username ? t("O meu agente") : m.display_name)}</option>`).join(""));
+  return `<div class="ag-row">${order.map((m) => {
+    const own = m.user === me.username, name = own ? t("Tu") : m.display_name;
+    const l = own && mine?.claude ? { ...mine.claude, seen: new Date(mine.claude.saved_at * 1000).toISOString() } : lims?.[m.user] || null;
+    const old = l?.seen && Date.now() - new Date(l.seen) > 864e5;
+    const ws = wins.filter((x) => x.user === m.user);
+    const work = ws.filter((x) => x.state === "working"), wait = ws.filter((x) => x.state === "waiting" && fresh(x));
+    const today = ws.filter((x) => sameDayAs(x.updated_at)).reduce((n, x) => n + winTok(x), 0);
+    const on = m.status !== "OFFLINE", now = work[0] ? work[0].title || work[0].topic : m.doing ? m.doing.title : wait[0] ? wait[0].title || wait[0].topic : "";
+    const state = work.length || m.doing ? "is-work" : wait.length ? "is-wait" : on ? "is-on" : "is-off";   // «is-»: o design.css tem um .work global
+    const word = work.length > 1 ? t("{n} a trabalhar", { n: work.length }) : work.length || m.doing ? t("A trabalhar")
+      : wait.length ? t(own ? "À tua espera" : "À espera") : on ? t("Livre") : m.last_seen ? t("Visto {q}", { q: fmt.ago(m.last_seen) }) : t("Offline");
+    const five = old ? null : l?.five, week = old ? null : l?.week;
+    const reset = !old && l?.five_reset ? ` · ${t("renova às {h}", { h: hhmmOf(l.five_reset) })}` : "";
+    const bar = (label, p) => `<span class="ag-b ${levelOf(p)}"><small>${label}</small><i><b style="width:${p == null ? 0 : Math.min(100, p)}%"></b></i><em>${p == null ? "—" : `${Math.round(p)}%`}</em></span>`;
+    return `<article class="ag ${state}">
+      <a class="ag-face ${levelOf(five)}" href="#/agentes/${esc(m.user)}" title="${esc(five == null ? t("Claude de {n}: sem leitura recente", { n: m.display_name }) : `${t("Claude 5 h gasto")}: ${Math.round(five)}%${reset}`)}">${ringSvg(five)}${ui.avatar(m.display_name)}<i></i></a>
+      <div class="ag-main">
+        <header><a href="#/agentes/${esc(m.user)}">${esc(name)}</a><em>${esc(word)}</em>
+          <span class="ag-tok" title="${esc(t("Tokens das janelas do Claude mexidas hoje, com os subagentes"))}"><b>${tokK(today)}</b>${t("hoje")}</span>
+          <button type="button" class="ag-send" data-send-to="${esc(m.user)}" title="${esc(own ? t("Dar uma tarefa ao meu agente") : t("Dar uma tarefa ao agente de {n}", { n: m.display_name }))}">${icon("plus")}</button></header>
+        <p title="${esc(now)}">${esc(now || (on ? t("Nada a correr") : t("Desligado")))}</p>
+        <div class="ag-bars">${bar("5 h", five)}${bar(t("Sem."), week)}</div>
+      </div></article>`;
+  }).join("")}</div>`;
 }
 
 const bestDeal = (vinted) => (vinted ? (vinted.alertas || []).filter((a) => a.lucro > 0).sort((a, b) => b.lucro - a.lucro)[0] : null);
@@ -534,7 +580,7 @@ async function opsBody() {
     <span><b>${crew.filter((x) => x.stage !== "in_progress").length}</b> ${t("na fila")}</span><span><b>${ended.length}</b> ${t("acabadas hoje")}</span></div>`;
   const list = rows.length ? `<div class="ops-list">${rows.slice(0, OPS_ROWS).join("")}</div>${rows.length > OPS_ROWS ? `<a class="in-more" href="#/escritorio">${t("Mais {n} no escritório", { n: rows.length - OPS_ROWS })}</a>` : ""}`
     : `<p class="ops-quiet">${t("Nenhum agente a trabalhar agora. Pede alguma coisa em cima e o escritório arranca.")}</p>`;
-  const outs = ended.filter((x) => x.result).slice(0, 3);
+  const outs = ended.filter((x) => x.result).slice(0, 2);
   return `${head}${list}${outs.length ? `<div class="ops-h">${t("Acabado hoje")}</div><div class="ops-done">${outs.map((x) =>
     `<a class="od" href="#/agentes/${esc(x.user)}"><i>${icon("tick")}</i><span><b>${esc(x.title || x.topic)}</b><span>${esc(x.result)}</span></span><time>${fmt.ago(x.updated_at)}</time></a>`).join("")}</div>` : ""}`;
 }
@@ -668,6 +714,8 @@ async function homeClick(e) {
   if (act === "task") return newTask();
   if (act === "agenda") return openAgenda();
   if (act === "alerts") return openNotices();
+  const sendTo = e.target.closest("[data-send-to]");
+  if (sendTo && $("ck-to")) { $("ck-to").value = sendTo.dataset.sendTo; $("ck-in").focus(); return; }
   const fill = e.target.closest("[data-fill]");
   if (fill) { const input = $("ck-in"); input.value = fill.dataset.fill; input.focus(); return ckRoute(); }
   const go = e.target.closest("[data-go]");
@@ -706,9 +754,9 @@ function startHomeClock() {
 
 // A promise, as the live events expect of the loaders they call.
 async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
-  if (!$("in-team")) return;
+  if (!$("in-agents")) return;
   const jobs = [];
-  if (parts.includes("team")) jobs.push(mount($("in-team"), teamMini, 1));
+  if (["team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-agents"), agentsBody, 1));
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
@@ -736,17 +784,16 @@ HUB_VIEWS.home = async function viewHome() {
   // comando. Em cima a saudação, o foco, as notificações e a equipa; ao meio, grande, a caixa onde se pede trabalho ao
   // escritório, com sugestões e os números de hoje numa linha; por baixo, sem cartões, as operações ao vivo (todos os
   // agentes da equipa e o que está à espera de alguém) ao lado da tua fila de tarefas, cada uma com o seu ▶ de foco.
+  // 5.ª volta: em cima os agentes (um por pessoa, com o Claude que lhes resta e os tokens de hoje), por baixo a barra de ordens
+  // pequena com «Para» e os botões do dia a dia, os números numa linha, e depois as operações e a tua fila.
   $("view").innerHTML = `<div class="page inicio cc">${heroHtml(new Date(), ignite)}
-    <section class="cc-hero">
-      <p class="cc-kick"><i></i>${t("Centro de comando")}</p>
-      ${askHtml()}<div id="in-biz" class="cc-tips"></div>
-      <div id="in-pulse" class="cc-tick"></div>
-    </section>
+    <div id="in-agents" class="cc-agents"></div>
+    ${orderHtml()}
+    <div id="in-pulse" class="cc-tick"></div>
     <div id="in-alert" class="in-alert"></div>
     <div class="cc-grid">
       <section class="cc-sec cc-ops"><header class="cc-h"><b>${t("Operações ao vivo")}</b>${seeAll("Escritório", "#/escritorio")}</header><div id="in-ops"></div></section>
-      <section class="cc-sec cc-queue"><header class="cc-h"><b>${t("A tua fila")}</b>
-        <button type="button" class="cc-add" data-act="task">${icon("plus")}${t("Nova tarefa")}</button>${seeAll("Ver todas", "#/tarefas")}</header><div id="in-tasks"></div></section>
+      <section class="cc-sec cc-queue"><header class="cc-h"><b>${t("A tua fila")}</b>${seeAll("Ver todas", "#/tarefas")}</header><div id="in-tasks"></div></section>
     </div></div>`;
   $("view").onclick = homeClick;
   $("ck-ask").onsubmit = ckSend;

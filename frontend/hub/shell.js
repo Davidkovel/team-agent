@@ -40,8 +40,8 @@ async function lookNews() {
 /* A task somebody sent me: the Tarefas of the sidebar (and of the phone's tabs) says how many are new, lit, and the
    first time the Hub is open after one arrives a card says so on any page, with one touch to open it or to send it to
    the office (Marco, 9 out: «mal abro o Hub tem que me aparecer "Tarefa para ti, Marco"»). It stays on the sidebar until
-   the task is opened; «Mais tarde» only puts the card away for this window. The Início has its own big card, so it is
-   not shown twice there. */
+   the task is opened; «Mais tarde» only puts the card away for this window. Since 13 Nov it is also the Início's only
+   notice (Marco: in the top right corner, with who sent it and an X, never a block in the middle of the page). */
 const taskPopSeen = new Set((() => { try { return JSON.parse(sessionStorage.getItem("tpop.seen") || "[]"); } catch { return []; } })());
 const taskIdOf = (n) => Number(String(n.href || "").split("/").pop()) || 0;
 function taskNews(inbox) {
@@ -49,7 +49,7 @@ function taskNews(inbox) {
   if (window.setBadge) setBadge("tarefas", fresh.length, fresh.length > 0, fresh.length ? t(fresh.length === 1 ? "1 tarefa nova para ti" : "{n} tarefas novas para ti", { n: fresh.length }) : "");
   const show = fresh.filter((n) => !taskPopSeen.has(n.id));
   if (!show.length) { closeTaskPop(); return; }
-  if (document.documentElement.classList.contains("is-mini") || document.querySelector(".nt") || !$("modal").hidden) return;
+  if (document.documentElement.classList.contains("is-mini") || !$("modal").hidden) return;
   drawTaskPop(show);
 }
 function closeTaskPop() { const el = $("tpop"); if (el) el.remove(); }
@@ -110,7 +110,7 @@ function drawMsgPop(show) {
 function drawTaskPop(show) {
   const n = show[0], { who, title } = notifParts(n), id = taskIdOf(n), first = (me.display_name || "").split(" ")[0];
   let el = $("tpop");
-  if (!el) { el = Object.assign(document.createElement("div"), { id: "tpop", className: "tpop" }); el.setAttribute("role", "dialog"); document.body.append(el); }
+  if (!el) { el = Object.assign(document.createElement("div"), { id: "tpop", className: "tpop" }); el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite"); document.body.append(el); }
   el.innerHTML = `<i class="tpop-light" aria-hidden="true"></i>
     <header><i class="tpop-dot"></i><b>${esc(t("Tarefa para ti, {n}", { n: first }))}</b>${show.length > 1 ? `<em>${esc(t("+{n} novas", { n: show.length - 1 }))}</em>` : ""}
       <button type="button" class="tpop-x" data-tpop-later aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
@@ -152,7 +152,7 @@ async function kitNudge() {
   const mine = new Set(h.plugins), missing = {};
   for (const p of k.peers) for (const key of p.plugins || []) if (!mine.has(key) && !k.fora[key]) (missing[key] ||= []).push(p.who);
   const keys = Object.keys(missing).sort();
-  if (keys.length && !$("tpop") && !$("kpop") && !document.querySelector(".nt") && $("modal").hidden) drawKitPop(keys, missing);
+  if (keys.length && !$("tpop") && !$("kpop") && $("modal").hidden) drawKitPop(keys, missing);
 }
 function drawKitPop(keys, missing) {
   const who = [...new Set(keys.flatMap((key) => missing[key]))];

@@ -239,7 +239,9 @@ function newTaskCard(fresh) {
 /* ---------- what is urgent, above everything; the three numbers ---------- */
 async function alertBody() {
   const [tasks, inbox] = await Promise.all([api("/api/tasks"), api("/api/notifications?limit=100")]);
-  const fresh = newTasksOf(tasks, inbox), freshIds = new Set(fresh.map((f) => f.x.id));
+  // 13 nov (Marco): a tarefa nova já não ocupa o Início; avisa no canto de cima à direita (o aviso do shell.js), com quem a
+  // mandou e um X para a tirar. Aqui fica só a lista de urgentes e os números.
+  const freshIds = new Set();
   const p = planOf(asOne(tasks));
   // what the new-task card already shows big is not said again in the urgent strip
   const urgent = p.open.filter((x) => x.priority === "urgent" && !freshIds.has((x.group ? x.group.find((y) => y.assignee === me.username) || x : x).id))
@@ -254,7 +256,7 @@ async function alertBody() {
       ${x.group ? whoFaces(x.group) : whoPlate(x.assignee)}${icon("chevron")}</div>`;
   };
   const stat = (n, label, tone, ic, act) => `<button class="stat ${n ? `lit ${tone}` : ""}" ${act}><span class="stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></button>`;
-  return `${newTaskCard(fresh)}${urgent.length ? `<section class="urgent"><header><i class="pulse"></i><b>${t(urgent.length === 1 ? "Urgente" : "Urgentes")}</b><span>${urgent.length}</span></header>
+  return `${urgent.length ? `<section class="urgent"><header><i class="pulse"></i><b>${t(urgent.length === 1 ? "Urgente" : "Urgentes")}</b><span>${urgent.length}</span></header>
       <div class="u-rows">${urgent.slice(0, 4).map(row).join("")}</div></section>` : ""}
     <div class="stats">${stat(p.today.length, "Para hoje", "today", "calendar", 'data-go="#/tarefas"')}${stat(hot, "Urgentes", "hot", "flag", 'data-go="#/tarefas"')}
       ${stat(inbox.unread, "Por ler", "unread", "bell", 'data-act="alerts"')}${stat(p.late.length, "Atrasadas", "hot", "clock", 'data-go="#/tarefas"')}</div>`;

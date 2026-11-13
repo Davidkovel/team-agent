@@ -607,8 +607,9 @@ async function openTaskModal(id) {
     x.created_at ? meta("clock", `${t("Criada")} ${fmt.day(x.created_at)} ${fmt.hhmm(x.created_at)}`, "dim") : ""].filter(Boolean).join("");
   const steps = x.events.filter((e) => e.kind !== "note");
   const buttons = `${canGiveToAI(x) ? ui.btn("Mandar para o escritório", "data-act=ai", "primary", "bot") + ui.btn("Escolher o agente", "data-act=ai-pick", "quiet", "users") : ""}
-    ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
-    ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") + ui.btn("Parar", "data-act=stop", "danger", "stop") : ""}
+    ${running ? ui.btn("Pausar", "data-act=pause", "", "pause") : ""}
+    ${x.status === "PAUSED" || x.status === "NEEDS_HELP" ? ui.btn("Retomar", "data-act=resume", "", "play") : ""}
+    ${held ? ui.btn("Tirar do escritório", "data-act=stop", "danger", "stop") : ""}
     ${!held && x.stage !== "done" ? ui.btn("Concluir", "data-act=done", "ok", "check") : ""}
     ${ui.btn("Editar", "data-act=edit", "quiet")}`;
   // The window reads like a letter. On top, small: who sent it to whom ("KOVEL › TU", in their colours) and where it stands.
@@ -709,8 +710,11 @@ async function openTaskModal(id) {
         loadBoard(); openTaskModal(x.id);
       }, { wide: true });
     }
-    try { await api(`/api/tasks/${x.id}/control`, { method: "POST", body: { action: act } }); flash(t("Pedido enviado ao agente.")); }
-    catch (err) { flash(err.message); }
+    try {
+      const r = await api(`/api/tasks/${x.id}/control`, { method: "POST", body: { action: act } });
+      if (r.status === "TODO") { flash(t("Tirada do escritório: a tarefa voltou para ti.")); loadBoard(); openTaskModal(x.id); }
+      else flash(t("Pedido enviado ao agente."));
+    } catch (err) { flash(err.message); }
   };
   if ($("task-status")) $("task-status").onchange = async (e) => {
     if (!e.target.value) return;

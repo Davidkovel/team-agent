@@ -57,3 +57,29 @@ html.is-phone body .tpop, html.is-phone body .sn-ov { right: 8px; left: 8px; wid
 @media (prefers-reduced-motion: reduce) { html body .tpop, html body .sn-ov .sn-ov-box { animation: none; } }
 html body .sn-ov .sn-stage { justify-items: start; text-align: left; }
 html body .sn-ov .sn-av-nums { text-align: left; }
+
+/* ---- a mensagem dos agentes da Sala de Trading (trading-room.js): também um aviso no canto, não um ecrã inteiro ---- */
+html body .tr-alert { inset: auto; top: 14px; right: 14px; left: auto; bottom: auto; width: min(400px, calc(100vw - 28px)); max-height: calc(100vh - 28px);
+  display: block; padding: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; pointer-events: none; overflow: visible; }
+html body .tr-alert-bg, html body .tr-alert-scan, html body .tr-alert-led, html body .tr-alert-duo, html body .tr-alert-att { display: none; }
+html body .tr-alert-card { pointer-events: auto; width: 100%; max-height: calc(100vh - 28px); overflow-y: auto; padding: 14px 16px 12px; border-radius: 20px;
+  transform: translateY(-10px); filter: none; background: rgba(30, 31, 34, .8); -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, .1); box-shadow: inset 3px 0 0 var(--tone), 0 18px 50px rgba(0, 0, 0, .5); }
+html body .tr-alert.in .tr-alert-card { transform: none; }
+html body .tr-alert-card::before { display: none; }
+html body .tr-alert-top { font: 600 11.5px var(--ui); letter-spacing: .01em; text-transform: none; gap: 8px; }
+html body .tr-alert-sym { margin: 8px 0 2px; gap: 8px; }
+html body .tr-alert-sym strong { font-size: 22px; text-shadow: none; }
+html body .tr-alert-dir { font-size: 11px; padding: 4px 9px; border-radius: 999px; box-shadow: none; }
+html body .tr-alert h1 { margin: 2px 0 6px; font: 600 15px/1.35 var(--ui); }
+html body .tr-alert-body { margin: 0 0 8px; font-size: 13px; line-height: 1.5; color: #c9ced5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+html body .tr-alert-scen { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+html body .tr-alert-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
+html body .tr-alert-plan > div { padding: 7px 10px; border-radius: 10px; }
+html body .tr-alert-plan b { font-size: 14px; }
+html body .tr-alert-plan p { font-size: 12px; }
+html body .tr-alert-acts { gap: 6px; }
+html body .tr-alert-acts .btn { height: 30px; padding: 0 12px; font-size: 12.5px; border-radius: 999px; box-shadow: none; }
+html body .tr-alert-acts small { flex-basis: 100%; font-size: 11px; color: #7d8794; }
+html.is-phone body .tr-alert { right: 8px; left: 8px; width: auto; top: calc(var(--m-bar, 48px) + env(safe-area-inset-top, 0px) + 6px); }
+html body .bn { width: min(400px, calc(100vw - 28px)); }

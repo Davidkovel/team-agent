@@ -632,7 +632,7 @@ window.CrewBoard = (function () {
         <div><b ${x ? `data-href="#task-${x.id}"` : ""}>${esc(title)}</b><small>${a ? `<em>${esc(a.code || a.name)}</em> ` : ""}${esc(t("para"))} <i></i>${esc(p.name)} · ${esc(ago(it.at))}</small></div>
         ${it.held && x ? `<button type="button" class="bv-btn" data-release="${x.id}">${esc(t("Arrancar"))}</button>` : `<span class="bv-mst"><i></i>${esc(t(word))}</span>`}</article>`;
     };
-    const plan = (x) => `<article class="bv-mi plan"><span class="bv-mface">${icon("layers")}</span><div><b data-plan="${x.id}">${esc(x.title)}</b><small>${esc(t("Plano da equipa · {d} de {n} passos", { d: x.done, n: x.total }))}</small></div>
+    const plan = (x) => `<article class="bv-mi plan"><span class="bv-mface">${icon("layers")}</span><div><b data-plan="${x.id}">${esc(x.title)}</b><small>${esc(t("Plano · {d} de {n} passos", { d: x.done, n: x.total }))}</small></div>
       <span class="bv-mbar"><i style="width:${x.total ? Math.round((x.done / x.total) * 100) : 0}%"></i></span></article>`;
     const tally = [count("run") ? t("{n} a fazer", { n: count("run") }) : "", count("need") ? t("{n} à espera", { n: count("need") }) : "",
       count("queue") ? t("{n} na fila", { n: count("queue") }) : "", count("done") ? t("{n} feitas hoje", { n: count("done") }) : ""].filter(Boolean);

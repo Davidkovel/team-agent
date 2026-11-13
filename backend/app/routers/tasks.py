@@ -22,6 +22,7 @@ Priority = Literal["low", "normal", "high", "urgent"]
 Role = Literal["developer", "research", "marketing", "testing", "custom"]
 # While the agent holds a task (it is running, or waiting for an approval) only the agent moves it.
 HELD_BY_AGENT = ("IN_PROGRESS", "WAITING_APPROVAL")
+WITH_OFFICE = ("ASSIGNED", "IN_PROGRESS", "WAITING_APPROVAL", "PAUSED", "NEEDS_HELP", "FAILED")   # entregue a um agente
 EVERYBODY = "all"  # as the assignee of a new task: one task for each person
 
 
@@ -474,6 +475,18 @@ async def add_note(task_id: int, body: Note, user: User = Depends(current_user),
 async def control(task_id: int, body: Control, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     task = await get_task(task_id, user, db)
     await rt.command(task.assignee_id, {"type": body.action, "task_id": task.id})
+    if body.action == "stop" and task.status in WITH_OFFICE:
+        # 13 nov (Marco: «mandei para o escritório e bugou, não consigo voltar»): parar era só um pedido ao agente; se ele já
+        # não estava a correr (rebentou, PC desligado), a tarefa ficava presa no escritório para sempre. Agora volta logo para
+        # a pessoa, com o que já tinha feito, e o agente (se ainda a tiver) recebe na mesma a ordem de parar.
+        task.status, task.worker, task.current_action, task.next_action, task.blocked_reason = "TODO", None, "", "", ""
+        task.doing_since = None
+        db.add(TaskEvent(task_id=task.id, kind="note", message="Tirada do escritório: voltou para quem a tem.",
+                         data={"user": user.username, "name": user.display_name}))
+        await db.commit()
+        await log_activity(db, user, "control", f"{user.display_name} tirou do escritório a tarefa: {task.title}", task.id)
+        await rt.publish("task", task.assignee_id)
+        return {"queued": body.action, "status": "TODO"}
     verb = {"pause": "pausar", "resume": "retomar", "stop": "parar"}[body.action]
     await log_activity(db, user, "control", f"{user.display_name} pediu para {verb} a tarefa: {task.title}", task.id)
     return {"queued": body.action}

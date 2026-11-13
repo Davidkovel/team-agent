@@ -427,6 +427,92 @@ async function cmdBody() {
     <div class="ck-tiles">${deal}${shop}${nw}</div>`;
 }
 
+/* ---------- Modo foco e a tua semana (13 nov, David: «funcionalidades novas, preencher a página toda») ---------- */
+// Foco: escolhes uma das tuas tarefas e 25 ou 50 minutos; a tarefa fica «A fazer agora» para a equipa ver, o anel conta
+// até zero e no fim acabas a tarefa ou dás mais 5 min. O relógio guarda-se no navegador: sobrevive a recarregar a página.
+const FOCUS_KEY = "hub.focus";
+const focusGet = () => { try { return JSON.parse(localStorage.getItem(FOCUS_KEY) || "null"); } catch { return null; } };
+const focusSet = (v) => { try { v ? localStorage.setItem(FOCUS_KEY, JSON.stringify(v)) : localStorage.removeItem(FOCUS_KEY); } catch { /* sem armazenamento */ } };
+let focusPick = null, focusTick = null;
+const RING = 2 * Math.PI * 34;
+
+async function focusBody() {
+  const f = focusGet();
+  if (f) {
+    return `<div class="fx-h"><b>${t("Modo foco")}</b><span>${t("{n} min", { n: f.mins })}</span></div>
+      <div class="fx-run"><svg class="fx-ring" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34"/><circle class="fx-arc" id="fx-arc" cx="40" cy="40" r="34"
+        stroke-dasharray="${RING}" stroke-dashoffset="0"/></svg><b class="fx-time" id="fx-time">--:--</b>
+        <div class="fx-what"><span>${t("Estás em")}</span><button class="fx-title" data-task="${f.id}">${esc(f.title)}</button>
+          <div class="fx-btns"><button class="fx-b ok" data-fx="done">${icon("tick")}${t("Feita")}</button><button class="fx-b" data-fx="more">+5 min</button>
+          <button class="fx-b" data-fx="stop">${icon("stop")}${t("Parar")}</button></div></div></div>`;
+  }
+  // as tarefas para todos contam pela tua cópia, enquanto não fizeste a tua parte
+  const mine = planOf(asOne(await api("/api/tasks"))).today.sort((a, b) => importance(a) - importance(b))
+    .map((x) => (x.group ? { ...x, id: x.group.find((y) => y.assignee === me.username && y.stage !== "done")?.id } : x.assignee === me.username ? x : null))
+    .filter((x) => x && x.id).slice(0, 3);
+  if (!mine.length) return `<div class="fx-h"><b>${t("Modo foco")}</b></div><p class="fx-none">${t("Sem tarefas tuas para hoje. Cria uma e foca-te nela.")}</p>`;
+  if (!mine.some((x) => x.id === focusPick)) focusPick = mine[0].id;
+  return `<div class="fx-h"><b>${t("Modo foco")}</b><span>${t("escolhe e arranca")}</span></div>
+    <div class="fx-pick">${mine.map((x) => `<button class="fx-opt ${x.id === focusPick ? "on" : ""}" data-fx-pick="${x.id}"><i></i><span>${esc(x.title)}</span></button>`).join("")}</div>
+    <div class="fx-go"><button class="fx-start" data-fx-start="25">${icon("play")}25'</button><button class="fx-start alt" data-fx-start="50">50'</button></div>`;
+}
+function focusRun() {
+  clearInterval(focusTick);
+  const step = () => {
+    const f = focusGet(), time = $("fx-time");
+    if (!f || !time) return clearInterval(focusTick);
+    const total = f.mins * 60e3, left = Math.max(0, f.start + total - Date.now());
+    time.textContent = `${String(Math.floor(left / 60e3)).padStart(2, "0")}:${String(Math.floor(left / 1e3) % 60).padStart(2, "0")}`;
+    $("fx-arc").setAttribute("stroke-dashoffset", String(RING * (1 - left / total)));
+    const end = !left;
+    time.closest(".fx-run").classList.toggle("end", end);
+    if (end && !f.told) { focusSet({ ...f, told: true }); flash(t("Foco acabado. Acabaste «{t}»?", { t: f.title })); }
+  };
+  step(); focusTick = setInterval(step, 1000);
+}
+async function focusClick(e) {
+  const pick = e.target.closest("[data-fx-pick]");
+  if (pick) { focusPick = Number(pick.dataset.fxPick); await mount($("in-focus"), focusBody, 1); return true; }
+  const start = e.target.closest("[data-fx-start]");
+  if (start) {
+    const title = start.closest(".fx").querySelector(".fx-opt.on span")?.textContent || "";
+    focusSet({ id: focusPick, title, mins: Number(start.dataset.fxStart), start: Date.now() });
+    api(`/api/tasks/${focusPick}`, { method: "PATCH", body: { doing: true } }).catch(() => {});
+    await mount($("in-focus"), focusBody, 1); focusRun(); loadHome(["team"]);
+    return true;
+  }
+  const act = e.target.closest("[data-fx]")?.dataset.fx;
+  if (!act) return false;
+  const f = focusGet();
+  if (!f) return true;
+  if (act === "more") { focusSet({ ...f, mins: f.mins + 5, told: false }); focusRun(); return true; }
+  focusSet(null); clearInterval(focusTick);
+  try {
+    await api(`/api/tasks/${f.id}`, { method: "PATCH", body: act === "done" ? { status: "COMPLETED", doing: false } : { doing: false } });
+    if (act === "done") flash(t("Tarefa concluída. Bom foco."));
+  } catch (err) { flash(err.message); }
+  loadHome(["plan", "team", "act"]);
+  return true;
+}
+
+// A tua semana: tarefas acabadas em cada um dos últimos 7 dias (as tuas a cheio, as da equipa por trás) e há quantos dias
+// seguidos acabas pelo menos uma.
+async function weekBody() {
+  const done = (await api("/api/tasks")).filter((x) => x.stage === "done" && x.completed_at);
+  const mineOf = (x) => x.completed_by === me.username || x.assignee === me.username;
+  const days = [...Array(7)].map((_, i) => startOfDay(new Date(), i - 6));
+  const count = (d, f) => done.filter((x) => { const c = new Date(x.completed_at); return c >= d && c < startOfDay(d, 1) && f(x); }).length;
+  const rows = days.map((d) => ({ d, me: count(d, mineOf), all: count(d, () => true) }));
+  const top = Math.max(1, ...rows.map((r) => r.all));
+  let streak = 0;
+  for (let i = rows[6].me ? 0 : 1; ; i++) { const d = startOfDay(new Date(), -i); if (count(d, mineOf)) streak++; else break; if (i > 60) break; }
+  const week = rows.reduce((n, r) => n + r.me, 0);
+  return `<div class="fx-h"><b>${t("A tua semana")}</b><span>${t(week === 1 ? "1 feita" : "{n} feitas", { n: week })}${streak ? ` · <em>${t(streak === 1 ? "1 dia seguido" : "{n} dias seguidos", { n: streak })}</em>` : ""}</span></div>
+    <div class="wk">${rows.map((r, i) => `<div class="wk-d ${i === 6 ? "wk-now" : ""}" title="${esc(t("{m} tuas · {a} da equipa", { m: r.me, a: r.all }))}">
+      <div class="wk-bar"><i class="all" style="height:${(r.all / top) * 100}%"></i><i class="me" style="height:${(r.me / top) * 100}%"></i></div>
+      <b>${r.me || ""}</b><span>${t(WEEKDAYS_SHORT[r.d.getDay()]).slice(0, 1)}</span></div>`).join("")}</div>`;
+}
+
 let tasksTab = "today";
 const DAY_TABS = [["today", "Hoje"], ["tomorrow", "Amanhã"], ["week", "Esta semana"]];
 const DAY_EMPTY = { today: "Nada para hoje. Cria uma tarefa, ou dá um prazo a uma.", tomorrow: "Nada com prazo para amanhã.",
@@ -573,6 +659,7 @@ async function newTaskClick(e) {
 
 async function homeClick(e) {
   if (await newTaskClick(e)) return;
+  if (await focusClick(e)) return;
   const act = e.target.closest("[data-act]")?.dataset.act;
   if (act === "task") return newTask();
   if (act === "agenda") return openAgenda();
@@ -622,7 +709,8 @@ async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
-  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5));
+  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5), mount($("in-week"), weekBody, 1));
+  if (parts.includes("plan") && !focusGet()) jobs.push(mount($("in-focus"), focusBody, 1));
   if (parts.includes("act")) jobs.push(mount($("in-act"), activityBody, 3));
   if (parts.includes("biz") || parts.includes("plan")) jobs.push(mount($("in-biz"), cmdBody, 4));
   await Promise.all(jobs);
@@ -655,7 +743,8 @@ HUB_VIEWS.home = async function viewHome() {
     <span id="in-apps-mark" hidden></span>${shortcutsHtml()}
     <div id="in-alert" class="in-alert"></div><div id="in-pulse" class="in-pulse"></div><div id="in-doing" class="in-doing"></div>
     <div class="in-main">
-      <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
+      <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div>
+        <div class="fx-dock"><div id="in-focus" class="fx"></div><div id="in-week" class="fx"></div></div></section>
       <section class="in-card in-bizc">${cardHead("spark", "Comando", "", seeAll("Escritório", "#/escritorio"))}${askHtml()}<div id="in-biz"></div></section>
       <section class="in-card in-feed">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section>
     </div></div>`;
@@ -663,7 +752,7 @@ HUB_VIEWS.home = async function viewHome() {
   $("ck-ask").onsubmit = ckSend;
   $("ck-in").oninput = ckRoute;
   startHomeClock();
-  loadHome();
+  loadHome().then(() => { if (focusGet()) mount($("in-focus"), focusBody, 1).then(focusRun); });
   shortcutsFill();
 };
 

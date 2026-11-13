@@ -1,13 +1,13 @@
-// E-mails (#/emails, 03 · Negócios, separador do Radar): a linha toda, Radar > e-mail > resposta > CRM > agentes (backend/app/mail.py).
+// E-mails (#/emails, 01 · Comando, entrada própria desde 13 nov): a linha toda, Radar > e-mail > resposta > CRM > agentes (backend/app/mail.py).
 // Sete listas sobre as mesmas conversas; ao lado, a conversa aberta e, se a empresa respondeu, a decisão: PDF, condições ou ignorar.
 // Nada sai sem um clique de uma pessoa. «Visto» é visto por nós: saber se o cliente abriu exigia um píxel escondido, e não usamos.
 // Segue docs/hub-paginas.md; classes em-.
 (function () {
   let D = null, raw = "", tab = "", sel = 0, conv = null, timer = 0, compose = null, modal = "", camp = null, arm = "", busy = false;
   const TABS = [
+    ["recebidos", "Recebidos", (x) => x.recebidos > 0],
     ["aprovar", "Por aprovar", (x) => x.pending && x.pending.status === "draft"],
     ["enviados", "Enviados", (x) => x.sent > 0],
-    ["recebidos", "Recebidos", (x) => x.recebidos > 0],
     ["porver", "Por ver", (x) => x.por_ver > 0],
     ["vistos", "Vistos", (x) => x.recebidos > 0 && !x.por_ver],
     ["repetir", "Enviar outra vez", (x) => x.repetir],
@@ -35,8 +35,8 @@
   HUB_VIEWS.emails = async function () {
     D = null; raw = ""; tab = ""; sel = 0; conv = null; compose = null; modal = ""; camp = null; arm = "";
     page(`<div class="em" id="em">
-      ${ui.head("Negócios", t("E-mails"), t("O Radar encontra, os e-mails saem com o teu sim e cada resposta chega aqui para decidires."),
-        `<button type="button" class="btn" data-open="conta">${esc(t("Definições"))}</button><button type="button" class="btn primary" data-open="campanha">${esc(t("Nova campanha"))}</button>`)}
+      ${ui.head("Comando", t("E-mails"), t("O Gmail da Ten Fold: abre a caixa, escreve, e decide aqui as respostas aos e-mails do Radar."),
+        `<a class="btn primary" id="em-gmail" href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener">${esc(t("Abrir Gmail"))}</a><a class="btn" id="em-write" href="https://mail.google.com/mail/u/0/?view=cm&fs=1" target="_blank" rel="noopener">${esc(t("Escrever"))}</a><button type="button" class="btn" data-open="campanha">${esc(t("Nova campanha"))}</button><button type="button" class="btn quiet" data-open="conta">${esc(t("Definições"))}</button>`)}
       <div id="em-note"></div>
       <div id="em-kpis">${ui.skeleton(4)}</div>
       <div class="segx em-tabs" id="em-tabs"></div>
@@ -62,7 +62,12 @@
     const d = await api("/api/mail"), s = JSON.stringify(d);
     if (s === raw) return;
     raw = s; D = d;
-    if (!tab) tab = list("porver").length ? "porver" : list("aprovar").length ? "aprovar" : list("repetir").length ? "repetir" : "enviados";
+    // 13 nov, David: «nem consigo abrir o gmail no hub». O Gmail da conta abre sempre no browser (o Google não deixa entrar
+    // dentro da janela do widget) e a caixa de entrada é a primeira lista quando não há nada à espera de decisão.
+    const u = d.conta.address ? `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(d.conta.address)}` : "https://mail.google.com/mail/u/0/";
+    if ($("em-gmail")) $("em-gmail").href = u + "#inbox";
+    if ($("em-write")) $("em-write").href = d.conta.address ? `https://mail.google.com/mail/?authuser=${encodeURIComponent(d.conta.address)}&view=cm&fs=1` : "https://mail.google.com/mail/u/0/?view=cm&fs=1";
+    if (!tab) tab = list("porver").length ? "porver" : list("aprovar").length ? "aprovar" : list("recebidos").length ? "recebidos" : list("repetir").length ? "repetir" : "enviados";
     draw();
     if (sel) await openThread(sel, true);
   }

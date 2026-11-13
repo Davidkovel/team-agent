@@ -70,12 +70,42 @@ function heroHtml(now, ignite) {
       <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
       <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
       <p class="hero-quote">“${esc(t(quoteOfDay()))}”</p>
-      <div class="hero-acts"><button class="hero-act main" data-act="task">${icon("plus")}${t("Nova tarefa")}</button>
-        <button class="hero-act" data-act="agenda">${icon("calendar")}${t("Prazos")}</button></div>
     </div>
     <div class="hero-car" aria-hidden="true"><img src="assets/amg-front-1200.webp" srcset="assets/amg-front-1200.webp 1200w, assets/amg-front-2400.webp 2400w"
       sizes="(max-width: 700px) 100vw, (max-width: 1150px) 62vw, min(54vw, 860px)" alt="" decoding="async"></div>
   </header>`;
+}
+
+// Atalhos (13 nov, David: «botões bem vistos e as funcionalidades mais importantes todas a jeito, estilo iPhone em vidro»): uma
+// fila de ícones grandes logo por baixo da saudação. O Gmail abre sempre no browser (o Google não deixa entrar dentro da janela
+// do widget); o resto são páginas do Hub. O número no E-mails é o das respostas por ver.
+const SHORTCUTS = [
+  ["gmail", "Gmail", "mail", "https://mail.google.com/mail/u/0/#inbox"],
+  ["emails", "E-mails", "inbox", "#/emails"],
+  ["task", "Nova tarefa", "plus", ""],
+  ["claude", "Claude", "spark", "#/claude"],
+  ["chat", "Chat", "chat", "#/mensagens"],
+  ["vinted", "Vinted", "bag", "#/vinted"],
+  ["escritorio", "Escritório", "bot", "#/escritorio"],
+  ["crm", "Clientes", "target", "#/crm"],
+  ["etsy", "Etsy", "layers", "#/etsy"],
+  ["trading", "Trading", "trend", "#/trading"],
+];
+function shortcutsHtml() {
+  return `<nav class="in-apps" aria-label="${esc(t("Atalhos"))}">${SHORTCUTS.map(([id, label, ic, href]) => {
+    const inner = `<span class="in-app-ic">${icon(ic)}<i class="in-app-n" data-n="${id}" hidden></i></span><span class="in-app-l">${esc(t(label))}</span>`;
+    if (!href) return `<button type="button" class="in-app" data-act="${id}">${inner}</button>`;
+    const out = href.startsWith("http");
+    return `<a class="in-app" data-app="${id}" href="${href}"${out ? ' target="_blank" rel="noopener"' : ""}>${inner}</a>`;
+  }).join("")}</nav>`;
+}
+async function shortcutsFill() {
+  const d = await api("/api/mail").catch(() => null);
+  if (!d || !$("in-apps-mark")) return;
+  const g = document.querySelector('.in-app[data-app="gmail"]');
+  if (g && d.conta && d.conta.address) g.href = `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(d.conta.address)}#inbox`;
+  const n = (d.threads || []).filter((x) => x.por_ver > 0).length, badge = document.querySelector('.in-app-n[data-n="emails"]');
+  if (badge) { badge.hidden = !n; badge.textContent = n > 99 ? "99+" : n; }
 }
 
 const cardHead = (ic, title, sub = "", link = "") => `<header class="ch">${icon(ic)}<div class="ch-t"><b>${esc(t(title))}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>${link}</header>`;
@@ -255,11 +285,69 @@ async function alertBody() {
       <div class="u-t"><b>${esc(x.title)}</b><span>${esc(x.group ? whoLeft(x.group) : nameOf(x.assignee))}${when ? ` · <em class="${late}">${esc(when)}</em>` : ` · ${t("Sem prazo")}`}</span></div>
       ${x.group ? whoFaces(x.group) : whoPlate(x.assignee)}${icon("chevron")}</div>`;
   };
-  const stat = (n, label, tone, ic, act) => `<button class="stat ${n ? `lit ${tone}` : ""}" ${act}><span class="stat-ic">${icon(ic)}</span><b>${n}</b><span>${t(label)}</span></button>`;
-  return `${urgent.length ? `<section class="urgent"><header><i class="pulse"></i><b>${t(urgent.length === 1 ? "Urgente" : "Urgentes")}</b><span>${urgent.length}</span></header>
-      <div class="u-rows">${urgent.slice(0, 4).map(row).join("")}</div></section>` : ""}
-    <div class="stats">${stat(p.today.length, "Para hoje", "today", "calendar", 'data-go="#/tarefas"')}${stat(hot, "Urgentes", "hot", "flag", 'data-go="#/tarefas"')}
-      ${stat(inbox.unread, "Por ler", "unread", "bell", 'data-act="alerts"')}${stat(p.late.length, "Atrasadas", "hot", "clock", 'data-go="#/tarefas"')}</div>`;
+  // 13 nov: os quatro números saíram daqui para a faixa «Hoje» (pulseBody), que junta as tarefas aos negócios
+  void hot; void inbox;
+  return urgent.length ? `<section class="urgent"><header><i class="pulse"></i><b>${t(urgent.length === 1 ? "Urgente" : "Urgentes")}</b><span>${urgent.length}</span></header>
+      <div class="u-rows">${urgent.slice(0, 4).map(row).join("")}</div></section>` : "";
+}
+
+/* ---------- «Hoje»: a empresa num relance (13 nov, David: «o início muito bonito... com informações importantes nossas») ---------- */
+// Uma faixa de vidro com o que conta hoje, cada número de uma fonte real: as tarefas, as notificações, o Gmail da Ten Fold,
+// o Vinted Radar, a Fábrica Etsy e o calendário do Forex Factory. Uma fonte que não responde mostra «—», nunca zero.
+const soft = (p) => api(p).catch(() => null);
+const nextNews = (cal) => (cal?.events || []).filter((e) => e.impact === "high" && e.ts * 1000 > Date.now() - 5 * 60e3).sort((a, b) => a.ts - b.ts);
+const hhmmOf = (ts) => new Date(ts * 1000).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+const dayOf = (ts) => { const d = new Date(ts * 1000); return startOfDay(d) - startOfDay(new Date()) ? inDayLabel(d) : t("Hoje"); };
+const today0 = () => startOfDay(new Date()).getTime();
+async function pulseBody() {
+  const [tasks, mail, vinted, etsy, cal] = await Promise.all([api("/api/tasks"), soft("/api/mail"),
+    soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
+  const p = planOf(asOne(tasks));
+  const hot = p.open.filter((x) => x.priority === "urgent" || x.priority === "high").length;
+  const porVer = mail ? (mail.threads || []).filter((x) => x.por_ver > 0).length : null;
+  const deals = vinted ? (vinted.alertas || []).filter((a) => a.lucro > 0 && new Date(a.alertado_em || a.visto_em).getTime() >= today0()).length : null;
+  const news = nextNews(cal)[0];
+  const tile = (go, ic, n, label, sub, tone = "") => `<button class="pl ${tone}" data-go="${go}"><span class="pl-ic">${icon(ic)}</span>
+    <b>${n ?? "—"}</b><span class="pl-l">${esc(t(label))}</span><span class="pl-s">${esc(sub)}</span></button>`;
+  return `<div class="pl-row">
+    ${tile("#/tarefas", "calendar", p.today.length, "Para hoje", p.late.length ? t("{n} atrasadas", { n: p.late.length }) : t("Nada atrasado"), p.late.length ? "bad" : "")}
+    ${tile("#/tarefas", "flag", hot, "Prioridade", t("urgentes e altas"), hot ? "warn" : "")}
+    ${tile("#/emails", "mail", porVer, "E-mails por ver", mail?.conta?.address ? t("{n} enviados hoje", { n: mail.conta.hoje || 0 }) : t("Gmail por ligar"), porVer ? "lit" : "")}
+    ${tile("#/vinted", "bag", deals, "Pechinchas hoje", vinted ? (vinted.estado?.ligado ? t("Radar ligado") : t("Radar parado")) : t("Sem dados"), deals ? "ok" : "")}
+    ${tile("#/etsy", "layers", etsy ? etsy.counts?.published ?? 0 : null, "Na Etsy", etsy ? t("{n} por aprovar · {v} vendas", { n: etsy.counts?.new || 0, v: (etsy.sales || []).length }) : t("Sem dados"))}
+    ${news ? tile("#/sinal", "trend", hhmmOf(news.ts), `${news.currency} · ${news.title}`, `${dayOf(news.ts)} · ${t("impacto alto")}`, "hot")
+      : tile("#/sinal", "trend", cal ? 0 : null, "Notícias vermelhas", cal ? t("nenhuma esta semana") : t("Sem dados"))}
+  </div>`;
+}
+
+/* ---------- «Negócios»: o melhor de cada frente, para decidir sem abrir a página ---------- */
+const eur = (n) => `${Number(n).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+async function bizBody() {
+  const [mail, vinted, etsy, cal] = await Promise.all([soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
+  const best = vinted ? (vinted.alertas || []).filter((a) => a.lucro > 0).sort((a, b) => b.lucro - a.lucro)[0] : null;
+  const threads = mail ? (mail.threads || []).slice().sort((a, b) => (b.por_ver > 0) - (a.por_ver > 0)).slice(0, 3) : [];
+  const news = nextNews(cal).slice(0, 3);
+  const head = (ic, title, href, label = "Abrir") => `<header class="bz-h">${icon(ic)}<b>${esc(t(title))}</b><a href="${href}">${esc(t(label))}${icon("chevron")}</a></header>`;
+  const vin = best ? `<a class="bz-deal" href="#/vinted">${best.foto ? `<img src="${esc(best.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="bz-noimg">${icon("bag")}</span>`}
+      <span class="bz-dt"><b>${esc(best.titulo)}</b><span>${esc([best.marca, best.tamanho].filter(Boolean).join(" · "))}</span>
+      <span class="bz-money"><em>${eur(best.preco)}</em><i>${t("vale")} ${eur(best.mediana)}</i><strong>+${eur(best.lucro)}</strong></span></span></a>`
+    : `<p class="bz-empty">${t(vinted ? "Ainda sem pechinchas que compensem." : "O Vinted Radar não respondeu.")}</p>`;
+  const em = !mail ? `<p class="bz-empty">${t("Sem dados do Gmail.")}</p>` : !mail.conta?.address
+    ? `<p class="bz-empty">${t("O Gmail da Ten Fold ainda não está ligado.")} <a href="#/emails">${t("Ligar")}</a></p>`
+    : threads.length ? `<div class="bz-list">${threads.map((x) => `<a class="bz-row" href="#/emails"><i class="${x.por_ver > 0 ? "on" : ""}"></i>
+        <span><b>${esc(x.empresa || x.nome || x.to || x.email || "—")}</b><span>${esc(x.assunto || x.subject || "")}</span></span></a>`).join("")}</div>`
+    : `<p class="bz-empty">${esc(mail.conta.address)}<br>${t("Caixa limpa: nenhuma conversa por decidir.")}</p>`;
+  const et = !etsy ? `<p class="bz-empty">${t("A Fábrica Etsy não respondeu.")}</p>`
+    : `<div class="bz-nums"><div><b>${etsy.counts?.published ?? 0}</b><span>${t("publicados")}</span></div><div><b>${etsy.counts?.new ?? 0}</b><span>${t("por aprovar")}</span></div>
+        <div><b>${(etsy.sales || []).length}</b><span>${t("vendas")}</span></div><div><b>${eur(etsy.revenue || 0)}</b><span>${t("faturado")}</span></div></div>`;
+  const tr = news.length ? `<div class="bz-list">${news.map((e) => `<a class="bz-row news" href="#/sinal"><time>${esc(dayOf(e.ts))}<b>${hhmmOf(e.ts)}</b></time>
+      <span><b>${esc(e.title)}</b><span>${esc(e.currency)} · ${t("prev.")} ${esc(e.forecast || "—")} · ${t("ant.")} ${esc(e.previous || "—")}</span></span></a>`).join("")}</div>`
+    : `<p class="bz-empty">${t(cal ? "Sem notícias vermelhas o resto da semana." : "O calendário não respondeu.")}</p>`;
+  return `<div class="bz">
+    <section class="bz-c">${head("bag", "Vinted · melhor pechincha", "#/vinted")}${vin}</section>
+    <section class="bz-c">${head("mail", "E-mails · Ten Fold", "#/emails")}${em}</section>
+    <section class="bz-c">${head("layers", "Etsy · AnimeDriveStudio", "#/etsy")}${et}</section>
+    <section class="bz-c">${head("trend", "Trading · próximas notícias", "#/sinal")}${tr}</section></div>`;
 }
 
 let tasksTab = "today";
@@ -447,16 +535,17 @@ function startHomeClock() {
 }
 
 // A promise, as the live events expect of the loaders they call.
-async function loadHome(parts = ["team", "news", "plan", "act"]) {
+async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   if (!$("in-team")) return;
   const jobs = [];
   if (parts.includes("team")) jobs.push(mount($("in-team"), teamCard, 3));
   if (parts.includes("team") || parts.includes("plan")) jobs.push(mount($("in-doing"), doingBody, 1));
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
-  if (parts.includes("plan")) jobs.push(mount($("in-done"), finishedCard, 3));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
-  if (parts.includes("plan")) jobs.push(mount($("in-prog"), progressBody, 5), mount($("in-tasks"), tasksBody, 5), mount($("in-cal"), calendarBody, 3));
+  if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
+  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5));
   if (parts.includes("act")) jobs.push(mount($("in-act"), activityBody, 3));
+  if (parts.includes("biz")) jobs.push(mount($("in-biz"), bizBody, 4));
   await Promise.all(jobs);
 }
 
@@ -481,22 +570,25 @@ document.addEventListener("click", async (e) => {
 HUB_VIEWS.home = async function viewHome() {
   let ignite = false; // the car comes out of the dark once per session; after that it is simply there
   try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: no start-up */ }
+  // 13 nov (David: «abas grandes, confuso... quero o início muito bonito»): saudação e atalhos, a faixa «Hoje», o dia de cada um
+  // ao lado da equipa e do que está a acontecer, e por fim os negócios. Saíram o anel de progresso, o calendário vazio e a citação.
   $("view").innerHTML = `<div class="page inicio"><div id="in-newsbar" class="in-newsbar"></div>${heroHtml(new Date(), ignite)}
-    <div id="in-alert" class="in-alert"></div><div id="in-doing" class="in-doing"></div>
-    <div class="in-top"><section class="in-card" id="in-team"></section><section class="in-card" id="in-done"></section></div>
-    <div class="in-grid">
-      <section class="in-card in-tasks">${cardHead("tasks", "A seguir", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
-      <section class="in-card in-prog">${cardHead("target", "Progresso da equipa", "", seeAll("Visão geral", "#/analise"))}<div id="in-prog"></div></section>
-      <section class="in-card in-cal">${cardHead("calendar", "Calendário", t("Próximos prazos"),
-        `<button class="ch-link" data-act="agenda">${t("Ver tudo")}${icon("chevron")}</button>`)}<div id="in-cal"></div></section>
+    <span id="in-apps-mark" hidden></span>${shortcutsHtml()}
+    <div id="in-alert" class="in-alert"></div>
+    <div class="in-sec"><b>${t("Hoje")}</b><span>${t("a empresa num relance")}</span></div><div id="in-pulse" class="in-pulse"></div>
+    <div id="in-doing" class="in-doing"></div>
+    <div class="in-main">
+      <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div></section>
       <div class="in-side">
-        <section class="in-card">${cardHead("bolt", "Atividade recente", "", seeAll("Ver todas", "#/aovivo"))}<div id="in-act"></div></section>
-        ${quoteCard()}
+        <section class="in-card" id="in-team"></section>
+        <section class="in-card">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section>
       </div>
-    </div></div>`;
+    </div>
+    <div class="in-sec"><b>${t("Negócios")}</b><span>${t("o melhor de cada frente")}</span></div><div id="in-biz"></div></div>`;
   $("view").onclick = homeClick;
   startHomeClock();
   loadHome();
+  shortcutsFill();
 };
 
 // A live event reloads only what shows that kind of thing ("tick" is the slow safety net: all of it).
@@ -504,4 +596,5 @@ onLive(["presence"], () => loadHome(["team", "act"]));
 onLive(["notification"], () => loadHome(["news"]));
 onLive(["task"], () => loadHome(["plan", "act"]));
 onLive(["activity", "ponto"], () => loadHome(["act"]));
-onLive(["tick"], () => loadHome());
+onLive(["tick"], () => { shortcutsFill(); return loadHome(); });
+onLive(["vinted", "mail", "etsy"], () => loadHome(["biz"]));

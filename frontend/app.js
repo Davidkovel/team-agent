@@ -206,6 +206,7 @@ const NAV = [
   ["Início", "home", [["home", "Início"]], "comando"],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]], "comando"],
   ["Chat", "chat", [["mensagens", "Chat"]], "comando"],
+  ["E-mails", "mail", [["emails", "E-mails"]], "comando"],   // 13 nov, David: «nem consigo abrir o gmail no hub»: entrada própria, já não escondida no Radar
   ["Claude", "chat", [["claude", "Claude"]], "comando"],
   ["Novidades", "spark", [["novidades", "Novidades"]], "comando"],
   ["Escritório", "bot", [["escritorio", "Escritório"]], "agentes"],
@@ -215,7 +216,7 @@ const NAV = [
   ["Ten Fold", "spark", [["tenfold", "Ten Fold"]], "negocios"],
   ["Fotos", "fotos", [["fotos", "Fotos"]], "negocios"],   // the Ten Fold's photo library (30 Oct, Marco: «uma livraria... para fotos») // the main work (Marco, 27 Oct): its own entry, first in Negócios
   ["Trabalho", "building", [["empresas", "Empresas"], ["projetos", "Projetos"], ["codigo", "Código"], ["entregas", "Entregas"], ["baredesk", "BareDesk"], ["kit", "Kit do Claude"]], "negocios"],
-  ["Radar", "target", [["radar", "Radar"], ["emails", "E-mails"], ["crm", "CRM"]], "negocios"],   // E-mails (3 nov): do Radar à resposta; CRM (2 nov): o seguimento do Radar até ao negócio
+  ["Radar", "target", [["radar", "Radar"], ["crm", "CRM"]], "negocios"],   // E-mails (3 nov): do Radar à resposta; CRM (2 nov): o seguimento do Radar até ao negócio
   ["Fábrica Etsy", "bag", [["etsy", "Fábrica Etsy"]], "negocios"],
   ["Afiliados", "link", [["afiliados", "Afiliados"]], "negocios"],   // 3 nov, Marco: affiliate marketing, aprender e registar
   ["Vinted", "bag", [["vinted", "Vinted Radar"]], "negocios"],   // 11 nov, David: artigos do Vinted abaixo do preço de mercado

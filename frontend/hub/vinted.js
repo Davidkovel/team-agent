@@ -58,6 +58,52 @@
     </label>`;
   }
 
+  // Quem vende: estrelas e avaliações (o coletor lê-as quando o artigo vira oportunidade). Poucas avaliações ou menos de 4,5 = aviso.
+  function vendedor(a) {
+    if (a.estrelas == null && a.vendedor) return `<span class="vt-sel warn" title="${esc(t("Este vendedor ainda não tem avaliações: confirma antes de comprar."))}">★ ${esc(t("sem avaliações"))} · ${esc(a.vendedor)}</span>`;
+    if (a.estrelas == null) return `<span class="vt-sel none">${icon("users")}${esc(t("Vendedor: sem dados"))}</span>`;
+    const fraco = a.estrelas < 4.5 || (a.avaliacoes != null && a.avaliacoes < 5);
+    return `<span class="vt-sel ${fraco ? "warn" : "ok"}" title="${esc(fraco ? t("Vendedor com poucas avaliações ou nota baixa: confirma antes de comprar.") : t("Vendedor bem avaliado."))}">★ ${String(a.estrelas).replace(".", ",")}${a.avaliacoes != null ? ` · ${a.avaliacoes} ${esc(t("avaliações"))}` : ""}${a.vendedor ? ` · ${esc(a.vendedor)}` : ""}</span>`;
+  }
+  const selo = (a) => (a.cabe == null ? "" : a.no_plano ? `<span class="vt-tag ok">${esc(t("No plano de compra"))}</span>` : a.cabe ? `<span class="vt-tag">${esc(t("Cabe no orçamento"))}</span>` : `<span class="vt-tag bad">${esc(t("Fora do orçamento"))}</span>`);
+
+  // O orçamento: quanto há, quanto está em artigos por vender, quanto sobra, e o que o radar comprava com isso.
+  function orcamento() {
+    const o = V.orcamento, p = V.plano, n = (v) => (v == null ? `<b class="none">${esc(t("Sem dados"))}</b>` : `<b>${eur(v, 2)}</b>`);
+    const campo = (k, label, sub) => `<label class="vt-lim"><span>${esc(t(label))}</span><input type="number" min="0" step="10" data-orc="${k}" value="${o[k] || ""}" placeholder="0"><small>${esc(t(sub))}</small></label>`;
+    const form = `<div class="vt-orc-f">${campo("total", "Orçamento total", "€ que a empresa põe no Vinted")}${campo("por_artigo", "Máximo por artigo", "€, com taxa e portes · 0 = sem limite")}
+      ${campo("por_noite", "Máximo por dia", "€ gastos num dia · 0 = sem limite")}<button type="button" class="btn ${o.total ? "quiet" : "primary"}" data-orc-save>${esc(t("Guardar orçamento"))}</button></div>`;
+    if (!o.total) return `<div class="panel vt-orc">${ui.empty("wallet", "Ainda sem orçamento", "Diz quanto dinheiro a empresa pode usar. O radar passa a mostrar o que cabe nele e o que comprava primeiro.")}${form}</div>`;
+    const usado = Math.max(0, Math.min(100, (o.investido / o.total) * 100));
+    const doPlano = V.alertas.filter((a) => a.no_plano).sort((a, b) => (b.lucro || 0) - (a.lucro || 0));
+    const linhas = doPlano.map((a, i) => `<div class="vt-pl"><em>${i + 1}</em><div><b>${esc(a.titulo)}</b><small>${esc(a.nicho)} · ${vendedor(a)}</small></div>
+      <span><i>${esc(t("Custo"))}</i>${eur(a.custo, 2)}</span><span class="up"><i>${esc(t("Lucro"))}</i>+${eur(a.lucro)}</span>
+      <a class="btn quiet" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(t("Ver"))}${icon("arrow")}</a>
+      <button type="button" class="btn quiet" data-comprei="${a.id}">${icon("tick")}${esc(t("Comprei"))}</button></div>`).join("");
+    return `<div class="panel vt-orc">
+      <div class="vt-orc-n"><div><i>${esc(t("Orçamento"))}</i>${n(o.total)}</div><div><i>${esc(t("Investido"))}</i>${n(o.investido)}<small>${esc(t("{n} artigo(s) por vender", { n: o.em_stock }))}</small></div>
+        <div class="${o.disponivel <= 0 ? "bad" : "up"}"><i>${esc(t("Disponível"))}</i>${n(o.disponivel)}<small>${esc(o.por_noite ? t("hoje já saíram {v}", { v: eur(o.gasto_hoje, 2) }) : "")}</small></div>
+        <div class="${o.lucro_real > 0 ? "up" : o.lucro_real < 0 ? "bad" : ""}"><i>${esc(t("Lucro real"))}</i>${n(o.lucro_real)}<small>${esc(t("{n} vendido(s) · previsto em stock +{v}", { n: o.vendidas, v: eur(o.lucro_previsto) }))}</small></div></div>
+      <div class="vt-bar" title="${esc(t("Parte do orçamento que está em artigos por vender"))}"><i style="width:${usado.toFixed(1)}%"></i></div>
+      <div class="vt-plan"><div class="vt-plan-h"><span class="vt-eyebrow">${icon("target")}${esc(t("Plano de compra"))}</span>
+        <p>${doPlano.length ? esc(t("Com {t} para gastar agora cabem {n} oportunidade(s): custo {c}, lucro previsto +{l}.", { t: eur(p.teto, 2), n: doPlano.length, c: eur(p.custo, 2), l: eur(p.lucro) }))
+          : esc(V.alertas.length ? t("Nenhuma das oportunidades de agora cabe em {t}.", { t: eur(p.teto, 2) }) : t("Sem oportunidades agora. Quando aparecerem, as que cabem no orçamento ficam aqui por ordem de lucro."))}</p></div>${linhas}</div>
+      <details class="vt-orc-d"><summary>${esc(t("Mudar o orçamento"))}</summary>${form}</details></div>`;
+  }
+
+  function compras() {
+    if (!V.compras.length) return "";
+    return `${head("wallet", "Compras", `<span class="vt-aside">${esc(t("Marca por quanto vendeste para ver o lucro real"))}</span>`)}
+      <div class="panel vt-buys">${V.compras.map((c) => { const real = c.vendido != null ? c.vendido - c.custo : null;
+        return `<div class="vt-buy"><div><b>${esc(c.titulo)}</b><small>${esc(c.nicho)} · ${esc(ago(c.quando))}</small></div>
+          <span><i>${esc(t("Custou"))}</i>${eur(c.custo, 2)}</span><span><i>${esc(t("Previsto"))}</i>${c.lucro_previsto != null ? "+" + eur(c.lucro_previsto) : "—"}</span>
+          ${real != null ? `<span class="${real >= 0 ? "up" : "bad"}"><i>${esc(t("Lucro real"))}</i>${real >= 0 ? "+" : "−"}${eur(Math.abs(real), 2)}</span>
+              <button type="button" class="btn quiet" data-desvendi="${c.id}">${esc(t("Ainda não vendi"))}</button>`
+            : `<span class="vt-sold"><input type="number" min="0" step="1" placeholder="${esc(t("Vendi por €"))}" data-vendi-v="${c.id}" id="vt-v-${c.id}"><button type="button" class="btn quiet" data-vendi="${c.id}">${esc(t("Vendido"))}</button></span>`}
+          <a class="vt-linkb" href="${esc(c.link)}" target="_blank" rel="noopener">${esc(t("Anúncio"))}</a>
+          <button type="button" class="vt-x2" data-compra-tirar="${c.id}" title="${esc(t("Tirar das compras"))}">${icon("x")}</button></div>`; }).join("")}</div>`;
+  }
+
   // A melhor oportunidade do que está à vista, em grande: é o que um olhar de fora tem de ver primeiro.
   function destaque(lista) {
     const a = [...lista].sort((x, y) => (y.lucro || 0) - (x.lucro || 0))[0];
@@ -67,10 +113,12 @@
       <div class="vt-best-ph">${a.foto ? `<img src="${esc(a.foto)}" alt="">` : ico(a.grupo)}</div>
       <div class="vt-best-in"><span class="vt-eyebrow">${icon("target")}${esc(t("Melhor oportunidade agora"))}</span>
         <b>${esc(a.titulo)}</b><small>${esc([a.marca, a.nicho, a.tamanho, a.estado].filter(Boolean).join(" · "))} · ${esc(ago(a.alertado_em || a.visto_em))}</small>
+        <div class="vt-meta">${vendedor(a)}${selo(a)}</div>
         <div class="vt-best-n"><span><i>${esc(t("Preço"))}</i>${eur(a.preco, 2)}</span><span><i>${esc(t("Mercado"))}</i>${eur(a.mediana)}</span>
           ${pct != null ? `<span class="up"><i>${esc(t("Desconto"))}</i>−${pct}%</span>` : ""}</div></div>
       <div class="vt-best-l"><i>${esc(t("Lucro"))}</i>${a.lucro != null ? "+" + eur(a.lucro) : "—"}</div>
       <div class="vt-best-a"><a class="btn primary" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(t("Ver no Vinted"))}${icon("arrow")}</a>
+        <button type="button" class="btn quiet" data-comprei="${a.id}">${icon("tick")}${esc(t("Comprei"))}</button>
         <button type="button" class="btn quiet" data-esconder="${a.id}">${esc(t("Já vi"))}</button></div></div>`;
   }
 
@@ -84,7 +132,8 @@
         <b>${esc(a.titulo)}</b>
         <div class="vt-nums"><span><i>${esc(t("Preço"))}</i>${eur(a.preco, 2)}</span><span><i>${esc(t("Mercado"))}</i>${eur(a.mediana)}</span>
           <span class="up"><i>${esc(t("Lucro"))}</i>${a.lucro != null ? "+" + eur(a.lucro) : "—"}</span></div>
-        <span class="vt-go">${esc(t("Ver no Vinted"))}${icon("arrow")}</span>
+        <div class="vt-meta">${vendedor(a)}${selo(a)}</div>
+        <span class="vt-go">${esc(t("Ver no Vinted"))}${icon("arrow")}<button type="button" class="vt-buyb" data-comprei="${a.id}">${icon("tick")}${esc(t("Comprei"))}</button></span>
         <p>${esc([a.tamanho, a.estado].filter(Boolean).join(" · "))}${a.comparaveis ? ` · ${esc(t("mediana de {n} anúncios", { n: a.comparaveis }))}` : ""} · ${esc(ago(a.alertado_em || a.visto_em))}</p>
       </div></a>`;
   }
@@ -138,7 +187,9 @@
     const chave = cat ? null : grupo ? "nicho" : "grupo";
     const blocos = chave ? [...new Set(lista.map((a) => a[chave]))].map((k) => [k, lista.filter((a) => a[chave] === k).sort(ORDENS[ordem][1])]) : [["", lista.sort(ORDENS[ordem][1])]];
     const deals = blocos.map(([k, as]) => `${k && blocos.length > 1 ? `<h4 class="vt-grp"><span class="vt-ico sm">${ico(as[0].grupo)}</span>${esc(k)}<small>${as.length}</small><i>${esc(t("até +{v} de lucro", { v: eur(Math.max(...as.map((a) => a.lucro || 0))) }))}</i></h4>` : ""}<div class="vt-deals">${as.map(alerta).join("")}</div>`).join("");
-    paint($("vt-body"), `${guarda()}${kpis}${destaque(doGrupo)}${abas}
+    paint($("vt-body"), `${guarda()}${kpis}${destaque(doGrupo)}
+      ${head("wallet", "Orçamento", `<span class="vt-aside">${esc(t("O dinheiro que a empresa pode usar no Vinted, neste computador"))}</span>`)}${orcamento()}
+      ${abas}
       ${head("layers", grupo ? t("Categorias de {g}", { g: grupo }) : "Categorias", massa)}
       <div class="vt-cats">${nichos.map(nicho).join("")}
         <form class="vt-cat vt-new" data-new><input name="pesquisa" placeholder="${esc(grupo === "Tecnologia" ? t("Nova: ex. airpods pro") : t("Nova: ex. barbour jacket"))}" maxlength="80">
@@ -148,6 +199,7 @@
       ${lista.length ? deals
         : `<div class="panel">${ui.empty("bag", grupo ? t("Ainda sem oportunidades em {g}", { g: grupo }) : "Ainda sem oportunidades", V.ligado ? "O radar está a procurar. Aparecem aqui quando um artigo sair bem abaixo do mercado." : "Escolhe as categorias e carrega em «Ligar o radar».")}</div>`}
       ${V.escondidos ? `<p class="vt-note">${esc(t("{n} oportunidade(s) escondida(s).", { n: V.escondidos }))} <button type="button" class="vt-linkb" data-repor>${esc(t("Mostrar outra vez"))}</button></p>` : ""}
+      ${compras()}
       ${tg}
       ${head("sliders", "Limites da regra", `<span class="vt-aside">${esc(t("O que conta como oportunidade"))}</span>`)}${limites()}
       <p class="vt-foot">${esc(t("O coletor abre a pesquisa pública do Vinted num Chrome sem janela, devagar e sem contornar bloqueios. A compra é sempre tua."))}</p>`);
@@ -183,7 +235,16 @@
     v.onclick = (e) => {
       const b = e.target.closest("[data-vt]"), x = e.target.closest("[data-tirar]"), s = e.target.closest("[data-save]");
       const c = e.target.closest("[data-cont]"), h = e.target.closest("[data-esconder]"), m = e.target.closest("[data-massa]"), g = e.target.closest("[data-grupo]");
-      if (c) { c.disabled = true; send("/api/vinted/ligar", { continuo: c.dataset.cont === "1" }, c.dataset.cont === "1" ? "Contínuo ligado: o Hub mantém o radar a procurar, dia e noite." : "Contínuo desligado: o radar fica como está, sem guarda."); }
+      const k = e.target.closest("[data-comprei]"), vd = e.target.closest("[data-vendi]");
+      if (k) { e.preventDefault(); k.disabled = true; send("/api/vinted/compra", { id: Number(k.dataset.comprei) }, "Compra registada: saiu do orçamento disponível."); }
+      else if (vd) { const i = $("vt-v-" + vd.dataset.vendi), val = i && i.value !== "" ? Number(i.value) : null;
+        if (val == null) { flash(t("Escreve por quanto vendeste.")); i && i.focus(); } else send("/api/vinted/compra", { vendido: { id: Number(vd.dataset.vendi), valor: val } }, "Venda registada."); }
+      else if (e.target.closest("[data-desvendi]")) send("/api/vinted/compra", { vendido: { id: Number(e.target.closest("[data-desvendi]").dataset.desvendi), valor: null } });
+      else if (e.target.closest("[data-compra-tirar]")) send("/api/vinted/compra", { tirar: Number(e.target.closest("[data-compra-tirar]").dataset.compraTirar) }, "Compra tirada.");
+      else if (e.target.closest("[data-orc-save]")) { const o = {};
+        v.querySelectorAll("[data-orc]").forEach((i) => { o[i.dataset.orc] = i.value === "" ? 0 : Number(i.value); });
+        send("/api/vinted/orcamento", o, "Orçamento guardado."); }
+      else if (c) { c.disabled = true; send("/api/vinted/ligar", { continuo: c.dataset.cont === "1" }, c.dataset.cont === "1" ? "Contínuo ligado: o Hub mantém o radar a procurar, dia e noite." : "Contínuo desligado: o radar fica como está, sem guarda."); }
       else if (e.target.closest("[data-agora]")) { e.target.closest("[data-agora]").disabled = true; send("/api/vinted/agora", {}, "A procurar agora em todas as categorias ligadas."); }
       else if (h) { e.preventDefault(); send("/api/vinted/esconder", { id: Number(h.dataset.esconder) }); }
       else if (e.target.closest("[data-repor]")) send("/api/vinted/esconder", { repor: true });

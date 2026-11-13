@@ -60,3 +60,31 @@ def ler_anuncios(browser, pesquisa, pais="pt", n=200, preco_max=200, pagina=1, o
         anuncios.append(info)
     return anuncios
 
+
+def ler_vendedor(browser, link):
+    """Quem vende um artigo: nome, estrelas (0-5) e quantas avaliações tem, lidos da página pública do artigo.
+    Só para os artigos que já são oportunidade (uma página por alerta). O que não se conseguir ler fica None."""
+    browser.get(link)
+    time.sleep(4)
+    v = {"vendedor": None, "estrelas": None, "avaliacoes": None}
+    nome = browser.find_elements(By.CSS_SELECTOR, "[data-testid='profile-username']")
+    if nome:
+        v["vendedor"] = nome[0].text.strip()[:60] or None
+    for e in browser.find_elements(By.CSS_SELECTOR, "[aria-label*='estrelas'], [aria-label*='stars'], [aria-label*='estrellas'], [aria-label*='étoiles']"):
+        m = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:de|of|out of|sur|su|von)\s*5", e.get_attribute("aria-label") or "")
+        if not m:
+            continue
+        v["estrelas"] = float(m.group(1).replace(",", "."))
+        alvo = e
+        for _ in range(3):   # o número de avaliações está escrito ao lado das estrelas
+            try:
+                alvo = alvo.find_element(By.XPATH, "..")
+            except Exception:
+                break
+            n = re.search(r"\b(\d{1,6})\b", (alvo.text or "").replace(".", ""))
+            if n:
+                v["avaliacoes"] = int(n.group(1))
+                break
+        break
+    return v
+

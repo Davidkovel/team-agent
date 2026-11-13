@@ -184,3 +184,61 @@ html.is-phone .vt-best-in b { white-space: normal; font-size: 16px; }
 html.is-phone .vt-h { margin-top: 20px; }
 html.is-phone .vt-go { display: inline-flex; }
 .hub .vt-lims { padding: 18px 20px; }
+
+/* 13 nov: orçamento, plano de compra, compras e o vendedor */
+.hub .vt-orc { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.vt-orc-n { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.vt-orc-n > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.vt-orc-n i, .vt-pl i, .vt-buy i { font: 500 10.5px/1 var(--ui, inherit); font-style: normal; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.vt-orc-n b { font: 600 26px/1 var(--display, inherit); letter-spacing: -.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vt-orc-n b.none { font: 500 14px/26px var(--ui, inherit); color: var(--faint); letter-spacing: 0; }
+.vt-orc-n small { color: var(--faint); font-size: 11.5px; min-height: 14px; }
+.vt-orc-n .up b, .vt-pl .up, .vt-buy .up { color: #4ade80; }
+.vt-orc-n .bad b, .vt-buy .bad { color: #ff6b61; }
+.vt-bar { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.vt-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #8b9199, #e9edf1); }
+.vt-plan { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.vt-plan-h { padding: 12px 14px; display: flex; flex-direction: column; gap: 5px; background: rgba(74, 222, 128, .05); }
+.vt-plan-h p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.vt-pl, .vt-buy { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto auto auto; gap: 14px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+.vt-pl em { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #e9e9ea; color: #0a0a0a; font: 700 12px/1 var(--ui, inherit); font-style: normal; }
+.vt-pl > div, .vt-buy > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.vt-pl b, .vt-buy b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vt-pl small, .vt-buy small { color: var(--faint); font-size: 11.5px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.vt-pl > span, .vt-buy > span { display: flex; flex-direction: column; gap: 3px; font: 600 15px/1 var(--display, inherit); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vt-pl .btn, .vt-buy .btn { padding: 5px 11px; font-size: 12px; }
+.vt-pl .btn svg, .vt-buyb svg, .vt-best-a .btn.quiet svg { width: 13px; height: 13px; }
+.vt-orc-f { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; align-items: end; }
+.vt-orc-d summary { cursor: pointer; color: var(--muted); font-size: 12.5px; list-style: none; }
+.vt-orc-d summary::after { content: " ›"; }
+.vt-orc-d[open] summary { margin-bottom: 12px; }
+.vt-orc-d[open] summary::after { content: " ⌄"; }
+
+.hub .vt-buys { padding: 0; overflow: hidden; }
+.vt-buy { grid-template-columns: minmax(0, 1fr) auto auto auto auto auto auto; }
+.vt-buy:first-child { border-top: 0; }
+.vt-sold { flex-direction: row !important; align-items: center; gap: 6px !important; }
+.vt-sold input { width: 110px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); border-radius: 9px; padding: 6px 9px; color: var(--text); font: inherit; font-size: 13px; }
+.vt-x2 { background: none; border: 0; color: var(--faint); cursor: pointer; padding: 2px; display: grid; }
+.vt-x2 svg { width: 14px; height: 14px; }
+
+.vt-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 2px; }
+.vt-sel { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.vt-sel svg { width: 12px; height: 12px; }
+.vt-sel.ok { color: #d5d8dc; }
+.vt-sel.warn { color: #ffb020; }
+.vt-sel.none { color: var(--faint); }
+.vt-tag { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.vt-tag.ok { color: #4ade80; border-color: rgba(74, 222, 128, .4); background: rgba(74, 222, 128, .08); }
+.vt-tag.bad { color: #ff6b61; border-color: rgba(255, 107, 97, .35); }
+.vt-buyb { margin-left: 10px; display: inline-flex; align-items: center; gap: 4px; background: none; border: 1px solid var(--line-2); border-radius: 999px; color: var(--text);
+  font: inherit; font-size: 11.5px; padding: 2px 9px; cursor: pointer; }
+.vt-deal:hover .vt-meta { display: none; }
+
+html.is-phone .vt-orc-n { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.is-phone .vt-orc-n b { font-size: 22px; }
+html.is-phone .vt-pl { grid-template-columns: 26px minmax(0, 1fr) auto; row-gap: 8px; }
+html.is-phone .vt-pl > span { grid-row: 2; }
+html.is-phone .vt-pl .btn { grid-row: 3; }
+html.is-phone .vt-buy { grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 8px; }
+html.is-phone .vt-deal:hover .vt-meta { display: flex; }

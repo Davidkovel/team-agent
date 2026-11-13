@@ -12,6 +12,13 @@ tudo por temas e grupos dos produtos»):
   arrancar o coletor se ele morrer ou ficar preso, e arranca-o quando o Hub abre. Não é um Claude: não gasta tokens.
   Se ele morrer três vezes logo ao arrancar (falta o Selenium ou o Chrome), a guarda espera 10 min e diz porquê.
 - Procurar agora (reinicia o coletor: a primeira coisa que ele faz é uma volta) e esconder oportunidades já vistas.
+
+13 nov (Marco: «orçamento da empresa, o dinheiro que vais poder usar... os feedbacks, as avaliações»):
+- Orçamento (no vinted.json deste PC): total, máximo por artigo e por noite. Cada oportunidade tem o seu custo real (preço +
+  proteção do comprador + portes) e diz se cabe. O «plano de compra» escolhe, das que cabem, as de maior lucro até esgotar
+  o que se pode gastar. As compras marcam-se à mão («Comprei», depois «Vendi por»): daí saem o investido, o disponível e o
+  lucro real. Nada aqui compra sozinho: o Hub não tem conta no Vinted nem forma de pagar.
+- Vendedor: estrelas e número de avaliações de quem vende, lidos pelo coletor na página do artigo quando ele vira oportunidade.
 """
 from __future__ import annotations
 
@@ -237,6 +244,45 @@ def _rows(q: str, args=()) -> list:
         c.close()
 
 
+def _custo(preco: float, cfg: dict) -> float:
+    """O que um artigo custa de facto a comprar: preço + proteção do comprador + portes (a mesma conta do radar.py)."""
+    prot = cfg.get("protecao_comprador") or {}
+    return round(preco + prot.get("fixo", 0.7) + preco * prot.get("pct", 0.05) + cfg.get("portes_compra_eur", 4.0), 2)
+
+
+def _contas(f: dict) -> dict:
+    """O orçamento e o que já saiu dele. Disponível = orçamento - o que está investido em artigos ainda por vender."""
+    o = {"total": 0, "por_artigo": 0, "por_noite": 0, **(f.get("orcamento") or {})}
+    compras = f.get("compras") or []
+    em_stock = [c for c in compras if c.get("vendido") is None]
+    vendidas = [c for c in compras if c.get("vendido") is not None]
+    investido = round(sum(c["custo"] for c in em_stock), 2)
+    hoje = time.strftime("%Y-%m-%d")
+    return {**o, "investido": investido, "disponivel": round(o["total"] - investido, 2) if o["total"] else None,
+            "gasto_hoje": round(sum(c["custo"] for c in compras if (c.get("quando") or "") >= hoje), 2),
+            "lucro_real": round(sum(c["vendido"] - c["custo"] for c in vendidas), 2) if vendidas else None,
+            "lucro_previsto": round(sum(c.get("lucro_previsto") or 0 for c in em_stock), 2),
+            "em_stock": len(em_stock), "vendidas": len(vendidas)}
+
+
+def _plano(alertas: list, contas: dict) -> dict:
+    """Das oportunidades que cabem no máximo por artigo, as de maior lucro primeiro, até ao que se pode gastar esta noite."""
+    if not contas["total"]:
+        return {"ids": [], "custo": 0, "lucro": 0, "teto": None}
+    teto = max(0.0, contas["disponivel"])
+    if contas["por_noite"]:
+        teto = min(teto, max(0.0, contas["por_noite"] - contas["gasto_hoje"]))
+    ids, custo, lucro = [], 0.0, 0.0
+    for a in sorted(alertas, key=lambda a: -(a.get("lucro") or 0)):
+        if contas["por_artigo"] and a["custo"] > contas["por_artigo"]:
+            continue
+        if custo + a["custo"] <= teto:
+            ids.append(a["id"])
+            custo += a["custo"]
+            lucro += a.get("lucro") or 0
+    return {"ids": ids, "custo": round(custo, 2), "lucro": round(lucro, 2), "teto": round(teto, 2)}
+
+
 def _view() -> dict:
     if not CFG.exists():
         return {"instalado": False, "pasta": str(DIR)}
@@ -257,10 +303,19 @@ def _view() -> dict:
                "hoje": novos_hoje.get(n["nome"], 0)} for n in cfg["nichos"]]
     cols = ["id", "nicho", "titulo", "marca", "tamanho", "estado", "preco", "foto", "link", "visto_em",
             "mediana", "lucro", "comparaveis", "alertado_em"]
+    ha = {r[1] for r in _rows("PRAGMA table_info(anuncios)")}   # um radar.db de antes de 13 nov ainda não tem o vendedor
+    cols += [c for c in ("vendedor", "estrelas", "avaliacoes") if c in ha]
     alertas = [dict(zip(cols, r)) for r in _rows(f"SELECT {','.join(cols)} FROM anuncios WHERE alertado=1 "
                                                   "ORDER BY coalesce(alertado_em, visto_em) DESC LIMIT 200")]
     n_escondidos = sum(1 for a in alertas if a["id"] in escondidos)
-    alertas = [{**a, "grupo": grupo.get(a["nicho"], "Outros")} for a in alertas if a["id"] not in escondidos][:120]
+    compradas = {c["id"] for c in f.get("compras") or []}
+    contas = _contas(f)
+    alertas = [{"vendedor": None, "estrelas": None, "avaliacoes": None, **a, "grupo": grupo.get(a["nicho"], "Outros"), "custo": _custo(a["preco"], cfg)}
+               for a in alertas if a["id"] not in escondidos and a["id"] not in compradas][:120]
+    plano = _plano(alertas, contas)
+    for a in alertas:
+        a["no_plano"] = a["id"] in plano["ids"]
+        a["cabe"] = None if not contas["total"] else (a["custo"] <= contas["disponivel"] and not (contas["por_artigo"] and a["custo"] > contas["por_artigo"]))
     pid = _pid()
     ordem = [g for g in GRUPOS if any(n["grupo"] == g for n in nichos)] + sorted({n["grupo"] for n in nichos} - set(GRUPOS))
     espera = max(0, int((f.get("espera_ate") or 0) - time.time()))
@@ -269,6 +324,7 @@ def _view() -> dict:
             "continuo": bool(f.get("continuo")), "pronto": _pronto(),
             "guarda": {"reinicios": f.get("reinicios") or 0, "ultimo_reinicio": f.get("ultimo_reinicio"), "motivo": f.get("motivo"),
                        "erro": f.get("erro_guarda") or "", "espera_s": espera, "desde": f.get("continuo_desde")},
+            "orcamento": contas, "plano": plano, "compras": list(reversed(f.get("compras") or []))[:60],
             "ultimo_erro": "" if pid or not f.get("querido") else _ultimo_erro(),   # só se devia estar ligado e não está
             "limites": {k: cfg.get(k) for k in LIMITES}, "pais": cfg.get("pais", "pt"),
             "telegram": bool((DIR / ".env").exists() and "TELEGRAM_BOT_TOKEN=" in (DIR / ".env").read_text()
@@ -312,6 +368,46 @@ def agora(user: User = Depends(viewer)):
     _guardar_ficha(cedo=0, espera_ate=0, erro_guarda="", querido=True)
     _start()
     time.sleep(0.5)
+    return _view()
+
+
+@router.post("/orcamento")
+def orcamento(body: dict, user: User = Depends(viewer)):
+    """O dinheiro que se pode usar: total, máximo por artigo, máximo por noite (0 = sem esse limite)."""
+    o = {**{"total": 0, "por_artigo": 0, "por_noite": 0}, **(_ficha().get("orcamento") or {})}
+    for k in ("total", "por_artigo", "por_noite"):
+        v = body.get(k)
+        if isinstance(v, (int, float)) and 0 <= v <= 1_000_000:
+            o[k] = round(float(v), 2)
+    _guardar_ficha(orcamento=o)
+    return _view()
+
+
+@router.post("/compra")
+def compra(body: dict, user: User = Depends(viewer)):
+    """Registar à mão o que se comprou e por quanto se vendeu. {"id"} comprei; {"vendido": {"id", "valor"}}; {"tirar": id}."""
+    f = _ficha()
+    compras = list(f.get("compras") or [])
+    if isinstance(body.get("id"), int):
+        if any(c["id"] == body["id"] for c in compras):
+            raise HTTPException(400, "Essa compra já está registada")
+        r = _rows("SELECT id, nicho, titulo, preco, link, foto, lucro FROM anuncios WHERE id=?", (body["id"],))
+        if not r:
+            raise HTTPException(404, "Esse artigo já não está no radar")
+        i, nicho, titulo, preco, link, foto, lucro = r[0]
+        custo = body.get("custo") if isinstance(body.get("custo"), (int, float)) and body["custo"] > 0 else _custo(preco, _cfg())
+        compras.append({"id": i, "nicho": nicho, "titulo": titulo, "preco": preco, "custo": round(float(custo), 2), "link": link, "foto": foto,
+                        "lucro_previsto": round(lucro, 2) if lucro is not None else None, "quando": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "quem": user.username, "vendido": None})
+    v = body.get("vendido")
+    if isinstance(v, dict):
+        for c in compras:
+            if c["id"] == v.get("id"):
+                c["vendido"] = round(float(v["valor"]), 2) if isinstance(v.get("valor"), (int, float)) and v["valor"] >= 0 else None
+                c["vendido_em"] = time.strftime("%Y-%m-%d %H:%M:%S") if c["vendido"] is not None else None
+    if isinstance(body.get("tirar"), int):
+        compras = [c for c in compras if c["id"] != body["tirar"]]
+    _guardar_ficha(compras=compras[-300:])
     return _view()
 
 

@@ -69,3 +69,25 @@ def test_um_coletor_preso_e_reiniciado(radar):
     vinted._guardar_ficha(continuo=True, pid=os.getpid(), arrancou=time.time() - 3 * 3600)
     vinted.vigiar()
     assert len(radar.arranques) == 1 and vinted._ficha()["motivo"] == "estava preso"
+
+
+def test_o_orcamento_diz_o_que_esta_disponivel_e_o_lucro_real():
+    c = vinted._contas({"orcamento": {"total": 500, "por_artigo": 200, "por_noite": 300},
+                        "compras": [{"id": 1, "custo": 100.0, "lucro_previsto": 40, "vendido": None, "quando": "2020-01-01 00:00:00"},
+                                    {"id": 2, "custo": 50.0, "lucro_previsto": 30, "vendido": 95.0, "quando": "2020-01-01 00:00:00"}]})
+    assert c["investido"] == 100 and c["disponivel"] == 400   # o que se vendeu volta a estar disponível
+    assert c["lucro_real"] == 45 and c["lucro_previsto"] == 40 and c["em_stock"] == 1
+    assert vinted._contas({})["disponivel"] is None   # sem orçamento posto: «Sem dados», não zero
+
+
+def test_o_plano_escolhe_o_maior_lucro_que_cabe():
+    contas = vinted._contas({"orcamento": {"total": 300, "por_artigo": 150, "por_noite": 200}})
+    alertas = [{"id": 1, "custo": 160, "lucro": 90}, {"id": 2, "custo": 120, "lucro": 60}, {"id": 3, "custo": 70, "lucro": 35},
+               {"id": 4, "custo": 30, "lucro": 20}]
+    p = vinted._plano(alertas, contas)
+    assert p["ids"] == [2, 3] and p["custo"] == 190 and p["lucro"] == 95   # o 1 passa do máximo por artigo, o 4 já não cabe na noite
+    assert vinted._plano(alertas, vinted._contas({}))["ids"] == []
+
+
+def test_o_custo_real_soma_protecao_e_portes():
+    assert vinted._custo(100, {"protecao_comprador": {"fixo": 0.7, "pct": 0.05}, "portes_compra_eur": 4.0}) == 109.7

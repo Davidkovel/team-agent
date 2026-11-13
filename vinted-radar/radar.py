@@ -19,7 +19,7 @@ import traceback
 import urllib.parse
 import urllib.request
 
-from fonte import abrir_browser, ler_anuncios
+from fonte import abrir_browser, ler_anuncios, ler_vendedor
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(RAIZ, "config", "nichos.json"), encoding="utf-8"))
@@ -41,7 +41,7 @@ def ligar():
         id INTEGER PRIMARY KEY, nicho TEXT, titulo TEXT, marca TEXT, tamanho TEXT, estado TEXT,
         preco REAL, foto TEXT, link TEXT, visto_em TEXT, origem TEXT, alertado INTEGER DEFAULT 0)""")
     cols = {x[1] for x in c.execute("PRAGMA table_info(anuncios)")}
-    for col in ("mediana REAL", "lucro REAL", "comparaveis INTEGER", "alertado_em TEXT"):
+    for col in ("mediana REAL", "lucro REAL", "comparaveis INTEGER", "alertado_em TEXT", "vendedor TEXT", "estrelas REAL", "avaliacoes INTEGER"):
         if col.split()[0] not in cols:
             c.execute(f"ALTER TABLE anuncios ADD COLUMN {col}")
     return c
@@ -256,6 +256,12 @@ def ciclo(b, c, primeira=False):
                     telegram(a, n["nome"], r)
                     c.execute("UPDATE anuncios SET alertado=1, mediana=?, lucro=?, comparaveis=?, alertado_em=? WHERE id=?",
                               (r["mediana"], r["lucro"], r["comparaveis"], time.strftime("%Y-%m-%d %H:%M:%S"), a["id"]))
+                    try:   # quem vende: estrelas e avaliações, para o Hub mostrar (12 nov, Marco: «os feedbacks, as avaliações»)
+                        v = ler_vendedor(b, a["link"])
+                        c.execute("UPDATE anuncios SET vendedor=?, estrelas=?, avaliacoes=? WHERE id=?",
+                                  (v["vendedor"], v["estrelas"], v["avaliacoes"], a["id"]))
+                    except Exception as e:
+                        print(f"vendedor de {a['id']}: {str(e)[:120]}")
                     alertas += 1
             c.commit()
         print(f"{time.strftime('%H:%M:%S')} {n['nome']}: {len(novos)} novos")

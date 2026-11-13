@@ -70,7 +70,7 @@ function heroHtml(now, ignite) {
       <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
       <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
     </div>
-    <div id="in-team" class="hero-team"></div>
+    <div class="hero-side"><div id="in-newsbar" class="in-newsbar"></div><div id="in-team" class="hero-team"></div></div>
   </header>`;
 }
 
@@ -92,9 +92,9 @@ const SHORTCUTS = [
 function shortcutsHtml() {
   return `<nav class="in-apps" aria-label="${esc(t("Atalhos"))}">${SHORTCUTS.map(([id, label, ic, href]) => {
     const inner = `<span class="in-app-ic">${icon(ic)}<i class="in-app-n" data-n="${id}" hidden></i></span><span class="in-app-l">${esc(t(label))}</span>`;
-    if (!href) return `<button type="button" class="in-app" data-act="${id}">${inner}</button>`;
+    if (!href) return `<button type="button" class="in-app" data-act="${id}" title="${esc(t(label))}">${inner}</button>`;
     const out = href.startsWith("http");
-    return `<a class="in-app" data-app="${id}" href="${href}"${out ? ' target="_blank" rel="noopener"' : ""}>${inner}</a>`;
+    return `<a class="in-app" data-app="${id}" href="${href}" title="${esc(t(label))}"${out ? ' target="_blank" rel="noopener"' : ""}>${inner}</a>`;
   }).join("")}</nav>`;
 }
 async function shortcutsFill() {
@@ -740,13 +740,17 @@ HUB_VIEWS.home = async function viewHome() {
   try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: no start-up */ }
   // 13 nov (David: «quero tudo visível só de olhar, sem scroll»): saudação com a equipa ao lado, a doca, a faixa «Hoje», e
   // por baixo o dia de cada um ao lado dos negócios. O que está a acontecer vive em Ao vivo; o progresso em Análise.
-  $("view").innerHTML = `<div class="page inicio"><div id="in-newsbar" class="in-newsbar"></div>${heroHtml(new Date(), ignite)}
+  // 13 nov, 3.ª volta (David: «muda de maneira profissional e funcional»): o painel da direita sai do Início para a página
+  // ter a largura toda; as notificações e a equipa ficam na linha da saudação, os números de hoje numa só barra, e a semana
+  // passa para o cartão do Foco, por baixo do anel.
+  $("view").innerHTML = `<div class="page inicio">${heroHtml(new Date(), ignite)}
     <span id="in-apps-mark" hidden></span>${shortcutsHtml()}
     <div id="in-alert" class="in-alert"></div><div id="in-pulse" class="in-pulse"></div><div id="in-doing" class="in-doing"></div>
     <div class="in-main">
-      <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div><div id="in-week" class="fx fx-wk"></div></section>
+      <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div>
+        <button type="button" class="in-addtask" data-act="task">${icon("plus")}<span>${t("Nova tarefa")}</span></button></section>
       <section class="in-card in-bizc">${cardHead("spark", "Comando", "", seeAll("Escritório", "#/escritorio"))}${askHtml()}<div id="in-biz"></div></section>
-      <div class="in-col3"><section class="in-card in-focusc"><div id="in-focus" class="fx"></div></section>
+      <div class="in-col3"><section class="in-card in-focusc"><div id="in-focus" class="fx"></div><div id="in-week" class="fx fx-wk"></div></section>
         <section class="in-card in-feed">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section></div>
     </div></div>`;
   $("view").onclick = homeClick;

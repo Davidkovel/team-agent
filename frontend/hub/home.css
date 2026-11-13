@@ -849,3 +849,78 @@ html.is-phone .m-cmd .ck-ask { margin: 0 0 4px; }
 .inicio .in-tasks .wk-bar i { border-radius: 8px; }
 .inicio .in-tasks .wk-d b { display: block; min-height: 12px; color: #fff; font: 650 10.5px var(--display); }
 .inicio .in-tasks .wk-d.wk-now b { color: #ffb15c; }
+
+/* ---------- Início, 3.ª volta (13 nov, David: «muda de maneira profissional e funcional... não gostei do design atual») ----------
+   O painel da direita sai do Início para a página ter a largura toda. Uma linha de topo (saudação à esquerda, notificações e
+   equipa à direita), a doca baixa, os números de hoje numa só barra com divisórias, e três colunas: o dia, o Comando, e o
+   Foco com a semana por cima do «Agora». Os títulos deixam de ser cortados a meio. */
+html:not(.is-phone) .hub.paneled:has(.page.inicio) #hpanel { display: none; }
+html:not(.is-phone) .hub.paneled:has(.page.inicio) { grid-template-columns: 248px minmax(0, 1fr); }
+html:not(.is-phone) .hub.paneled.collapsed:has(.page.inicio) { grid-template-columns: 76px minmax(0, 1fr); }
+.page.inicio { gap: 14px; max-width: 1480px; }
+
+/* linha de topo */
+.inicio .in-hero { align-items: center; min-height: 0; padding: 2px 0 0; gap: 20px; }
+.inicio .in-hero h1 { font: 650 28px/1.1 var(--display); }
+.inicio .in-hero h1 em { font-style: normal; color: #aeb4ba; }
+.inicio .hero-date { margin-top: 5px; color: rgba(235, 238, 242, .55); }
+.hero-side { position: relative; z-index: 2; display: flex; align-items: center; gap: 14px; min-width: 0; flex: 0 1 auto; }
+.inicio .in-newsbar { position: static; max-width: 420px; min-width: 0; height: 40px; background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18); }
+.inicio .in-newsbar .nb-all { display: none; }
+.inicio .hero-team { padding-left: 14px; border-left: 1px solid rgba(255, 255, 255, .12); }
+.inicio .hero-team .ht-p .av { width: 32px; height: 32px; }
+
+/* doca: uma fila baixa de botões de vidro, ícone e nome lado a lado */
+.inicio .in-apps { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; padding: 6px; border-radius: 18px; }
+.inicio .in-app { flex-direction: row; justify-content: center; gap: 8px; height: 42px; padding: 0 8px; border-radius: 13px; transition: background .15s; }
+.inicio .in-app:hover { background: rgba(255, 255, 255, .08); }
+.inicio .in-app-ic { width: 28px; height: 28px; border-radius: 9px; flex: none; }
+.inicio .in-app-ic svg.i { width: 15px; height: 15px; }
+.inicio .in-app-l { font: 600 12px var(--display); color: #e6e9ec; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inicio .in-app-n { top: -6px; right: -6px; }
+
+/* «Hoje»: uma barra, seis números separados por linhas finas */
+.inicio .pl-row { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; border-radius: 18px; overflow: hidden;
+  background: var(--gl); border: 1px solid var(--gl-line); box-shadow: var(--gl-hi); }
+.inicio .pl { padding: 12px 16px 11px; border: 0; border-left: 1px solid rgba(255, 255, 255, .09); border-radius: 0; background: none; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none; }
+.inicio .pl:first-child { border-left: 0; }
+.inicio .pl:hover { transform: none; background: rgba(255, 255, 255, .05); }
+.inicio .pl::before { display: none; }
+.inicio .pl-ic { position: static; order: -1; width: auto; height: auto; margin-bottom: 6px; background: none; }
+.inicio .pl-ic svg.i { width: 14px; height: 14px; color: rgba(235, 238, 242, .5); }
+.inicio .pl b { font-size: 24px; }
+.inicio .pl-l { margin-top: 4px; font-size: 12px; }
+.inicio .pl.ok b { color: var(--ok); } .inicio .pl.warn b { color: var(--warn); } .inicio .pl.bad b, .inicio .pl.hot b { color: #ff6b61; }
+
+/* três colunas largas */
+.inicio .in-main { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, .95fr); gap: 14px; }
+.inicio .in-main .in-card { padding: 14px 16px; }
+.inicio .ttitle { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+.inicio .trow { align-items: center; }
+.inicio .ck-job-t b, .inicio .in-feed .arow-t b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Foco e semana no mesmo cartão: anel à esquerda, a semana numa fila curta por baixo */
+.inicio .in-focusc .fx-wk { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .09); }
+.inicio .in-focusc .fx-wk .fx-h { margin-bottom: 8px; }
+.inicio .in-focusc .wk { gap: 6px; }
+.inicio .in-focusc .wk-bar { height: 30px; max-width: none; border-radius: 6px; }
+.inicio .in-focusc .wk-d b { display: none; }
+.inicio .fx-dial { width: 78px; height: 78px; }
+
+@container (max-width: 1100px) { .inicio .in-apps { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@container (max-width: 860px) { .inicio .pl-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .inicio .pl:nth-child(4) { border-left: 0; } .inicio .pl:nth-child(n+4) { border-top: 1px solid rgba(255, 255, 255, .09); }
+  .inicio .in-newsbar { display: none; } }
+.inicio .in-apps { display: flex; justify-content: space-between; }
+.inicio .in-app { flex: 1 1 auto; min-width: 0; padding: 0 6px; gap: 7px; }
+.inicio .fx-title { -webkit-line-clamp: 2; line-height: 1.35; padding-bottom: 1px; }
+/* o fundo do «O teu dia»: criar uma tarefa sem sair daqui */
+.in-addtask { display: flex; align-items: center; gap: 9px; width: 100%; margin-top: auto; padding: 11px 12px; border-radius: 13px; cursor: pointer;
+  border: 1px dashed rgba(255, 255, 255, .16); background: none; color: rgba(235, 238, 242, .6); font: 600 12.5px var(--display); transition: background .15s, color .15s, border-color .15s; }
+.in-addtask:hover { color: #fff; background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .3); }
+.in-addtask svg.i { width: 15px; height: 15px; }
+.inicio .in-tasks #in-tasks { margin-bottom: 12px; }
+/* janela estreita: a doca fica só com os ícones (o nome aparece ao passar por cima) */
+@container (max-width: 1050px) { .inicio .in-app-l { display: none; } .inicio .in-app-ic { width: 30px; height: 30px; } }

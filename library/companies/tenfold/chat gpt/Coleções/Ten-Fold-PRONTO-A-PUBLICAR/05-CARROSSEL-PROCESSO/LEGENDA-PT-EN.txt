@@ -1,0 +1,16 @@
+Antes de desenhar, precisamos de perceber o projeto.
+
+1. Conversa: o negócio, o público e o que é preciso criar.
+2. Direção: estrutura, referências e âmbito.
+3. Construção: design, revisão e preparação para lançar.
+
+Tens uma ideia que ainda está no papel? Podemos começar pela conversa.
+
+— EN —
+Before we design, we need to understand the project.
+
+1. Conversation: the business, the audience and what needs to be built.
+2. Direction: structure, references and scope.
+3. Build: design, review and preparation for launch.
+
+Have an idea that’s still on paper? We can start with a conversation.

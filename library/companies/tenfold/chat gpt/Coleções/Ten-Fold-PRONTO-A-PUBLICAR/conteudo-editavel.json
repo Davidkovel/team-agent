@@ -1,0 +1,59 @@
+[
+  {
+    "folder": "01-CARROSSEL-APRESENTACAO",
+    "title": "O que a Ten Fold faz",
+    "kind": "Carrossel · 3 imagens",
+    "files": [
+      "01.png",
+      "02.png",
+      "03.png"
+    ]
+  },
+  {
+    "folder": "02-REEL-PRIMEIRO-SITE",
+    "title": "Ainda não tens site?",
+    "kind": "Reel · 12 segundos",
+    "files": [
+      "REEL.mp4",
+      "CAPA.png"
+    ]
+  },
+  {
+    "folder": "03-CARROSSEL-CHECKLIST",
+    "title": "O teu site responde a isto?",
+    "kind": "Carrossel · 4 imagens",
+    "files": [
+      "01.png",
+      "02.png",
+      "03.png",
+      "04.png"
+    ]
+  },
+  {
+    "folder": "04-POST-ABERTURA-DE-PROJETOS",
+    "title": "Convite para os primeiros contactos",
+    "kind": "Post · 1 imagem",
+    "files": [
+      "POST.png"
+    ]
+  },
+  {
+    "folder": "05-CARROSSEL-PROCESSO",
+    "title": "Como começa um projeto",
+    "kind": "Carrossel · 3 imagens",
+    "files": [
+      "01.png",
+      "02.png",
+      "03.png"
+    ]
+  },
+  {
+    "folder": "06-REEL-MARCA",
+    "title": "A mesma marca em todo o lado",
+    "kind": "Reel · 12 segundos",
+    "files": [
+      "REEL.mp4",
+      "CAPA.png"
+    ]
+  }
+]

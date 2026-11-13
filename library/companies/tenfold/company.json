@@ -164,6 +164,35 @@
           ]
         }
       ]
+    },
+    {
+      "id": "chat-gpt",
+      "label": "chat gpt",
+      "icon": "📷",
+      "kind": "photos",
+      "description": "Imagens da Ten Fold, publicações numeradas e coleções anteriores.",
+      "sources": [
+        {
+          "source": "library",
+          "path": "companies/tenfold/chat gpt/01 - Publicar",
+          "label": "01 - Publicar"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/chat gpt/02 - Imagens geradas em alta resolução",
+          "label": "02 - Imagens geradas em alta resolução"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/chat gpt/Coleções",
+          "label": "Coleções"
+        },
+        {
+          "source": "library",
+          "path": "companies/tenfold/chat gpt/Ten-Fold-Instagram-previa.png",
+          "label": "Ten-Fold-Instagram-previa.png"
+        }
+      ]
     }
   ],
   "channels": {

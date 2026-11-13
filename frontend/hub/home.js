@@ -438,23 +438,24 @@ const RING = 2 * Math.PI * 34;
 
 async function focusBody() {
   const f = focusGet();
+  const dial = (txt) => `<div class="fx-dial"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="34"/><circle class="fx-arc" id="fx-arc" cx="40" cy="40" r="34"
+    stroke-dasharray="${RING}" stroke-dashoffset="${f ? 0 : RING}"/></svg><b class="fx-time" id="fx-time">${txt}</b></div>`;
   if (f) {
-    return `<div class="fx-h"><b>${t("Modo foco")}</b><span>${t("{n} min", { n: f.mins })}</span></div>
-      <div class="fx-run"><svg class="fx-ring" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34"/><circle class="fx-arc" id="fx-arc" cx="40" cy="40" r="34"
-        stroke-dasharray="${RING}" stroke-dashoffset="0"/></svg><b class="fx-time" id="fx-time">--:--</b>
-        <div class="fx-what"><span>${t("Estás em")}</span><button class="fx-title" data-task="${f.id}">${esc(f.title)}</button>
-          <div class="fx-btns"><button class="fx-b ok" data-fx="done">${icon("tick")}${t("Feita")}</button><button class="fx-b" data-fx="more">+5 min</button>
-          <button class="fx-b" data-fx="stop">${icon("stop")}${t("Parar")}</button></div></div></div>`;
+    return `<div class="fx-h"><b>${t("Modo foco")}</b><span class="fx-live">${t("a contar")}</span></div>
+      <div class="fx-run">${dial("--:--")}<div class="fx-what"><span>${t("Estás em")}</span><button class="fx-title" data-task="${f.id}">${esc(f.title)}</button></div></div>
+      <div class="fx-go"><button class="fx-start ok" data-fx="done">${icon("tick")}${t("Feita")}</button><button class="fx-start alt" data-fx="more">+5</button>
+        <button class="fx-start alt" data-fx="stop" aria-label="${t("Parar")}">${icon("stop")}</button></div>`;
   }
   // as tarefas para todos contam pela tua cópia, enquanto não fizeste a tua parte
   const mine = planOf(asOne(await api("/api/tasks"))).today.sort((a, b) => importance(a) - importance(b))
     .map((x) => (x.group ? { ...x, id: x.group.find((y) => y.assignee === me.username && y.stage !== "done")?.id } : x.assignee === me.username ? x : null))
-    .filter((x) => x && x.id).slice(0, 3);
-  if (!mine.length) return `<div class="fx-h"><b>${t("Modo foco")}</b></div><p class="fx-none">${t("Sem tarefas tuas para hoje. Cria uma e foca-te nela.")}</p>`;
-  if (!mine.some((x) => x.id === focusPick)) focusPick = mine[0].id;
-  return `<div class="fx-h"><b>${t("Modo foco")}</b><span>${t("escolhe e arranca")}</span></div>
-    <div class="fx-pick">${mine.map((x) => `<button class="fx-opt ${x.id === focusPick ? "on" : ""}" data-fx-pick="${x.id}"><i></i><span>${esc(x.title)}</span></button>`).join("")}</div>
-    <div class="fx-go"><button class="fx-start" data-fx-start="25">${icon("play")}25'</button><button class="fx-start alt" data-fx-start="50">50'</button></div>`;
+    .filter((x) => x && x.id).slice(0, 5);
+  if (!mine.length) return `<div class="fx-h"><b>${t("Modo foco")}</b></div><div class="fx-run idle">${dial("25:00")}<p class="fx-none">${t("Sem tarefas tuas para hoje. Cria uma e foca-te nela.")}</p></div>`;
+  const i = Math.max(0, mine.findIndex((x) => x.id === focusPick)), x = mine[i];
+  focusPick = x.id;
+  return `<div class="fx-h"><b>${t("Modo foco")}</b>${mine.length > 1 ? `<button class="fx-next" data-fx-pick="${mine[(i + 1) % mine.length].id}">${t("Outra")} ${i + 1}/${mine.length}</button>` : ""}</div>
+    <div class="fx-run idle">${dial("25:00")}<div class="fx-what"><span>${t("A seguir")}</span><button class="fx-title" data-task="${x.id}">${esc(x.title)}</button></div></div>
+    <div class="fx-go"><button class="fx-start" data-fx-start="25">${icon("play")}25 min</button><button class="fx-start alt" data-fx-start="50">50 min</button></div>`;
 }
 function focusRun() {
   clearInterval(focusTick);
@@ -475,7 +476,7 @@ async function focusClick(e) {
   if (pick) { focusPick = Number(pick.dataset.fxPick); await mount($("in-focus"), focusBody, 1); return true; }
   const start = e.target.closest("[data-fx-start]");
   if (start) {
-    const title = start.closest(".fx").querySelector(".fx-opt.on span")?.textContent || "";
+    const title = start.closest(".fx").querySelector(".fx-title")?.textContent || "";
     focusSet({ id: focusPick, title, mins: Number(start.dataset.fxStart), start: Date.now() });
     api(`/api/tasks/${focusPick}`, { method: "PATCH", body: { doing: true } }).catch(() => {});
     await mount($("in-focus"), focusBody, 1); focusRun(); loadHome(["team"]);
@@ -743,10 +744,10 @@ HUB_VIEWS.home = async function viewHome() {
     <span id="in-apps-mark" hidden></span>${shortcutsHtml()}
     <div id="in-alert" class="in-alert"></div><div id="in-pulse" class="in-pulse"></div><div id="in-doing" class="in-doing"></div>
     <div class="in-main">
-      <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div>
-        <div class="fx-dock"><div id="in-focus" class="fx"></div><div id="in-week" class="fx"></div></div></section>
+      <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div><div id="in-week" class="fx fx-wk"></div></section>
       <section class="in-card in-bizc">${cardHead("spark", "Comando", "", seeAll("Escritório", "#/escritorio"))}${askHtml()}<div id="in-biz"></div></section>
-      <section class="in-card in-feed">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section>
+      <div class="in-col3"><section class="in-card in-focusc"><div id="in-focus" class="fx"></div></section>
+        <section class="in-card in-feed">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section></div>
     </div></div>`;
   $("view").onclick = homeClick;
   $("ck-ask").onsubmit = ckSend;

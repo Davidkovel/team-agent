@@ -1439,3 +1439,45 @@ button.td-w { cursor: pointer; } button.td-w:hover { background: rgba(255, 255, 
 .bz-c.down { border-color: rgba(255, 107, 97, .45); box-shadow: 0 0 22px -8px rgba(255, 107, 97, .6); }
 .gz-side .tr-g { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .bz-c em { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+
+/* ---------- 12.ª volta, 13 nov (David: «as tarefas podiam estar melhor, faz profissional»): um só painel de vidro, como uma
+   tabela de trabalho. Cabeçalho com título, contagem e separador, e uma linha fina com o dia feito; a captura rápida é a
+   primeira linha; colunas alinhadas (tarefa, projeto, progresso, pessoas). Branco e cinzento; vermelho só para atrasos e «!». */
+.io-panel { padding: 0; overflow: hidden; gap: 0; }
+.io-panel .io-h { position: relative; display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; min-height: 0; margin: 0; padding: 16px 18px 14px; }
+.io-ttl { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.io-ttl b { color: #fff; font: 700 19px/1.1 var(--display); letter-spacing: -.02em; }
+.io-ttl .io-n { font-size: 12px; }
+.io-line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(255, 255, 255, .06); }
+.io-line i { display: block; height: 100%; background: rgba(255, 255, 255, .85); box-shadow: 0 0 8px rgba(255, 255, 255, .5); }
+.io-panel .qk { margin: 0; border: 0; border-bottom: 1px solid var(--g-sep); border-radius: 0; background: rgba(255, 255, 255, .02); box-shadow: none; padding: 6px 10px 6px 18px; }
+.io-panel .qk:focus-within { background: rgba(255, 255, 255, .05); border-color: var(--g-sep); }
+.io-panel .qk-ic { color: var(--g-dim); }
+.io-panel .io-list { border: 0; border-radius: 0; background: none; box-shadow: none; }
+.io-panel .io-sec { margin: 0; padding: 12px 18px 6px; border-top: 1px solid var(--g-sep); }
+.io-cols, .io.pro { display: grid; grid-template-columns: 22px minmax(0, 1fr) 110px 88px 64px 28px; align-items: center; column-gap: 14px; }
+.io-cols { padding: 8px 18px; border-bottom: 1px solid var(--g-sep); color: rgba(235, 238, 242, .38); font: 600 10px var(--display); letter-spacing: .08em; text-transform: uppercase; }
+.io.pro { min-height: 56px; padding: 8px 14px 8px 18px; background: none; }
+.io.pro:hover { background: rgba(255, 255, 255, .035); }
+.io.pro::after { display: none; }
+.io + .io::before, .io-list > * + .io::before { left: 54px; }
+.io.pro .io-t b { font: 500 14px/1.3 var(--display); }
+.io-sub { display: flex; gap: 10px; margin-top: 2px; color: var(--g-dim); font: 400 11.5px var(--display); white-space: nowrap; overflow: hidden; }
+.io-sub span { display: inline-flex; align-items: center; gap: 4px; }
+.io-sub svg.i { width: 10px; height: 10px; }
+.io-sub .late { color: #ff6b61; } .io-sub .on { color: var(--ok); }
+.io-proj { color: rgba(235, 238, 242, .62); font: 500 12px var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.io-pg { display: flex; align-items: center; gap: 8px; }
+.io-mini { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.io-mini i { display: block; height: 100%; border-radius: 2px; background: rgba(255, 255, 255, .8); }
+.io-pg em { color: var(--g-dim); font: 600 11px var(--display); font-style: normal; font-variant-numeric: tabular-nums; }
+.io.pro .io-who { justify-content: flex-start; align-items: center; }
+.io.pro .io-who .av { width: 22px; height: 22px; box-shadow: 0 0 0 2px rgba(12, 13, 15, .95); }
+.io.pro .io-who .av + .av { margin-left: -6px; }
+.io.pro .io-who em { margin-left: 4px; color: var(--g-dim); font: 600 10.5px var(--display); font-style: normal; }
+.io.pro .io-ck { border-color: rgba(255, 255, 255, .35); }
+.io.pro .io-ck.on { background: rgba(255, 255, 255, .85); }
+.io.pro .io-bang { margin-right: 6px; }
+.io.pro.done .io-proj, .io.pro.done .io-pg, .io.pro.done .io-who { opacity: .45; }
+.io-panel .io-more { padding-left: 54px; }
+@container (max-width: 1000px) { .io-cols, .io.pro { grid-template-columns: 22px minmax(0, 1fr) 70px 28px; } .io-cols > :nth-child(3), .io-cols > :nth-child(5), .io.pro .io-proj, .io.pro .io-who { display: none; } }

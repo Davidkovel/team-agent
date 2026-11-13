@@ -897,21 +897,20 @@ async function quickSend(ai) {
   loadHome(["plan", "act"]);
 }
 
-// O cabeçalho das tarefas: o título grande e o separador do iPhone, e por baixo a barra do dia (quantas já fizeste das de hoje)
-// com os atrasos e as prioritárias (9.ª volta, David: «as tarefas estão paradas, não se passa nada; quero mais design»).
+// 12.ª volta (13 nov, David: «a parte das tarefas podia estar melhor, faz profissional»): as tarefas num só painel de vidro,
+// como uma tabela de trabalho. Em cima o título, a contagem e o separador; uma linha fina mostra quanto do dia já está feito;
+// a captura rápida é a primeira linha; cada tarefa tem colunas alinhadas: tarefa (e quando), projeto, progresso e pessoas.
+// Sem cores além do vermelho dos atrasos e da prioridade.
 async function iosHead() {
   const p = planOf(asOne(await api("/api/tasks")));
   const late = p.late.length, hot = p.open.filter((x) => x.priority === "urgent" || x.priority === "high").length;
   const fin = p.doneToday.length, all = fin + p.today.length, pct = all ? Math.round((fin / all) * 100) : 0;
-  return `<b>${t("Tarefas")}</b>
+  return `<div class="io-ttl"><b>${t("Tarefas")}</b>
+      <span class="io-n">${t("{d} de {n} feitas hoje", { d: fin, n: all })}${late ? ` · <em>${t("{n} atrasadas", { n: late })}</em>` : ""}${hot ? ` · ${t("{n} prioritárias", { n: hot })}` : ""}</span></div>
     <div class="io-seg" role="tablist">${DAY_TABS.map(([id, label]) => `<button role="tab" data-tab="${id}" class="${id === tasksTab ? "on" : ""}" aria-selected="${id === tasksTab}">${t(label === "Esta semana" ? "Semana" : label)}</button>`).join("")}</div>
-    <div class="io-prog"><span class="io-pct">${pct}%</span><span class="io-pbar"><i style="width:${pct}%"></i></span>
-      <span class="io-n">${t("{d} de {n} feitas hoje", { d: fin, n: all })}${late ? ` · <em>${t("{n} atrasadas", { n: late })}</em>` : ""}${hot ? ` · <b>${t("{n} prioritárias", { n: hot })}</b>` : ""}</span></div>`;
+    <span class="io-line" title="${esc(t("{p}% do dia feito", { p: pct }))}"><i style="width:${pct}%"></i></span>`;
 }
 
-// As tarefas como no iPhone: cada linha tem o círculo para concluir, o título e por baixo etiquetas pequenas (quando, de que
-// projeto, quem a está a fazer), os passos feitos em pontos quando é de várias pessoas, as caras de quem a tem à direita e uma
-// risca de cor à esquerda nas urgentes (vermelha) e nas importantes (âmbar). O ▶ de foco aparece ao passar.
 function iosRow(x, done) {
   const own = x.group ? x.group.find((y) => y.assignee === me.username) : x;
   const held = !done && own && heldByAgent(own), mineDone = !done && x.group && own && own.stage === "done";
@@ -920,16 +919,18 @@ function iosRow(x, done) {
   const check = done || mineDone ? `<span class="io-ck on">${icon("tick")}</span>`
     : held ? `<span class="io-ck held" title="${t("O agente está a tratar dela")}"></span>`
     : `<button class="io-ck" data-${own ? "done" : "task"}="${(own || x).id}" aria-label="${t("Concluir")}"></button>`;
-  const chip = (text, cls = "") => `<span class="io-chip ${cls}">${text}</span>`;
-  const steps = x.group && `<span class="io-steps" title="${esc(t("{d} de {n} feitas", { d: x.group.filter((y) => y.stage === "done").length, n: x.group.length }))}">${x.group.map((y) => `<i class="${y.stage === "done" ? "on" : ""}"></i>`).join("")}</span>`;
-  const meta = [when && chip(`${icon("clock")}${esc(when)}`, late ? "late" : ""), chip(esc(tagOf(x))), steps,
-    doer && chip(esc(t("{n} a fazer", { n: nameOf(doer.assignee) })), "on"), held && chip(t("o agente está nela"), "on")].filter(Boolean);
-  const who = (x.group ? x.group.map((y) => y.assignee) : [x.assignee]).filter(Boolean).slice(0, 3);
+  const sub = [when && `<span class="${late ? "late" : ""}">${icon("clock")}${esc(when)}</span>`,
+    doer && `<span class="on">${esc(t("{n} a fazer", { n: nameOf(doer.assignee) }))}</span>`, held && `<span class="on">${t("o agente está nela")}</span>`].filter(Boolean);
+  const d = x.group ? x.group.filter((y) => y.stage === "done").length : done ? 1 : 0, n = x.group ? x.group.length : 1;
+  const people = (x.group ? x.group.map((y) => y.assignee) : [x.assignee]).filter(Boolean);
   const fx = !done && !held && !mineDone && own && own.stage !== "done" && !doer
-    ? `<button class="io-fx" data-fx-start="25" data-fx-id="${own.id}" data-fx-title="${esc(x.title)}" title="${t("Foco de 25 min")}">${icon("play")}</button>` : "";
-  const pri = !done && x.priority === "urgent" ? "pri-u" : !done && x.priority === "high" ? "pri-h" : "";
-  return `<div class="io ${done ? "done" : ""} ${pri}">${check}<button class="io-t" data-task="${(own || x).id}"><b>${esc(x.title)}</b><span class="io-meta">${meta.join("")}</span></button>
-    ${fx}<span class="io-who">${who.map((u) => ui.avatar(nameOf(u), "sm")).join("")}</span></div>`;
+    ? `<button class="io-fx" data-fx-start="25" data-fx-id="${own.id}" data-fx-title="${esc(x.title)}" title="${t("Foco de 25 min")}">${icon("play")}</button>` : "<span></span>";
+  const bang = !done && x.priority === "urgent" ? '<i class="io-bang">!!</i>' : !done && x.priority === "high" ? '<i class="io-bang">!</i>' : "";
+  return `<div class="io pro ${done ? "done" : ""}">${check}
+    <button class="io-t" data-task="${(own || x).id}"><b>${bang}${esc(x.title)}</b>${sub.length ? `<span class="io-sub">${sub.join("")}</span>` : ""}</button>
+    <span class="io-proj">${esc(tagOf(x))}</span>
+    <span class="io-pg"><span class="io-mini"><i style="width:${Math.round((d / n) * 100)}%"></i></span><em>${d}/${n}</em></span>
+    <span class="io-who">${people.slice(0, 3).map((u) => ui.avatar(nameOf(u), "sm")).join("")}${people.length > 3 ? `<em>+${people.length - 3}</em>` : ""}</span>${fx}</div>`;
 }
 async function iosTasks() {
   const p = planOf(asOne(await api("/api/tasks")));
@@ -943,7 +944,8 @@ async function iosTasks() {
         <span>${t(list.length === 1 ? "1 tarefa" : "{n} tarefas", { n: list.length })}</span></span>${icon("chevron")}</button>
       ${on ? list.slice(0, MATE_ROWS).map((x) => iosRow(x, false)).join("") : ""}`;
   };
-  return `<div class="io-list">
+  return `<div class="io-cols"><span></span><span>${t("Tarefa")}</span><span>${t("Projeto")}</span><span>${t("Progresso")}</span><span>${t("Pessoas")}</span><span></span></div>
+    <div class="io-list">
       ${mine.slice(0, MAX_ROWS).map((x) => iosRow(x, false)).join("") || `<p class="io-empty">${t(open.length ? "Nada para ti aqui." : done.length ? "Tudo feito por hoje." : DAY_EMPTY[tasksTab])}</p>`}
       ${mine.length > MAX_ROWS ? `<a class="io io-more" href="#/tarefas">${t("Mais {n} no quadro", { n: mine.length - MAX_ROWS })}${icon("chevron")}</a>` : ""}
       ${done.length ? `<button class="io io-more" data-show-done>${t(done.length === 1 ? "1 concluída hoje" : "{n} concluídas hoje", { n: done.length })}${icon("chevron")}</button>
@@ -1165,7 +1167,7 @@ HUB_VIEWS.home = async function viewHome() {
     <div id="in-alert" class="in-alert"></div>
     <section class="gz-strip"><div class="gz" id="in-tokens"></div><div class="gz" id="in-radar"></div></section>
     <section class="gz-main">
-      <div class="gz-tasks"><header class="io-h" id="in-thead"></header>${quickHtml()}<div id="in-tasks"></div></div>
+      <div class="gz-tasks gz io-panel"><header class="io-h" id="in-thead"></header>${quickHtml()}<div id="in-tasks"></div></div>
       <div class="gz-side"><div class="gz" id="in-trades"></div><div class="gz td-card" id="in-day"></div></div>
     </section></div>`;
   $("view").onclick = homeClick;

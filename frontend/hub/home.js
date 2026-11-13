@@ -70,11 +70,12 @@ function heroHtml(now, ignite) {
       <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
       <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
     </div>
-    <div class="hero-side"><div id="in-newsbar" class="in-newsbar"></div><div id="in-team" class="hero-team"></div></div>
+    <div class="hero-side"><div id="in-focus" class="in-focus"></div><div id="in-newsbar" class="in-newsbar"></div><div id="in-team" class="hero-team"></div></div>
   </header>`;
 }
 
-// Atalhos (13 nov, David: «botões bem vistos e as funcionalidades mais importantes todas a jeito, estilo iPhone em vidro»): uma
+// Atalhos, hoje só no Início do telemóvel (mobile.js); o do computador deixou de ter a doca (13 nov, 4.ª volta).
+// 13 nov, David: «botões bem vistos e as funcionalidades mais importantes todas a jeito, estilo iPhone em vidro»: uma
 // fila de ícones grandes logo por baixo da saudação. O Gmail abre sempre no browser (o Google não deixa entrar dentro da janela
 // do widget); o resto são páginas do Hub. O número no E-mails é o das respostas por ver.
 const SHORTCUTS = [
@@ -318,9 +319,10 @@ async function pulseBody() {
   const porVer = mail ? (mail.threads || []).filter((x) => x.por_ver > 0).length : null;
   const deals = vinted ? (vinted.alertas || []).filter((a) => a.lucro > 0 && new Date(a.alertado_em || a.visto_em).getTime() >= today0()).length : null;
   const news = nextNews(cal)[0];
-  const tile = (go, ic, n, label, sub, tone = "") => `<button class="pl ${tone}" data-go="${go}"><span class="pl-ic">${icon(ic)}</span>
-    <b>${n ?? "—"}</b><span class="pl-l">${esc(t(label))}</span><span class="pl-s">${esc(sub)}</span></button>`;
-  return `<div class="pl-row">
+  // 13 nov, 4.ª volta: uma linha de números por baixo da caixa, cada um leva à página dele; o pormenor vai no title
+  const tile = (go, ic, n, label, sub, tone = "") => `<button class="cc-n ${tone}" data-go="${go}" title="${esc(sub)}">${icon(ic)}
+    <b>${n ?? "—"}</b><span>${esc(t(label))}</span></button>`;
+  return `<div class="cc-nrow">
     ${tile("#/tarefas", "calendar", p.today.length, "Para hoje", p.late.length ? t("{n} atrasadas", { n: p.late.length }) : t("Nada atrasado"), p.late.length ? "bad" : "")}
     ${tile("#/tarefas", "flag", hot, "Prioridade", t("urgentes e altas"), hot ? "warn" : "")}
     ${tile("#/emails", "mail", porVer, "E-mails por ver", mail?.conta?.address ? t("{n} enviados hoje", { n: mail.conta.hoje || 0 }) : t("Gmail por ligar"), porVer ? "lit" : "")}
@@ -385,15 +387,10 @@ async function ckSend(e) {
   form.classList.remove("sending");
 }
 
-async function cmdBody() {
-  const [tasks, mail, vinted, etsy, cal] = await Promise.all([api("/api/tasks"), soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
-  const best = vinted ? (vinted.alertas || []).filter((a) => a.lucro > 0).sort((a, b) => b.lucro - a.lucro)[0] : null;
+const bestDeal = (vinted) => (vinted ? (vinted.alertas || []).filter((a) => a.lucro > 0).sort((a, b) => b.lucro - a.lucro)[0] : null);
+function tipsHtml(mail, vinted, etsy, cal) {
+  const best = bestDeal(vinted), news = nextNews(cal)[0];
   const porVer = mail ? (mail.threads || []).filter((x) => x.por_ver > 0).length : 0;
-  const news = nextNews(cal)[0];
-  const office = tasks.filter((x) => x.crew && x.stage !== "done" && !x.trashed_at);
-  const busy = office.filter((x) => x.stage === "in_progress" || x.status === "RUNNING" || x.status === "IN_PROGRESS");
-  const queued = office.length - busy.length;
-
   // sugestões: o que os dados dizem que dá jeito fazer agora; «fill» escreve o pedido na caixa, «go» abre a página
   const tips = [
     porVer ? ["fill", "mail", t(porVer === 1 ? "Responder ao e-mail por ver" : "Responder aos {n} e-mails", { n: porVer }), t("Responde aos e-mails por ver da Ten Fold e mostra-me as respostas antes de enviar")] : null,
@@ -402,7 +399,18 @@ async function cmdBody() {
     news ? ["go", "trend", `${news.currency} ${untilOf(news.ts)}`, "#/sinal"] : null,
     ["fill", "search", t("Procurar clientes"), t("Vai ao Radar e encontra 10 negócios perto de mim que precisam de site")],
   ].filter(Boolean).slice(0, 4);
-  const tipHtml = `<div class="ck-tips">${tips.map(([k, ic, label, v]) => `<button type="button" class="ck-tip" data-${k === "fill" ? "fill" : "go"}="${esc(v)}">${icon(ic)}<span>${esc(label)}</span></button>`).join("")}</div>`;
+  return `<div class="ck-tips">${tips.map(([k, ic, label, v]) => `<button type="button" class="ck-tip" data-${k === "fill" ? "fill" : "go"}="${esc(v)}">${icon(ic)}<span>${esc(label)}</span></button>`).join("")}</div>`;
+}
+const tipsBody = async () => tipsHtml(...await Promise.all([soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]));
+
+async function cmdBody() {
+  const [tasks, mail, vinted, etsy, cal] = await Promise.all([api("/api/tasks"), soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
+  const best = bestDeal(vinted), news = nextNews(cal)[0];
+  const office = tasks.filter((x) => x.crew && x.stage !== "done" && !x.trashed_at);
+  const busy = office.filter((x) => x.stage === "in_progress" || x.status === "RUNNING" || x.status === "IN_PROGRESS");
+  const queued = office.length - busy.length;
+
+  const tipHtml = tipsHtml(mail, vinted, etsy, cal);
 
   const workHtml = busy.length ? `<div class="ck-work">${busy.slice(0, 3).map((x) => {
       const p = Number(x.progress) || 0;
@@ -427,35 +435,23 @@ async function cmdBody() {
     <div class="ck-tiles">${deal}${shop}${nw}</div>`;
 }
 
-/* ---------- Modo foco e a tua semana (13 nov, David: «funcionalidades novas, preencher a página toda») ---------- */
-// Foco: escolhes uma das tuas tarefas e 25 ou 50 minutos; a tarefa fica «A fazer agora» para a equipa ver, o anel conta
-// até zero e no fim acabas a tarefa ou dás mais 5 min. O relógio guarda-se no navegador: sobrevive a recarregar a página.
+/* ---------- Modo foco (13 nov, David: «funcionalidades novas») ---------- */
+// Foco: 25 minutos numa das tuas tarefas; a tarefa fica «A fazer agora» para a equipa ver, o relógio conta até zero e no fim
+// acabas a tarefa ou dás mais 5 min. O relógio guarda-se no navegador: sobrevive a recarregar a página.
 const FOCUS_KEY = "hub.focus";
 const focusGet = () => { try { return JSON.parse(localStorage.getItem(FOCUS_KEY) || "null"); } catch { return null; } };
 const focusSet = (v) => { try { v ? localStorage.setItem(FOCUS_KEY, JSON.stringify(v)) : localStorage.removeItem(FOCUS_KEY); } catch { /* sem armazenamento */ } };
-let focusPick = null, focusTick = null;
-const RING = 2 * Math.PI * 34;
+let focusTick = null;
 
+// 13 nov, 4.ª volta: o Foco já não tem cartão. Cada tarefa tua tem um ▶ na linha; enquanto conta, o relógio fica no topo
+// da página, ao lado das notificações, com Feita, +5 e Parar.
 async function focusBody() {
   const f = focusGet();
-  const dial = (txt) => `<div class="fx-dial"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="34"/><circle class="fx-arc" id="fx-arc" cx="40" cy="40" r="34"
-    stroke-dasharray="${RING}" stroke-dashoffset="${f ? 0 : RING}"/></svg><b class="fx-time" id="fx-time">${txt}</b></div>`;
-  if (f) {
-    return `<div class="fx-h"><b>${t("Modo foco")}</b><span class="fx-live">${t("a contar")}</span></div>
-      <div class="fx-run">${dial("--:--")}<div class="fx-what"><span>${t("Estás em")}</span><button class="fx-title" data-task="${f.id}">${esc(f.title)}</button></div></div>
-      <div class="fx-go"><button class="fx-start ok" data-fx="done">${icon("tick")}${t("Feita")}</button><button class="fx-start alt" data-fx="more">+5</button>
-        <button class="fx-start alt" data-fx="stop" aria-label="${t("Parar")}">${icon("stop")}</button></div>`;
-  }
-  // as tarefas para todos contam pela tua cópia, enquanto não fizeste a tua parte
-  const mine = planOf(asOne(await api("/api/tasks"))).today.sort((a, b) => importance(a) - importance(b))
-    .map((x) => (x.group ? { ...x, id: x.group.find((y) => y.assignee === me.username && y.stage !== "done")?.id } : x.assignee === me.username ? x : null))
-    .filter((x) => x && x.id).slice(0, 5);
-  if (!mine.length) return `<div class="fx-h"><b>${t("Modo foco")}</b></div><div class="fx-run idle">${dial("25:00")}<p class="fx-none">${t("Sem tarefas tuas para hoje. Cria uma e foca-te nela.")}</p></div>`;
-  const i = Math.max(0, mine.findIndex((x) => x.id === focusPick)), x = mine[i];
-  focusPick = x.id;
-  return `<div class="fx-h"><b>${t("Modo foco")}</b>${mine.length > 1 ? `<button class="fx-next" data-fx-pick="${mine[(i + 1) % mine.length].id}">${t("Outra")} ${i + 1}/${mine.length}</button>` : ""}</div>
-    <div class="fx-run idle">${dial("25:00")}<div class="fx-what"><span>${t("A seguir")}</span><button class="fx-title" data-task="${x.id}">${esc(x.title)}</button></div></div>
-    <div class="fx-go"><button class="fx-start" data-fx-start="25">${icon("play")}25 min</button><button class="fx-start alt" data-fx-start="50">50 min</button></div>`;
+  if (!f) return "";
+  return `<div class="fp"><i class="fp-dot"></i><b class="fp-time" id="fx-time">--:--</b>
+    <button class="fp-t" data-task="${f.id}" title="${esc(f.title)}">${esc(f.title)}</button>
+    <button class="fp-b ok" data-fx="done" title="${t("Feita")}">${icon("tick")}</button><button class="fp-b" data-fx="more" title="${t("Mais 5 minutos")}">+5</button>
+    <button class="fp-b" data-fx="stop" title="${t("Parar")}">${icon("stop")}</button></div>`;
 }
 function focusRun() {
   clearInterval(focusTick);
@@ -464,22 +460,19 @@ function focusRun() {
     if (!f || !time) return clearInterval(focusTick);
     const total = f.mins * 60e3, left = Math.max(0, f.start + total - Date.now());
     time.textContent = `${String(Math.floor(left / 60e3)).padStart(2, "0")}:${String(Math.floor(left / 1e3) % 60).padStart(2, "0")}`;
-    $("fx-arc").setAttribute("stroke-dashoffset", String(RING * (1 - left / total)));
     const end = !left;
-    time.closest(".fx-run").classList.toggle("end", end);
+    time.closest(".fp").classList.toggle("end", end);
     if (end && !f.told) { focusSet({ ...f, told: true }); flash(t("Foco acabado. Acabaste «{t}»?", { t: f.title })); }
   };
   step(); focusTick = setInterval(step, 1000);
 }
 async function focusClick(e) {
-  const pick = e.target.closest("[data-fx-pick]");
-  if (pick) { focusPick = Number(pick.dataset.fxPick); await mount($("in-focus"), focusBody, 1); return true; }
   const start = e.target.closest("[data-fx-start]");
   if (start) {
-    const title = start.closest(".fx").querySelector(".fx-title")?.textContent || "";
-    focusSet({ id: focusPick, title, mins: Number(start.dataset.fxStart), start: Date.now() });
-    api(`/api/tasks/${focusPick}`, { method: "PATCH", body: { doing: true } }).catch(() => {});
-    await mount($("in-focus"), focusBody, 1); focusRun(); loadHome(["team"]);
+    const id = Number(start.dataset.fxId);
+    focusSet({ id, title: start.dataset.fxTitle, mins: Number(start.dataset.fxStart), start: Date.now() });
+    api(`/api/tasks/${id}`, { method: "PATCH", body: { doing: true } }).catch(() => {});
+    await mount($("in-focus"), focusBody, 1); focusRun(); loadHome(["team", "plan"]);
     return true;
   }
   const act = e.target.closest("[data-fx]")?.dataset.fx;
@@ -488,30 +481,62 @@ async function focusClick(e) {
   if (!f) return true;
   if (act === "more") { focusSet({ ...f, mins: f.mins + 5, told: false }); focusRun(); return true; }
   focusSet(null); clearInterval(focusTick);
+  await mount($("in-focus"), focusBody, 1);
   try {
     await api(`/api/tasks/${f.id}`, { method: "PATCH", body: act === "done" ? { status: "COMPLETED", doing: false } : { doing: false } });
     if (act === "done") flash(t("Tarefa concluída. Bom foco."));
   } catch (err) { flash(err.message); }
-  loadHome(["plan", "team", "act"]);
+  loadHome(["plan", "team", "ops"]);
   return true;
 }
 
-// A tua semana: tarefas acabadas em cada um dos últimos 7 dias (as tuas a cheio, as da equipa por trás) e há quantos dias
-// seguidos acabas pelo menos uma.
-async function weekBody() {
-  const done = (await api("/api/tasks")).filter((x) => x.stage === "done" && x.completed_at);
-  const mineOf = (x) => x.completed_by === me.username || x.assignee === me.username;
-  const days = [...Array(7)].map((_, i) => startOfDay(new Date(), i - 6));
-  const count = (d, f) => done.filter((x) => { const c = new Date(x.completed_at); return c >= d && c < startOfDay(d, 1) && f(x); }).length;
-  const rows = days.map((d) => ({ d, me: count(d, mineOf), all: count(d, () => true) }));
-  const top = Math.max(1, ...rows.map((r) => r.all));
-  let streak = 0;
-  for (let i = rows[6].me ? 0 : 1; ; i++) { const d = startOfDay(new Date(), -i); if (count(d, mineOf)) streak++; else break; if (i > 60) break; }
-  const week = rows.reduce((n, r) => n + r.me, 0);
-  return `<div class="fx-h"><b>${t("A tua semana")}</b><span>${t(week === 1 ? "1 feita" : "{n} feitas", { n: week })}${streak ? ` · <em>${t(streak === 1 ? "1 dia seguido" : "{n} dias seguidos", { n: streak })}</em>` : ""}</span></div>
-    <div class="wk">${rows.map((r, i) => `<div class="wk-d ${i === 6 ? "wk-now" : ""}" title="${esc(t("{m} tuas · {a} da equipa", { m: r.me, a: r.all }))}">
-      <div class="wk-bar"><i class="all" style="height:${(r.all / top) * 100}%"></i><i class="me" style="height:${(r.me / top) * 100}%"></i></div>
-      <b>${r.me || ""}</b><span>${t(WEEKDAYS_SHORT[r.d.getDay()]).slice(0, 1)}</span></div>`).join("")}</div>`;
+/* ---------- «Operações»: a empresa a trabalhar, ao vivo (13 nov, David: «como se fosse uma empresa enorme de agentes») ----------
+   Uma linha por cada coisa em curso: as janelas do Claude de toda a equipa (a trabalhar ou à espera de alguém), o trabalho
+   do escritório (a fazer ou na fila) e quem disse «Estou a fazer». O que está à tua espera vem primeiro. Por baixo, o que os
+   agentes acabaram hoje, com a frase final de cada um. */
+const sameDayAs = (iso) => iso && new Date(iso) >= startOfDay(new Date());
+const OPS_ROWS = 5;
+async function opsBody() {
+  const [office, tasks, team] = await Promise.all([soft("/api/office"), api("/api/tasks"), api("/api/team")]);
+  const wins = office?.sessions || [], recent = (x) => Date.now() - new Date(x.updated_at) < 12 * 3600e3;
+  const live = wins.filter((x) => x.state !== "ended" && recent(x));
+  const mineWait = (x) => x.state !== "working" && x.user === me.username;
+  live.sort((a, b) => mineWait(b) - mineWait(a) || (a.state !== "working") - (b.state !== "working") || new Date(b.updated_at) - new Date(a.updated_at));
+  const crew = tasks.filter((x) => x.crew && x.stage !== "done" && !x.trashed_at);
+  const doing = team.filter((m) => m.doing);
+  const working = live.filter((x) => x.state === "working").length + crew.filter((x) => x.stage === "in_progress").length + doing.length;
+  const waiting = live.filter((x) => x.state !== "working").length;
+  const ended = wins.filter((x) => x.state === "ended" && sameDayAs(x.updated_at));
+
+  const rows = [
+    ...live.map((x) => {
+      const work = x.state === "working", mine = x.user === me.username;
+      const tag = work ? t("A trabalhar") : mine ? t("À tua espera") : t("À espera de {n}", { n: x.name });
+      const what = (x.action || "").replace(/^a correr: /, "").replace(/^acabou: .*/, "");
+      return `<a class="op ${work ? "work" : mine ? "you" : "wait"}" href="#/agentes/${esc(x.user)}">
+        <span class="op-av">${ui.avatar(x.name)}<i></i></span>
+        <span class="op-t"><b>${esc(x.title || x.topic || t("Janela do Claude"))}</b><span>${esc([`Claude · ${x.name}`, x.project, what].filter(Boolean).join(" · "))}</span></span>
+        <em class="op-tag">${esc(tag)}</em><time>${fmt.ago(x.updated_at)}</time></a>`;
+    }),
+    ...crew.map((x) => {
+      const work = x.stage === "in_progress", p = Number(x.progress) || 0;
+      return `<button class="op ${work ? "work" : "queue"}" data-task="${x.id}">
+        <span class="op-mono">${esc(DEPT[x.crew] || "AMG")}</span>
+        <span class="op-t"><b>${esc(x.title)}</b><span>${esc([x.crew_name, x.current_action || x.last_action].filter(Boolean).join(" · "))}</span>
+          ${p ? `<span class="op-bar"><i style="width:${Math.min(100, p)}%"></i></span>` : ""}</span>
+        <em class="op-tag">${work ? t("A trabalhar") : t("Na fila")}</em><time>${fmt.ago(x.updated_at || x.created_at)}</time></button>`;
+    }),
+    ...doing.map((m) => `<a class="op work" href="#/tarefas/${m.doing.id}"><span class="op-av">${ui.avatar(m.display_name)}<i></i></span>
+        <span class="op-t"><b>${esc(m.doing.title)}</b><span>${esc(m.user === me.username ? t("Tu, à mão") : t("{n}, à mão", { n: m.display_name }))}</span></span>
+        <em class="op-tag">${t("A fazer")}</em><time>${fmt.ago(m.doing.since)}</time></a>`),
+  ];
+  const head = `<div class="ops-sum"><span class="on"><i></i><b>${working}</b> ${t("a trabalhar")}</span><span class="wt"><i></i><b>${waiting}</b> ${t("à espera")}</span>
+    <span><b>${crew.filter((x) => x.stage !== "in_progress").length}</b> ${t("na fila")}</span><span><b>${ended.length}</b> ${t("acabadas hoje")}</span></div>`;
+  const list = rows.length ? `<div class="ops-list">${rows.slice(0, OPS_ROWS).join("")}</div>${rows.length > OPS_ROWS ? `<a class="in-more" href="#/escritorio">${t("Mais {n} no escritório", { n: rows.length - OPS_ROWS })}</a>` : ""}`
+    : `<p class="ops-quiet">${t("Nenhum agente a trabalhar agora. Pede alguma coisa em cima e o escritório arranca.")}</p>`;
+  const outs = ended.filter((x) => x.result).slice(0, 3);
+  return `${head}${list}${outs.length ? `<div class="ops-h">${t("Acabado hoje")}</div><div class="ops-done">${outs.map((x) =>
+    `<a class="od" href="#/agentes/${esc(x.user)}"><i>${icon("tick")}</i><span><b>${esc(x.title || x.topic)}</b><span>${esc(x.result)}</span></span><time>${fmt.ago(x.updated_at)}</time></a>`).join("")}</div>` : ""}`;
 }
 
 let tasksTab = "today";
@@ -532,8 +557,10 @@ function taskRow(x, done) {
     : `<button class="tcheck" data-task="${x.id}" title="${t("Abrir")}" aria-label="${t("Abrir")}"></button>`;
   const prio = !done && x.priority === "urgent" ? "urgent" : !done && x.priority === "high" ? "high" : "";
   const doer = !done && doingOf(x);
+  const fx = !done && !held && !mineDone && own && own.stage !== "done" && !doer
+    ? `<button class="tfocus" data-fx-start="25" data-fx-id="${own.id}" data-fx-title="${esc(x.title)}" title="${t("Foco de 25 min")}">${icon("play")}</button>` : "";
   return `<div class="trow ${done ? "done" : ""} ${prio} ${doer ? "doing" : ""}">${check}<button class="ttitle" data-task="${(own || x).id}">${esc(x.title)}</button>
-    <span class="twhen ${late}">${esc(when)}</span>${doer ? doingBadge(doer) : ""}${x.group ? `<span class="ttag all" title="${esc(whoLeft(x.group))}">${whoFaces(x.group)}<b>${x.group.filter((y) => y.stage === "done").length}/${x.group.length}</b></span>`
+    <span class="twhen ${late}">${esc(when)}</span>${fx}${doer ? doingBadge(doer) : ""}${x.group ? `<span class="ttag all" title="${esc(whoLeft(x.group))}">${whoFaces(x.group)}<b>${x.group.filter((y) => y.stage === "done").length}/${x.group.length}</b></span>`
       : `<span class="ttag ${done && x.completed_by && x.completed_by !== x.assignee ? "other" : ""}" title="${esc(done ? doneBy(x) : "")}">${esc(done && x.completed_by ? nameOf(x.completed_by) : tagOf(x))}</span>`}</div>`;
 }
 
@@ -580,30 +607,6 @@ const noDeadlines = () => `<div class="in-none">${icon("calendar")}<div><b>${t("
 async function calendarBody() {
   const p = planOf(await api("/api/tasks"));
   return p.upcoming.length ? `<div class="crows">${p.upcoming.slice(0, 3).map(calRow).join("")}</div>` : noDeadlines();
-}
-
-// "Marco entrou no Hub" and "ficou online" every few minutes would bury the rest: presence is shown on the team card instead
-const NOISE = ["login", "hub_online", "hub_offline", "agent_online", "agent_offline"];
-function splitActivity(a) {
-  const who = a.message.startsWith(a.name || "\u0000") ? "" : `${a.name} `;
-  const cut = a.message.indexOf(": ");
-  const head = cut > 0 ? a.message.slice(0, cut) : a.message;
-  return [who + (head === "concluiu" ? t("concluiu a tarefa") : head), cut > 0 ? a.message.slice(cut + 2) : ""];
-}
-
-async function activityBody() {
-  const [items, team] = await Promise.all([api("/api/history?limit=300"), api("/api/team")]);
-  const online = new Set(team.filter((m) => m.status !== "OFFLINE").map((m) => m.user));
-  // the last thing each person did, so the card is the whole team and not only whoever moved last; then what else is recent
-  const real = items.filter((a) => !NOISE.includes(a.kind));
-  const last = team.map((m) => real.find((a) => a.user === m.user)).filter(Boolean);
-  const shown = [...last, ...real.filter((a) => !last.includes(a))].slice(0, Math.max(8, last.length)).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
-  if (!shown.length) return `<p class="in-empty">${t("Ainda não aconteceu nada.")}</p>`;
-  return `<div class="arows">${shown.map((a) => {
-    const [what, detail] = splitActivity(a);
-    return `<div class="arow"><span class="arow-av">${ui.avatar(a.name)}${online.has(a.user) ? "<i></i>" : ""}</span>
-      <div class="arow-t"><b>${esc(what)}</b>${detail ? `<span>${esc(detail)}</span>` : ""}</div><time>${fmt.ago(a.created_at)}</time></div>`;
-  }).join("")}</div>`;
 }
 
 const quoteCard = () => `<figure class="in-quote"><blockquote>“${esc(t(quoteOfDay(3)))}”</blockquote>
@@ -706,26 +709,17 @@ async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   if (!$("in-team")) return;
   const jobs = [];
   if (parts.includes("team")) jobs.push(mount($("in-team"), teamMini, 1));
-  if (parts.includes("team") || parts.includes("plan")) jobs.push(mount($("in-doing"), doingBody, 1));
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
-  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5), mount($("in-week"), weekBody, 1));
+  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5));
   if (parts.includes("plan") && !focusGet()) jobs.push(mount($("in-focus"), focusBody, 1));
-  if (parts.includes("act")) jobs.push(mount($("in-act"), activityBody, 3));
-  if (parts.includes("biz") || parts.includes("plan")) jobs.push(mount($("in-biz"), cmdBody, 4));
+  if (["act", "plan", "team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-ops"), opsBody, 5));
+  if (parts.includes("biz") || parts.includes("plan")) jobs.push(mount($("in-biz"), tipsBody, 1));
   await Promise.all(jobs);
 }
 
-// "A fazer agora": whoever said "Estou a fazer" on a task shows on Início with the same card the task's window has
-// (the face in the green ring, the name, since when), with the task's title on top. A click opens the task; yours
-// keeps its "Parar".
-async function doingBody() {
-  const busy = (await api("/api/team")).filter((m) => m.doing);
-  if (!busy.length) return "";
-  return `<div class="in-doing-head">${icon("play")}<b>${t("A fazer agora")}</b><i>${busy.length}</i></div><div class="in-doing-list">${busy.map((m) =>
-    `<a class="in-doing-card" href="#/tarefas/${m.doing.id}"><span class="in-doing-task">${esc(m.doing.title)}</span>${doingCard(m.display_name, m.doing.since, m.user === me.username)}</a>`).join("")}</div>`;
-}
+// "A fazer agora" (the phone's Início, mobile.js): the "Parar" on your own card stops the task.
 document.addEventListener("click", async (e) => {
   const stop = e.target.closest(".in-doing [data-act=notdoing]");
   if (!stop) return;
@@ -738,33 +732,33 @@ document.addEventListener("click", async (e) => {
 HUB_VIEWS.home = async function viewHome() {
   let ignite = false; // the car comes out of the dark once per session; after that it is simply there
   try { ignite = !sessionStorage.getItem("hub.lights"); sessionStorage.setItem("hub.lights", "1"); } catch { /* private window: no start-up */ }
-  // 13 nov (David: «quero tudo visível só de olhar, sem scroll»): saudação com a equipa ao lado, a doca, a faixa «Hoje», e
-  // por baixo o dia de cada um ao lado dos negócios. O que está a acontecer vive em Ao vivo; o progresso em Análise.
-  // 13 nov, 3.ª volta (David: «muda de maneira profissional e funcional»): o painel da direita sai do Início para a página
-  // ter a largura toda; as notificações e a equipa ficam na linha da saudação, os números de hoje numa só barra, e a semana
-  // passa para o cartão do Foco, por baixo do anel.
-  $("view").innerHTML = `<div class="page inicio">${heroHtml(new Date(), ignite)}
-    <span id="in-apps-mark" hidden></span>${shortcutsHtml()}
-    <div id="in-alert" class="in-alert"></div><div id="in-pulse" class="in-pulse"></div><div id="in-doing" class="in-doing"></div>
-    <div class="in-main">
-      <section class="in-card in-tasks">${cardHead("tasks", "O teu dia", "", seeAll("Ver todas", "#/tarefas"))}<div id="in-tasks"></div>
-        <button type="button" class="in-addtask" data-act="task">${icon("plus")}<span>${t("Nova tarefa")}</span></button></section>
-      <section class="in-card in-bizc">${cardHead("spark", "Comando", "", seeAll("Escritório", "#/escritorio"))}${askHtml()}<div id="in-biz"></div></section>
-      <div class="in-col3"><section class="in-card in-focusc"><div id="in-focus" class="fx"></div><div id="in-week" class="fx fx-wk"></div></section>
-        <section class="in-card in-feed">${cardHead("bolt", "Agora", "", seeAll("Ver tudo", "#/aovivo"))}<div id="in-act"></div></section></div>
+  // 13 nov, 4.ª volta (David: «isso é só colunas e quadrados... como se fosse uma empresa enorme de agentes»): um centro de
+  // comando. Em cima a saudação, o foco, as notificações e a equipa; ao meio, grande, a caixa onde se pede trabalho ao
+  // escritório, com sugestões e os números de hoje numa linha; por baixo, sem cartões, as operações ao vivo (todos os
+  // agentes da equipa e o que está à espera de alguém) ao lado da tua fila de tarefas, cada uma com o seu ▶ de foco.
+  $("view").innerHTML = `<div class="page inicio cc">${heroHtml(new Date(), ignite)}
+    <section class="cc-hero">
+      <p class="cc-kick"><i></i>${t("Centro de comando")}</p>
+      ${askHtml()}<div id="in-biz" class="cc-tips"></div>
+      <div id="in-pulse" class="cc-tick"></div>
+    </section>
+    <div id="in-alert" class="in-alert"></div>
+    <div class="cc-grid">
+      <section class="cc-sec cc-ops"><header class="cc-h"><b>${t("Operações ao vivo")}</b>${seeAll("Escritório", "#/escritorio")}</header><div id="in-ops"></div></section>
+      <section class="cc-sec cc-queue"><header class="cc-h"><b>${t("A tua fila")}</b>
+        <button type="button" class="cc-add" data-act="task">${icon("plus")}${t("Nova tarefa")}</button>${seeAll("Ver todas", "#/tarefas")}</header><div id="in-tasks"></div></section>
     </div></div>`;
   $("view").onclick = homeClick;
   $("ck-ask").onsubmit = ckSend;
   $("ck-in").oninput = ckRoute;
   startHomeClock();
   loadHome().then(() => { if (focusGet()) mount($("in-focus"), focusBody, 1).then(focusRun); });
-  shortcutsFill();
 };
 
 // A live event reloads only what shows that kind of thing ("tick" is the slow safety net: all of it).
-onLive(["presence"], () => loadHome(["team", "act"]));
+onLive(["presence", "office", "session"], () => loadHome(["team", "ops"]));
 onLive(["notification"], () => loadHome(["news"]));
 onLive(["task"], () => loadHome(["plan", "act"]));
 onLive(["activity", "ponto"], () => loadHome(["act"]));
-onLive(["tick"], () => { shortcutsFill(); return loadHome(); });
+onLive(["tick"], () => loadHome());
 onLive(["vinted", "mail", "etsy"], () => loadHome(["biz"]));

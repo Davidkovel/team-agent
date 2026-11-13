@@ -10,6 +10,13 @@
   const ORDENS = { desconto: ["Maior desconto", (a, b) => desc(b) - desc(a)], lucro: ["Maior lucro", (a, b) => (b.lucro || 0) - (a.lucro || 0)],
     barato: ["Mais barato", (a, b) => a.preco - b.preco], novo: ["Mais recentes", (a, b) => String(b.alertado_em || b.visto_em).localeCompare(String(a.alertado_em || a.visto_em))] };
   const eur = (n, d = 0) => (n == null ? "—" : `${Number(n).toLocaleString("pt-PT", { maximumFractionDigits: d })} €`);
+  // 13 nov (Marco: «mete um ícone... destacar... isto vai passar por vários olhos»): cada tema tem o seu ícone, que aparece na aba,
+  // nas categorias e nos grupos de oportunidades; a melhor oportunidade fica em destaque no topo; o que é dinheiro está a verde.
+  const TEMA_ICO = { "": "grid", Roupa: "bag", Tecnologia: "monitor", Casa: "home", Outros: "layers" };
+  const ico = (g) => icon(TEMA_ICO[g] || "layers");
+  const chip = (name, cls = "") => `<span class="vt-ico ${cls}">${icon(name)}</span>`;
+  const head = (name, title, aside = "") => `<div class="vt-h">${chip(name)}<h3>${esc(t(title))}</h3>${aside ? `<div class="vt-h-a">${aside}</div>` : ""}</div>`;
+  const pctOf = (a) => (a.mediana ? Math.round((1 - a.preco / a.mediana) * 100) : null);
   const ago = (s) => (s ? fmt.ago(new Date(s.replace(" ", "T")).toISOString()) : t("nunca"));
 
   function paintCtl() {
@@ -28,9 +35,9 @@
     const g = V.guarda, falta = [];
     if (!V.pronto.selenium) falta.push(t("o Selenium (pip install selenium no Python do Hub)"));
     if (!V.pronto.chrome) falta.push(t("o Google Chrome"));
-    if (falta.length) return `<div class="panel vt-guard bad"><b>${esc(t("O radar não consegue correr neste computador"))}</b>
+    if (falta.length) return `<div class="panel vt-guard bad"><b>${icon("alert")}${esc(t("O radar não consegue correr neste computador"))}</b>
       <span>${esc(t("Falta instalar: {x}.", { x: falta.join(t(" e ")) }))}</span></div>`;
-    if (!V.continuo) return V.ultimo_erro && !V.ligado ? `<div class="panel vt-guard bad"><b>${esc(t("O radar parou sozinho"))}</b><span>${esc(V.ultimo_erro)}</span></div>` : "";
+    if (!V.continuo) return V.ultimo_erro && !V.ligado ? `<div class="panel vt-guard bad"><b>${icon("alert")}${esc(t("O radar parou sozinho"))}</b><span>${esc(V.ultimo_erro)}</span></div>` : "";
     const linhas = [];
     if (g.erro) linhas.push(`${esc(g.erro)}. ${esc(t("Volta a tentar em {m} min.", { m: Math.max(1, Math.ceil(g.espera_s / 60)) }))}`);
     else linhas.push(esc(V.ligado ? t("De guarda desde {d}: olha de minuto a minuto e volta a ligar o radar se ele parar ou ficar preso.", { d: ago(g.desde) })
@@ -42,23 +49,42 @@
   function nicho(n) {
     return `<label class="vt-cat ${n.ativo ? "on" : ""}">
       <input type="checkbox" data-cat="${esc(n.nome)}" ${n.ativo ? "checked" : ""}>
+      <span class="vt-ico">${ico(n.grupo)}</span>
       <span class="vt-cat-in"><b>${esc(n.nome)}</b><small>«${esc(n.pesquisa)}»</small>
-        <em>${n.anuncios ? `${n.anuncios} ${esc(t("anúncios"))} · +${n.hoje} ${esc(t("hoje"))}` : esc(t("Sem dados"))}</em></span>
+        <em>${n.anuncios ? `${n.anuncios} ${esc(t("anúncios"))}${n.hoje ? ` · <u>+${n.hoje} ${esc(t("hoje"))}</u>` : ""}` : esc(t("Sem dados"))}</em></span>
+      <span class="vt-tog" aria-hidden="true"><i></i></span>
       <select class="vt-mv" data-mover="${esc(n.nome)}" title="${esc(t("Mudar de tema"))}">${V.grupos_possiveis.map((g) => `<option ${g === n.grupo ? "selected" : ""}>${esc(g)}</option>`).join("")}</select>
       <button type="button" class="vt-x" data-tirar="${esc(n.nome)}" title="${esc(t("Tirar categoria"))}">${icon("x")}</button>
     </label>`;
   }
 
+  // A melhor oportunidade do que está à vista, em grande: é o que um olhar de fora tem de ver primeiro.
+  function destaque(lista) {
+    const a = [...lista].sort((x, y) => (y.lucro || 0) - (x.lucro || 0))[0];
+    if (!a) return "";
+    const pct = pctOf(a);
+    return `<div class="panel vt-best">
+      <div class="vt-best-ph">${a.foto ? `<img src="${esc(a.foto)}" alt="">` : ico(a.grupo)}</div>
+      <div class="vt-best-in"><span class="vt-eyebrow">${icon("target")}${esc(t("Melhor oportunidade agora"))}</span>
+        <b>${esc(a.titulo)}</b><small>${esc([a.marca, a.nicho, a.tamanho, a.estado].filter(Boolean).join(" · "))} · ${esc(ago(a.alertado_em || a.visto_em))}</small>
+        <div class="vt-best-n"><span><i>${esc(t("Preço"))}</i>${eur(a.preco, 2)}</span><span><i>${esc(t("Mercado"))}</i>${eur(a.mediana)}</span>
+          ${pct != null ? `<span class="up"><i>${esc(t("Desconto"))}</i>−${pct}%</span>` : ""}</div></div>
+      <div class="vt-best-l"><i>${esc(t("Lucro"))}</i>${a.lucro != null ? "+" + eur(a.lucro) : "—"}</div>
+      <div class="vt-best-a"><a class="btn primary" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(t("Ver no Vinted"))}${icon("arrow")}</a>
+        <button type="button" class="btn quiet" data-esconder="${a.id}">${esc(t("Já vi"))}</button></div></div>`;
+  }
+
   function alerta(a, i) {
-    const pct = a.mediana ? Math.round((1 - a.preco / a.mediana) * 100) : null;
+    const pct = pctOf(a);
     return `<a class="vt-deal panel ${i < 3 && ordem !== "novo" ? "top" : ""}" href="${esc(a.link)}" target="_blank" rel="noopener">
       <button type="button" class="vt-hide" data-esconder="${a.id}" title="${esc(t("Já vi: tirar da lista"))}">${icon("x")}</button>
-      <div class="vt-ph">${a.foto ? `<img src="${esc(a.foto)}" alt="" loading="lazy">` : ""}${pct != null ? `<span>−${pct}%</span>` : ""}${i < 3 && ordem !== "novo" ? `<em>#${i + 1}</em>` : ""}</div>
+      <div class="vt-ph">${a.foto ? `<img src="${esc(a.foto)}" alt="" loading="lazy">` : `<span class="vt-noph">${ico(a.grupo)}</span>`}${pct != null ? `<span>−${pct}%</span>` : ""}${i < 3 && ordem !== "novo" ? `<em>#${i + 1}</em>` : ""}</div>
       <div class="vt-dt">
         <small>${esc(a.marca || "")} · ${esc(a.nicho)}</small>
         <b>${esc(a.titulo)}</b>
         <div class="vt-nums"><span><i>${esc(t("Preço"))}</i>${eur(a.preco, 2)}</span><span><i>${esc(t("Mercado"))}</i>${eur(a.mediana)}</span>
           <span class="up"><i>${esc(t("Lucro"))}</i>${a.lucro != null ? "+" + eur(a.lucro) : "—"}</span></div>
+        <span class="vt-go">${esc(t("Ver no Vinted"))}${icon("arrow")}</span>
         <p>${esc([a.tamanho, a.estado].filter(Boolean).join(" · "))}${a.comparaveis ? ` · ${esc(t("mediana de {n} anúncios", { n: a.comparaveis }))}` : ""} · ${esc(ago(a.alertado_em || a.visto_em))}</p>
       </div></a>`;
   }
@@ -90,17 +116,19 @@
     if (cat && !cats.includes(cat)) cat = "";
     const lista = doGrupo.filter((a) => !cat || a.nicho === cat);
     const st = V.estado || {}, ativos = V.nichos.filter((n) => n.ativo).length;
-    const kpis = ui.kpis([
-      ui.kpi({ label: "Oportunidades hoje", value: V.alertas_hoje, sub: t("{n} no total", { n: V.alertas.length }), cls: "hi" }),
-      ui.kpi({ label: "Anúncios guardados", value: V.total || t("Sem dados"), sub: t("base de preços de mercado") }),
-      ui.kpi({ label: "Categorias ligadas", value: `${ativos}/${V.nichos.length}` }),
-      ui.kpi({ label: "Último ciclo", value: V.ligado ? ago(st.ultimo_ciclo) : "—", sub: V.ligado ? (st.erro || st.fase || "") : t("coletor parado"), cls: st.erro ? "warn" : "" }),
-    ]);
+    const kpis = `<div class="vt-kpis">${ui.kpis([
+      ui.kpi({ label: "Oportunidades hoje", value: V.alertas_hoje, sub: t("{n} no total", { n: V.alertas.length }), cls: "hi", viz: chip("target") }),
+      ui.kpi({ label: "Anúncios guardados", value: V.total || t("Sem dados"), sub: t("base de preços de mercado"), viz: chip("layers") }),
+      ui.kpi({ label: "Categorias ligadas", value: `${ativos}/${V.nichos.length}`, sub: V.grupos.map((g) => `${g} ${V.nichos.filter((n) => n.grupo === g && n.ativo).length}`).join(" · "), viz: chip("tick", ativos ? "ok" : "") }),
+      ui.kpi({ label: "Último ciclo", value: V.ligado ? ago(st.ultimo_ciclo) : "—", sub: V.ligado ? (st.erro || st.fase || "") : t("coletor parado"), cls: st.erro ? "warn" : "", viz: chip("clock", V.ligado && !st.erro ? "ok" : "") }),
+    ])}</div>`;
     const tg = V.telegram ? "" : `<p class="vt-note">${esc(t("Sem Telegram: os alertas ficam só aqui. Põe TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID no .env do vinted-radar."))}</p>`;
     // as abas: um tema de cada vez arruma as categorias e as oportunidades por ele
     const conta = (g) => V.nichos.filter((n) => !g || n.grupo === g);
     const aba = (g, nome) => { const ns = conta(g), deals = V.alertas.filter((a) => !g || a.grupo === g).length;
-      return `<button type="button" data-grupo="${esc(g)}" class="${g === grupo ? "on" : ""}"><b>${esc(t(nome))}</b><small>${ns.filter((n) => n.ativo).length}/${ns.length} ${esc(t("ligadas"))}${deals ? ` · ${deals}` : ""}</small></button>`; };
+      return `<button type="button" data-grupo="${esc(g)}" class="${g === grupo ? "on" : ""}" role="tab" aria-selected="${g === grupo}"><span class="vt-ico">${ico(g)}</span>
+        <span class="vt-tab-t"><b>${esc(t(nome))}</b><small>${ns.filter((n) => n.ativo).length}/${ns.length} ${esc(t("ligadas"))}</small></span>
+        ${deals ? `<em title="${esc(t("Oportunidades"))}">${deals}</em>` : ""}</button>`; };
     const abas = `<div class="vt-tabs" role="tablist">${aba("", "Tudo")}${V.grupos.map((g) => aba(g, g)).join("")}</div>`;
     const todasOn = nichos.length && nichos.every((n) => n.ativo), algumaOn = nichos.some((n) => n.ativo);
     const massa = `<div class="vt-bulk"><span class="vt-aside">${esc(t("Ligadas = procuradas de {m} em {m} min", { m: V.limites.intervalo_min }))}</span>
@@ -109,19 +137,19 @@
     // as oportunidades arrumadas: em «Tudo» por tema, dentro de um tema por categoria; com uma categoria escolhida, lista só
     const chave = cat ? null : grupo ? "nicho" : "grupo";
     const blocos = chave ? [...new Set(lista.map((a) => a[chave]))].map((k) => [k, lista.filter((a) => a[chave] === k).sort(ORDENS[ordem][1])]) : [["", lista.sort(ORDENS[ordem][1])]];
-    const deals = blocos.map(([k, as]) => `${k && blocos.length > 1 ? `<h4 class="vt-grp">${esc(k)}<small>${as.length}</small></h4>` : ""}<div class="vt-deals">${as.map(alerta).join("")}</div>`).join("");
-    paint($("vt-body"), `${guarda()}${kpis}${abas}
-      ${ui.sec(grupo ? t("Categorias de {g}", { g: grupo }) : "Categorias", massa)}
+    const deals = blocos.map(([k, as]) => `${k && blocos.length > 1 ? `<h4 class="vt-grp"><span class="vt-ico sm">${ico(as[0].grupo)}</span>${esc(k)}<small>${as.length}</small><i>${esc(t("até +{v} de lucro", { v: eur(Math.max(...as.map((a) => a.lucro || 0))) }))}</i></h4>` : ""}<div class="vt-deals">${as.map(alerta).join("")}</div>`).join("");
+    paint($("vt-body"), `${guarda()}${kpis}${destaque(doGrupo)}${abas}
+      ${head("layers", grupo ? t("Categorias de {g}", { g: grupo }) : "Categorias", massa)}
       <div class="vt-cats">${nichos.map(nicho).join("")}
         <form class="vt-cat vt-new" data-new><input name="pesquisa" placeholder="${esc(grupo === "Tecnologia" ? t("Nova: ex. airpods pro") : t("Nova: ex. barbour jacket"))}" maxlength="80">
           <button class="btn quiet" type="submit">${icon("plus")}${esc(t("Juntar"))}</button></form></div>
-      ${ui.sec(grupo ? t("Oportunidades de {g}", { g: grupo }) : "Oportunidades", `<div class="vt-seg">${Object.entries(ORDENS).map(([k, [l]]) => `<button type="button" data-ordem="${k}" class="${k === ordem ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`)}
+      ${head("target", grupo ? t("Oportunidades de {g}", { g: grupo }) : "Oportunidades", `<div class="vt-seg">${Object.entries(ORDENS).map(([k, [l]]) => `<button type="button" data-ordem="${k}" class="${k === ordem ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`)}
       ${cats.length > 1 ? `<div class="vt-seg vt-fcat"><button type="button" data-fcat="" class="${cat ? "" : "on"}">${esc(t("Todas"))}</button>${cats.map((c) => `<button type="button" data-fcat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}</div>` : ""}
       ${lista.length ? deals
         : `<div class="panel">${ui.empty("bag", grupo ? t("Ainda sem oportunidades em {g}", { g: grupo }) : "Ainda sem oportunidades", V.ligado ? "O radar está a procurar. Aparecem aqui quando um artigo sair bem abaixo do mercado." : "Escolhe as categorias e carrega em «Ligar o radar».")}</div>`}
       ${V.escondidos ? `<p class="vt-note">${esc(t("{n} oportunidade(s) escondida(s).", { n: V.escondidos }))} <button type="button" class="vt-linkb" data-repor>${esc(t("Mostrar outra vez"))}</button></p>` : ""}
       ${tg}
-      ${ui.sec("Limites da regra")}${limites()}
+      ${head("sliders", "Limites da regra", `<span class="vt-aside">${esc(t("O que conta como oportunidade"))}</span>`)}${limites()}
       <p class="vt-foot">${esc(t("O coletor abre a pesquisa pública do Vinted num Chrome sem janela, devagar e sem contornar bloqueios. A compra é sempre tua."))}</p>`);
     clearTimeout(timer);
     timer = setTimeout(() => $("vt-body") && load(), V.ligado ? 10000 : 30000);
@@ -164,7 +192,6 @@
         const ativos = V.nichos.filter((n) => (!grupo || n.grupo === grupo) ? on : n.ativo).map((n) => n.nome);
         send("/api/vinted/config", { ativos }, on ? "Categorias ligadas." : "Categorias desligadas.");
       } else if (g) { grupo = g.dataset.grupo; cat = ""; localStorage.setItem("vt-grupo", grupo); draw(); }
-      else if (e.target.closest(".vt-mv")) e.preventDefault();
       else if (b) { b.disabled = true; send("/api/vinted/ligar", { on: b.dataset.vt === "on" }, b.dataset.vt === "on" ? "Radar ligado: a primeira volta junta os preços de mercado." : "Radar desligado."); }
       else if (x) { e.preventDefault(); send("/api/vinted/config", { tirar: x.dataset.tirar }, "Categoria tirada."); }
       else if (s) {

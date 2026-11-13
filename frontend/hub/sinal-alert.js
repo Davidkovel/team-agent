@@ -17,7 +17,9 @@
   // The red US figure about to come out, if any: the one being watched, or the next on the calendar.
   function upcoming(S, now = Date.now() / 1000) {
     const w = S && S.watch && !S.watch.test ? S.watch : null, P = w && w.parts.find((p) => p.cur === "USD");
-    if (P) return P.state === "done" ? null : { t: w.t, cur: "USD", ...P.items[0], assets: P.assets };
+    // The Hub watches the next figure hours ahead: the warning waits for the last 15 minutes (13 Nov: it opened at 09:55 for
+    // a 13:30 figure and, covering the page, stopped the Hub from scrolling until someone closed it).
+    if (P) return P.state === "done" || w.t - now > PRE ? null : { t: w.t, cur: "USD", ...P.items[0], assets: P.assets };
     const n = ((S && S.next) || []).find((x) => x.cur === "USD" && x.t > now && x.t - now <= PRE);
     return n ? { ...n, actual: "" } : null;
   }

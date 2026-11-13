@@ -375,63 +375,181 @@ async function ckSend(e) {
   form.classList.remove("sending");
 }
 
-/* ---------- 13 nov, 5.ª volta (David: «mete os agentes lá e o nível de tokens de cada um, tudo mais pequeno; o pede ao
-   escritório não sei para que serve e está muito grande») ---------- */
-// A barra de ordens do computador: diz o que faz (dá uma tarefa e o agente faz sozinho), escolhe para quem, e tem ao lado os
-// botões que se usam todos os dias. O telemóvel continua com askHtml.
-function orderHtml() {
-  return `<div class="ob-line"><form class="ob" id="ck-ask" autocomplete="off">
-      <label class="ob-to" title="${esc(t("Quem recebe a tarefa"))}"><span>${t("Para")}</span><select id="ck-to"><option value="">${t("Escritório")}</option></select>${icon("chevron")}</label>
-      <input id="ck-in" name="q" maxlength="200" placeholder="${esc(t("Dá uma tarefa aos agentes. Ex.: faz 3 desenhos novos para a Etsy"))}" aria-label="${esc(t("Tarefa para os agentes"))}">
-      <button class="ob-go">${t("Mandar")}${icon("arrow")}</button></form>
-    <nav class="ob-quick">
-      <button type="button" class="obq" data-act="task" title="${esc(t("Nova tarefa com prazo e pormenores"))}">${icon("plus")}<span>${t("Tarefa")}</span></button>
-      <a class="obq" href="#/emails">${icon("inbox")}<span>${t("E-mails")}</span></a>
-      <a class="obq" href="#/claude">${icon("spark")}<span>Claude</span></a>
-      <a class="obq" href="#/escritorio">${icon("bot")}<span>${t("Escritório")}</span></a></nav></div>
-    <div class="ob-sub"><div class="ck-route idle" id="ck-route">${t("Escreve e vês logo quem o faz.")}</div><div id="in-biz" class="ob-tips"></div></div>`;
-}
-
-// Os agentes, um por pessoa: o anel é o Claude de 5 horas já gasto (o mesmo /api/limits/team da página Escritório; o teu vem do
-// /api/limits, que é lido aqui), as barras são 5 h e semana, e os tokens são os das janelas mexidas hoje, com os subagentes.
+/* ---------- 13 nov, 6.ª volta (David: «quero os agentes como uma entidade, como o meu agente de verdade: clico nele e falo
+   com ele como com uma pessoa»; dos tokens gostou) ----------
+   Cada pessoa tem um agente, desenhado como uma esfera: o anel à volta é o Claude de 5 h já gasto (branco, âmbar a partir de
+   70%, vermelho a partir de 90%), e a esfera acende-se a verde quando está a trabalhar e a âmbar quando espera por alguém.
+   Um clique abre a conversa com ele, ao lado (agentChat): o teu agente é uma conversa do Claude a sério (/api/conversas, a
+   mesma da página Claude); o de um colega recebe o que lhe escreves como tarefa para o agente dele, e a resposta é o
+   resultado dessa tarefa. */
 const tokK = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(".", ",")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n || 0));
 const levelOf = (p) => (p == null ? "" : p >= 90 ? "bad" : p >= 70 ? "warn" : "ok");
 const winTok = (x) => (x.tokens || 0) + (x.agents || []).reduce((n, a) => n + (a.tokens || 0), 0);
 function ringSvg(p) {
-  const r = 23, c = 2 * Math.PI * r, v = p == null ? 0 : Math.max(0, Math.min(100, p));
-  return `<svg class="ag-ring" viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="${r}"/><circle class="v" cx="27" cy="27" r="${r}" stroke-dasharray="${(c * v / 100).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
+  const r = 46, c = 2 * Math.PI * r, v = p == null ? 0 : Math.max(0, Math.min(100, p));
+  return `<svg class="ae-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="${r}"/><circle class="v" cx="50" cy="50" r="${r}" stroke-dasharray="${(c * v / 100).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
 }
+const agentName = (m) => (m.user === me.username ? t("O teu agente") : t("Agente {n}", { n: m.display_name }));
+let agentsSeen = [];   // o que a última leitura disse de cada agente, para o cabeçalho da conversa
 async function agentsBody() {
   const [team, lims, mine, office] = await Promise.all([api("/api/team"), soft("/api/limits/team"), soft("/api/limits"), soft("/api/office")]);
   const wins = office?.sessions || [], fresh = (x) => Date.now() - new Date(x.updated_at) < 12 * 3600e3;
   const order = [...team].sort((a, b) => (b.user === me.username) - (a.user === me.username) || (a.status === "OFFLINE") - (b.status === "OFFLINE"));
-  const sel = $("ck-to");
-  if (sel && sel.options.length < 2) sel.insertAdjacentHTML("beforeend", order.map((m) => `<option value="${esc(m.user)}">${esc(m.user === me.username ? t("O meu agente") : m.display_name)}</option>`).join(""));
-  return `<div class="ag-row">${order.map((m) => {
-    const own = m.user === me.username, name = own ? t("Tu") : m.display_name;
+  agentsSeen = order.map((m) => {
+    const own = m.user === me.username;
     const l = own && mine?.claude ? { ...mine.claude, seen: new Date(mine.claude.saved_at * 1000).toISOString() } : lims?.[m.user] || null;
     const old = l?.seen && Date.now() - new Date(l.seen) > 864e5;
     const ws = wins.filter((x) => x.user === m.user);
     const work = ws.filter((x) => x.state === "working"), wait = ws.filter((x) => x.state === "waiting" && fresh(x));
-    const today = ws.filter((x) => sameDayAs(x.updated_at)).reduce((n, x) => n + winTok(x), 0);
-    const on = m.status !== "OFFLINE", now = work[0] ? work[0].title || work[0].topic : m.doing ? m.doing.title : wait[0] ? wait[0].title || wait[0].topic : "";
-    const state = work.length || m.doing ? "is-work" : wait.length ? "is-wait" : on ? "is-on" : "is-off";   // «is-»: o design.css tem um .work global
-    const word = work.length > 1 ? t("{n} a trabalhar", { n: work.length }) : work.length || m.doing ? t("A trabalhar")
-      : wait.length ? t(own ? "À tua espera" : "À espera") : on ? t("Livre") : m.last_seen ? t("Visto {q}", { q: fmt.ago(m.last_seen) }) : t("Offline");
-    const five = old ? null : l?.five, week = old ? null : l?.week;
-    const reset = !old && l?.five_reset ? ` · ${t("renova às {h}", { h: hhmmOf(l.five_reset) })}` : "";
-    const bar = (label, p) => `<span class="ag-b ${levelOf(p)}"><small>${label}</small><i><b style="width:${p == null ? 0 : Math.min(100, p)}%"></b></i><em>${p == null ? "—" : `${Math.round(p)}%`}</em></span>`;
-    return `<article class="ag ${state}">
-      <a class="ag-face ${levelOf(five)}" href="#/agentes/${esc(m.user)}" title="${esc(five == null ? t("Claude de {n}: sem leitura recente", { n: m.display_name }) : `${t("Claude 5 h gasto")}: ${Math.round(five)}%${reset}`)}">${ringSvg(five)}${ui.avatar(m.display_name)}<i></i></a>
-      <div class="ag-main">
-        <header><a href="#/agentes/${esc(m.user)}">${esc(name)}</a><em>${esc(word)}</em>
-          <span class="ag-tok" title="${esc(t("Tokens das janelas do Claude mexidas hoje, com os subagentes"))}"><b>${tokK(today)}</b>${t("hoje")}</span>
-          <button type="button" class="ag-send" data-send-to="${esc(m.user)}" title="${esc(own ? t("Dar uma tarefa ao meu agente") : t("Dar uma tarefa ao agente de {n}", { n: m.display_name }))}">${icon("plus")}</button></header>
-        <p title="${esc(now)}">${esc(now || (on ? t("Nada a correr") : t("Desligado")))}</p>
-        <div class="ag-bars">${bar("5 h", five)}${bar(t("Sem."), week)}</div>
-      </div></article>`;
-  }).join("")}</div>`;
+    const on = m.status !== "OFFLINE";
+    const state = work.length || m.doing ? "work" : wait.length ? "wait" : on ? "on" : "off";
+    const word = work.length > 1 ? t("{n} trabalhos ao mesmo tempo", { n: work.length }) : work.length || m.doing ? t("A trabalhar")
+      : wait.length ? t(own ? "À tua espera" : "À espera de {n}", { n: m.display_name }) : on ? t("Pronto") : t("A dormir");
+    const now = work[0] ? work[0].title || work[0].topic : m.doing ? m.doing.title : wait[0] ? wait[0].title || wait[0].topic : "";
+    return { m, own, state, word, now, five: old ? null : l?.five, week: old ? null : l?.week, reset: !old && l?.five_reset ? l.five_reset : null,
+      today: ws.filter((x) => sameDayAs(x.updated_at)).reduce((n, x) => n + winTok(x), 0) };
+  });
+  const bar = (label, p) => `<span class="ae-b ${levelOf(p)}"><small>${label}</small><i><b style="width:${p == null ? 0 : Math.min(100, p)}%"></b></i><em>${p == null ? "—" : `${Math.round(p)}%`}</em></span>`;
+  return `<div class="ae-row">${agentsSeen.map((a) => `
+    <button type="button" class="ae is-${a.state} ${chatUser === a.m.user ? "open" : ""}" data-agent="${esc(a.m.user)}" title="${esc(t("Falar com {n}", { n: agentName(a.m) }))}">
+      <span class="ae-orb ${levelOf(a.five)}">${ringSvg(a.five)}<i class="ae-core"></i><span class="ae-who">${ui.avatar(a.m.display_name)}</span></span>
+      <span class="ae-main">
+        <b class="ae-name">${esc(agentName(a.m))}</b>
+        <span class="ae-st"><i></i>${esc(a.word)}<span class="ae-tok"><b>${tokK(a.today)}</b>${t("tokens hoje")}</span></span>
+        <span class="ae-now">${esc(a.now || (a.state === "off" ? t("Acorda quando {n} ligar o computador", { n: a.own ? t("tu") : a.m.display_name }) : t("Diz-lhe o que queres feito")))}</span>
+        <span class="ae-meters">${bar("5 h", a.five)}${bar(t("Semana"), a.week)}</span>
+      </span>
+      <span class="ae-talk">${icon("chat")}</span>
+    </button>`).join("")}</div>`;
 }
+
+/* ---------- a conversa com um agente ---------- */
+let chatUser = null, chatConv = null, chatTimer = null, chatBusy = false;
+const chatText = (s) => esc(s).replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)»"']/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`).replace(/\n/g, "<br>");
+const shortTitle = (text) => { const line = text.replace(/\s+/g, " ").trim(); return line.length <= 70 ? line : `${line.slice(0, 69).trim()}…`; };
+const AGENT_HINTS = [
+  t("O que fizeste hoje?"),
+  t("Vê os e-mails por responder e prepara as respostas"),
+  t("Faz 3 desenhos novos para a Etsy"),
+  t("Encontra 10 negócios perto de mim que precisam de site"),
+];
+async function chatOwnLoad() {
+  const L = await api("/api/conversas");
+  const c = chatConv ? L.conversas.find((x) => x.id === chatConv)
+    : chatFresh ? null : L.conversas.find((x) => x.busy || Date.now() - new Date(x.updated_at) < 6 * 3600e3);
+  if (!c) return { msgs: [], busy: false, where: L.pc_online ? "pc" : "nuvem" };
+  chatConv = c.id;
+  const d = await api(`/api/conversas/${c.id}`);
+  return { busy: d.busy, action: d.action, where: d.where, approvals: d.approvals || [],
+    msgs: d.messages.map((x) => ({ mine: x.kind === "message", err: x.kind === "error", text: x.text, at: x.at })) };
+}
+async function chatMateLoad(user) {
+  const tasks = await api("/api/tasks"), week = Date.now() - 7 * 864e5;
+  const asked = tasks.filter((x) => x.assignee === user && x.created_by === me.username && !x.trashed_at && new Date(x.created_at) > week)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).slice(-12);
+  const msgs = [];
+  for (const x of asked) {
+    msgs.push({ mine: true, text: x.description || x.title, at: x.created_at });
+    if (x.result) msgs.push({ mine: false, text: x.result, at: x.completed_at || x.updated_at });
+    else if (x.status === "FAILED" || x.status === "STOPPED") msgs.push({ mine: false, err: true, text: x.blocked_reason || t("Não consegui fazer isto."), at: x.updated_at });
+    else if (x.status === "TODO") msgs.push({ mine: false, quiet: true, text: t("Ficou na lista, à espera que alguém a mande arrancar."), at: x.updated_at });
+  }
+  const run = asked.find((x) => ["ASSIGNED", "IN_PROGRESS", "WAITING_APPROVAL", "NEEDS_HELP"].includes(x.status));
+  return { msgs, busy: !!run, action: run ? run.current_action || (run.status === "ASSIGNED" ? t("Na fila, começa quando o computador estiver ligado") : "") : "" };
+}
+function chatShell(a) {
+  return `<aside class="agc" id="agc" role="dialog" aria-label="${esc(t("Conversa com {n}", { n: agentName(a.m) }))}">
+    <header class="agc-h">
+      <span class="ae-orb sm is-${a.state} ${levelOf(a.five)}">${ringSvg(a.five)}<i class="ae-core"></i></span>
+      <div><b>${esc(agentName(a.m))}</b><span id="agc-st">${esc(a.word)}${a.five == null ? "" : ` · ${t("5 h a {p}%", { p: Math.round(a.five) })}`} · ${tokK(a.today)} ${t("tokens hoje")}</span></div>
+      ${a.own ? `<button type="button" class="agc-ic" data-chat-new title="${esc(t("Nova conversa"))}">${icon("plus")}</button>` : ""}
+      <a class="agc-ic" href="#/agentes/${esc(a.m.user)}" title="${esc(t("Ver tudo o que faz"))}">${icon("arrow")}</a>
+      <button type="button" class="agc-ic" data-chat-close title="${esc(t("Fechar"))}">${icon("x")}</button>
+    </header>
+    <div class="agc-body" id="agc-body"></div>
+    <form class="agc-f" id="agc-f" autocomplete="off">
+      <textarea id="agc-in" rows="1" maxlength="4000" placeholder="${esc(a.own ? t("Escreve ao teu agente…") : t("Escreve ao agente do {n}…", { n: a.m.display_name }))}"></textarea>
+      <button class="agc-go" aria-label="${esc(t("Enviar"))}">${icon("arrow")}</button>
+    </form></aside>`;
+}
+async function chatRefresh() {
+  clearTimeout(chatTimer);
+  const body = $("agc-body"), a = agentsSeen.find((x) => x.m.user === chatUser);
+  if (!body || !a) return;
+  let d;
+  try { d = a.own ? await chatOwnLoad() : await chatMateLoad(a.m.user); } catch (err) { body.innerHTML = `<p class="agc-err">${esc(err.message)}</p>`; return; }
+  if (!$("agc-body") || chatUser !== a.m.user) return;
+  const hello = `<div class="agc-m ag"><p>${esc(a.own ? t("Olá, {n}. Sou o teu agente. Diz-me o que queres feito e eu trato disso.", { n: me.display_name })
+    : t("Olá. Sou o agente do {n}. O que me pedires entra na lista dele e eu faço-o.", { n: a.m.display_name }))}</p></div>`;
+  const rows = d.msgs.map((x) => `<div class="agc-m ${x.mine ? "me" : "ag"} ${x.err ? "err" : ""} ${x.quiet ? "quiet" : ""}"><p>${chatText(x.text)}</p>${x.at ? `<time>${fmt.ago(x.at)}</time>` : ""}</div>`).join("");
+  const asks = (d.approvals || []).map((x) => `<div class="agc-m ag warn"><p><b>${t("Preciso da tua aprovação")}</b><br>${esc(x.action)}</p><a href="#/claude/${chatConv}">${t("Ver e aprovar")}</a></div>`).join("");
+  const typing = d.busy ? `<div class="agc-m ag typing"><p><span class="dots"><i></i><i></i><i></i></span>${esc(d.action || t("A pensar…"))}</p></div>` : "";
+  const hints = d.msgs.length ? "" : `<div class="agc-hints">${AGENT_HINTS.map((h) => `<button type="button" data-hint="${esc(h)}">${esc(h)}</button>`).join("")}</div>`;
+  const stick = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+  body.innerHTML = hello + rows + asks + typing + hints;
+  if (stick || !body.dataset.ready) body.scrollTop = body.scrollHeight;
+  body.dataset.ready = "1";
+  chatTimer = setTimeout(chatRefresh, d.busy ? 4000 : 20000);
+}
+function chatOpen(user) {
+  const a = agentsSeen.find((x) => x.m.user === user);
+  if (!a) return;
+  chatClose(true);
+  chatUser = user; chatConv = null; chatFresh = false;
+  $("view").querySelector(".page.inicio").insertAdjacentHTML("beforeend", chatShell(a));
+  document.querySelectorAll(".ae").forEach((x) => x.classList.toggle("open", x.dataset.agent === user));
+  const input = $("agc-in");
+  input.oninput = () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 140) + "px"; };
+  input.onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("agc-f").requestSubmit(); } };
+  $("agc-f").onsubmit = chatSend;
+  requestAnimationFrame(() => { $("agc")?.classList.add("in"); input.focus(); });
+  chatRefresh();
+}
+function chatClose(quick) {
+  clearTimeout(chatTimer);
+  const el = $("agc");
+  chatUser = null;
+  document.querySelectorAll(".ae.open").forEach((x) => x.classList.remove("open"));
+  if (!el) return;
+  if (quick) el.remove(); else { el.classList.remove("in"); setTimeout(() => el.remove(), 220); }
+}
+async function chatSend(e) {
+  e.preventDefault();
+  const input = $("agc-in"), text = input.value.trim(), a = agentsSeen.find((x) => x.m.user === chatUser);
+  if (!text || !a || chatBusy) return;
+  chatBusy = true; $("agc-f").classList.add("sending");
+  try {
+    if (!a.own) await api("/api/tasks", { method: "POST", body: { title: shortTitle(text), description: text, assignee: a.m.user, for_ai: true, crew: "" } });
+    else if (chatConv) await api(`/api/conversas/${chatConv}`, { method: "POST", body: { text } });
+    else {
+      const L = await api("/api/conversas");
+      chatConv = (await api("/api/conversas", { method: "POST", body: { text, where: L.pc_online ? "pc" : "nuvem", project: "" } })).id;
+      chatFresh = false;
+    }
+    input.value = ""; input.style.height = "auto";
+    await chatRefresh();
+  } catch (err) { flash(err.message); }
+  chatBusy = false; $("agc-f")?.classList.remove("sending");
+}
+async function chatClick(e) {
+  const agent = e.target.closest("[data-agent]");
+  if (agent) { chatUser === agent.dataset.agent ? chatClose() : chatOpen(agent.dataset.agent); return true; }
+  if (e.target.closest("[data-chat-close]")) { chatClose(); return true; }
+  if (e.target.closest("[data-chat-new]")) { await chatRefreshNew(); return true; }
+  const hint = e.target.closest("[data-hint]");
+  if (hint) { const input = $("agc-in"); input.value = hint.dataset.hint; input.focus(); input.oninput(); return true; }
+  return false;
+}
+// «Nova conversa»: a próxima mensagem começa outra (chatConv a null depois de mostrar a conversa vazia)
+async function chatRefreshNew() {
+  chatConv = null; clearTimeout(chatTimer);
+  const body = $("agc-body");
+  if (body) { body.dataset.ready = ""; body.innerHTML = `<div class="agc-m ag"><p>${esc(t("Conversa nova. O que queres que eu faça?"))}</p></div>
+    <div class="agc-hints">${AGENT_HINTS.map((h) => `<button type="button" data-hint="${esc(h)}">${esc(h)}</button>`).join("")}</div>`; }
+  chatFresh = true;
+}
+let chatFresh = false;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("agc")) chatClose(); });
 
 const bestDeal = (vinted) => (vinted ? (vinted.alertas || []).filter((a) => a.lucro > 0).sort((a, b) => b.lucro - a.lucro)[0] : null);
 function tipsHtml(mail, vinted, etsy, cal) {
@@ -541,48 +659,50 @@ async function focusClick(e) {
    do escritório (a fazer ou na fila) e quem disse «Estou a fazer». O que está à tua espera vem primeiro. Por baixo, o que os
    agentes acabaram hoje, com a frase final de cada um. */
 const sameDayAs = (iso) => iso && new Date(iso) >= startOfDay(new Date());
-const OPS_ROWS = 5;
-async function opsBody() {
+// «Ao vivo» e «Hoje» (6.ª volta): faixas de cartões baixos, uma linha cada, em vez das duas colunas altas.
+const LIVE_CARDS = 4;
+async function liveBody() {
   const [office, tasks, team] = await Promise.all([soft("/api/office"), api("/api/tasks"), api("/api/team")]);
   const wins = office?.sessions || [], recent = (x) => Date.now() - new Date(x.updated_at) < 12 * 3600e3;
   const live = wins.filter((x) => x.state !== "ended" && recent(x));
   const mineWait = (x) => x.state !== "working" && x.user === me.username;
   live.sort((a, b) => mineWait(b) - mineWait(a) || (a.state !== "working") - (b.state !== "working") || new Date(b.updated_at) - new Date(a.updated_at));
   const crew = tasks.filter((x) => x.crew && x.stage !== "done" && !x.trashed_at);
-  const doing = team.filter((m) => m.doing);
-  const working = live.filter((x) => x.state === "working").length + crew.filter((x) => x.stage === "in_progress").length + doing.length;
-  const waiting = live.filter((x) => x.state !== "working").length;
-  const ended = wins.filter((x) => x.state === "ended" && sameDayAs(x.updated_at));
-
-  const rows = [
+  const working = live.filter((x) => x.state === "working").length + crew.filter((x) => x.stage === "in_progress").length + team.filter((m) => m.doing).length;
+  const waiting = live.filter((x) => x.state !== "working").length, queued = crew.filter((x) => x.stage !== "in_progress").length;
+  const ended = wins.filter((x) => x.state === "ended" && sameDayAs(x.updated_at)).length;
+  const cards = [
     ...live.map((x) => {
       const work = x.state === "working", mine = x.user === me.username;
-      const tag = work ? t("A trabalhar") : mine ? t("À tua espera") : t("À espera de {n}", { n: x.name });
-      const what = (x.action || "").replace(/^a correr: /, "").replace(/^acabou: .*/, "");
-      return `<a class="op ${work ? "work" : mine ? "you" : "wait"}" href="#/agentes/${esc(x.user)}">
-        <span class="op-av">${ui.avatar(x.name)}<i></i></span>
-        <span class="op-t"><b>${esc(x.title || x.topic || t("Janela do Claude"))}</b><span>${esc([`Claude · ${x.name}`, x.project, what].filter(Boolean).join(" · "))}</span></span>
-        <em class="op-tag">${esc(tag)}</em><time>${fmt.ago(x.updated_at)}</time></a>`;
+      return `<button type="button" class="lc ${work ? "work" : mine ? "you" : "wait"}" data-agent="${esc(x.user)}">
+        <span class="lc-top"><span class="lc-av">${ui.avatar(x.name)}</span><em>${esc(work ? t("A trabalhar") : mine ? t("À tua espera") : t("À espera de {n}", { n: x.name }))}</em><time>${fmt.ago(x.updated_at)}</time></span>
+        <b>${esc(x.title || x.topic || t("Janela do Claude"))}</b><span>${esc([x.project, (x.action || "").replace(/^a correr: /, "").replace(/^acabou: .*/, "")].filter(Boolean).join(" · ") || x.name)}</span></button>`;
     }),
-    ...crew.map((x) => {
-      const work = x.stage === "in_progress", p = Number(x.progress) || 0;
-      return `<button class="op ${work ? "work" : "queue"}" data-task="${x.id}">
-        <span class="op-mono">${esc(DEPT[x.crew] || "AMG")}</span>
-        <span class="op-t"><b>${esc(x.title)}</b><span>${esc([x.crew_name, x.current_action || x.last_action].filter(Boolean).join(" · "))}</span>
-          ${p ? `<span class="op-bar"><i style="width:${Math.min(100, p)}%"></i></span>` : ""}</span>
-        <em class="op-tag">${work ? t("A trabalhar") : t("Na fila")}</em><time>${fmt.ago(x.updated_at || x.created_at)}</time></button>`;
-    }),
-    ...doing.map((m) => `<a class="op work" href="#/tarefas/${m.doing.id}"><span class="op-av">${ui.avatar(m.display_name)}<i></i></span>
-        <span class="op-t"><b>${esc(m.doing.title)}</b><span>${esc(m.user === me.username ? t("Tu, à mão") : t("{n}, à mão", { n: m.display_name }))}</span></span>
-        <em class="op-tag">${t("A fazer")}</em><time>${fmt.ago(m.doing.since)}</time></a>`),
+    ...crew.map((x) => `<button type="button" class="lc ${x.stage === "in_progress" ? "work" : "queue"}" data-task="${x.id}">
+        <span class="lc-top"><span class="lc-mono">${esc(DEPT[x.crew] || "AMG")}</span><em>${esc(x.stage === "in_progress" ? t("A trabalhar") : t("Na fila"))}</em><time>${fmt.ago(x.updated_at || x.created_at)}</time></span>
+        <b>${esc(x.title)}</b><span>${esc([x.crew_name, x.current_action || x.last_action].filter(Boolean).join(" · "))}</span></button>`),
   ];
-  const head = `<div class="ops-sum"><span class="on"><i></i><b>${working}</b> ${t("a trabalhar")}</span><span class="wt"><i></i><b>${waiting}</b> ${t("à espera")}</span>
-    <span><b>${crew.filter((x) => x.stage !== "in_progress").length}</b> ${t("na fila")}</span><span><b>${ended.length}</b> ${t("acabadas hoje")}</span></div>`;
-  const list = rows.length ? `<div class="ops-list">${rows.slice(0, OPS_ROWS).join("")}</div>${rows.length > OPS_ROWS ? `<a class="in-more" href="#/escritorio">${t("Mais {n} no escritório", { n: rows.length - OPS_ROWS })}</a>` : ""}`
-    : `<p class="ops-quiet">${t("Nenhum agente a trabalhar agora. Pede alguma coisa em cima e o escritório arranca.")}</p>`;
-  const outs = ended.filter((x) => x.result).slice(0, 2);
-  return `${head}${list}${outs.length ? `<div class="ops-h">${t("Acabado hoje")}</div><div class="ops-done">${outs.map((x) =>
-    `<a class="od" href="#/agentes/${esc(x.user)}"><i>${icon("tick")}</i><span><b>${esc(x.title || x.topic)}</b><span>${esc(x.result)}</span></span><time>${fmt.ago(x.updated_at)}</time></a>`).join("")}</div>` : ""}`;
+  const sum = `<span class="st-sum"><span class="on"><i></i>${working} ${t("a trabalhar")}</span><span class="wt"><i></i>${waiting} ${t("à espera")}</span><span>${queued} ${t("na fila")}</span><span>${ended} ${t("acabadas hoje")}</span></span>`;
+  return `<header class="st-h"><b>${t("Ao vivo")}</b>${sum}${seeAll(cards.length > LIVE_CARDS ? t("Mais {n}", { n: cards.length - LIVE_CARDS }) : "Escritório", "#/escritorio")}</header>
+    <div class="st-row">${cards.length ? cards.slice(0, LIVE_CARDS).join("") : `<p class="st-quiet">${t("Nenhum agente a trabalhar agora. Fala com um em cima.")}</p>`}</div>`;
+}
+
+const TODAY_CARDS = 3;
+async function todayBody() {
+  const p = planOf(asOne(await api("/api/tasks")));
+  const mine = (x) => (x.group ? x.group.find((y) => y.assignee === me.username && y.stage !== "done") : x.assignee === me.username ? x : null);
+  const list = p.today.filter(mine);
+  const cards = list.slice(0, TODAY_CARDS).map((x) => {
+    const own = mine(x), [when, late] = whenOf(x, "today"), held = heldByAgent(own);
+    const prio = x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
+    return `<div class="tc ${prio}">
+      <button type="button" class="tc-t" data-task="${own.id}"><b>${esc(x.title)}</b><span class="${late}">${esc([when, tagOf(x)].filter(Boolean).join(" · "))}</span></button>
+      <span class="tc-a">${held ? `<i class="tc-held" title="${esc(t("O agente está a tratar dela"))}"></i>`
+        : `<button type="button" class="tc-b" data-fx-start="25" data-fx-id="${own.id}" data-fx-title="${esc(x.title)}" title="${esc(t("Foco de 25 min"))}">${icon("play")}</button>
+           <button type="button" class="tc-b ok" data-done="${own.id}" title="${esc(t("Concluir"))}">${icon("tick")}</button>`}</span></div>`;
+  });
+  return `<header class="st-h"><b>${t("Hoje")}</b><span class="st-sum"><span>${t(list.length === 1 ? "1 tarefa tua" : "{n} tarefas tuas", { n: list.length })}</span>${p.late.length ? `<span class="bad">${t("{n} atrasadas", { n: p.late.length })}</span>` : ""}</span>${seeAll("Ver todas", "#/tarefas")}</header>
+    <div class="st-row">${cards.join("")}<button type="button" class="tc add" data-act="task">${icon("plus")}<b>${t("Nova tarefa")}</b></button></div>`;
 }
 
 let tasksTab = "today";
@@ -708,14 +828,13 @@ async function newTaskClick(e) {
 }
 
 async function homeClick(e) {
+  if (await chatClick(e)) return;
   if (await newTaskClick(e)) return;
   if (await focusClick(e)) return;
   const act = e.target.closest("[data-act]")?.dataset.act;
   if (act === "task") return newTask();
   if (act === "agenda") return openAgenda();
   if (act === "alerts") return openNotices();
-  const sendTo = e.target.closest("[data-send-to]");
-  if (sendTo && $("ck-to")) { $("ck-to").value = sendTo.dataset.sendTo; $("ck-in").focus(); return; }
   const fill = e.target.closest("[data-fill]");
   if (fill) { const input = $("ck-in"); input.value = fill.dataset.fill; input.focus(); return ckRoute(); }
   const go = e.target.closest("[data-go]");
@@ -760,10 +879,11 @@ async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
-  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5));
+  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5), mount($("in-today"), todayBody, 1));
   if (parts.includes("plan") && !focusGet()) jobs.push(mount($("in-focus"), focusBody, 1));
-  if (["act", "plan", "team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-ops"), opsBody, 5));
+  if (["act", "plan", "team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-live"), liveBody, 1));
   if (parts.includes("biz") || parts.includes("plan")) jobs.push(mount($("in-biz"), tipsBody, 1));
+  if (chatUser && ["act", "plan", "team", "ops"].some((x) => parts.includes(x))) chatRefresh();
   await Promise.all(jobs);
 }
 
@@ -784,20 +904,16 @@ HUB_VIEWS.home = async function viewHome() {
   // comando. Em cima a saudação, o foco, as notificações e a equipa; ao meio, grande, a caixa onde se pede trabalho ao
   // escritório, com sugestões e os números de hoje numa linha; por baixo, sem cartões, as operações ao vivo (todos os
   // agentes da equipa e o que está à espera de alguém) ao lado da tua fila de tarefas, cada uma com o seu ▶ de foco.
-  // 5.ª volta: em cima os agentes (um por pessoa, com o Claude que lhes resta e os tokens de hoje), por baixo a barra de ordens
-  // pequena com «Para» e os botões do dia a dia, os números numa linha, e depois as operações e a tua fila.
-  $("view").innerHTML = `<div class="page inicio cc">${heroHtml(new Date(), ignite)}
-    <div id="in-agents" class="cc-agents"></div>
-    ${orderHtml()}
-    <div id="in-pulse" class="cc-tick"></div>
+  // 6.ª volta: em cima a saudação; ao meio os agentes, cada um uma entidade com quem se fala (um clique abre a conversa ao lado);
+  // os números numa linha; e em baixo duas faixas baixas de cartões: o que está a correr e as tuas tarefas de hoje.
+  chatClose(true);
+  $("view").innerHTML = `<div class="page inicio v6">${heroHtml(new Date(), ignite)}
+    <section class="v6-agents"><div id="in-agents"></div></section>
+    <div id="in-pulse" class="v6-nums"></div>
     <div id="in-alert" class="in-alert"></div>
-    <div class="cc-grid">
-      <section class="cc-sec cc-ops"><header class="cc-h"><b>${t("Operações ao vivo")}</b>${seeAll("Escritório", "#/escritorio")}</header><div id="in-ops"></div></section>
-      <section class="cc-sec cc-queue"><header class="cc-h"><b>${t("A tua fila")}</b>${seeAll("Ver todas", "#/tarefas")}</header><div id="in-tasks"></div></section>
-    </div></div>`;
+    <section class="v6-strip" id="in-live"></section>
+    <section class="v6-strip" id="in-today"></section></div>`;
   $("view").onclick = homeClick;
-  $("ck-ask").onsubmit = ckSend;
-  $("ck-in").oninput = ckRoute;
   startHomeClock();
   loadHome().then(() => { if (focusGet()) mount($("in-focus"), focusBody, 1).then(focusRun); });
 };

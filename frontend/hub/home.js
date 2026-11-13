@@ -422,8 +422,9 @@ const BRAIN = (() => {
   return { pts, edges: Int16Array.from(edges), X: new Float32Array(M), Y: new Float32Array(M), Z: new Float32Array(M) };
 })();
 const BRAIN_RGB = { work: "74,222,128", wait: "255,177,92", on: "214,220,228", off: "120,126,134" };
-const BRAIN_SPIN = { work: 0.42, wait: 0.12, on: 0, off: 0 };
-const BRAIN_FPS = { work: 30, wait: 12 };
+// 8.ª volta (David: «mais lenta, que roube menos CPU»): roda devagar e desenha 12 vezes por segundo a trabalhar, 5 à espera
+const BRAIN_SPIN = { work: 0.16, wait: 0.05, on: 0, off: 0 };
+const BRAIN_FPS = { work: 12, wait: 5 };
 const brainHtml = (state, size) => `<canvas class="ae-brain" data-state="${state}" data-size="${size}" width="${size}" height="${size}" aria-hidden="true"></canvas>`;
 function brainDraw(cv, time) {
   const dpr = Math.min(2, window.devicePixelRatio || 1), css = Number(cv.dataset.size), px = Math.round(css * dpr);
@@ -766,58 +767,81 @@ async function focusClick(e) {
    do escritório (a fazer ou na fila) e quem disse «Estou a fazer». O que está à tua espera vem primeiro. Por baixo, o que os
    agentes acabaram hoje, com a frase final de cada um. */
 const sameDayAs = (iso) => iso && new Date(iso) >= startOfDay(new Date());
-// 7.ª volta (13 nov, David: «a outra parte da página está horrível, bué espaço livre, tarefas com um design de merda e só duas
-// filas»): por baixo dos agentes, um painel de três colunas que enche o ecrã até ao fundo. «Ao vivo» é uma lista com tudo o que
-// corre (cada linha abre a conversa com esse agente); «As tuas tarefas» tem a captura rápida em cima (Enter guarda, o ✦ manda-a
-// ao teu agente) e a lista com Hoje / Amanhã / Esta semana; à direita o «Radar» (a próxima notícia vermelha com contagem, a
-// melhor pechincha, a Etsy e os e-mails) e «A semana» (tarefas acabadas por dia e por pessoa, e quem mais fechou hoje).
-const LIVE_ROWS = 8;
-async function liveBody() {
-  const [office, tasks, team] = await Promise.all([soft("/api/office"), api("/api/tasks"), api("/api/team")]);
-  const wins = office?.sessions || [], recent = (x) => Date.now() - new Date(x.updated_at) < 12 * 3600e3;
-  const live = wins.filter((x) => x.state !== "ended" && recent(x));
-  const mineWait = (x) => x.state !== "working" && x.user === me.username;
-  live.sort((a, b) => mineWait(b) - mineWait(a) || (a.state !== "working") - (b.state !== "working") || new Date(b.updated_at) - new Date(a.updated_at));
-  const crew = tasks.filter((x) => x.crew && x.stage !== "done" && !x.trashed_at);
-  const working = live.filter((x) => x.state === "working").length + crew.filter((x) => x.stage === "in_progress").length + team.filter((m) => m.doing).length;
-  const waiting = live.filter((x) => x.state !== "working").length, queued = crew.filter((x) => x.stage !== "in_progress").length;
-  const ended = wins.filter((x) => x.state === "ended" && sameDayAs(x.updated_at)).length;
-  const rows = [
-    ...live.map((x) => {
-      const work = x.state === "working", mine = x.user === me.username;
-      const what = [x.project, (x.action || "").replace(/^a correr: /, "").replace(/^acabou: .*/, "")].filter(Boolean).join(" · ");
-      return `<button type="button" class="lv ${work ? "work" : mine ? "you" : "wait"}" data-agent="${esc(x.user)}">
-        <span class="lv-av">${ui.avatar(x.name, "sm")}<i></i></span>
-        <span class="lv-t"><b>${esc(x.title || x.topic || t("Janela do Claude"))}</b><span>${esc(what || x.name)}</span></span>
-        <span class="lv-s"><em>${esc(work ? t("A trabalhar") : mine ? t("À tua espera") : t("À espera de {n}", { n: x.name }))}</em><time>${fmt.ago(x.updated_at)}</time></span></button>`;
-    }),
-    ...crew.map((x) => `<button type="button" class="lv ${x.stage === "in_progress" ? "work" : "queue"}" data-task="${x.id}">
-        <span class="lv-av"><span class="lc-mono">${esc(DEPT[x.crew] || "AMG")}</span><i></i></span>
-        <span class="lv-t"><b>${esc(x.title)}</b><span>${esc([x.crew_name, x.current_action || x.last_action].filter(Boolean).join(" · ") || t("Escritório"))}</span></span>
-        <span class="lv-s"><em>${esc(x.stage === "in_progress" ? t("A trabalhar") : t("Na fila"))}</em><time>${fmt.ago(x.updated_at || x.created_at)}</time></span></button>`),
-  ];
-  const all = working + waiting + queued || 1, seg = (n, cls) => (n ? `<i class="${cls}" style="flex:${n}"></i>` : "");
-  return `<header class="dk-h">${icon("bolt")}<b>${t("Ao vivo")}</b><a href="#/escritorio">${t("Escritório")}${icon("chevron")}</a></header>
-    <div class="lv-sum"><span class="on"><b>${working}</b>${t("a trabalhar")}</span><span class="wt"><b>${waiting}</b>${t("à espera")}</span>
-      <span><b>${queued}</b>${t("na fila")}</span><span><b>${ended}</b>${t("acabadas hoje")}</span></div>
-    <div class="lv-bar">${seg(working, "on")}${seg(waiting, "wt")}${seg(queued, "q")}${all === 1 && !working && !waiting && !queued ? "<i></i>" : ""}</div>
-    <div class="dk-list">${rows.length ? rows.slice(0, LIVE_ROWS).join("") + (rows.length > LIVE_ROWS ? `<a class="dk-more" href="#/escritorio">${t("Mais {n} no Escritório", { n: rows.length - LIVE_ROWS })}</a>` : "")
-      : `<p class="dk-quiet">${t("Nenhum agente a trabalhar agora. Clica num agente em cima e diz-lhe o que queres.")}</p>`}</div>`;
+// 8.ª volta (13 nov, David: «colunas enormes outra vez; as tarefas estão estranhas, quero-as bonitas no estilo do iPhone; uma
+// faixa pequena com os tokens gastos esta semana; o risco/retorno das trades dos agentes; tudo em vidro transparente; aqueles
+// botões do Radar em todo o lado; tudo organizado, sem cores misturadas»). Por baixo dos agentes há uma faixa baixa com dois
+// cartões de números (tokens da semana e trades dos agentes) e, por baixo dela, as tarefas numa lista agrupada como a do iPhone
+// ao lado de uma coluna de atalhos, todos com o mesmo desenho (ícone, nome, uma linha e o número à direita).
+
+// Tokens: os de cada dia dos últimos 7, em barras com uma parte por pessoa (tons de branco, sem cores).
+async function tokensBody() {
+  const c = await api("/api/analytics/claude?days=7");
+  const dates = c.dates || [], people = (c.people || []).filter((p) => p.tokens).sort((a, b) => b.tokens - a.tokens);
+  const day = (d) => people.reduce((n, p) => n + (p.by_day?.[d] || 0), 0);
+  const top = Math.max(1, ...dates.map(day)), total = people.reduce((n, p) => n + p.tokens, 0);
+  const shade = (i) => `rgba(255, 255, 255, ${[.92, .5, .26, .14][i] ?? .1})`;
+  return `<a class="gz-h" href="#/uso">${icon("token")}<span>${t("Tokens esta semana")}</span>${icon("chevron")}</a>
+    <div class="tkw">
+      <div class="tkw-n"><b>${tokK(total)}</b><span>${t("hoje {n}", { n: tokK(day(dates[dates.length - 1])) })}</span></div>
+      <div class="tkw-bars">${dates.map((d, i) => `<span class="tkw-d ${i === dates.length - 1 ? "tkw-now" : ""}" title="${esc(`${inDayLabel(new Date(`${d}T12:00`))}: ${tokK(day(d))}`)}">
+        <span class="tkw-b" style="height:${Math.max(3, Math.round((day(d) / top) * 46))}px">${people.map((p, j) => (p.by_day?.[d] ? `<i style="flex:${p.by_day[d]};background:${shade(j)}"></i>` : "")).join("")}</span>
+        <small>${esc(i === dates.length - 1 ? t("Hoje") : t(WEEKDAYS_SHORT[new Date(`${d}T12:00`).getDay()]))}</small></span>`).join("")}</div>
+      <div class="tkw-who">${people.slice(0, 4).map((p, j) => `<span><i style="background:${shade(j)}"></i>${esc(p.name || nameOf(p.user))}<b>${tokK(p.tokens)}</b></span>`).join("")}</div>
+    </div>`;
 }
 
-// O cabeçalho das tarefas: quantas há para hoje, as atrasadas e as de prioridade alta (antes eram a linha de números).
-async function tasksHead() {
-  const p = planOf(asOne(await api("/api/tasks")));
-  const hot = p.open.filter((x) => x.priority === "urgent" || x.priority === "high").length;
-  return `<header class="dk-h">${icon("calendar")}<b>${t("As tuas tarefas")}</b>
-    <span class="dk-chips"><span>${t("{n} hoje", { n: p.today.length })}</span>${p.late.length ? `<span class="bad">${t("{n} atrasadas", { n: p.late.length })}</span>` : ""}${hot ? `<span class="warn">${t("{n} prioridade", { n: hot })}</span>` : ""}</span>
-    <a href="#/tarefas">${t("Quadro")}${icon("chevron")}</a></header>`;
+// As trades dos agentes da Sala de trading: o R:R que planeiam, quantas acertam, quanto precisavam de acertar para empatar
+// com esse R:R, e o resultado em R. Só contam as fechadas (ganhas ou perdidas).
+async function tradesBody() {
+  const book = await api("/api/trading-room/trades?limit=400");
+  const all = book?.trades || [], shut = all.filter((x) => x.status === "won" || x.status === "lost");
+  const rr = all.filter((x) => x.rr > 0), avgRR = rr.length ? rr.reduce((n, x) => n + x.rr, 0) / rr.length : null;
+  const won = shut.filter((x) => x.status === "won").length, rate = shut.length ? (won / shut.length) * 100 : null;
+  const need = avgRR ? 100 / (1 + avgRR) : null;
+  const stats = (book?.stats || []).filter((s) => s.n), totalR = stats.reduce((n, s) => n + (s.total_r || 0), 0);
+  const best = [...stats].sort((a, b) => (b.avg_r ?? -9) - (a.avg_r ?? -9))[0];
+  const num = (n, d = 1) => (n == null ? "—" : n.toLocaleString("pt-PT", { maximumFractionDigits: d, minimumFractionDigits: d }));
+  const cell = (label, big, sub, tone = "") => `<span class="tr-c ${tone}"><small>${esc(t(label))}</small><b>${big}</b><em>${esc(sub)}</em></span>`;
+  return `<a class="gz-h" href="#/trading">${icon("candles")}<span>${t("Trades dos agentes")}</span>${icon("chevron")}</a>
+    <div class="tr-g">
+      ${cell("R:R médio", avgRR ? `1:${num(avgRR)}` : "—", t("{n} planeadas", { n: rr.length }))}
+      ${cell("Acerto", rate == null ? "—" : `${num(rate, 0)}%`, need ? t("precisa de {p}%", { p: num(need, 0) }) : "", rate != null && need != null ? (rate >= need ? "up" : "down") : "")}
+      ${cell("Resultado", stats.length ? `${totalR > 0 ? "+" : ""}${num(totalR)} R` : "—", t("{n} fechadas", { n: shut.length }), totalR > 0 ? "up" : totalR < 0 ? "down" : "")}
+      ${cell("Melhor agente", best ? esc(best.name) : "—", best ? t("{r} R por trade", { r: num(best.avg_r, 2) }) : "")}
+    </div>`;
 }
 
-// A captura rápida: escreve e Enter cria a tarefa para ti; o ✦ (ou ⌘/Ctrl+Enter) manda-a ao teu agente, que a faz sozinho.
+// O botão de sempre (o dos atalhos): ícone numa pedra de vidro, nome e uma linha, e o número à direita.
+const gRow = ({ href, attr = "", ic, label, sub, val = "", tone = "" }) => `<${href ? `a href="${href}"` : `button type="button" ${attr}`} class="gr ${tone}">
+  <span class="gr-ic">${icon(ic)}</span><span class="gr-t"><b>${esc(label)}</b><span>${esc(sub)}</span></span>${val !== "" ? `<b class="gr-v">${val}</b>` : ""}${icon("chevron")}</${href ? "a" : "button"}>`;
+
+// Os atalhos: o que pede atenção, um botão por coisa, pela mesma ordem sempre.
+async function shortcutsBody() {
+  const [office, tasks, mail, vinted, etsy, cal] = await Promise.all([soft("/api/office"), api("/api/tasks"), soft("/api/mail"),
+    soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
+  const live = (office?.sessions || []).filter((x) => x.state !== "ended" && Date.now() - new Date(x.updated_at) < 12 * 3600e3);
+  const working = live.filter((x) => x.state === "working").length, waiting = live.length - working;
+  const mine = live.find((x) => x.state !== "working" && x.user === me.username);
+  const news = nextNews(cal)[0], best = bestDeal(vinted), p = planOf(asOne(tasks)), next = p.upcoming[0];
+  const porVer = mail ? (mail.threads || []).filter((x) => x.por_ver > 0).length : null;
+  return [
+    mine ? gRow({ attr: `data-agent="${esc(me.username)}"`, ic: "chat", label: t("O teu agente espera por ti"), sub: mine.title || mine.topic || t("Janela do Claude"), tone: "warn" }) : "",
+    gRow({ href: "#/escritorio", ic: "bolt", label: t("Ao vivo"), sub: t("{w} a trabalhar · {e} à espera", { w: working, e: waiting }), val: working, tone: working ? "ok" : "" }),
+    news ? gRow({ href: "#/sinal", ic: "news", label: `${news.currency} · ${news.title}`, sub: t("Notícia vermelha · {d} {h}", { d: dayOf(news.ts), h: hhmmOf(news.ts) }),
+        val: `<span data-until="${news.ts}">${esc(untilOf(news.ts))}</span>`, tone: news.ts * 1000 - Date.now() < 3600e3 ? "bad" : "" })
+      : gRow({ href: "#/sinal", ic: "news", label: t("Notícias vermelhas"), sub: t(cal ? "Nenhuma esta semana" : "Calendário sem dados"), val: "—" }),
+    gRow({ href: "#/vinted", ic: "bag", label: "Vinted", sub: best ? `${best.titulo} · ${eur(best.preco)}` : t(vinted ? "Sem pechinchas hoje" : "Sem dados"), val: best ? `+${eur(best.lucro)}` : "—", tone: best ? "ok" : "" }),
+    gRow({ href: "#/etsy", ic: "layers", label: "Etsy", sub: etsy ? t("{n} por aprovar · {p} na loja", { n: etsy.counts?.new || 0, p: etsy.counts?.published ?? 0 }) : t("Sem dados"), val: etsy ? eur(etsy.revenue || 0) : "—" }),
+    gRow({ href: "#/emails", ic: "mail", label: t("E-mails"), sub: mail?.conta?.address ? t("por ver · {n} enviados hoje", { n: mail.conta.hoje || 0 }) : t("Gmail por ligar"), val: porVer ?? "—" }),
+    gRow({ attr: 'data-act="agenda"', ic: "clock", label: t("Próximo prazo"), sub: next ? next.title : t("Sem prazos marcados"), val: next ? esc(`${inDayLabel(new Date(next.deadline))} ${fmt.hhmm(next.deadline)}`) : "" }),
+  ].join("");
+}
+
+// A captura rápida, como a primeira linha da lista de lembretes: Enter guarda a tarefa para ti; ✦ (ou ⌘/Ctrl+Enter) manda-a ao
+// teu agente, que a faz sozinho.
 const quickHtml = () => `<form class="qk" id="qk" autocomplete="off">
     <span class="qk-ic">${icon("plus")}</span>
-    <input id="qk-in" maxlength="200" placeholder="${esc(t("Nova tarefa… Enter guarda"))}" aria-label="${esc(t("Nova tarefa"))}">
+    <input id="qk-in" maxlength="200" placeholder="${esc(t("Nova tarefa"))}" aria-label="${esc(t("Nova tarefa"))}">
     <button type="button" class="qk-ai" data-qk-ai title="${esc(t("Mandar ao teu agente (⌘ Enter)"))}">${icon("spark")}<span>${t("Agente")}</span></button>
   </form>`;
 async function quickSend(ai) {
@@ -833,51 +857,51 @@ async function quickSend(ai) {
   loadHome(["plan", "act"]);
 }
 
-// O Radar: o que lá fora pede atenção, cada coisa leva à página dela.
-async function radarBody() {
-  const [mail, vinted, etsy, cal] = await Promise.all([soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
-  const news = nextNews(cal), first = news[0], best = bestDeal(vinted);
-  const porVer = mail ? (mail.threads || []).filter((x) => x.por_ver > 0).length : null;
-  const soon = first && first.ts * 1000 - Date.now() < 3600e3;
-  const head = first ? `<a class="rd-news ${soon ? "hot" : ""}" href="#/sinal">
-      <span class="rd-k">${icon("trend")}${t("Próxima notícia vermelha")}</span>
-      <b class="rd-cd" data-until="${first.ts}">${esc(untilOf(first.ts))}</b>
-      <span class="rd-nt"><em>${esc(first.currency)}</em>${esc(first.title)} · ${esc(dayOf(first.ts))} ${hhmmOf(first.ts)}</span>
-      ${news.slice(1, 3).map((n) => `<span class="rd-next"><em>${esc(n.currency)}</em><span>${esc(n.title)}</span><time>${esc(dayOf(n.ts))} ${hhmmOf(n.ts)}</time></span>`).join("")}</a>`
-    : `<a class="rd-news" href="#/sinal"><span class="rd-k">${icon("trend")}${t("Notícias vermelhas")}</span><b class="rd-cd">—</b>
-      <span class="rd-nt">${t(cal ? "Nenhuma esta semana" : "Calendário sem dados")}</span></a>`;
-  const tile = (href, ic, label, big, sub, tone = "", img = "") => `<a class="rd-t ${tone}" href="${href}">${img}<span class="rd-k">${icon(ic)}${esc(t(label))}</span><b>${big}</b><span>${esc(sub)}</span></a>`;
-  return `<header class="dk-h">${icon("search")}<b>${t("Radar")}</b></header>
-    ${head}
-    <div class="rd-tiles">
-      ${best ? tile("#/vinted", "bag", "Vinted", `+${eur(best.lucro)}`, `${best.titulo} · ${eur(best.preco)}`, "ok", best.foto ? `<img src="${esc(best.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : "")
-        : tile("#/vinted", "bag", "Vinted", "—", t(vinted ? "Sem pechinchas hoje" : "Sem dados"))}
-      ${tile("#/etsy", "layers", "Etsy", etsy ? eur(etsy.revenue || 0) : "—", etsy ? t("{n} por aprovar · {p} na loja", { n: etsy.counts?.new || 0, p: etsy.counts?.published ?? 0 }) : t("Sem dados"), etsy?.counts?.new ? "lit" : "")}
-      ${tile("#/emails", "mail", "E-mails", porVer ?? "—", mail?.conta?.address ? t("por ver · {n} enviados hoje", { n: mail.conta.hoje || 0 }) : t("Gmail por ligar"), porVer ? "lit" : "")}
-    </div>`;
+// O cabeçalho das tarefas: o título grande, os números de hoje e o separador do iPhone.
+async function iosHead() {
+  const p = planOf(asOne(await api("/api/tasks")));
+  const late = p.late.length, hot = p.open.filter((x) => x.priority === "urgent" || x.priority === "high").length;
+  return `<b>${t("Tarefas")}</b>
+    <span class="io-n">${t("{n} hoje", { n: p.today.length })}${late ? ` · <em>${t("{n} atrasadas", { n: late })}</em>` : ""}${hot ? ` · ${t("{n} prioritárias", { n: hot })}` : ""}</span>
+    <div class="io-seg" role="tablist">${DAY_TABS.map(([id, label]) => `<button role="tab" data-tab="${id}" class="${id === tasksTab ? "on" : ""}" aria-selected="${id === tasksTab}">${t(label === "Esta semana" ? "Semana" : label)}</button>`).join("")}</div>`;
 }
 
-// A semana: tarefas acabadas em cada um dos últimos 7 dias, uma cor por pessoa, e o placar de hoje.
-async function weekBody() {
-  const tasks = await api("/api/tasks");
-  const done = tasks.filter((x) => x.stage === "done" && x.completed_at && !x.trashed_at);
-  const who = (x) => x.completed_by || x.assignee || "";
-  const days = Array.from({ length: 7 }, (_, i) => startOfDay(new Date(), i - 6));
-  const people = [...new Set(done.filter((x) => new Date(x.completed_at) >= days[0]).map(who))].filter(Boolean);
-  const grid = days.map((d, i) => {
-    const end = days[i + 1] || startOfDay(new Date(), 1);
-    const of = done.filter((x) => { const c = new Date(x.completed_at); return c >= d && c < end; });
-    return { d, n: of.length, by: people.map((u) => [u, of.filter((x) => who(x) === u).length]) };
-  });
-  const top = Math.max(1, ...grid.map((x) => x.n)), total = grid.reduce((n, x) => n + x.n, 0), today = grid[6];
-  return `<header class="dk-h">${icon("trend")}<b>${t("A semana")}</b><span class="dk-sub">${t("{n} tarefas acabadas", { n: total })}</span></header>
-    <div class="wv">${grid.map((x, i) => `<div class="wv-d ${i === 6 ? "wv-now" : ""}" title="${esc(`${inDayLabel(x.d)}: ${x.n}`)}">
-        <span class="wv-n">${x.n || ""}</span>
-        <span class="wv-bar" style="height:${Math.round((x.n / top) * 100)}%">${x.by.filter(([, n]) => n).map(([u, n]) => `<i style="flex:${n};background:${tintOf(u)}"></i>`).join("")}</span>
-        <small>${esc(i === 6 ? t("Hoje") : t(WEEKDAYS_SHORT[x.d.getDay()]))}</small></div>`).join("")}</div>
-    <div class="wv-who">${people.length ? people.map((u) => { const n = today.by.find(([v]) => v === u)?.[1] || 0;
-      return `<span><i style="background:${tintOf(u)}"></i>${esc(nameOf(u))}<b>${n}</b></span>`; }).join("") : `<span>${t("Ninguém acabou nada esta semana.")}</span>`}
-      <small>${t("hoje")}</small></div>`;
+// As tarefas como no iPhone: o título e o separador Hoje / Amanhã / Semana por cima de uma lista agrupada; cada linha tem o
+// círculo para concluir, o título, uma linha cinzenta (quando, de que projeto, quem falta) e o ▶ de foco que aparece ao passar.
+function iosRow(x, done) {
+  const own = x.group ? x.group.find((y) => y.assignee === me.username) : x;
+  const held = !done && own && heldByAgent(own), mineDone = !done && x.group && own && own.stage === "done";
+  const [when, late] = done ? [fmt.hhmm(x.completed_at), ""] : whenOf(x, tasksTab);
+  const doer = !done && doingOf(x);
+  const check = done || mineDone ? `<span class="io-ck on">${icon("tick")}</span>`
+    : held ? `<span class="io-ck held" title="${t("O agente está a tratar dela")}"></span>`
+    : `<button class="io-ck" data-${own ? "done" : "task"}="${(own || x).id}" aria-label="${t("Concluir")}"></button>`;
+  const sub = [when && `<span class="${late ? "late" : ""}">${esc(when)}</span>`, esc(tagOf(x)),
+    x.group && esc(t("{d} de {n} feitas", { d: x.group.filter((y) => y.stage === "done").length, n: x.group.length })),
+    doer && `<span class="on">${esc(t("{n} a fazer", { n: nameOf(doer.assignee) }))}</span>`, held && `<span class="on">${t("o agente está nela")}</span>`].filter(Boolean);
+  const fx = !done && !held && !mineDone && own && own.stage !== "done" && !doer
+    ? `<button class="io-fx" data-fx-start="25" data-fx-id="${own.id}" data-fx-title="${esc(x.title)}" title="${t("Foco de 25 min")}">${icon("play")}</button>` : "";
+  const bang = !done && x.priority === "urgent" ? '<i class="io-bang">!!</i>' : !done && x.priority === "high" ? '<i class="io-bang">!</i>' : "";
+  return `<div class="io ${done ? "done" : ""}">${check}<button class="io-t" data-task="${(own || x).id}"><b>${bang}${esc(x.title)}</b><span>${sub.join(" · ")}</span></button>${fx}</div>`;
+}
+async function iosTasks() {
+  const p = planOf(asOne(await api("/api/tasks")));
+  const open = p[tasksTab].sort((a, b) => importance(a) - importance(b)), done = tasksTab === "today" ? p.doneToday : [];
+  const isMine = (x) => (x.group ? true : x.assignee === me.username);
+  const mine = open.filter(isMine), theirs = new Map();
+  for (const x of open.filter((y) => !isMine(y))) theirs.set(x.assignee, [...(theirs.get(x.assignee) || []), x]);
+  const mate = ([user, list]) => {
+    const on = openMates.has(user);
+    return `<button class="io io-mate" data-mate="${esc(user)}" aria-expanded="${on}">${ui.avatar(nameOf(user), "sm")}<span class="io-t"><b>${esc(nameOf(user))}</b>
+        <span>${t(list.length === 1 ? "1 tarefa" : "{n} tarefas", { n: list.length })}</span></span>${icon("chevron")}</button>
+      ${on ? list.slice(0, MATE_ROWS).map((x) => iosRow(x, false)).join("") : ""}`;
+  };
+  return `<div class="io-list">
+      ${mine.slice(0, MAX_ROWS).map((x) => iosRow(x, false)).join("") || `<p class="io-empty">${t(open.length ? "Nada para ti aqui." : done.length ? "Tudo feito por hoje." : DAY_EMPTY[tasksTab])}</p>`}
+      ${mine.length > MAX_ROWS ? `<a class="io io-more" href="#/tarefas">${t("Mais {n} no quadro", { n: mine.length - MAX_ROWS })}${icon("chevron")}</a>` : ""}
+      ${done.length ? `<button class="io io-more" data-show-done>${t(done.length === 1 ? "1 concluída hoje" : "{n} concluídas hoje", { n: done.length })}${icon("chevron")}</button>
+        ${showDone ? done.map((x) => iosRow(x, true)).join("") : ""}` : ""}</div>
+    ${theirs.size ? `<div class="io-sec">${t("Da equipa")}</div><div class="io-list">${[...theirs].sort((a, b) => b[1].length - a[1].length).map(mate).join("")}</div>` : ""}`;
 }
 
 let tasksTab = "today";
@@ -1018,10 +1042,10 @@ async function homeClick(e) {
   const notice = e.target.closest("[data-n]");
   if (notice) return openNotice(notice);
   const tab = e.target.closest("[data-tab]");
-  if (tab) { tasksTab = tab.dataset.tab; return mount($("in-tasks"), tasksBody, 4); }
-  if (e.target.closest("[data-show-done]")) { showDone = !showDone; return mount($("in-tasks"), tasksBody, 4); }
+  if (tab) { tasksTab = tab.dataset.tab; return Promise.all([mount($("in-tasks"), iosTasks, 4), mount($("in-thead"), iosHead, 1)]); }
+  if (e.target.closest("[data-show-done]")) { showDone = !showDone; return mount($("in-tasks"), iosTasks, 4); }
   const mateSum = e.target.closest("[data-mate]");
-  if (mateSum) { openMates.has(mateSum.dataset.mate) ? openMates.delete(mateSum.dataset.mate) : openMates.add(mateSum.dataset.mate); return mount($("in-tasks"), tasksBody, 4); }
+  if (mateSum) { openMates.has(mateSum.dataset.mate) ? openMates.delete(mateSum.dataset.mate) : openMates.add(mateSum.dataset.mate); return mount($("in-tasks"), iosTasks, 4); }
   const done = e.target.closest("[data-done]");
   if (done) {
     done.disabled = true;
@@ -1056,10 +1080,10 @@ async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
-  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5), mount($("in-thead"), tasksHead, 1), mount($("in-week"), weekBody, 1), mount($("in-cal"), calendarBody, 1));
-  if (parts.includes("biz") || parts.includes("news")) jobs.push(mount($("in-radar"), radarBody, 1));
+  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), iosTasks, 5), mount($("in-thead"), iosHead, 1));
+  if (["biz", "news", "plan", "act", "team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-short"), shortcutsBody, 1));
+  if (parts.includes("team")) jobs.push(mount($("in-tokens"), tokensBody, 1), mount($("in-trades"), tradesBody, 1));
   if (parts.includes("plan") && !focusGet()) jobs.push(mount($("in-focus"), focusBody, 1));
-  if (["act", "plan", "team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-live"), liveBody, 1));
   if (parts.includes("biz") || parts.includes("plan")) jobs.push(mount($("in-biz"), tipsBody, 1));
   if (chatUser && ["act", "plan", "team", "ops"].some((x) => parts.includes(x))) chatRefresh();
   await Promise.all(jobs);
@@ -1084,17 +1108,16 @@ HUB_VIEWS.home = async function viewHome() {
   // agentes da equipa e o que está à espera de alguém) ao lado da tua fila de tarefas, cada uma com o seu ▶ de foco.
   // 6.ª volta: em cima a saudação; ao meio os agentes, cada um uma entidade com quem se fala (um clique abre a conversa ao lado);
   // os números numa linha; e em baixo duas faixas baixas de cartões: o que está a correr e as tuas tarefas de hoje.
-  // 7.ª volta: os agentes com um cérebro de linhas; a linha de números sai (o Radar mostra o mesmo, com mais pormenor) e por
-  // baixo fica um painel de três colunas que vai até ao fundo do ecrã: Ao vivo, As tuas tarefas, e Radar com A semana.
+  // 7.ª volta: os agentes com um cérebro de linhas. 8.ª volta: nada de colunas altas; por baixo dos agentes uma faixa baixa
+  // (tokens da semana e trades dos agentes) e as tarefas como no iPhone ao lado dos atalhos, tudo no mesmo vidro.
   chatClose(true);
-  $("view").innerHTML = `<div class="page inicio v6 v7">${heroHtml(new Date(), ignite)}
+  $("view").innerHTML = `<div class="page inicio v6 v8">${heroHtml(new Date(), ignite)}
     <section class="v6-agents"><div id="in-agents"></div></section>
     <div id="in-alert" class="in-alert"></div>
-    <section class="dk">
-      <div class="dk-p dk-live" id="in-live"></div>
-      <div class="dk-p dk-tasks"><div id="in-thead"></div>${quickHtml()}<div class="dk-list" id="in-tasks"></div>
-        <div class="dk-cal"><span class="rd-k">${icon("calendar")}${t("Próximos prazos")}</span><div id="in-cal"></div></div></div>
-      <div class="dk-side"><div class="dk-p" id="in-radar"></div><div class="dk-p" id="in-week"></div></div>
+    <section class="gz-strip"><div class="gz" id="in-tokens"></div><div class="gz" id="in-trades"></div></section>
+    <section class="gz-main">
+      <div class="gz-tasks"><header class="io-h" id="in-thead"></header>${quickHtml()}<div id="in-tasks"></div></div>
+      <div class="gz-side"><div class="gz-h">${icon("grid")}<span>${t("Atalhos")}</span></div><div class="gz gz-list" id="in-short"></div></div>
     </section></div>`;
   $("view").onclick = homeClick;
   $("qk").onsubmit = (e) => { e.preventDefault(); quickSend(false); };

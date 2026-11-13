@@ -112,9 +112,20 @@ def _outside_url(url: QUrl) -> QUrl:
     return out
 
 
+def _go_out(url: QUrl):
+    """Gmail and mailto: open in the app's own Gmail window (gmail.py); any other site goes to the browser."""
+    from .gmail import is_google, open_gmail
+
+    url = _outside_url(url)
+    if is_google(url):
+        open_gmail(url)
+    else:
+        QDesktopServices.openUrl(url)
+
+
 class HubPage(QWebEnginePage):
-    """The Hub stays in the window; every other site (Gmail above all: Google refuses to sign in inside an app's window and
-    shows an error) and every mailto: goes to the browser instead."""
+    """The Hub stays in the window. Gmail and mailto: open in the app's Gmail window (Google refuses to sign in inside
+    the Hub's own page); every other site goes to the browser."""
 
     hub_host = ""
 
@@ -122,7 +133,7 @@ class HubPage(QWebEnginePage):
         if not is_main_frame or url.scheme() in ("data", "blob", "about", "qrc", "file"):
             return True
         if url.scheme() == "mailto" or (url.scheme() in ("http", "https") and url.host() not in (self.hub_host, "127.0.0.1", "localhost")):
-            QDesktopServices.openUrl(_outside_url(url))
+            _go_out(url)
             return False
         return True
 
@@ -229,7 +240,7 @@ class HubExpander(QWidget):
     def _open_outside(self, request):
         url = request.requestedUrl()
         if url.scheme() in ("http", "https", "mailto"):
-            QDesktopServices.openUrl(_outside_url(url))
+            _go_out(url)
 
     def _open_mini(self, url: str):
         """The cave's «Mini janela»: the cave in its own small window on top, and the big window goes back to the widget."""

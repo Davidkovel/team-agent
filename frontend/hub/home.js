@@ -390,6 +390,112 @@ function ringSvg(p) {
   return `<svg class="ae-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="${r}"/><circle class="v" cx="50" cy="50" r="${r}" stroke-dasharray="${(c * v / 100).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
 }
 const agentName = (m) => (m.user === me.username ? t("O teu agente") : t("Agente {n}", { n: m.display_name }));
+
+/* ---------- o cérebro de cada agente (7.ª volta, 13 nov, David: «bué linhas em forma de um cérebro ou uma bola com milhares
+   de linhas, como uma inteligência extrema») ---------- */
+// Uma rede numa esfera: ~470 nós (a pele numa espiral de Fibonacci e um miolo solto), cada um ligado aos 4 mais perto, mais
+// cordas que atravessam o miolo: ~1800 linhas. Calcula-se uma vez; cada imagem só roda os pontos e risca as linhas em quatro
+// camadas de profundidade (quatro traços por imagem). Quem trabalha roda depressa e tem faíscas a correr pelas ligações;
+// quem espera roda devagar a 12 imagens/s; parado ou desligado é uma imagem só. Fora do ecrã ou noutra página, nada corre.
+const BRAIN = (() => {
+  let seed = 11;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const pts = [], N = 380, golden = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < N; i++) {
+    const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = golden * i, k = 0.9 + rnd() * 0.12;
+    pts.push([Math.cos(th) * r * k, y * k, Math.sin(th) * r * k]);
+  }
+  for (let i = 0; i < 90; i++) {
+    const u = rnd() * 2 - 1, th = rnd() * 2 * Math.PI, r = 0.25 + Math.cbrt(rnd()) * 0.55, s = Math.sqrt(1 - u * u);
+    pts.push([Math.cos(th) * s * r, u * r, Math.sin(th) * s * r]);
+  }
+  const M = pts.length, seen = new Set(), edges = [];
+  const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+  const add = (i, j) => { const key = i < j ? i * M + j : j * M + i; if (i !== j && !seen.has(key)) { seen.add(key); edges.push(i, j); } };
+  for (let i = 0; i < M; i++) {
+    pts.map((p, j) => [d2(pts[i], p), j]).sort((a, b) => a[0] - b[0]).slice(1, 5).forEach(([, j]) => add(i, j));
+  }
+  for (let n = 0; n < 420; n++) {
+    const i = Math.floor(rnd() * M), j = Math.floor(rnd() * M), d = d2(pts[i], pts[j]);
+    if (d > 0.5 && d < 2.6) add(i, j);
+  }
+  return { pts, edges: Int16Array.from(edges), X: new Float32Array(M), Y: new Float32Array(M), Z: new Float32Array(M) };
+})();
+const BRAIN_RGB = { work: "74,222,128", wait: "255,177,92", on: "214,220,228", off: "120,126,134" };
+const BRAIN_SPIN = { work: 0.42, wait: 0.12, on: 0, off: 0 };
+const BRAIN_FPS = { work: 30, wait: 12 };
+const brainHtml = (state, size) => `<canvas class="ae-brain" data-state="${state}" data-size="${size}" width="${size}" height="${size}" aria-hidden="true"></canvas>`;
+function brainDraw(cv, time) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1), css = Number(cv.dataset.size), px = Math.round(css * dpr);
+  if (cv.width !== px) { cv.width = px; cv.height = px; cv.style.width = cv.style.height = `${css}px`; }
+  const g = cv.getContext("2d"), st = cv.dataset.state, rgb = BRAIN_RGB[st] || BRAIN_RGB.on, h = px / 2, R = px * 0.43;
+  const a = 0.6 + time * BRAIN_SPIN[st], ca = Math.cos(a), sa = Math.sin(a), tilt = 0.42, ct = Math.cos(tilt), stl = Math.sin(tilt);
+  const { pts, edges, X, Y, Z } = BRAIN;
+  for (let i = 0; i < pts.length; i++) {
+    const [x, y, z] = pts[i], x1 = x * ca + z * sa, z1 = -x * sa + z * ca, y1 = y * ct - z1 * stl, z2 = y * stl + z1 * ct;
+    const k = 1 / (1.9 - z2 * 0.35);   // um pouco de perspetiva: a frente fica maior
+    X[i] = h + x1 * R * k * 1.55; Y[i] = h + y1 * R * k * 1.55; Z[i] = z2;
+  }
+  const beat = st === "work" ? 0.82 + 0.18 * Math.sin(time * 2.4) : st === "off" ? 0.45 : 0.75;
+  g.clearRect(0, 0, px, px);
+  g.globalCompositeOperation = "lighter";
+  const glow = g.createRadialGradient(h, h, 0, h, h, R * 1.15);
+  glow.addColorStop(0, `rgba(${rgb},${0.22 * beat})`); glow.addColorStop(0.55, `rgba(${rgb},${0.06 * beat})`); glow.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = glow; g.fillRect(0, 0, px, px);
+  g.lineWidth = Math.max(0.5, px / 260);
+  const alpha = [0.05, 0.11, 0.2, 0.36];
+  for (let b = 0; b < 4; b++) {
+    g.beginPath();
+    for (let e = 0; e < edges.length; e += 2) {
+      const i = edges[e], j = edges[e + 1], z = (Z[i] + Z[j]) / 2;
+      if (Math.min(3, Math.max(0, Math.floor((z + 1) * 2))) !== b) continue;
+      g.moveTo(X[i], Y[i]); g.lineTo(X[j], Y[j]);
+    }
+    g.strokeStyle = `rgba(${rgb},${alpha[b] * beat})`; g.stroke();
+  }
+  g.fillStyle = `rgba(${rgb},${0.7 * beat})`;
+  const dot = Math.max(1, px / 130);
+  for (let i = 0; i < pts.length; i += 2) if (Z[i] > 0.35) g.fillRect(X[i] - dot / 2, Y[i] - dot / 2, dot, dot);
+  if (st === "work") {   // faíscas: impulsos a correr pelas ligações
+    const E = edges.length / 2;
+    g.fillStyle = "rgba(235,255,240,.95)";
+    for (let k = 0; k < 26; k++) {
+      const run = time * 1.4 + k * 0.618, e = (Math.floor(run) * 7919 + k * 104729) % E * 2, f = run % 1;
+      const i = edges[e], j = edges[e + 1];
+      if ((Z[i] + Z[j]) < -0.6) continue;
+      g.beginPath(); g.arc(X[i] + (X[j] - X[i]) * f, Y[i] + (Y[j] - Y[i]) * f, dot * 1.3, 0, 7); g.fill();
+    }
+  }
+  g.globalCompositeOperation = "source-over";
+}
+let brainRaf = 0;
+const brainStill = matchMedia("(prefers-reduced-motion: reduce)");
+const brainSeen = new WeakMap();   // canvas → à vista (IntersectionObserver)
+const brainIO = "IntersectionObserver" in window ? new IntersectionObserver((list) => {
+  list.forEach((x) => brainSeen.set(x.target, x.isIntersecting));
+  brainStart();
+}) : null;
+function brainLoop(now) {
+  brainRaf = 0;
+  let moving = false;
+  for (const cv of document.querySelectorAll("canvas.ae-brain")) {
+    const fps = BRAIN_FPS[cv.dataset.state];
+    if (!fps || brainStill.matches || brainSeen.get(cv) === false) continue;
+    moving = true;
+    if (now - (Number(cv.dataset.at) || 0) >= 1000 / fps - 2) { cv.dataset.at = now; brainDraw(cv, now / 1000); }
+  }
+  if (moving && !document.hidden) brainRaf = requestAnimationFrame(brainLoop);
+}
+// Desenha as esferas novas uma vez e põe a andar as que têm de andar.
+const brainWatched = new Set();
+function brainStart() {
+  for (const cv of brainWatched) if (!cv.isConnected) { brainIO?.unobserve(cv); brainWatched.delete(cv); }
+  for (const cv of document.querySelectorAll("canvas.ae-brain")) {
+    if (!cv.dataset.drawn) { cv.dataset.drawn = "1"; brainDraw(cv, performance.now() / 1000); brainIO?.observe(cv); brainWatched.add(cv); }
+  }
+  if (!brainRaf) brainRaf = requestAnimationFrame(brainLoop);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) brainStart(); });
 let agentsSeen = [];   // o que a última leitura disse de cada agente, para o cabeçalho da conversa
 async function agentsBody() {
   const [team, lims, mine, office] = await Promise.all([api("/api/team"), soft("/api/limits/team"), soft("/api/limits"), soft("/api/office")]);
@@ -412,7 +518,7 @@ async function agentsBody() {
   const bar = (label, p) => `<span class="ae-b ${levelOf(p)}"><small>${label}</small><i><b style="width:${p == null ? 0 : Math.min(100, p)}%"></b></i><em>${p == null ? "—" : `${Math.round(p)}%`}</em></span>`;
   return `<div class="ae-row">${agentsSeen.map((a) => `
     <button type="button" class="ae is-${a.state} ${chatUser === a.m.user ? "open" : ""}" data-agent="${esc(a.m.user)}" title="${esc(t("Falar com {n}", { n: agentName(a.m) }))}">
-      <span class="ae-orb ${levelOf(a.five)}">${ringSvg(a.five)}<i class="ae-core"></i><span class="ae-who">${ui.avatar(a.m.display_name)}</span></span>
+      <span class="ae-orb ${levelOf(a.five)}">${brainHtml(a.state, 104)}${ringSvg(a.five)}<span class="ae-who">${ui.avatar(a.m.display_name)}</span></span>
       <span class="ae-main">
         <b class="ae-name">${esc(agentName(a.m))}</b>
         <span class="ae-st"><i></i>${esc(a.word)}<span class="ae-tok"><b>${tokK(a.today)}</b>${t("tokens hoje")}</span></span>
@@ -460,7 +566,7 @@ async function chatMateLoad(user) {
 function chatShell(a) {
   return `<aside class="agc" id="agc" role="dialog" aria-label="${esc(t("Conversa com {n}", { n: agentName(a.m) }))}">
     <header class="agc-h">
-      <span class="ae-orb sm is-${a.state} ${levelOf(a.five)}">${ringSvg(a.five)}<i class="ae-core"></i></span>
+      <span class="ae-orb sm is-${a.state} ${levelOf(a.five)}">${brainHtml(a.state, 48)}${ringSvg(a.five)}</span>
       <div><b>${esc(agentName(a.m))}</b><span id="agc-st">${esc(a.word)}${a.five == null ? "" : ` · ${t("5 h a {p}%", { p: Math.round(a.five) })}`} · ${tokK(a.today)} ${t("tokens hoje")}</span></div>
       ${a.own ? `<button type="button" class="agc-ic" data-chat-new title="${esc(t("Nova conversa"))}">${icon("plus")}</button>` : ""}
       <a class="agc-ic" href="#/agentes/${esc(a.m.user)}" title="${esc(t("Ver tudo o que faz"))}">${icon("arrow")}</a>
@@ -503,6 +609,7 @@ function chatOpen(user) {
   input.onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("agc-f").requestSubmit(); } };
   $("agc-f").onsubmit = chatSend;
   requestAnimationFrame(() => { $("agc")?.classList.add("in"); input.focus(); });
+  brainStart();
   chatRefresh();
 }
 function chatClose(quick) {
@@ -659,8 +766,12 @@ async function focusClick(e) {
    do escritório (a fazer ou na fila) e quem disse «Estou a fazer». O que está à tua espera vem primeiro. Por baixo, o que os
    agentes acabaram hoje, com a frase final de cada um. */
 const sameDayAs = (iso) => iso && new Date(iso) >= startOfDay(new Date());
-// «Ao vivo» e «Hoje» (6.ª volta): faixas de cartões baixos, uma linha cada, em vez das duas colunas altas.
-const LIVE_CARDS = 4;
+// 7.ª volta (13 nov, David: «a outra parte da página está horrível, bué espaço livre, tarefas com um design de merda e só duas
+// filas»): por baixo dos agentes, um painel de três colunas que enche o ecrã até ao fundo. «Ao vivo» é uma lista com tudo o que
+// corre (cada linha abre a conversa com esse agente); «As tuas tarefas» tem a captura rápida em cima (Enter guarda, o ✦ manda-a
+// ao teu agente) e a lista com Hoje / Amanhã / Esta semana; à direita o «Radar» (a próxima notícia vermelha com contagem, a
+// melhor pechincha, a Etsy e os e-mails) e «A semana» (tarefas acabadas por dia e por pessoa, e quem mais fechou hoje).
+const LIVE_ROWS = 8;
 async function liveBody() {
   const [office, tasks, team] = await Promise.all([soft("/api/office"), api("/api/tasks"), api("/api/team")]);
   const wins = office?.sessions || [], recent = (x) => Date.now() - new Date(x.updated_at) < 12 * 3600e3;
@@ -671,38 +782,102 @@ async function liveBody() {
   const working = live.filter((x) => x.state === "working").length + crew.filter((x) => x.stage === "in_progress").length + team.filter((m) => m.doing).length;
   const waiting = live.filter((x) => x.state !== "working").length, queued = crew.filter((x) => x.stage !== "in_progress").length;
   const ended = wins.filter((x) => x.state === "ended" && sameDayAs(x.updated_at)).length;
-  const cards = [
+  const rows = [
     ...live.map((x) => {
       const work = x.state === "working", mine = x.user === me.username;
-      return `<button type="button" class="lc ${work ? "work" : mine ? "you" : "wait"}" data-agent="${esc(x.user)}">
-        <span class="lc-top"><span class="lc-av">${ui.avatar(x.name)}</span><em>${esc(work ? t("A trabalhar") : mine ? t("À tua espera") : t("À espera de {n}", { n: x.name }))}</em><time>${fmt.ago(x.updated_at)}</time></span>
-        <b>${esc(x.title || x.topic || t("Janela do Claude"))}</b><span>${esc([x.project, (x.action || "").replace(/^a correr: /, "").replace(/^acabou: .*/, "")].filter(Boolean).join(" · ") || x.name)}</span></button>`;
+      const what = [x.project, (x.action || "").replace(/^a correr: /, "").replace(/^acabou: .*/, "")].filter(Boolean).join(" · ");
+      return `<button type="button" class="lv ${work ? "work" : mine ? "you" : "wait"}" data-agent="${esc(x.user)}">
+        <span class="lv-av">${ui.avatar(x.name, "sm")}<i></i></span>
+        <span class="lv-t"><b>${esc(x.title || x.topic || t("Janela do Claude"))}</b><span>${esc(what || x.name)}</span></span>
+        <span class="lv-s"><em>${esc(work ? t("A trabalhar") : mine ? t("À tua espera") : t("À espera de {n}", { n: x.name }))}</em><time>${fmt.ago(x.updated_at)}</time></span></button>`;
     }),
-    ...crew.map((x) => `<button type="button" class="lc ${x.stage === "in_progress" ? "work" : "queue"}" data-task="${x.id}">
-        <span class="lc-top"><span class="lc-mono">${esc(DEPT[x.crew] || "AMG")}</span><em>${esc(x.stage === "in_progress" ? t("A trabalhar") : t("Na fila"))}</em><time>${fmt.ago(x.updated_at || x.created_at)}</time></span>
-        <b>${esc(x.title)}</b><span>${esc([x.crew_name, x.current_action || x.last_action].filter(Boolean).join(" · "))}</span></button>`),
+    ...crew.map((x) => `<button type="button" class="lv ${x.stage === "in_progress" ? "work" : "queue"}" data-task="${x.id}">
+        <span class="lv-av"><span class="lc-mono">${esc(DEPT[x.crew] || "AMG")}</span><i></i></span>
+        <span class="lv-t"><b>${esc(x.title)}</b><span>${esc([x.crew_name, x.current_action || x.last_action].filter(Boolean).join(" · ") || t("Escritório"))}</span></span>
+        <span class="lv-s"><em>${esc(x.stage === "in_progress" ? t("A trabalhar") : t("Na fila"))}</em><time>${fmt.ago(x.updated_at || x.created_at)}</time></span></button>`),
   ];
-  const sum = `<span class="st-sum"><span class="on"><i></i>${working} ${t("a trabalhar")}</span><span class="wt"><i></i>${waiting} ${t("à espera")}</span><span>${queued} ${t("na fila")}</span><span>${ended} ${t("acabadas hoje")}</span></span>`;
-  return `<header class="st-h"><b>${t("Ao vivo")}</b>${sum}${seeAll(cards.length > LIVE_CARDS ? t("Mais {n}", { n: cards.length - LIVE_CARDS }) : "Escritório", "#/escritorio")}</header>
-    <div class="st-row">${cards.length ? cards.slice(0, LIVE_CARDS).join("") : `<p class="st-quiet">${t("Nenhum agente a trabalhar agora. Fala com um em cima.")}</p>`}</div>`;
+  const all = working + waiting + queued || 1, seg = (n, cls) => (n ? `<i class="${cls}" style="flex:${n}"></i>` : "");
+  return `<header class="dk-h">${icon("bolt")}<b>${t("Ao vivo")}</b><a href="#/escritorio">${t("Escritório")}${icon("chevron")}</a></header>
+    <div class="lv-sum"><span class="on"><b>${working}</b>${t("a trabalhar")}</span><span class="wt"><b>${waiting}</b>${t("à espera")}</span>
+      <span><b>${queued}</b>${t("na fila")}</span><span><b>${ended}</b>${t("acabadas hoje")}</span></div>
+    <div class="lv-bar">${seg(working, "on")}${seg(waiting, "wt")}${seg(queued, "q")}${all === 1 && !working && !waiting && !queued ? "<i></i>" : ""}</div>
+    <div class="dk-list">${rows.length ? rows.slice(0, LIVE_ROWS).join("") + (rows.length > LIVE_ROWS ? `<a class="dk-more" href="#/escritorio">${t("Mais {n} no Escritório", { n: rows.length - LIVE_ROWS })}</a>` : "")
+      : `<p class="dk-quiet">${t("Nenhum agente a trabalhar agora. Clica num agente em cima e diz-lhe o que queres.")}</p>`}</div>`;
 }
 
-const TODAY_CARDS = 3;
-async function todayBody() {
+// O cabeçalho das tarefas: quantas há para hoje, as atrasadas e as de prioridade alta (antes eram a linha de números).
+async function tasksHead() {
   const p = planOf(asOne(await api("/api/tasks")));
-  const mine = (x) => (x.group ? x.group.find((y) => y.assignee === me.username && y.stage !== "done") : x.assignee === me.username ? x : null);
-  const list = p.today.filter(mine);
-  const cards = list.slice(0, TODAY_CARDS).map((x) => {
-    const own = mine(x), [when, late] = whenOf(x, "today"), held = heldByAgent(own);
-    const prio = x.priority === "urgent" ? "urgent" : x.priority === "high" ? "high" : "";
-    return `<div class="tc ${prio}">
-      <button type="button" class="tc-t" data-task="${own.id}"><b>${esc(x.title)}</b><span class="${late}">${esc([when, tagOf(x)].filter(Boolean).join(" · "))}</span></button>
-      <span class="tc-a">${held ? `<i class="tc-held" title="${esc(t("O agente está a tratar dela"))}"></i>`
-        : `<button type="button" class="tc-b" data-fx-start="25" data-fx-id="${own.id}" data-fx-title="${esc(x.title)}" title="${esc(t("Foco de 25 min"))}">${icon("play")}</button>
-           <button type="button" class="tc-b ok" data-done="${own.id}" title="${esc(t("Concluir"))}">${icon("tick")}</button>`}</span></div>`;
+  const hot = p.open.filter((x) => x.priority === "urgent" || x.priority === "high").length;
+  return `<header class="dk-h">${icon("calendar")}<b>${t("As tuas tarefas")}</b>
+    <span class="dk-chips"><span>${t("{n} hoje", { n: p.today.length })}</span>${p.late.length ? `<span class="bad">${t("{n} atrasadas", { n: p.late.length })}</span>` : ""}${hot ? `<span class="warn">${t("{n} prioridade", { n: hot })}</span>` : ""}</span>
+    <a href="#/tarefas">${t("Quadro")}${icon("chevron")}</a></header>`;
+}
+
+// A captura rápida: escreve e Enter cria a tarefa para ti; o ✦ (ou ⌘/Ctrl+Enter) manda-a ao teu agente, que a faz sozinho.
+const quickHtml = () => `<form class="qk" id="qk" autocomplete="off">
+    <span class="qk-ic">${icon("plus")}</span>
+    <input id="qk-in" maxlength="200" placeholder="${esc(t("Nova tarefa… Enter guarda"))}" aria-label="${esc(t("Nova tarefa"))}">
+    <button type="button" class="qk-ai" data-qk-ai title="${esc(t("Mandar ao teu agente (⌘ Enter)"))}">${icon("spark")}<span>${t("Agente")}</span></button>
+  </form>`;
+async function quickSend(ai) {
+  const input = $("qk-in"), title = input?.value.trim();
+  if (!title) return input?.focus();
+  $("qk").classList.add("sending");
+  try {
+    await api("/api/tasks", { method: "POST", body: ai ? { title: shortTitle(title), description: title, assignee: me.username, for_ai: true, crew: "" } : { title, assignee: me.username } });
+    input.value = "";
+    flash(t(ai ? "O teu agente já a tem." : "Tarefa guardada."));
+  } catch (err) { flash(err.message); }
+  $("qk")?.classList.remove("sending");
+  loadHome(["plan", "act"]);
+}
+
+// O Radar: o que lá fora pede atenção, cada coisa leva à página dela.
+async function radarBody() {
+  const [mail, vinted, etsy, cal] = await Promise.all([soft("/api/mail"), soft("/api/vinted"), soft("/api/etsy"), soft("/api/trading/calendar")]);
+  const news = nextNews(cal), first = news[0], best = bestDeal(vinted);
+  const porVer = mail ? (mail.threads || []).filter((x) => x.por_ver > 0).length : null;
+  const soon = first && first.ts * 1000 - Date.now() < 3600e3;
+  const head = first ? `<a class="rd-news ${soon ? "hot" : ""}" href="#/sinal">
+      <span class="rd-k">${icon("trend")}${t("Próxima notícia vermelha")}</span>
+      <b class="rd-cd" data-until="${first.ts}">${esc(untilOf(first.ts))}</b>
+      <span class="rd-nt"><em>${esc(first.currency)}</em>${esc(first.title)} · ${esc(dayOf(first.ts))} ${hhmmOf(first.ts)}</span>
+      ${news.slice(1, 3).map((n) => `<span class="rd-next"><em>${esc(n.currency)}</em><span>${esc(n.title)}</span><time>${esc(dayOf(n.ts))} ${hhmmOf(n.ts)}</time></span>`).join("")}</a>`
+    : `<a class="rd-news" href="#/sinal"><span class="rd-k">${icon("trend")}${t("Notícias vermelhas")}</span><b class="rd-cd">—</b>
+      <span class="rd-nt">${t(cal ? "Nenhuma esta semana" : "Calendário sem dados")}</span></a>`;
+  const tile = (href, ic, label, big, sub, tone = "", img = "") => `<a class="rd-t ${tone}" href="${href}">${img}<span class="rd-k">${icon(ic)}${esc(t(label))}</span><b>${big}</b><span>${esc(sub)}</span></a>`;
+  return `<header class="dk-h">${icon("search")}<b>${t("Radar")}</b></header>
+    ${head}
+    <div class="rd-tiles">
+      ${best ? tile("#/vinted", "bag", "Vinted", `+${eur(best.lucro)}`, `${best.titulo} · ${eur(best.preco)}`, "ok", best.foto ? `<img src="${esc(best.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : "")
+        : tile("#/vinted", "bag", "Vinted", "—", t(vinted ? "Sem pechinchas hoje" : "Sem dados"))}
+      ${tile("#/etsy", "layers", "Etsy", etsy ? eur(etsy.revenue || 0) : "—", etsy ? t("{n} por aprovar · {p} na loja", { n: etsy.counts?.new || 0, p: etsy.counts?.published ?? 0 }) : t("Sem dados"), etsy?.counts?.new ? "lit" : "")}
+      ${tile("#/emails", "mail", "E-mails", porVer ?? "—", mail?.conta?.address ? t("por ver · {n} enviados hoje", { n: mail.conta.hoje || 0 }) : t("Gmail por ligar"), porVer ? "lit" : "")}
+    </div>`;
+}
+
+// A semana: tarefas acabadas em cada um dos últimos 7 dias, uma cor por pessoa, e o placar de hoje.
+async function weekBody() {
+  const tasks = await api("/api/tasks");
+  const done = tasks.filter((x) => x.stage === "done" && x.completed_at && !x.trashed_at);
+  const who = (x) => x.completed_by || x.assignee || "";
+  const days = Array.from({ length: 7 }, (_, i) => startOfDay(new Date(), i - 6));
+  const people = [...new Set(done.filter((x) => new Date(x.completed_at) >= days[0]).map(who))].filter(Boolean);
+  const grid = days.map((d, i) => {
+    const end = days[i + 1] || startOfDay(new Date(), 1);
+    const of = done.filter((x) => { const c = new Date(x.completed_at); return c >= d && c < end; });
+    return { d, n: of.length, by: people.map((u) => [u, of.filter((x) => who(x) === u).length]) };
   });
-  return `<header class="st-h"><b>${t("Hoje")}</b><span class="st-sum"><span>${t(list.length === 1 ? "1 tarefa tua" : "{n} tarefas tuas", { n: list.length })}</span>${p.late.length ? `<span class="bad">${t("{n} atrasadas", { n: p.late.length })}</span>` : ""}</span>${seeAll("Ver todas", "#/tarefas")}</header>
-    <div class="st-row">${cards.join("")}<button type="button" class="tc add" data-act="task">${icon("plus")}<b>${t("Nova tarefa")}</b></button></div>`;
+  const top = Math.max(1, ...grid.map((x) => x.n)), total = grid.reduce((n, x) => n + x.n, 0), today = grid[6];
+  return `<header class="dk-h">${icon("trend")}<b>${t("A semana")}</b><span class="dk-sub">${t("{n} tarefas acabadas", { n: total })}</span></header>
+    <div class="wv">${grid.map((x, i) => `<div class="wv-d ${i === 6 ? "wv-now" : ""}" title="${esc(`${inDayLabel(x.d)}: ${x.n}`)}">
+        <span class="wv-n">${x.n || ""}</span>
+        <span class="wv-bar" style="height:${Math.round((x.n / top) * 100)}%">${x.by.filter(([, n]) => n).map(([u, n]) => `<i style="flex:${n};background:${tintOf(u)}"></i>`).join("")}</span>
+        <small>${esc(i === 6 ? t("Hoje") : t(WEEKDAYS_SHORT[x.d.getDay()]))}</small></div>`).join("")}</div>
+    <div class="wv-who">${people.length ? people.map((u) => { const n = today.by.find(([v]) => v === u)?.[1] || 0;
+      return `<span><i style="background:${tintOf(u)}"></i>${esc(nameOf(u))}<b>${n}</b></span>`; }).join("") : `<span>${t("Ninguém acabou nada esta semana.")}</span>`}
+      <small>${t("hoje")}</small></div>`;
 }
 
 let tasksTab = "today";
@@ -831,6 +1006,7 @@ async function homeClick(e) {
   if (await chatClick(e)) return;
   if (await newTaskClick(e)) return;
   if (await focusClick(e)) return;
+  if (e.target.closest("[data-qk-ai]")) return quickSend(true);
   const act = e.target.closest("[data-act]")?.dataset.act;
   if (act === "task") return newTask();
   if (act === "agenda") return openAgenda();
@@ -866,6 +1042,7 @@ function startHomeClock() {
     const clock = $("in-clock");
     if (!clock) return;
     clock.textContent = fmt.hhmm(new Date().toISOString());
+    document.querySelectorAll("[data-until]").forEach((el) => { el.textContent = untilOf(Number(el.dataset.until)); });
     homeClock = setTimeout(next, 60000 - (Date.now() % 60000) + 20);
   };
   homeClock = setTimeout(next, 60000 - (Date.now() % 60000) + 20);
@@ -875,11 +1052,12 @@ function startHomeClock() {
 async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   if (!$("in-agents")) return;
   const jobs = [];
-  if (["team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-agents"), agentsBody, 1));
+  if (["team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-agents"), agentsBody, 1).then(brainStart));
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
-  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5), mount($("in-today"), todayBody, 1));
+  if (parts.includes("plan")) jobs.push(mount($("in-tasks"), tasksBody, 5), mount($("in-thead"), tasksHead, 1), mount($("in-week"), weekBody, 1), mount($("in-cal"), calendarBody, 1));
+  if (parts.includes("biz") || parts.includes("news")) jobs.push(mount($("in-radar"), radarBody, 1));
   if (parts.includes("plan") && !focusGet()) jobs.push(mount($("in-focus"), focusBody, 1));
   if (["act", "plan", "team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-live"), liveBody, 1));
   if (parts.includes("biz") || parts.includes("plan")) jobs.push(mount($("in-biz"), tipsBody, 1));
@@ -906,14 +1084,21 @@ HUB_VIEWS.home = async function viewHome() {
   // agentes da equipa e o que está à espera de alguém) ao lado da tua fila de tarefas, cada uma com o seu ▶ de foco.
   // 6.ª volta: em cima a saudação; ao meio os agentes, cada um uma entidade com quem se fala (um clique abre a conversa ao lado);
   // os números numa linha; e em baixo duas faixas baixas de cartões: o que está a correr e as tuas tarefas de hoje.
+  // 7.ª volta: os agentes com um cérebro de linhas; a linha de números sai (o Radar mostra o mesmo, com mais pormenor) e por
+  // baixo fica um painel de três colunas que vai até ao fundo do ecrã: Ao vivo, As tuas tarefas, e Radar com A semana.
   chatClose(true);
-  $("view").innerHTML = `<div class="page inicio v6">${heroHtml(new Date(), ignite)}
+  $("view").innerHTML = `<div class="page inicio v6 v7">${heroHtml(new Date(), ignite)}
     <section class="v6-agents"><div id="in-agents"></div></section>
-    <div id="in-pulse" class="v6-nums"></div>
     <div id="in-alert" class="in-alert"></div>
-    <section class="v6-strip" id="in-live"></section>
-    <section class="v6-strip" id="in-today"></section></div>`;
+    <section class="dk">
+      <div class="dk-p dk-live" id="in-live"></div>
+      <div class="dk-p dk-tasks"><div id="in-thead"></div>${quickHtml()}<div class="dk-list" id="in-tasks"></div>
+        <div class="dk-cal"><span class="rd-k">${icon("calendar")}${t("Próximos prazos")}</span><div id="in-cal"></div></div></div>
+      <div class="dk-side"><div class="dk-p" id="in-radar"></div><div class="dk-p" id="in-week"></div></div>
+    </section></div>`;
   $("view").onclick = homeClick;
+  $("qk").onsubmit = (e) => { e.preventDefault(); quickSend(false); };
+  $("qk-in").onkeydown = (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); quickSend(true); } };
   startHomeClock();
   loadHome().then(() => { if (focusGet()) mount($("in-focus"), focusBody, 1).then(focusRun); });
 };

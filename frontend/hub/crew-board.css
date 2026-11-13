@@ -654,7 +654,7 @@ html.is-phone .pl-steps li, html.is-phone .pl-add input { font-size: 14px; }
 
 /* the ten departments, lit when busy, a line in the colour of who they work with */
 .bv-foot { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.bv-crew { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+.bv-crew { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 8px; }
 .bv-dep { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 8px; border-radius: 13px; background: #08090c; border: 1px solid rgba(255, 255, 255, .06); color: inherit; cursor: pointer; text-align: left;
   box-shadow: inset 0 -2px 0 var(--p); opacity: .55; }
 .bv-dep.busy { opacity: 1; border-color: color-mix(in srgb, var(--c) 35%, transparent); }

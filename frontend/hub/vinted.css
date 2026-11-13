@@ -544,3 +544,8 @@ a.vt-mi { text-decoration: none; }
 .vt-pc-in small { font-size: 12px; }
 .vt-pc-s { display: flex; align-items: center; gap: 4px; color: var(--muted) !important; }
 .vt-pc-s svg { width: 12px; height: 12px; flex: 0 0 auto; }
+
+/* de onde vem o anúncio */
+.vt-src { display: inline-flex; align-items: center; padding: 1px 7px; margin-right: 4px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .02em; background: rgba(9, 177, 186, .14); color: #5fd6dc; white-space: nowrap; }
+.vt-src.src-custojusto { background: rgba(255, 166, 0, .14); color: #ffbf47; }

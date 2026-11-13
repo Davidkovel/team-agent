@@ -69,6 +69,7 @@ window.CrewBoard = (function () {
     alfred: ["rever antes do push", "riscos e erros", "o que falta"],
     robin: ["correr os testes", "casos difíceis", "dizer o que falhou"],
     gordon: ["organizar e planear", "pontas soltas", "reuniões da equipa"],
+    huntress: ["pechinchas do Vinted", "vendedores fiáveis", "preço de revenda"],
     penguin: ["notícias e macro", "reação às notícias", "calendário económico", "COT e juros"],
     twoface: ["leitura SMC do gráfico", "setups e zonas", "diário de trades"],
   };

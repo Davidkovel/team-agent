@@ -97,6 +97,9 @@
     { id: "gordon", name: "Operações", code: "OPS", full: "Gordon", what: "Planear e organizar", role: "custom", kinds: ["Plan"], color: "#ffb84d",
       bio: "Organiza, planeia, faz pequenas correções e fecha pontas soltas. Leva o que não é de mais ninguém.",
       look: { skin: "#eecbad", suit: "#8b6b45", coat: true, pants: "#3b2f25", shoes: "#1a1410", shirt: "#f1f3f5", tie: "#2b2f38", hair: "#b8743a", style: "short", mustache: "#b8743a", glasses: true } },
+    { id: "huntress", name: "Caça de produtos", code: "CAC", full: "Caçadora", what: "Vinted e revenda", role: "research", kinds: [], color: "#4ade80",
+      bio: "Fica sempre no Vinted Radar: confirma cada pechincha (iguais no Vinted, vendedor, fotos, descrição) e só recomenda vendedores fiáveis. Nunca compra sozinha.",
+      look: { skin: "#e9c4a2", suit: "#1f5c3d", pants: "#1b2a22", shoes: "#0d120f", shirt: "#f1f3f5", hair: "#5b3a22", style: "short", glasses: true, brow: "#5b3a22" } },
     // the Sala de Trading (trading-room.js): their looks are in crew-people.js (LOOKS), their meetings come from the Hub
     { id: "penguin", name: "Macro", code: "MAC", full: "Pinguim", what: "Notícias", role: "custom", kinds: [], color: "#a77bff", wing: "trading",
       bio: "Sala de Trading: calendário económico, bancos centrais, dólar, juros e manchetes. Abre e fecha as reuniões.", look: null },
@@ -133,8 +136,8 @@
   // one post per sector, always in the same place, two tiles wide, with the sector's name on the floor in front of it
   // (docs/batcave-redesenho.md). Each agent works at their own; whoever covers for a busy colleague works at their own too.
   const DESKS = [["batman", 5, 2], ["lucius", 8, 2], ["riddler", 11, 2], ["catwoman", 14, 2], ["joker", 5, 6], ["alfred", 8, 6], ["robin", 11, 6], ["gordon", 14, 6],
-    ["penguin", 19, 14], ["twoface", 22, 14]]
-    .map(([crew, x, y], i) => ({ i, crew, x, y, deco: ["batarang", "mug", "cowl", "phones", "mug", "mug", "batarang", "phones", "mug", "coin"][i], agent: null, boot: -9,
+    ["penguin", 19, 14], ["twoface", 22, 14], ["huntress", 16, 14]]
+    .map(([crew, x, y], i) => ({ i, crew, x, y, deco: ["batarang", "mug", "cowl", "phones", "mug", "mug", "batarang", "phones", "mug", "coin", "phones"][i], agent: null, boot: -9,
       trader: crew === "penguin" || crew === "twoface" }));
   const deskOf = (a) => DESKS.find((d) => d.crew === a.id);
   const seatOf = (d) => ({ x: d.x, y: d.y + 1, at: [d.x + 1, d.y + 1.42] });
@@ -1160,6 +1163,7 @@
     ["twoface", word("sweep\\p{L}*|liquidez|fvg|order block\\p{L}*|bos|choch|smc|price action|an[áa]lise t[ée]cnica|gr[áa]fico\\p{L}* de velas")],
     ["penguin", word("trading|trade\\p{L}*|trader\\p{L}*|forex|xauusd|eurusd|gbpusd|ger40|dax|nas100|nasdaq|us30|bolsa|a[çc][õo]es|cripto\\p{L}*|bitcoin|calend[áa]rio econ[óo]mico|not[íi]cias do mercado")],
     ["catwoman", word("design\\p{L}*|página\\p{L}*|pagina\\p{L}*|cor|cores|layout|ecrã\\p{L}*|visual|ícone\\p{L}*|logo\\p{L}*|estilo\\p{L}*|css|bonit\\p{L}*|interface\\p{L}*|aba|abas|bot[ãa]o|bot[õo]es")],
+    ["huntress", word("vinted|revend\\p{L}*|revenda\\p{L}*|pechincha\\p{L}*|caça\\p{L}*|caca|custojusto|olx|wallapop|radar vinted")],
     ["riddler", word("pesquis\\p{L}*|preço\\p{L}*|preco\\p{L}*|procur\\p{L}*|concorr\\p{L}*|fornecedor\\p{L}*")],
     ["robin", word("test\\p{L}*")],
     ["alfred", word("rever|revê|revisão|revisao|revis[ae]\\p{L}*|review")],
@@ -1170,7 +1174,7 @@
   const ROLE_CREW = { developer: "batman", research: "riddler", marketing: "joker", testing: "robin" };
   const NEAR = { batman: ["lucius", "robin", "alfred"], lucius: ["batman", "riddler", "alfred"], riddler: ["lucius", "joker", "gordon"],
     catwoman: ["joker", "batman", "robin"], joker: ["catwoman", "riddler", "gordon"], alfred: ["robin", "lucius", "batman"],
-    robin: ["alfred", "batman", "lucius"], gordon: ["alfred", "lucius", "riddler"], penguin: ["twoface", "riddler", "gordon"], twoface: ["penguin", "lucius", "batman"] };
+    robin: ["alfred", "batman", "lucius"], gordon: ["alfred", "lucius", "riddler"], penguin: ["twoface", "riddler", "gordon"], twoface: ["penguin", "lucius", "batman"], huntress: ["riddler", "gordon", "lucius"] };
   const byWords = (text) => (WORDS.find(([, re]) => re.test(text)) || [])[0];
   function sectorOf(j) {
     if (j.crew && NEAR[j.crew]) return j.crew;
@@ -2594,6 +2598,7 @@
     alfred: "Aqui chega a revisão: rever uma mudança antes de ir para todos. E o subagente revisor-hub.",
     robin: "Aqui chegam os testes: correr, tentar os casos difíceis, dizer o que falhou.",
     gordon: "Aqui chega tudo o resto: organizar, planear, pontas soltas. E as reuniões.",
+    huntress: "Aqui chega a caça: as pechinchas do Vinted Radar, confirmadas uma a uma antes de se gastar dinheiro.",
     penguin: "Aqui chega o trading: notícias, calendário, bancos centrais, dólar e juros. Abre e fecha as reuniões da Sala de Trading.",
     twoface: "Aqui chega o gráfico: liquidez, sweeps, FVG, order blocks, BOS e CHoCH. A outra metade de cada reunião de trading.",
   };

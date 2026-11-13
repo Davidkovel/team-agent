@@ -20,6 +20,7 @@ import urllib.parse
 import urllib.request
 
 from fonte import abrir_browser, ler_anuncios, ler_vendedor
+import fonte_custojusto
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(RAIZ, "config", "nichos.json"), encoding="utf-8"))
@@ -41,7 +42,8 @@ def ligar():
         id INTEGER PRIMARY KEY, nicho TEXT, titulo TEXT, marca TEXT, tamanho TEXT, estado TEXT,
         preco REAL, foto TEXT, link TEXT, visto_em TEXT, origem TEXT, alertado INTEGER DEFAULT 0)""")
     cols = {x[1] for x in c.execute("PRAGMA table_info(anuncios)")}
-    for col in ("mediana REAL", "lucro REAL", "comparaveis INTEGER", "alertado_em TEXT", "vendedor TEXT", "estrelas REAL", "avaliacoes INTEGER"):
+    for col in ("mediana REAL", "lucro REAL", "comparaveis INTEGER", "alertado_em TEXT", "vendedor TEXT", "estrelas REAL", "avaliacoes INTEGER",
+                "fonte TEXT", "cidade TEXT", "profissional INTEGER"):
         if col.split()[0] not in cols:
             c.execute(f"ALTER TABLE anuncios ADD COLUMN {col}")
     # 13 nov (Marco: «procuras no Vinted produtos iguais a esse e ficas a avaliar o preço que as pessoas estão a pôr»): para
@@ -72,10 +74,11 @@ def guardar(c, nicho, itens, origem):
     for a in itens:
         if a["preco"] is None:
             continue
-        cur = c.execute("INSERT OR IGNORE INTO anuncios (id,nicho,titulo,marca,tamanho,estado,preco,foto,link,visto_em,origem)"
-                        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        cur = c.execute("INSERT OR IGNORE INTO anuncios (id,nicho,titulo,marca,tamanho,estado,preco,foto,link,visto_em,origem,"
+                        "fonte,cidade,vendedor,profissional) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (a["id"], nicho, a["titulo"], a["marca"], a["tamanho"], a["estado"], a["preco"],
-                         a["foto"], a["link"], a["visto_em"], origem))
+                         a["foto"], a["link"], a["visto_em"], origem, a.get("fonte", "vinted"), a.get("cidade"),
+                         a.get("vendedor"), a.get("profissional")))
         if cur.rowcount:
             novos.append(a)
     c.commit()
@@ -180,7 +183,7 @@ def mercado(c, nicho, marca, estado, tp):
 def avaliar(c, nicho, a):
     """Devolve dict com o cálculo se for oportunidade, senão None."""
     t = a["titulo"].lower()
-    if a["estado"] not in CFG["estados_aceites"]:
+    if a["estado"] and a["estado"] not in CFG["estados_aceites"]:   # o CustoJusto não diz o estado
         return None
     if any(p in t for p in CFG["palavras_rejeitar"]):
         return None
@@ -269,6 +272,11 @@ def ciclo(b, c, primeira=False):
     for n in ativos():
         estado(fase=f"A ver {n['nome']}")
         novos = guardar(c, n["nome"], ler_anuncios(b, n["pesquisa"], CFG["pais"], preco_max=n.get("preco_max", CFG["preco_max"])), "novo")
+        if "custojusto" in CFG.get("fontes", ["vinted", "custojusto"]):   # a segunda fonte: os classificados portugueses
+            try:
+                novos += guardar(c, n["nome"], fonte_custojusto.ler_anuncios(n["pesquisa"], n.get("preco_max", CFG["preco_max"])), "novo")
+            except Exception as e:
+                print(f"custojusto {n['nome']}: {str(e)[:120]}")
         if not primeira:  # na primeira volta tudo parece «novo»: só guarda
             for a in novos:
                 r = avaliar(c, n["nome"], a)
@@ -276,6 +284,9 @@ def ciclo(b, c, primeira=False):
                     telegram(a, n["nome"], r)
                     c.execute("UPDATE anuncios SET alertado=1, mediana=?, lucro=?, comparaveis=?, alertado_em=? WHERE id=?",
                               (r["mediana"], r["lucro"], r["comparaveis"], time.strftime("%Y-%m-%d %H:%M:%S"), a["id"]))
+                    if a.get("fonte") == "custojusto":   # no CustoJusto não há estrelas: fica o nome e a cidade
+                        alertas += 1
+                        continue
                     try:   # quem vende: estrelas e avaliações, para o Hub mostrar (12 nov, Marco: «os feedbacks, as avaliações»)
                         v = ler_vendedor(b, a["link"])
                         c.execute("UPDATE anuncios SET vendedor=?, estrelas=?, avaliacoes=? WHERE id=?",

@@ -20,10 +20,11 @@ const TQ_DEPTS = [
   ["alfred", "Revisão", "REV", "Revê cada mudança antes de ir para todos: erros, riscos e o que falta."],
   ["robin", "Testes", "QA", "Corre os testes, tenta os casos difíceis e diz exatamente o que falhou."],
   ["gordon", "Operações", "OPS", "Organiza, planeia, faz pequenas correções e fecha pontas soltas."],
+  ["huntress", "Caça de produtos", "CAC", "Vigia o Vinted Radar, confirma cada pechincha e só recomenda vendedores fiáveis."],
   ["penguin", "Macro", "MAC", "Sala de Trading: calendário económico, bancos centrais, dólar, juros e manchetes."],
   ["twoface", "Análise técnica", "TEC", "Sala de Trading: liquidez, FVG, order blocks, estrutura; dá sempre os dois lados."],
 ].map(([id, name, code, what], i) => ({ id, name, code, what, n: String(i + 1).padStart(2, "0") }));
-const TQ_OFFICE = TQ_DEPTS.slice(0, 8);   // the ones a task is sent to; the last two work in the Sala de Trading
+const TQ_OFFICE = TQ_DEPTS.slice(0, 9);   // the ones a task is sent to; the last two work in the Sala de Trading
 const tqDept = (id) => TQ_DEPTS.find((d) => d.id === id) || null;
 const tqMono = (id, live = false, cls = "") => {
   const d = tqDept(id);

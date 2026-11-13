@@ -250,10 +250,11 @@ def _portes(cfg: dict, nicho: str | None = None) -> float:
     return float(n.get("portes") if n.get("portes") is not None else cfg.get("portes_compra_eur", 4.0))
 
 
-def _custo_det(preco: float, cfg: dict, nicho: str | None = None) -> dict:
-    """O que um artigo custa de facto a comprar: preço + proteção do comprador (taxa do Vinted) + portes."""
+def _custo_det(preco: float, cfg: dict, nicho: str | None = None, fonte: str | None = None) -> dict:
+    """O que um artigo custa de facto a comprar: preço + proteção do comprador (taxa do Vinted) + portes. No CustoJusto não
+    há proteção nem taxa: só o preço e os portes."""
     prot = cfg.get("protecao_comprador") or {}
-    p = round(prot.get("fixo", 0.7) + preco * prot.get("pct", 0.05), 2)
+    p = 0.0 if fonte == "custojusto" else round(prot.get("fixo", 0.7) + preco * prot.get("pct", 0.05), 2)
     e = _portes(cfg, nicho)
     return {"preco": preco, "protecao": p, "portes": e, "total": round(preco + p + e, 2)}
 
@@ -784,6 +785,12 @@ def _veredito(a: dict, rejeitar: list, aceites: list, live: dict | None = None) 
             alertas.append(["warn", f"Vendedor {est:.1f}★ com {av or 0} avaliações"])
     elif live and live.get("vendedor"):
         alertas.append(["warn", "Vendedor sem avaliações"])
+    if a.get("fonte") == "custojusto":
+        alertas.append(["warn", "CustoJusto: sem proteção do comprador — paga só com o artigo na mão (ou por um envio com proteção)"])
+        if a.get("profissional"):
+            porque.append(["ok", "Vendido por uma loja (anúncio profissional)"])
+        if a.get("cidade"):
+            porque.append(["ok", f"Em {a['cidade']}: dá para ver e levantar em mão, sem portes"])
     if live and live.get("fechado"):
         alertas.append(["bad", "Já foi vendido ou retirado"])
     elif live and live.get("reservado"):
@@ -820,11 +827,12 @@ def _catalogo() -> dict:
     tech_n = {n["nome"]: bool(n.get("tech")) for n in cfg["nichos"]}
     ha = {r[1] for r in _rows("PRAGMA table_info(anuncios)")}
     cols = ["id", "nicho", "titulo", "marca", "tamanho", "estado", "preco", "foto", "link", "visto_em", "origem", "alertado",
-            "mediana", "lucro", "comparaveis", "alertado_em"] + [c for c in ("vendedor", "estrelas", "avaliacoes") if c in ha]
+            "mediana", "lucro", "comparaveis", "alertado_em"] + [c for c in ("vendedor", "estrelas", "avaliacoes", "fonte", "cidade", "profissional") if c in ha]
     itens = [dict(zip(cols, r)) for r in _rows(f"SELECT {','.join(cols)} FROM anuncios WHERE preco > 0")]
     por_marca, por_cat = {}, {}
     for a in itens:
         a.setdefault("vendedor", None); a.setdefault("estrelas", None); a.setdefault("avaliacoes", None)
+        a["fonte"] = a.get("fonte") or "vinted"; a.setdefault("cidade", None); a.setdefault("profissional", None)
         a["marca"] = (a["marca"] or "").strip()
         a["grupo"] = grupo.get(a["nicho"], "Outros")
         a["eg"] = _estado_g(a["estado"])
@@ -859,7 +867,7 @@ def _catalogo() -> dict:
         if vv and vv.get("mediana"):   # o preço que as pessoas pedem pelos iguais no Vinted ganha a tudo o resto
             ref, base, n, rap = vv["mediana"], "vinted", vv["n"], vv["rapido"]
         a["comparado"] = comparados.get(a["id"])
-        det = _custo_det(a["preco"], cfg, a["nicho"])
+        det = _custo_det(a["preco"], cfg, a["nicho"], a["fonte"])
         a["custo_det"] = det
         custo = det["total"]
         a.update(ref=ref, ref_base=base, ref_n=n, custo=custo, rapido=min(rap, ref) if ref and rap else None,
@@ -904,7 +912,7 @@ def _publico(a: dict, crm: dict, compras: dict) -> dict:
 
 @router.get("/produtos")
 def produtos(q: str = "", grupo: str = "", nicho: str = "", marca: str = "", estado: str = "", etapa: str = "",
-             so: str = "", ordem: str = "recente", pmin: float = 0, pmax: float = 0, offset: int = 0, limit: int = 60,
+             so: str = "", ordem: str = "recente", pmin: float = 0, pmax: float = 0, offset: int = 0, limit: int = 60, fonte: str = "",
              user: User = Depends(viewer)):
     """O catálogo: todos os anúncios que o radar guardou, com filtros, ordem e a etapa de CRM de cada um."""
     cat = _catalogo()
@@ -915,7 +923,7 @@ def produtos(q: str = "", grupo: str = "", nicho: str = "", marca: str = "", est
     for a in cat["itens"]:
         if grupo and a["grupo"] != grupo or nicho and a["nicho"] != nicho or marca and a["marca"].lower() != marca.lower():
             continue
-        if estado and a["eg"] != estado or pmin and a["preco"] < pmin or pmax and a["preco"] > pmax:
+        if estado and a["eg"] != estado or pmin and a["preco"] < pmin or pmax and a["preco"] > pmax or fonte and a["fonte"] != fonte:
             continue
         if termos and not all(w in f"{a['titulo']} {a['marca']} {a['nicho']} {a['tamanho'] or ''}".lower() for w in termos):
             continue
@@ -943,6 +951,7 @@ def produtos(q: str = "", grupo: str = "", nicho: str = "", marca: str = "", est
     return {"total": len(lista), "fila": len(_fila()), "offset": offset, "itens": [_publico(a, crm, compras) for a in lista[offset:offset + limit]],
             "nichos": contar("nicho"), "marcas": contar("marca")[:40], "todos": len(cat["itens"]),
             "abaixo": sum(1 for a in base if a["desconto"] is not None and a["desconto"] >= 0.3 and a["veredito"] != "suspeito"),
+            "fontes": contar("fonte"),
             "vereditos": {k: sum(1 for a in base if a["veredito"] == k) for k in ("compra", "ver", "nao", "sem", "suspeito")}}
 
 
@@ -1094,6 +1103,8 @@ def _live(a: dict) -> dict:
     c = _LIVE.get(a["id"])
     if c and time.time() - c["em"] < LIVE_S:
         return c
+    if "vinted." not in (a.get("link") or ""):   # outras fontes: o que se sabe já vem da pesquisa (vendedor, cidade)
+        return {"em": time.time(), "vendedor": a.get("vendedor")}
     import httpx
     try:
         r = httpx.get(a["link"], headers={"User-Agent": UA, "Accept-Language": "pt-PT,pt;q=0.9"}, timeout=10, follow_redirects=True)

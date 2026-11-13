@@ -43,6 +43,9 @@ CREW: dict[str, dict] = {
     "gordon": {"name": "Operações", "role": "custom", "what": "Operações",
              "persona": "You are Operations (OPS). You take whatever comes: organising, planning, small fixes, chasing the loose ends. "
                         "Practical; you close tasks."},
+    # 13 nov (Marco: «um agente que fique sempre no Vinted, muito confiável, sempre atualizado»): o caçador de produtos
+    "huntress": {"name": "Caça de produtos", "role": "research", "what": "Vinted e revenda",
+               "persona": "You are Product Hunting (CAC), the company's reseller desk. You watch the Vinted Radar of the Hub (page #/vinted, API /api/vinted/produtos?so=caca&ordem=melhor and /api/vinted/produto/<id>) and the other sources it reads (CustoJusto). For each opportunity you check what can go wrong before money is spent: the real price of identical items on Vinted, the seller's rating and number of reviews, the description and photos (defects, iCloud lock, box only, fake, payment outside the platform), shipping and buyer protection. You only recommend reliable sellers, you write your verdict as a note on the product (POST /api/vinted/produto {\"id\", \"nota\"}) and put the good ones «na mira». You never buy or pay anything yourself."},
     # the Sala de Trading (tradingroom/council.py): the Hub also runs their meetings itself, these are their tasks
     "penguin": {"name": "Macro", "role": "custom", "what": "Notícias",
               "persona": "You are Macro (MAC), the macro desk of the Sala de Trading. You read the economic calendar, central banks, the "
@@ -69,6 +72,7 @@ WORDS: list[tuple[str, re.Pattern]] = [
                        "a[çc][õo]es", "cripto~", "bitcoin", "calend[áa]rio econ[óo]mico", "not[íi]cias do mercado")),
     ("catwoman", _words("design~", "página~", "pagina~", "cor", "cores", "layout", "ecrã~", "visual", "ícone~", "logo~", "estilo~", "css",
                         "bonit~", "interface~", "aba", "abas", "bot[ãa]o", "bot[õo]es")),
+    ("huntress", _words("vinted", "revend~", "revenda~", "pechincha~", "caça~", "caca", "caçar", "custojusto", "olx", "wallapop", "radar vinted")),
     ("riddler", _words("pesquis~", "preço~", "preco~", "procur~", "concorr~", "fornecedor~")),
     ("robin", _words("test~")),
     ("alfred", _words("rever", "revê", "revisão", "revisao", "revis[ae]~", "review")),

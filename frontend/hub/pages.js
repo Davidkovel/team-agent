@@ -453,7 +453,7 @@ const taskBody = (v) => ({ title: v.title.trim(), description: v.description, as
 /* ---- sending work. One window, made to direct it: what, who does it, for when. "Quem faz" is the office (the agents do
    it alone, at once, and the Hub says which of them by the words of the task) or a person (it waits in "Por fazer").
    The form before this one was a grid of eleven fields with a list of "kinds of agent". ---- */
-const CREW_ICON = { batman: "code", lucius: "gear", riddler: "search", catwoman: "layers", joker: "trend", alfred: "check", robin: "target", gordon: "tasks" };
+const CREW_ICON = { batman: "code", lucius: "gear", riddler: "search", catwoman: "layers", joker: "trend", alfred: "check", robin: "target", gordon: "tasks", huntress: "bag" };
 let officeCrew = null;
 const loadCrew = async () => (officeCrew ||= await api("/api/tasks/crew"));
 // Who of the office: "Automático" (the Hub chooses, crew.py) or one of them by name; under it, the line that says who takes it

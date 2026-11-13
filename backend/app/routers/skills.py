@@ -51,7 +51,7 @@ THEMES = LIB / "temas.json"
 PROJECTS = LIB / "projetos.json"   # the team's projects and the skills each one used (Skills > Projeto)
 CONTEXT = REPO / "scripts" / "claude_contexto.py"
 PLUGINS = Path.home() / ".claude" / "plugins"
-CREW = ["batman", "lucius", "riddler", "catwoman", "joker", "alfred", "robin", "gordon", "penguin", "twoface"]
+CREW = ["batman", "lucius", "riddler", "catwoman", "joker", "alfred", "robin", "gordon", "huntress", "penguin", "twoface"]
 MAX_FILES, MAX_BYTES, MAX_SKILLS = 60, 3_000_000, 80   # per skill and per import: never a whole repository of binaries
 GOOD = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 BIG_FILE = 1_500_000   # a bigger file stays behind (fonts, sample decks): the skill's words and scripts come
@@ -138,7 +138,8 @@ def _licence(folder: Path) -> tuple[str, Path | None]:
 def _guess_crew(name: str, about: str) -> list[str]:
     """Who should master a skill just brought in, from its name and description (the same sectors as crew-board.js)."""
     text = f"{name} {about}".lower()
-    rules = [("catwoman", r"design|front-?end|figma|canva|css|ui\b|image|photo|video|font|slides|pptx|motion|brand"),
+    rules = [("huntress", r"vinted|resell|revend|marketplace|olx|wallapop|custojusto"),
+             ("catwoman", r"design|front-?end|figma|canva|css|ui\b|image|photo|video|font|slides|pptx|motion|brand"),
              ("riddler", r"research|pesquis|search|scrap|web|compet"),
              ("robin", r"test|tdd|verif|debug|qa\b"),
              ("alfred", r"review|revis|security|audit|simplif"),

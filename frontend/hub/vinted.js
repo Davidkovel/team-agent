@@ -26,9 +26,12 @@
       <span><i>${esc(t("Vale"))}</i>${eur(a.ref)}</span><b>${icon("chevron")}</b>
       <span class="${a.ganho > 0 ? "win" : "lose"}"><i>${esc(t("Ganhas"))}</i>${sinal(a.ganho)}</span></div>` : `<div class="vt-flow"><span><i>${esc(t("Pagas"))}</i>${eur(a.custo, 1)}</span><span class="na"><i>${esc(t("Vale"))}</i>${esc(t("Sem dados"))}</span></div>`);
   // 13 nov (Marco: «não te podes esquecer dos portes»): o que se paga, às claras
-  const conta = (a) => (a.custo_det ? `<p class="vt-conta">${icon("bag")}${esc(t("Pagas {p} + {x} proteção do comprador + {e} portes", { p: eur(a.custo_det.preco, 2), x: eur(a.custo_det.protecao, 2), e: eur(a.custo_det.portes, 2) }))}</p>` : "");
+  const conta = (a) => (a.custo_det ? `<p class="vt-conta">${icon("bag")}${esc(a.custo_det.protecao ? t("Pagas {p} + {x} proteção do comprador + {e} portes", { p: eur(a.custo_det.preco, 2), x: eur(a.custo_det.protecao, 2), e: eur(a.custo_det.portes, 2) }) : t("Pagas {p} + {e} portes (sem portes se levantares em mão)", { p: eur(a.custo_det.preco, 2), e: eur(a.custo_det.portes, 2) }))}</p>` : "");
+  // de onde vem o anúncio (Vinted ou CustoJusto) e onde está
+  const FONTE = { vinted: "Vinted", custojusto: "CustoJusto" };
+  const origem = (a) => `<span class="vt-src src-${esc(a.fonte || "vinted")}">${esc(FONTE[a.fonte] || "Vinted")}${a.cidade ? ` · ${esc(a.cidade)}` : ""}</span>`;
   const razoes = (lista, n = 9) => `<ul class="vt-why">${lista.slice(0, n).map(([k, x]) => `<li class="${k}">${icon(k === "ok" ? "tick" : "alert")}${esc(t(x))}</li>`).join("")}</ul>`;
-  const F = { q: "", nicho: "", marca: "", estado: "", so: "bons", etapa: "", ordem: localStorage.getItem("vt-p-ordem") || "melhor", pmin: "", pmax: "", n: 60 };
+  const F = { fonte: "", q: "", nicho: "", marca: "", estado: "", so: "bons", etapa: "", ordem: localStorage.getItem("vt-p-ordem") || "melhor", pmin: "", pmax: "", n: 60 };
   const ETAPA = { mira: ["Na mira", "eye"], negociar: ["A negociar", "chat"], comprado: ["Comprado", "tick"], venda: ["À venda", "bag"], vendido: ["Vendido", "trend"], descartado: ["Descartado", "x"] };
   const etapaChip = (e) => (e && ETAPA[e] ? `<span class="vt-et et-${e}">${icon(ETAPA[e][1])}${esc(t(ETAPA[e][0]))}</span>` : "");
   const desc = (a) => (a.mediana ? 1 - a.preco / a.mediana : 0);
@@ -287,7 +290,7 @@
       <div class="vt-hero-in">
         <div class="vt-hero-top">${verd(a)}<span class="vt-conf c-${v.confianca}">${esc(t("Confiança {c}", { c: t(v.confianca === "media" ? "média" : v.confianca) }))}</span></div>
         <b class="vt-hero-t" data-ficha="${a.id}">${esc(a.titulo)}</b>
-        <small>${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small>
+        <small>${origem(a)} ${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small>
         ${fluxo(a, true)}${conta(a)}
         <p class="vt-hero-s">${esc(t("Retorno {r}% do que pagas", { r: Math.round((a.roi || 0) * 100) }))}${rap != null ? ` · ${esc(t("a vender depressa ({p}) ganhas {g}", { p: eur(a.rapido), g: sinal(rap) }))}` : ""}</p>
         ${razoes(v.porque || [], 4)}
@@ -299,7 +302,7 @@
   function linha(a, i) {
     return `<div class="vt-row" data-caca="${a.id}" data-ficha="${a.id}" tabindex="0">
       <em>${i + 1}</em>${a.foto ? `<img src="${esc(a.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="vt-noph">${ico(a.grupo)}</span>`}
-      <div class="vt-row-t"><b>${esc(a.titulo)}</b><small>${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small><div class="vt-meta">${LIVE[a.id] ? quem(a) : ""}</div></div>
+      <div class="vt-row-t"><b>${esc(a.titulo)}</b><small>${origem(a)} ${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small><div class="vt-meta">${LIVE[a.id] ? quem(a) : ""}</div></div>
       ${verd(a)}${fluxo(a)}
       <a class="vt-row-go" href="${esc(a.link)}" target="_blank" rel="noopener" title="${esc(t("Abrir no Vinted"))}">${icon("arrow")}</a></div>`;
   }
@@ -312,15 +315,15 @@
         ui.kpi({ label: "Vale ver", value: vd.ver || 0, sub: t("ganha-se, mas confirma antes"), viz: chip("eye") }),
         ui.kpi({ label: "Ganho possível", value: compra.length ? sinal(soma) : t("Sem dados"), sub: compra.length ? t("se comprares os {n} por {v}", { n: compra.length, v: eur(gasto) }) : t("nenhum para comprar agora"), cls: soma > 0 ? "up" : "", viz: chip("trend", soma > 0 ? "ok" : "") }),
         ui.kpi({ label: "Vistos pelo radar", value: fmt.int(CA.todos), sub: t("{n} não compensam", { n: fmt.int(vd.nao || 0) }), viz: chip("layers") })])}</div>
-      <div class="panel vt-how">${icon("spark")}<span>${esc(t("Como se decide: o radar procura no Vinted os iguais a cada produto (marca + modelo) e «Vale» é o preço do meio que as outras pessoas pedem por eles. «Pagas» é o preço com a proteção do comprador e os portes; «Ganhas» é a diferença. Só é «Compra» depois de comparado no Vinted: ganhas 20 € ou mais, pelo menos 50% do que pagas, mesmo a vender pelo preço dos mais baratos, sem alertas."))}</span></div>
-      ${it.length ? `${head("target", "Os melhores agora", `<span class="vt-aside">${esc(t("Os 8 primeiros são confirmados na página do Vinted"))}</span>`)}
+      <div class="panel vt-how">${icon("spark")}<span>${esc(t("De onde vêm: o Vinted e o CustoJusto (os classificados portugueses). Como se decide: o radar procura no Vinted os iguais a cada produto (marca + modelo) e «Vale» é o preço do meio que as outras pessoas pedem por eles. «Pagas» é o preço com a proteção do comprador e os portes; «Ganhas» é a diferença. Só é «Compra» depois de comparado no Vinted: ganhas 20 € ou mais, pelo menos 50% do que pagas, mesmo a vender pelo preço dos mais baratos, sem alertas."))}</span></div>
+      ${it.length ? `${head("target", "Os melhores agora", `<button type="button" class="btn quiet" data-cac>${icon("bot")}${esc(t("Pedir ao Caçador para confirmar"))}</button>`)}
         <div class="vt-heroes">${it.slice(0, 3).map(heroi).join("")}</div>
         ${it.length > 3 ? `${head("layers", "A seguir", `<span class="vt-aside">${esc(t("{n} com ganho", { n: it.length }))}</span>`)}<div class="panel vt-rows">${it.slice(3).map((a, i) => linha(a, i + 3)).join("")}</div>` : ""}`
         : `<div class="panel">${ui.empty("target", "Nada que valha a pena agora", V.ligado ? "O radar continua a procurar. Os bons negócios aparecem aqui assim que surgirem." : "Liga o radar no Controlo: ele procura sozinho e põe aqui os melhores.", `<button type="button" class="btn primary" data-aba="produtos">${esc(t("Ver todos os produtos"))}</button>`)}</div>`}`);
   }
 
   // Produtos: todos os anúncios, com foto. Um clique abre a ficha; o Vinted abre no browser.
-  const qs = () => new URLSearchParams(Object.entries({ q: F.q, nicho: F.nicho, marca: F.marca, estado: F.estado, so: F.so, etapa: F.etapa,
+  const qs = () => new URLSearchParams(Object.entries({ fonte: F.fonte, q: F.q, nicho: F.nicho, marca: F.marca, estado: F.estado, so: F.so, etapa: F.etapa,
     ordem: F.ordem, pmin: F.pmin, pmax: F.pmax, grupo, limit: F.n }).filter(([, v]) => v !== "" && v != null)).toString();
   async function loadProdutos() {
     try {
@@ -342,7 +345,7 @@
         <div class="vt-pc-v">${verd(a)}</div>
         ${fluxo(a)}
         <span class="vt-pc-t">${esc(a.titulo)}</span>
-        <small>${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small>
+        <small>${origem(a)} ${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))}</small>
         ${a.vendedor || (LIVE[a.id] && LIVE[a.id].live && LIVE[a.id].live.vendedor) ? `<small class="vt-pc-s">${icon("users")}${esc((LIVE[a.id] && LIVE[a.id].live.vendedor) || a.vendedor)}${a.estrelas != null ? ` · ★ ${String(a.estrelas).replace(".", ",")}` : ""}</small>` : ""}
         <div class="vt-pc-f">${etapaChip(a.etapa)}<span>${esc(ago(a.visto_em))}</span></div></div></article>`;
   }
@@ -356,6 +359,7 @@
       <div class="vt-pbar-1"><label class="vt-q">${icon("search")}<input type="search" data-fq value="${esc(F.q)}" placeholder="${esc(t("Procurar: marca, modelo, tamanho…"))}"></label>
         <div class="vt-seg">${chipF("so", "bons", "Que compensam", (P.vereditos || {}).compra + (P.vereditos || {}).ver)}${chipF("so", "oport", "Oportunidades do radar", null)}${chipF("etapa", "crm", "No CRM", null)}${chipF("so", "suspeitos", "Suspeitos", (P.vereditos || {}).suspeito)}${chipF("so", "", "Todos", P.todos)}</div></div>
       <div class="vt-pbar-2">${sel("nicho", "Categoria", P.nichos)}${sel("marca", "Marca", P.marcas)}
+        ${(P.fontes || []).length > 1 ? `<label class="vt-f"><span>${esc(t("Site"))}</span><select data-f="fonte"><option value="">${esc(t("Todos"))}</option>${P.fontes.map(([v, n]) => `<option value="${esc(v)}" ${F.fonte === v ? "selected" : ""}>${esc(FONTE[v] || v)} (${n})</option>`).join("")}</select></label>` : ""}
         <label class="vt-f"><span>${esc(t("Estado"))}</span><select data-f="estado"><option value="">${esc(t("Todos"))}</option><option value="novo" ${F.estado === "novo" ? "selected" : ""}>${esc(t("Novo"))}</option><option value="usado" ${F.estado === "usado" ? "selected" : ""}>${esc(t("Usado"))}</option></select></label>
         <label class="vt-f sm"><span>${esc(t("De €"))}</span><input type="number" min="0" data-f="pmin" value="${esc(F.pmin)}"></label>
         <label class="vt-f sm"><span>${esc(t("Até €"))}</span><input type="number" min="0" data-f="pmax" value="${esc(F.pmax)}"></label>
@@ -403,7 +407,7 @@
       <div class="vt-fi-in">
         <span class="vt-eyebrow">${ico(a.grupo)}${esc(a.nicho)}${a.alertado ? ` · ${esc(t("Oportunidade do radar"))}` : ""}</span>
         <h3>${esc(a.titulo)}</h3>
-        <p class="vt-fi-s">${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))} · ${esc(t("visto {d}", { d: ago(a.visto_em) }))}</p>
+        <p class="vt-fi-s">${origem(a)} ${esc([a.marca, a.tamanho, a.estado].filter(Boolean).join(" · "))} · ${esc(t("visto {d}", { d: ago(a.visto_em) }))}${a.vendedor && a.fonte === "custojusto" ? ` · ${esc(t("vende {v}", { v: a.vendedor }))}` : ""}</p>
         <div class="vt-dec" id="vt-dec">${decisao(a)}</div>
         ${faixa(d)}
         <div class="vt-meta" id="vt-quem">${quem(a)}${etapaChip(a.etapa)}</div>
@@ -600,6 +604,16 @@
       const k = e.target.closest("[data-comprei]"), vd = e.target.closest("[data-vendi]");
       const ab = e.target.closest("[data-aba]"), fi = e.target.closest("[data-ficha]"), et = e.target.closest("[data-et]");
       if (ab) return irPara(ab.dataset.aba);
+      const cac = e.target.closest("[data-cac]");
+      if (cac) {   // uma tarefa para o agente Caça de produtos (Escritório): confirmar os melhores, um a um
+        cac.disabled = true;
+        const top = (CA ? CA.itens : []).slice(0, 10);
+        const linhas = top.map((a, i) => `${i + 1}. ${a.titulo} — paga ${eur(a.custo, 2)}, vale ~${eur(a.ref)}, ganha ${sinal(a.ganho)} — id ${a.id} — ${a.link}`).join("\n");
+        api("/api/tasks", { method: "POST", body: { title: t("Confirmar as melhores pechinchas do Vinted Radar"), assignee: me.username, for_ai: true, crew: "huntress", priority: "high",
+          description: `${t("Confirma uma a uma, antes de se gastar dinheiro: os iguais à venda no Vinted, o vendedor (estrelas e avaliações), as fotos e a descrição (defeitos, bloqueado, só caixa, pagamento fora da plataforma), portes e proteção. Escreve o veredito como nota em cada produto e põe na mira só as boas. Não compres nada.")}\n\n${linhas}` } })
+          .then(() => flash(t("Mandado ao Caçador (Escritório): vai confirmar os {n} melhores.", { n: top.length }))).catch((x) => { flash(x.message); cac.disabled = false; });
+        return;
+      }
       if (et) { e.preventDefault(); e.stopPropagation();
         return api("/api/vinted/produto", { method: "POST", body: { id: Number(et.dataset.et), etapa: et.dataset.v } })
           .then(() => { flash(t(et.dataset.v ? "Na mira: está no Pipeline." : "Tirado da mira.")); refrescar(); }).catch((x) => flash(x.message)); }

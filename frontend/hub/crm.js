@@ -60,6 +60,7 @@
       ${ui.head("Negócios", t("CRM"), t("Da oportunidade ao negócio: o Radar encontra, os departamentos preparam, vocês fecham."),
         `<a class="btn" href="#/radar">${esc(t("Abrir o Radar"))}</a><button type="button" class="btn primary" data-new>${esc(t("Novo lead"))}</button>`)}
       <div id="cm-kpis">${ui.skeleton(4)}</div>
+      <section class="panel cm-ang" id="cm-ang"></section>
       <div class="cm-bar" id="cm-bar" hidden>
         <div class="cm-bar-r"><div class="segx cm-views">${VIEWS.map(([k, l], i) => `<button type="button" data-view="${k}" title="${esc(t(l))} (${i + 1})">${esc(t(l))}</button>`).join("")}</div>
           <span class="cm-grow"></span>
@@ -173,6 +174,72 @@
     paint($("cm-fr"), `<option value="">${esc(t("Ramo"))}</option>${ramos.map((r) => `<option${r === fR ? " selected" : ""}>${esc(r)}</option>`).join("")}`);
     paintView();
     paintExtra();
+    loadAng();
+  }
+
+  /* ---------- Angariação (14 nov, Marco: o prompt das 400 escolas para qualquer ramo, dentro do widget): a página de cada
+     empresa com o tempo que lá passam, a temperatura, os emails de todas por aprovar e o alerta com o que dizer na chamada ---------- */
+  let A = null, angOpen = false, angRaw = "";
+  const TEMP = { quente: ["🔥", "Quente", "bad"], morno: ["🌤", "Morno", "warn"], frio: ["❄️", "Frio", ""] };
+  async function loadAng() {
+    try { const d = await api("/api/angariacao"), s = JSON.stringify(d); if (s === angRaw) return; angRaw = s; A = d; paintAng(); } catch (e) { /* sem angariação neste Hub */ }
+  }
+  function paintAng() {
+    const box = $("cm-ang"); if (!box || !A) return;
+    const c = A.config, falta = ["oferta", "nome", "empresa", "whatsapp"].filter((k) => !c[k]);
+    const sem = A.leads.filter((l) => !l.rascunho).length, erros = A.leads.filter((l) => l.lint.length).length;
+    const top = A.leads.slice(0, 8);
+    const f = (k, lab, ph, wide) => `<label class="cm-f ${wide ? "wide" : ""}"><span>${esc(t(lab))}</span><input data-angf="${k}" value="${esc(c[k] || "")}" placeholder="${esc(t(ph))}"></label>`;
+    paint(box, `<div class="cm-ang-h"><div><b>${esc(t("Angariação"))}</b><small>${esc(t("Cada empresa tem a sua página. Quando a abre, sabes quanto tempo ficou, o que leu e se carregou no WhatsApp; no fim da visita chega o alerta com o que dizer na chamada."))}</small></div>
+        <div class="cm-ang-n"><span><em>${A.quentes}</em>${esc(t("quentes"))}</span><span><em>${A.mornos}</em>${esc(t("mornos"))}</span><span><em>${A.visitas.length}</em>${esc(t("visitas"))}</span><span><em>${A.com_rascunho}/${A.leads.length}</em>${esc(t("emails"))}</span></div>
+        <div class="cm-ang-a"><button type="button" class="btn primary sm" data-ang-mails ${sem ? "" : "disabled"}>${esc(sem ? t("Escrever os emails de {n} empresa(s)", { n: sem }) : t("Todas têm email"))}</button>
+          <button type="button" class="btn quiet sm" data-ang-cfg>${esc(t(angOpen ? "Fechar definições" : "Definições"))}</button></div></div>
+      ${falta.length ? `<p class="cm-ang-warn">${esc(t("Falta preencher nas Definições: {f}. Os emails e o guião usam isto.", { f: falta.map((k) => ({ oferta: "a oferta", nome: "o teu nome", empresa: "a empresa", whatsapp: "o WhatsApp" })[k]).join(", ") }))}</p>` : ""}
+      ${erros ? `<p class="cm-ang-warn">${esc(t("{n} email(s) com regras por acertar (mais de 120 palavras, travessões, sem link). Abre a empresa para ver.", { n: erros }))}</p>` : ""}
+      ${angOpen ? `<form class="cm-ang-cfg" data-angcfg>
+          ${f("oferta", "Oferta (o que vendemos, numa frase)", "Ex.: marcações online e atendimento automático", true)}${f("prova", "Prova (clientes ou números reais)", "Vazio se ainda não houver", true)}
+          ${f("nome", "O teu nome", "Marco")}${f("empresa", "Empresa", "AMG")}${f("whatsapp", "WhatsApp", "+351 9…")}
+          ${f("base_url", "Endereço público das páginas", A.link_base, true)}
+          ${f("telegram_chat", "Telegram: chat id", "Opcional")}
+          <label class="cm-f"><span>${esc(t("Telegram: token do bot"))}</span><input data-angf="telegram_token" type="password" placeholder="${esc(c.telegram ? t("Ligado (escreve outro para trocar)") : t("Do @BotFather, opcional"))}"></label>
+          <div class="cm-ang-a"><button class="btn primary sm" type="submit">${esc(t("Guardar"))}</button>${c.telegram ? `<button type="button" class="btn quiet sm" data-ang-tgoff>${esc(t("Desligar o Telegram"))}</button>` : ""}</div>
+          <p class="cm-none">${esc(t("Nada é enviado sozinho: os emails ficam por aprovar e quem envia é uma pessoa. O token fica só neste computador."))}</p></form>` : ""}
+      ${top.length ? `<div class="cm-ang-list">${top.map((l) => `<button type="button" class="cm-ang-row" data-open="${esc(l.key)}">
+          <span class="st ${TEMP[l.temperatura][2]}">${TEMP[l.temperatura][0]} ${esc(t(TEMP[l.temperatura][1]))}</span><b>${esc(l.nome)}</b>
+          <small>${l.code ? esc(l.code) : esc(t("sem código"))} · ${esc(t("nota {n}", { n: String(l.nota).replace(".", ",") }))}${l.visitas ? ` · ${l.visitas} ${esc(t(l.visitas > 1 ? "visitas" : "visita"))}, ${l.segundos} s${l.wa ? " · WhatsApp" : ""}` : ""}</small></button>`).join("")}</div>` : ""}`);
+    const fm = box.querySelector("[data-angcfg]");
+    if (fm) fm.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = {}; fm.querySelectorAll("[data-angf]").forEach((i) => { body[i.dataset.angf] = i.value; });
+      try { await api("/api/angariacao/config", { method: "POST", body }); angOpen = false; angRaw = ""; toast(t("Guardado.")); loadAng(); } catch (err) { toast(err.message); }
+    };
+  }
+  async function angClick(el) {
+    if (el("[data-ang-cfg]")) { angOpen = !angOpen; paintAng(); return true; }
+    if (el("[data-ang-tgoff]")) { await api("/api/angariacao/config", { method: "POST", body: { tirar_telegram: true } }); angRaw = ""; loadAng(); return true; }
+    if (el("[data-ang-mails]")) {
+      const b = el("[data-ang-mails]"); b.disabled = true;
+      try { const r = await api("/api/angariacao/rascunhos", { method: "POST", body: {} }); toast(t("{n} email(s) escritos, por aprovar{e}.", { n: r.feitos, e: r.com_erros ? t(" ({n} com regras por acertar)", { n: r.com_erros }) : "" })); angRaw = ""; await load(); }
+      catch (err) { toast(err.message); b.disabled = false; }
+      return true;
+    }
+    if (el("[data-ang-copy]")) { navigator.clipboard?.writeText(el("[data-ang-copy]").dataset.angCopy); toast(t("Link copiado.")); return true; }
+    if (el("[data-ang-one]")) { try { await api("/api/angariacao/rascunhos", { method: "POST", body: { keys: [sel] } }); toast(t("Email escrito, por aprovar.")); await load(); } catch (err) { toast(err.message); } return true; }
+    return false;
+  }
+  // na ficha: a página desta empresa, a temperatura e o guião da chamada
+  async function angLead(k) {
+    const box = $("cm-angl"); if (!box) return;
+    try {
+      const f = await api(`/api/angariacao/lead?key=${encodeURIComponent(k)}`);
+      if (sel !== k || !$("cm-angl")) return;
+      const tp = TEMP[f.temperatura];
+      paint($("cm-angl"), `<h4 class="cm-h">${esc(t("Página e chamada"))}</h4>
+        <div class="cm-ang-fi"><span class="st ${tp[2]}">${tp[0]} ${esc(t(tp[1]))}</span><span>${esc(t("Nota {n}/10", { n: String(f.nota).replace(".", ",") }))}</span>
+          <span>${f.visitas ? esc(t("{v} visita(s) · {s} s · leu {p}% · WhatsApp {w}", { v: f.visitas, s: f.segundos, p: f.scroll, w: f.wa })) : esc(t("Ainda não abriu a página"))}</span></div>
+        <div class="cm-ang-link"><code>${esc(f.link)}</code><button type="button" class="btn quiet sm" data-ang-copy="${esc(f.link)}">${esc(t("Copiar"))}</button><a class="btn quiet sm" href="${esc(f.link)}" target="_blank" rel="noopener">${esc(t("Ver"))}</a></div>
+        <h4 class="cm-h">${esc(t("O que dizer na chamada"))}</h4><ol class="cm-ang-g">${f.guiao.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`);
+    } catch (e) { if ($("cm-angl")) $("cm-angl").innerHTML = ""; }
   }
 
   function paintKpis() {
@@ -428,7 +495,7 @@
       l.site && `<a class="cm-act" href="${esc(/^https?:/.test(l.site) ? l.site : "https://" + l.site)}" target="_blank" rel="noopener">${I.web}<span>${esc(t("Site"))}</span></a>`,
     ].filter(Boolean);
     const idx = [...D.stages.map(([k]) => k)].indexOf(l.stage);
-    const tabs = [["negocio", "Negócio", ""], ["reuniao", "Reunião", m ? "●" : ""], ["atividade", "Atividade", String((l.atividades || []).length || "")], ["agentes", "Departamentos", draft ? "●" : ""]];
+    const tabs = [["negocio", "Negócio", ""], ["reuniao", "Reunião", m ? "●" : ""], ["atividade", "Atividade", String((l.atividades || []).length || "")], ["agentes", "Email e chamada", draft ? "●" : ""]];
     const body = tab === "reuniao" ? tabReuniao(l) : tab === "atividade" ? tabAtividade(l) : tab === "agentes" ? tabAgentes(l, draft, w, mail) : tabNegocio(l);
     paint(box, `<div class="cm-dr-bar">${l.manual ? `<span class="cm-tag">${esc(t("Criado à mão"))}</span>` : `<a class="btn quiet sm" href="#/radar" data-radar="${esc(l.sid || "")}">${esc(t("Ver no Radar"))}</a>`}<span></span><button class="btn quiet sm" data-close aria-label="${esc(t("Fechar"))}">${I.x}</button></div>
       <div class="cm-dr-in">
@@ -537,12 +604,16 @@
   }
 
   function tabAgentes(l, draft, w, mail) {
-    return `<div class="cm-agents">
+    setTimeout(() => angLead(l.key), 0);
+    return `<div id="cm-angl"></div>
+      <button type="button" class="btn quiet sm" data-ang-one>${esc(t(draft ? "Reescrever o email com o link pessoal" : "Escrever o email com o link pessoal"))}</button>
+      <div class="cm-agents">
         <button type="button" data-agent="pesquisa"><span class="cm-mono">PES</span><b>${esc(t("Pesquisa"))}</b><small>${esc(t("Investiga: marca, redes, Google, dinheiro"))}</small></button>
         <button type="button" data-agent="marketing"><span class="cm-mono">MKT</span><b>${esc(t("Marketing"))}</b><small>${esc(t("Escreve a primeira mensagem"))}</small></button>
         <button type="button" data-agent="operacoes"><span class="cm-mono">OPS</span><b>${esc(t("Operações"))}</b><small>${esc(t("Marca a próxima ação da fase"))}</small></button>
       </div>
-      ${draft ? `<section class="cm-draft"><h4 class="cm-h">${esc(t("Mensagem do Marketing · por aprovar"))}</h4><pre>${esc(draft.texto)}</pre>
+      ${draft ? `<section class="cm-draft"><h4 class="cm-h">${esc(t("Mensagem do Marketing · por aprovar"))}</h4>${draft.assunto ? `<p class="cm-ang-subj"><b>${esc(t("Assunto"))}:</b> ${esc(draft.assunto)}</p>` : ""}<pre>${esc(draft.texto)}</pre>
+        ${(draft.lint || []).length ? `<p class="cm-ang-warn">${esc(t("Por acertar"))}: ${esc(draft.lint.join(" · "))}</p>` : draft.code ? `<p class="cm-ang-ok">${esc(t("Cumpre as regras: ≤ 120 palavras, sem travessões, com o link pessoal e uma pergunta."))}</p>` : ""}
         <div class="cm-draft-a">${w ? `<a class="btn sm" href="${esc(w)}" target="_blank" rel="noopener" data-approve="WhatsApp">${esc(t("Aprovar e abrir no WhatsApp"))}</a>` : ""}
         ${mail ? `<a class="btn sm" href="${esc(mailto(mail, draft))}" data-approve="email">${esc(t("Aprovar e abrir o email"))}</a>` : ""}
         <button class="btn quiet sm" data-copy>${esc(t("Copiar"))}</button><button class="btn quiet sm" data-drop>${esc(t("Apagar"))}</button></div></section>` : ""}`;
@@ -628,6 +699,7 @@
     if (el("[data-modclose]") || e.target.id === "cm-modal") return closeModal();
     if (el("#cm-scrim") || el("[data-close]")) return closeDr();
     if (el("[data-new]")) return newLead();
+    if (await angClick(el)) return;
     const vw = el("[data-view]"); if (vw) return setView(vw.dataset.view);
     if (el("[data-clear]")) { q = fT = fE = fR = ""; return paintView(); }
     const z = el("[data-z]"); if (z) return setZoom(z.dataset.z === "0" ? 2 : zoomI + Number(z.dataset.z));

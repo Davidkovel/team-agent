@@ -17,7 +17,7 @@ from .models import User
 from .radar import loop as radar_loop
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, messages, office, photos, ponto, tasks, team, trading, week, work, ws
-from .routers import affiliates, conversas, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom, vinted
+from .routers import affiliates, angariacao, conversas, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom, vinted
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -134,7 +134,10 @@ async def lifespan(app: FastAPI):
     mirroring = asyncio.create_task(espelho.loop()) if settings.sync else None  # the person's work, also on their cloud
     radaring = asyncio.create_task(radar_loop()) if settings.sync else None  # Radar: confirms again, weekly, who is still open
     vinting = asyncio.create_task(vinted.loop()) if settings.sync else None  # Vinted Radar: the guard of «Contínuo» keeps this PC's collector up
+    angariando = asyncio.create_task(angariacao.loop()) if settings.sync else None  # Angariação: closes page visits, warms the CRM, alerts
     yield
+    if angariando:
+        angariando.cancel()
     if vinting:
         vinting.cancel()
     if mirroring:
@@ -184,6 +187,8 @@ app.include_router(fundednext.router)  # Painel FundedNext
 app.include_router(etsy.router)  # Fábrica Etsy
 app.include_router(radar.router)  # Radar: a máquina de prospeção
 app.include_router(crm.router)  # CRM: o seguimento do Radar até ao negócio
+app.include_router(angariacao.router)  # Angariação: códigos, rascunhos, temperatura (página CRM)
+app.include_router(angariacao.public)  # /go?r=AG-0001 e /api/go/t: a página de cada empresa, aberta sem login
 app.include_router(emails.router)  # E-mails: do Radar à resposta do cliente
 app.include_router(emails.relay)
 app.include_router(affiliates.router)  # Afiliados: os programas, os links e as comissões

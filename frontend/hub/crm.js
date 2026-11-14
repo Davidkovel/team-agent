@@ -184,18 +184,45 @@
   async function loadAng() {
     try { const d = await api("/api/angariacao"), s = JSON.stringify(d); if (s === angRaw) return; angRaw = s; A = d; paintAng(); } catch (e) { /* sem angariação neste Hub */ }
   }
+  // 14 nov (Marco: «design fácil de ver, profissional, as funcionalidades todas visíveis e as estatísticas bem vistas»):
+  // um painel inteiro: números, o funil, as visitas por dia, a temperatura, a tabela das empresas e as últimas visitas.
   function paintAng() {
     const box = $("cm-ang"); if (!box || !A) return;
     const c = A.config, falta = ["oferta", "nome", "empresa", "whatsapp"].filter((k) => !c[k]);
-    const sem = A.leads.filter((l) => !l.rascunho).length, erros = A.leads.filter((l) => l.lint.length).length;
-    const top = A.leads.slice(0, 8);
+    const L = A.leads, sem = L.filter((l) => !l.rascunho).length, erros = L.filter((l) => l.lint.length).length;
+    const n = (v) => fmt.int(v || 0), pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+    const abriram = L.filter((l) => l.visitas).length, escritos = A.com_rascunho;
     const f = (k, lab, ph, wide) => `<label class="cm-f ${wide ? "wide" : ""}"><span>${esc(t(lab))}</span><input data-angf="${k}" value="${esc(c[k] || "")}" placeholder="${esc(t(ph))}"></label>`;
-    paint(box, `<div class="cm-ang-h"><div><b>${esc(t("Angariação"))}</b><small>${esc(t("Cada empresa tem a sua página. Quando a abre, sabes quanto tempo ficou, o que leu e se carregou no WhatsApp; no fim da visita chega o alerta com o que dizer na chamada."))}</small></div>
-        <div class="cm-ang-n"><span><em>${A.quentes}</em>${esc(t("quentes"))}</span><span><em>${A.mornos}</em>${esc(t("mornos"))}</span><span><em>${A.visitas.length}</em>${esc(t("visitas"))}</span><span><em>${A.com_rascunho}/${A.leads.length}</em>${esc(t("emails"))}</span></div>
-        <div class="cm-ang-a"><button type="button" class="btn primary sm" data-ang-mails ${sem ? "" : "disabled"}>${esc(sem ? t("Escrever os emails de {n} empresa(s)", { n: sem }) : t("Todas têm email"))}</button>
-          <button type="button" class="btn quiet sm" data-ang-cfg>${esc(t(angOpen ? "Fechar definições" : "Definições"))}</button></div></div>
-      ${falta.length ? `<p class="cm-ang-warn">${esc(t("Falta preencher nas Definições: {f}. Os emails e o guião usam isto.", { f: falta.map((k) => ({ oferta: "a oferta", nome: "o teu nome", empresa: "a empresa", whatsapp: "o WhatsApp" })[k]).join(", ") }))}</p>` : ""}
-      ${erros ? `<p class="cm-ang-warn">${esc(t("{n} email(s) com regras por acertar (mais de 120 palavras, travessões, sem link). Abre a empresa para ver.", { n: erros }))}</p>` : ""}
+    const ico = (k) => `<span class="pn-viz-ic">${icon(k)}</span>`;
+    const kpis = ui.kpis([
+      ui.kpi({ label: "Empresas na lista", value: n(L.length), sub: t("do Radar e à mão"), viz: ico("users"), cls: "hi" }),
+      ui.kpi({ label: "Emails prontos", value: `${n(escritos)}/${n(L.length)}`, sub: erros ? t("{n} por acertar", { n: erros }) : sem ? t("{n} por escrever", { n: sem }) : t("todos por aprovar"), viz: ico("doc") }),
+      ui.kpi({ label: "Abriram a página", value: n(abriram), sub: escritos ? t("{p}% de quem recebeu email", { p: pct(abriram, escritos) }) : t("ainda ninguém"), viz: ico("eye") }),
+      ui.kpi({ label: "Quentes", value: n(A.quentes), sub: t("{m} mornas · {f} frias", { m: A.mornos, f: A.frios }), viz: ico("flag"), cls: A.quentes ? "up" : "" }),
+      ui.kpi({ label: "Tempo médio na página", value: A.media_s != null ? `${A.media_s} s` : t("Sem dados"), sub: A.wa_total === 1 ? t("1 clique no WhatsApp") : t("{n} cliques no WhatsApp", { n: A.wa_total }), viz: ico("clock") }),
+    ]);
+    const topF = Math.max(1, ...A.funil.map((x) => x[1]));
+    const funil = `<div class="ag-funil">${A.funil.map(([lab, v], i) => `<div class="ag-fstep"><div class="ag-fl"><b>${esc(t(lab))}</b><span>${n(v)}${i ? `<em>${pct(v, A.funil[0][1])}%</em>` : ""}</span></div>
+        <div class="ag-fbar"><i style="width:${Math.max(v ? 3 : 0, (100 * v) / topF).toFixed(1)}%"></i></div></div>`).join("")}</div>`;
+    const dias = A.dias.map((d, i) => ({ label: i % 3 === 1 || i === A.dias.length - 1 ? new Date(d.dia + "T12:00").toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" }) : "", value: d.n, tip: `${new Date(d.dia + "T12:00").toLocaleDateString("pt-PT", { day: "2-digit", month: "short" })}: ${t("{n} visita(s)", { n: d.n })}` }));
+    const temp = L.length ? `<div class="ag-temp"><div class="ag-tbar">${["quente", "morno", "frio"].map((k) => { const v = L.filter((l) => l.temperatura === k).length; return v ? `<i class="t-${k}" style="flex:${v}" title="${esc(t(TEMP[k][1]))}: ${v}"></i>` : ""; }).join("")}</div>
+        <div class="ag-tleg">${["quente", "morno", "frio"].map((k) => `<span><i class="t-${k}"></i>${TEMP[k][0]} ${esc(t(TEMP[k][1]))} <b>${L.filter((l) => l.temperatura === k).length}</b></span>`).join("")}</div></div>` : "";
+    const linha = (l) => `<tr data-open="${esc(l.key)}">
+        <td><span class="ag-chip t-${l.temperatura}">${TEMP[l.temperatura][0]} ${esc(t(TEMP[l.temperatura][1]))}</span></td>
+        <td><b>${esc(l.nome)}</b><small>${esc(l.code || t("sem código"))}</small></td>
+        <td><div class="ag-nota"><i style="width:${l.nota * 10}%"></i></div><small>${String(l.nota).replace(".", ",")}/10</small></td>
+        <td>${l.visitas ? n(l.visitas) : "—"}</td><td>${l.visitas ? `${l.segundos} s` : "—"}</td><td>${l.visitas ? `${l.scroll}%` : "—"}</td>
+        <td>${l.wa ? `<span class="ag-ok">${icon("tick")}</span>` : "—"}</td>
+        <td>${!l.rascunho ? `<span class="ag-mute">${esc(t("por escrever"))}</span>` : l.lint.length ? `<span class="ag-warn">${esc(t("por acertar"))}</span>` : `<span class="ag-ok">${esc(t("pronto"))}</span>`}</td>
+        <td>${l.link ? `<button type="button" class="btn quiet sm" data-ang-copy="${esc(l.link)}" title="${esc(l.link)}">${esc(t("Link"))}</button>` : ""}</td></tr>`;
+    const visitas = A.visitas.length ? A.visitas.map((v) => `<li><b>${esc(v.nome)}</b><span>${esc(fmt.ago(new Date(v.quando * 1000).toISOString()))} · ${v.segundos} s · ${v.scroll}%${v.wa ? " · WhatsApp" : ""}</span></li>`).join("")
+      : `<li class="ag-none">${esc(t("Ainda ninguém abriu uma página. Quando abrirem, aparece aqui e chega o alerta."))}</li>`;
+    paint(box, `<header class="ag-h"><div><span class="ag-eye">${icon("target")}${esc(t("Angariação"))}</span>
+          <h3>${esc(t("Quem abriu, quanto tempo ficou e a quem ligar primeiro"))}</h3>
+          <p>${esc(t("Cada empresa recebe um email com uma página só dela. O Hub vê o tempo, o que leu e o WhatsApp, e avisa no fim da visita com o que dizer na chamada."))}</p></div>
+        <div class="ag-a"><button type="button" class="btn primary" data-ang-mails ${sem ? "" : "disabled"}>${icon("doc")}${esc(sem ? t("Escrever {n} email(s)", { n: sem }) : t("Emails todos escritos"))}</button>
+          <button type="button" class="btn quiet" data-ang-cfg>${icon("sliders")}${esc(t(angOpen ? "Fechar definições" : "Definições"))}</button></div></header>
+      ${falta.length ? `<div class="ag-alert">${icon("alert")}<span>${esc(t("Falta nas Definições: {f}. Os emails, a página e o guião usam isto.", { f: falta.map((k) => ({ oferta: "a oferta", nome: "o teu nome", empresa: "a empresa", whatsapp: "o WhatsApp" })[k]).join(", ") }))}</span><button type="button" class="btn sm" data-ang-cfg>${esc(t("Preencher"))}</button></div>` : ""}
       ${angOpen ? `<form class="cm-ang-cfg" data-angcfg>
           ${f("oferta", "Oferta (o que vendemos, numa frase)", "Ex.: marcações online e atendimento automático", true)}${f("prova", "Prova (clientes ou números reais)", "Vazio se ainda não houver", true)}
           ${f("nome", "O teu nome", "Marco")}${f("empresa", "Empresa", "AMG")}${f("whatsapp", "WhatsApp", "+351 9…")}
@@ -204,9 +231,17 @@
           <label class="cm-f"><span>${esc(t("Telegram: token do bot"))}</span><input data-angf="telegram_token" type="password" placeholder="${esc(c.telegram ? t("Ligado (escreve outro para trocar)") : t("Do @BotFather, opcional"))}"></label>
           <div class="cm-ang-a"><button class="btn primary sm" type="submit">${esc(t("Guardar"))}</button>${c.telegram ? `<button type="button" class="btn quiet sm" data-ang-tgoff>${esc(t("Desligar o Telegram"))}</button>` : ""}</div>
           <p class="cm-none">${esc(t("Nada é enviado sozinho: os emails ficam por aprovar e quem envia é uma pessoa. O token fica só neste computador."))}</p></form>` : ""}
-      ${top.length ? `<div class="cm-ang-list">${top.map((l) => `<button type="button" class="cm-ang-row" data-open="${esc(l.key)}">
-          <span class="st ${TEMP[l.temperatura][2]}">${TEMP[l.temperatura][0]} ${esc(t(TEMP[l.temperatura][1]))}</span><b>${esc(l.nome)}</b>
-          <small>${l.code ? esc(l.code) : esc(t("sem código"))} · ${esc(t("nota {n}", { n: String(l.nota).replace(".", ",") }))}${l.visitas ? ` · ${l.visitas} ${esc(t(l.visitas > 1 ? "visitas" : "visita"))}, ${l.segundos} s${l.wa ? " · WhatsApp" : ""}` : ""}</small></button>`).join("")}</div>` : ""}`);
+      <div class="ag-kpis">${kpis}</div>
+      <div class="ag-grid">
+        <section class="ag-card"><h4>${icon("layers")}${esc(t("Funil"))}<small>${esc(t("de encontrada a contactada"))}</small></h4>${funil}</section>
+        <section class="ag-card"><h4>${icon("chart")}${esc(t("Visitas por dia"))}<small>${esc(t("últimos 14 dias"))}</small></h4>${ui.bars(dias)}${temp}</section>
+      </div>
+      <div class="ag-grid wide">
+        <section class="ag-card"><h4>${icon("users")}${esc(t("Empresas"))}<small>${esc(t("quentes primeiro; clica para abrir a ficha com o guião da chamada"))}</small></h4>
+          ${L.length ? `<div class="ag-tw"><table class="ag-t"><thead><tr><th>${esc(t("Temperatura"))}</th><th>${esc(t("Empresa"))}</th><th>${esc(t("Nota"))}</th><th>${esc(t("Visitas"))}</th><th>${esc(t("Tempo"))}</th><th>${esc(t("Lido"))}</th><th>WhatsApp</th><th>${esc(t("Email"))}</th><th></th></tr></thead>
+            <tbody>${L.map(linha).join("")}</tbody></table></div>` : `<p class="cm-none">${esc(t("Ainda sem empresas no CRM. Faz uma pesquisa no Radar e junta as que valem a pena."))}</p>`}</section>
+        <section class="ag-card"><h4>${icon("eye")}${esc(t("Últimas visitas"))}</h4><ul class="ag-vis">${visitas}</ul></section>
+      </div>`);
     const fm = box.querySelector("[data-angcfg]");
     if (fm) fm.onsubmit = async (e) => {
       e.preventDefault();

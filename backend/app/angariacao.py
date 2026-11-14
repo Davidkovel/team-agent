@@ -497,7 +497,22 @@ def resumo(hub_url: str) -> dict:
     visitas = sorted((v for v in d["visits"].values() if v.get("ended") and v["ativo_ms"] >= MIN_ATIVO_MS), key=lambda v: -v["last"])[:20]
     nomes = {c["key"]: c["nome"] for c in board["leads"]}
     inv = {c: k for k, c in d["codes"].items()}
-    return {"config": cfg, "leads": linhas, "quentes": sum(1 for x in linhas if x["temperatura"] == "quente"),
+    stages = {c["key"]: c["stage"] for c in board["leads"]}
+    for x in linhas:
+        x["stage"] = stages.get(x["key"], "novo")
+    funil = [["Na lista", len(linhas)], ["Email escrito", sum(1 for x in linhas if x["rascunho"])],
+             ["Abriram a página", sum(1 for x in linhas if x["visitas"])], ["Quentes", sum(1 for x in linhas if x["temperatura"] == "quente")],
+             ["Contactadas", sum(1 for x in linhas if x["stage"] not in ("novo",))]]
+    hoje = time.time()
+    dias = []
+    todas = [v for v in d["visits"].values() if v.get("ended") and v["ativo_ms"] >= MIN_ATIVO_MS]
+    for i in range(13, -1, -1):
+        dia = time.strftime("%Y-%m-%d", time.localtime(hoje - 86400 * i))
+        dias.append({"dia": dia, "n": sum(1 for v in todas if time.strftime("%Y-%m-%d", time.localtime(v["last"])) == dia)})
+    seg = [v["ativo_ms"] / 1000 for v in todas]
+    return {"funil": funil, "dias": dias, "frios": sum(1 for x in linhas if x["temperatura"] == "frio"),
+            "media_s": round(sum(seg) / len(seg)) if seg else None, "wa_total": sum(v["wa"] for v in todas),
+            "config": cfg, "leads": linhas, "quentes": sum(1 for x in linhas if x["temperatura"] == "quente"),
             "mornos": sum(1 for x in linhas if x["temperatura"] == "morno"), "com_rascunho": sum(1 for x in linhas if x["rascunho"]),
             "visitas": [{"code": v["code"], "nome": nomes.get(inv.get(v["code"]), v["code"]), "quando": v["last"], "segundos": round(v["ativo_ms"] / 1000),
                          "scroll": v["scroll"], "wa": v["wa"]} for v in visitas],

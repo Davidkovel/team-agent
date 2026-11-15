@@ -11,7 +11,9 @@ import asyncio
 import base64
 import html
 import json
+import logging
 import os
+import socket
 import re
 import time
 import unicodedata
@@ -23,6 +25,7 @@ import httpx
 
 from . import radar_gmaps
 
+log = logging.getLogger("team.radar")
 DIR = Path.home() / ".team-agent" / "radar"
 UA_BOT = "team-agent-hub/1.0 (radar de prospecao)"
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.1"
@@ -323,7 +326,8 @@ class Radar:
         sid = uuid.uuid4().hex[:12]
         scan = {"id": sid, "ramo": ramo, "ramo_nome": preset[0] if preset else termo[:1].upper() + termo[1:], "termo": preset[2] if preset else termo,
                 "filtros": filtros, "local": local, "raio": raio, "at": time.time(), "fim": None,
-                "owner": owner, "fontes": [], "negocios": [], "mercado": {}, "resumo": {}, "erro": ""}
+                "owner": owner, "fontes": [], "negocios": [], "mercado": {}, "resumo": {}, "erro": "", "maquina": socket.gethostname(),
+                "lista": lista[:20000]}
         self._save(scan)
         self.jobs[sid] = {"fase": "a localizar a zona", "feitos": 0, "total": 0}
         task = asyncio.create_task(self._run(scan, lista))
@@ -338,13 +342,38 @@ class Radar:
         raio = max(1, min(int(raio if raio not in (None, "") else 5) or 5, 25))  # numa vila 5 km já trazem centenas
         sid = uuid.uuid4().hex[:12]
         scan = {"id": sid, "ramo": "tudo", "ramo_nome": "Todas as empresas", "termo": "", "filtros": list(TUDO), "local": local,
-                "raio": raio, "at": time.time(), "fim": None, "owner": owner, "fontes": [], "negocios": [], "mercado": {}, "resumo": {}, "erro": ""}
+                "raio": raio, "at": time.time(), "fim": None, "owner": owner, "fontes": [], "negocios": [], "mercado": {}, "resumo": {}, "erro": "",
+                "maquina": socket.gethostname()}
         self._save(scan)
         self.jobs[sid] = {"fase": "a localizar a zona", "feitos": 0, "total": 0}
         task = asyncio.create_task(self._run(scan, ""))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return scan
+
+    def retomar_interrompidas(self) -> list[str]:
+        """Uma pesquisa que o Hub deixou a meio (reiniciou, o Mac adormeceu) ficava para sempre «a correr» sem ninguém a fazer
+        nada. Ao arrancar, as deste computador dos últimos 3 dias recomeçam do princípio; as mais velhas fecham com o aviso."""
+        agora, host, out = time.time(), socket.gethostname(), []
+        for p in DIR.glob("[0-9a-f]" * 12 + ".json"):
+            try:
+                scan = json.loads(p.read_text("utf-8"))
+            except (OSError, ValueError):
+                continue
+            if scan.get("fim") or scan["id"] in self.jobs or scan.get("maquina", host) != host:
+                continue
+            if agora - (scan.get("at") or 0) > 3 * 86400:
+                scan.update(fim=agora, erro="interrompida: o Hub reiniciou a meio; lança-a outra vez")
+                self._save(scan)
+                continue
+            scan.update(fontes=[], negocios=[], mercado={}, resumo={}, erro="", maquina=host)
+            self._save(scan)
+            self.jobs[scan["id"]] = {"fase": "a recomeçar (o Hub reiniciou a meio)", "feitos": 0, "total": 0}
+            task = asyncio.create_task(self._run(scan, scan.get("lista") or ""))
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+            out.append(scan["id"])
+        return out
 
     async def geo(self, local: str) -> dict:
         """Só o sítio, para o mapa ir logo para lá enquanto se escreve (guardado: o Nominatim aceita um pedido por segundo)."""
@@ -1131,6 +1160,11 @@ async def loop():
     if not settings.sync:
         return
     share = asyncio.create_task(partilha())  # o Radar igual nos computadores da pessoa; acaba com este loop
+    try:
+        if (ids := RADAR.retomar_interrompidas()):
+            log.info("radar: retomadas %s", ids)
+    except Exception:  # noqa: BLE001  nunca impede o Hub de arrancar
+        log.exception("radar: retomar")
     try:
         await _rever(claude_exe)
     finally:

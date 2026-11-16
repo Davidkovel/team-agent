@@ -7,9 +7,32 @@
 // screen needs: scripts/make_hero_photo.py), the only motion is the car coming out of the dark once per session (opacity,
 // done by the graphics card), the clock changes once a minute, and nothing is blurred. The look is in hub/home.css.
 
+// 16 nov, David: «mudar todos os dias uma frase inspiracional»: uma por dia, pela ordem, a lista dá a volta em dois meses.
 const QUOTES = ["Disciplina hoje, liberdade amanhã.", "Grandes resultados exigem tempo, foco e consistência.",
   "Feito é melhor do que perfeito.", "Um passo de cada vez, todos os dias.", "Foca-te no que depende de ti.",
-  "A consistência vence o talento.", "Pequenas vitórias, todos os dias.", "Quem planeia o dia, manda no dia."];
+  "A consistência vence o talento.", "Pequenas vitórias, todos os dias.", "Quem planeia o dia, manda no dia.",
+  "O difícil faz-se hoje. O impossível demora um pouco mais.", "Não esperes pela motivação. Começa, e ela aparece.",
+  "Cada dia é uma volta nova à pista. Faz a melhor.", "Trabalha em silêncio. Deixa que os resultados façam o barulho.",
+  "Hoje é o dia que ontem prometeste começar.", "A sorte aparece a quem já está a trabalhar.",
+  "Faz hoje o que o teu eu de amanhã vai agradecer.", "Devagar também se chega, desde que não se pare.",
+  "Ninguém se lembra de quem desistiu a meio.", "Ambição sem ação é só um sonho.",
+  "Os campeões treinam quando ninguém está a ver.", "O teu único rival é quem foste ontem.",
+  "Primeiro faz-se o trabalho. Depois vem o resto.", "A pressão faz diamantes.", "Mais um dia, mais um degrau.",
+  "Quem quer arranja maneira. Quem não quer arranja desculpa.", "Sonha em grande, começa pequeno, age já.",
+  "A dor de hoje é a força de amanhã.", "Não contes os dias. Faz os dias contarem.", "O progresso vale mais do que a perfeição.",
+  "A excelência não é um ato, é um hábito.", "Acelera no que importa, trava no que não importa.",
+  "Constrói hoje a vida que queres daqui a cinco anos.", "Uma boa decisão por dia muda tudo num ano.",
+  "Começa onde estás. Usa o que tens. Faz o que podes.", "Quem não arrisca não petisca.",
+  "O medo é só a curva antes da reta.", "Faz menos, mas faz muito bem.", "Ganha a manhã e ganhas o dia.",
+  "O foco é dizer não a quase tudo.", "Hoje rende mais quem começa primeiro.", "Cada não aproxima-te de um sim.",
+  "Os resultados não mentem. Trabalha para eles.", "A calma também é uma força.",
+  "Ninguém constrói um império num dia, mas constrói-o todos os dias.", "Sê tão bom que não te possam ignorar.",
+  "Grandes equipas fazem grandes coisas.", "A energia que dás é a energia que recebes.", "Termina o que começaste.",
+  "O caminho faz-se a andar.", "A paciência também é velocidade.", "Uma tarefa de cada vez, bem feita.",
+  "Mantém o nível, mesmo quando ninguém está a olhar.", "O teu futuro é feito do que fazes hoje.",
+  "Corre a tua corrida. Não a dos outros.", "Pensa grande. Trabalha mais.", "Os dias difíceis fazem os anos bons.",
+  "Volta a tentar. Falha melhor.", "Quem tem um porquê aguenta quase qualquer como.", "Hoje é um bom dia para ganhar.",
+  "Mais vale feito hoje do que perfeito nunca.", "A vitória gosta de preparação."];
 const dayOfYear = (d = new Date()) => Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5);
 const quoteOfDay = (offset = 0) => QUOTES[(dayOfYear() + offset) % QUOTES.length];
 
@@ -70,6 +93,8 @@ const partOfDay = (hour) => (hour < 6 ? "night" : hour < 12 ? "morning" : hour <
 const WELCOME = { morning: "Que bom ver-te por cá. Um café e vamos a isso.", afternoon: "Que bom ver-te por cá. A tarde é tua.",
   evening: "Que bom ver-te por cá. Vamos fechar o dia com calma.", night: "Ainda por aqui? Vai com calma." };
 
+const clockHtml = (d) => fmt.hhmm(d.toISOString()).replace(":", "<i>:</i>");
+
 function heroHtml(now, ignite) {
   const date = now.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   const part = partOfDay(now.getHours());
@@ -86,8 +111,8 @@ function heroHtml(now, ignite) {
       <p class="wl-note" id="in-welcome"></p>
     </div>
     <div class="wl-time">
-      <time id="in-clock">${fmt.hhmm(now.toISOString())}</time>
-      <q class="wl-quote">${esc(t(quoteOfDay()))}</q>
+      <time id="in-clock">${clockHtml(now)}</time>
+      <figure class="wl-quote"><figcaption>${t("Frase do dia")}</figcaption><blockquote>${esc(t(quoteOfDay()))}</blockquote></figure>
     </div>
     <div class="hero-side"><div id="in-focus" class="in-focus"></div><div id="in-newsbar" class="in-newsbar"></div></div>
   </header>`;
@@ -1157,7 +1182,7 @@ function startHomeClock() {
   const next = () => {
     const clock = $("in-clock");
     if (!clock) return;
-    clock.textContent = fmt.hhmm(new Date().toISOString());
+    clock.innerHTML = clockHtml(new Date());
     document.querySelectorAll("[data-until]").forEach((el) => { el.textContent = untilOf(Number(el.dataset.until)); });
     homeClock = setTimeout(next, 60000 - (Date.now() % 60000) + 20);
   };

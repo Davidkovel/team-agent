@@ -1550,3 +1550,14 @@ html.is-phone .wl-time { display: none; }
 .wl-quote { max-width: 400px; margin-top: 22px; }
 .wl-quote figcaption { font-size: 10.5px; color: rgba(235, 238, 242, .55); }
 .wl-quote blockquote { margin-top: 10px; color: #f4f6f8; font: 600 22px/1.32 var(--wl-font); letter-spacing: -.02em; text-shadow: 0 2px 16px rgba(0, 0, 0, .6); }
+/* 6.ª volta (David: «um símbolo da Mercedes escuro, grande, mas que não se veja muito, escondido como uma sombra atrás, com
+   um reflexo sombrio, junto com as outras peças»): a estrela grande atrás da hora e da frase do dia, quase preta, com o
+   reflexo do cromado só no aro de cima a apagar-se para baixo, como se estivesse na sombra. Uma imagem parada, sem animação. */
+.inicio .in-hero.wl .wl-time { position: relative; isolation: isolate; }
+.wl-star { position: absolute; z-index: -1; top: -14px; right: 40px; width: 290px; height: 290px; transform: rotate(-8deg);
+  pointer-events: none; user-select: none; opacity: .11; filter: grayscale(1) brightness(.7) contrast(1.25) drop-shadow(0 20px 40px rgba(0, 0, 0, .8));
+  -webkit-mask-image: linear-gradient(165deg, #000 0%, rgba(0, 0, 0, .55) 38%, rgba(0, 0, 0, .12) 70%, transparent 92%);
+  mask-image: linear-gradient(165deg, #000 0%, rgba(0, 0, 0, .55) 38%, rgba(0, 0, 0, .12) 70%, transparent 92%); }
+.wl.ignite .wl-star { animation: wl-lamp 2s ease-out .3s both; }
+@container (max-width: 900px) { .wl-star { width: 220px; height: 220px; right: auto; left: 40%; } }
+html.is-phone .wl-star { display: none; }

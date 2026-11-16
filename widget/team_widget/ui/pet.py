@@ -49,7 +49,12 @@ class Pet(QWidget):
         self._load.start(3000)
         self._tick = QTimer(self)
         self._tick.timeout.connect(self._frame)
-        self._tick.start(90)
+        self._tick.start(150)
+        if hasattr(os, "nice"):                # 16 Nov, Marco: «nunca afetar nada»: the widget always gives way to real work
+            try:
+                os.nice(10)
+            except OSError:
+                pass
 
     # ---- state from the Hub (/api/local/live, this person's row)
     def set_state(self, live: dict, person: dict):
@@ -97,9 +102,26 @@ class Pet(QWidget):
             self._gag, self._next_gag = None, now + random.uniform(35, 70)
         return self._gag or "idle"
 
+    # frames a second for each look (Marco: «roubar o mínimo de CPU»): calm = few, asleep = almost none, and
+    # the busier the computer the slower the robot, frozen when it works flat out
+    FPS = {"work": 7, "wait": 7, "party": 8, "idle": 6, "coffee": 4, "heart": 5, "flag": 5, "wave": 6, "sleep": 1.5}
+
     def _frame(self):
-        if self.isVisible():
-            self.update()
+        if not self.isVisible():
+            return
+        look = self._look(time.monotonic())
+        if self._busy > 1.0:
+            fps = 0.5                          # the computer is flat out: one picture every 2 s
+        elif self._busy > 0.7:
+            fps = 3
+        elif look == "idle":                   # 3 s of slow breathing (few frames), then the hops (smooth)
+            fps = 10 if time.monotonic() % 5.2 > 2.9 else 3
+        else:
+            fps = self.FPS.get(look, 6)
+        ms = round(1000 / fps)
+        if self._tick.interval() != ms:
+            self._tick.setInterval(ms)
+        self.update()
 
     def _pet_rect(self) -> QRectF:
         return QRectF((W - PET) / 2, H - PET - 4, PET, PET)

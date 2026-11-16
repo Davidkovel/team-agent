@@ -591,6 +591,38 @@ Armadilhas que custaram tempo:
   Modelo 90 trades 32% +45 R; VWAP 7 trades +9 R; Combinado 3 trades +10 R; EMA 125/200 5 trades, 0 ganhas, −5,5 R. Amostras
   pequenas demais para concluir: 4 semanas de M5 dão poucos setups de H1. Testes em `tests/test_ema.py`.
 
+### Memecoins (16 nov, pedido do Marco)
+
+«Agentes que ficam sempre a ver o Twitter sobre memecoins... de influencers que a gente vai mandando... o maior cérebro de
+memecoins, até a dormir.» `#/memes`, a **primeira entrada de 04 · Trading** (`frontend/hub/memes.js` + `.css`), `/api/memes`
+(`routers/memes.py`), motor `backend/app/memes.py`, testes `tests/test_memes.py`. **Por agora só vigia e dá nota: não compra
+nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada vai por sync; os avisos vão para a pessoa do PC.
+- **Robin · Mercado DEX** (3 min): DexScreener (boosts, perfis, pares por endereço, pesquisa por cashtag), GeckoTerminal
+  trending (Solana, Base, Ethereum, BSC), CoinGecko trending. Stablecoins e ações tokenizadas ficam de fora (`NOT_MEME`).
+- **Oráculo · Redes sociais** (5 min): o X pelo **Tree News** (`news.treeofalpha.com/api/news`, grátis, ~2000 contas: a escolha da
+  pesquisa do gmgn-tracker de 3 nov; o X API oficial custa ~0,005 $ por post), canais públicos do Telegram (`t.me/s/<canal>`)
+  e o Reddit por RSS (o `.json` dá 403). Cashtags e endereços viram menções; só publicações das últimas 48 h; uma conta
+  conta uma vez (contra o spam); os influencers da página pesam três vezes (os do Telegram são lidos diretamente).
+- **Lucius · Segurança**: RugCheck nas candidatas Solana (até 10 por volta, de 6 em 6 h cada) e as regras do Hub (liquidez < `min_liq`,
+  menos de 1 h, vendas o dobro das compras). Com risco «danger» ou liquidez muito fina a nota fica no máximo em 30.
+- **Nota 0–100** = momento (35) + social (40) + segurança (25). A partir de `alert_score` (78) e sem perigo: aviso (`memes`), uma vez por moeda em 6 h.
+- **Batman · Analista**: `council.ask_claude` com `WebSearch`, desligado por omissão (interruptor por PC, gasta o plano desse PC),
+  de `every_min` em `every_min`, no máximo `cap` por dia. Responde em JSON (resumo, destaques com veredicto ver/cedo/evitar, o que
+  os influencers disseram). No teste de 16 nov (Haiku) demorou ~2 min e deu «evitar» a quatro tokens GTA VI sem ligação oficial.
+- **Motor GMGN**: o gmgn-tracker do David/Kovel (repositório privado `Davidkovel/gmgn-tracker`; corre no servidor deles com o `gmgn.db`).
+  `backend/app/gmgn_link.py` lê o `gmgn.db` só para leitura (`mode=ro`): neste PC (`~/.team-agent/gmgn-tracker/gmgn.db` ou o
+  caminho da página) ou no servidor como serviço JSON (`python3 gmgn_link.py serve --db gmgn.db --port 8787 --key <segredo>`,
+  header `X-Key`), e a página guarda o endereço e a chave (a chave nunca volta à página). Mostra a estratégia (tier) com o paper
+  trading a 100 $ e se está em plus nas duas metades (a regra do CLAUDE.md de lá), e os últimos sinais. **Até 16 nov ainda não
+  estava ligado**: falta correr o serviço no servidor (o David ou o Kovel).
+
+### Market Profile (16 nov)
+
+Separador da Sala de Trading (`#/mprofile`, `frontend/hub/mprofile.js`, `routers/mprofile.py`): lê os relatórios do
+market-profile-bot do David (repositório privado `Davidkovel/market-profile-bot`, Market Profile + VWAP no FDAX e no NQ) do
+clone em `~/.team-agent/market-profile-bot` (`MPROFILE_DIR`); «Atualizar» faz `git pull` (ou clona). Setups com o resultado antes
+e depois do corte, walk-forward, os gráficos dos `reports/` e o `FINAL_REPORT.md`. Só backtest e papel: o bot não negoceia.
+
 ### Escritório de Robôs e as contas FundedNext (15 out, pedido do Marco)
 
 `#/robos` (página «Robôs»), 2.º separador da Sala de Trading (`frontend/hub/robots.js` + `.css`; no telemóvel em «Mais»), `/api/robots`

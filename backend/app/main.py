@@ -17,6 +17,8 @@ from .models import User
 from .radar import loop as radar_loop
 from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, messages, office, photos, ponto, tasks, team, trading, week, work, ws
+from .memes import loop as memes_loop
+from .routers import memes, mprofile
 from .routers import affiliates, angariacao, conversas, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom, vinted
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
@@ -135,9 +137,12 @@ async def lifespan(app: FastAPI):
     radaring = asyncio.create_task(radar_loop()) if settings.sync else None  # Radar: confirms again, weekly, who is still open
     vinting = asyncio.create_task(vinted.loop()) if settings.sync else None  # Vinted Radar: the guard of «Contínuo» keeps this PC's collector up
     angariando = asyncio.create_task(angariacao.loop()) if settings.sync else None  # Angariação: closes page visits, warms the CRM, alerts
+    memeing = asyncio.create_task(memes_loop()) if settings.sync or os.environ.get("MEMES") == "1" else None  # Memecoins: os agentes que vigiam DEX e redes
     yield
     if angariando:
         angariando.cancel()
+    if memeing:
+        memeing.cancel()
     if vinting:
         vinting.cancel()
     if mirroring:
@@ -192,6 +197,8 @@ app.include_router(angariacao.public)  # /go?r=AG-0001 e /api/go/t: a página de
 app.include_router(emails.router)  # E-mails: do Radar à resposta do cliente
 app.include_router(emails.relay)
 app.include_router(affiliates.router)  # Afiliados: os programas, os links e as comissões
+app.include_router(memes.router)  # Memecoins: Robin, Oráculo, Lucius, Batman e o Motor GMGN
+app.include_router(mprofile.router)  # Market Profile: a pesquisa do market-profile-bot (FDAX, NQ)
 app.include_router(vinted.router)  # Vinted Radar: artigos abaixo do preço de mercado (coletor Selenium deste PC)
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
 app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here

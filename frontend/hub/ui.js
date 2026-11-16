@@ -58,6 +58,8 @@ lazyView("crm", "hub/crm.js", "hub/crm.css"); // CRM: o seguimento do Radar como
 lazyView("radar", "hub/radar.js", "hub/radar.css"); // Radar: os negócios de uma zona, o site de cada um auditado, por oportunidade
 lazyView("afiliados", "hub/afiliados.js", "hub/afiliados.css"); // Afiliados: programas, links, comissões, calculadora e provas
 lazyView("vinted", "hub/vinted.js", "hub/vinted.css"); // Vinted Radar: categorias, coletor Selenium, oportunidades
+lazyView("memes", "hub/memes.js", "hub/memes.css"); // Memecoins: Robin, Oráculo, Lucius, Batman e o Motor GMGN (backend/app/memes.py)
+lazyView("mprofile", "hub/mprofile.js", "hub/mprofile.css"); // Sala de Trading › Market Profile: a pesquisa do market-profile-bot
 lazyView("etsy", "hub/etsy.js", "hub/etsy.css"); // Fábrica Etsy: Riddler, Catwoman e Joker a fazer a loja de print-on-demand
 lazyView("sinal", "hub/sinal.js", "hub/sinal.css"); // Sinal na notícia: BUY/SELL the second a US figure is out
 lazyView("fundednext", "hub/fundednext.js", "hub/fundednext.css"); // Painel FundedNext: the prop account, its objectives, ticket and statistics

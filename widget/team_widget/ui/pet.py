@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from . import badge, prefs
 
-W, H, PET = 300, 160, 84   # 16 Nov: a small robot, the ChatGPT-style bubble above it          # the window, and the robot inside it
+W, H, PET = 104, 100, 84   # 16 Nov: only the black robot, no bubble («убрать сверху где написано»)          # the window, and the robot inside it
 BUB_H = 54                          # the bubble
 
 
@@ -61,7 +61,7 @@ class Pet(QWidget):
             self.update(self._pet_rect().toAlignedRect().adjusted(-30, -40, 30, 10))
 
     def _pet_rect(self) -> QRectF:
-        return QRectF(W - PET - 20, H - PET - 4, PET, PET)
+        return QRectF((W - PET) / 2, H - PET - 4, PET, PET)
 
     # ---- painting
     def paintEvent(self, _):
@@ -73,8 +73,6 @@ class Pet(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(g)
         p.drawEllipse(QPointF(r.center().x(), r.bottom() - 2), PET * 0.34, 5)
-        if (self.title or self.sub) and (self.title, self.sub) != self._hidden:
-            self._bubble(p)
         badge.mascot_live(p, r, time.monotonic(), mode=self.mode)
 
     def _bubble(self, p: QPainter):

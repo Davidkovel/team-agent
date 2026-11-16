@@ -604,6 +604,16 @@ nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada v
   relatórios do Batman, Motor GMGN, regras). Cada moeda tem um veredicto em palavras (`verdict` no `memes.js`: ≥ 75 Forte,
   ≥ 55 A ganhar força, ≥ 35 Fraca, abaixo Ignorar; perigo ou alerta vermelho = Perigo) e os termos vêm em português simples
   («Dinheiro na pool» = liquidez, «Tamanho» = capitalização). Novos textos seguem esta regra: palavras antes de números.
+- **O Resumo conta a história dos influencers** (2.ª volta, 16 nov, Marco: «sempre que mandam um post aparece a moeda de que
+  estão a falar... uma criança tinha de perceber»): os agentes agora (uma frase cada), os nossos influencers (cara, nome, quando
+  publicaram, como os lemos) e «O que disseram»: cada publicação com a moeda por baixo (veredicto, «desde que falou», pool, idade).
+  `link_posts()` liga cada publicação às moedas (endereços, senão o cashtag da moeda com mais liquidez) e guarda o preço da
+  primeira vez que os viu juntos; se o agente só a viu > 15 min depois, a página diz «desde que o vimos» (`late`).
+- **A lista de influencers é da equipa**: `MarketItem` com `kind="meme_inf"` e `symbol="<rede>:<nome>"`, por isso vai por sync
+  (`sync_influencers()` lê-a a cada volta). Nome e foto do canal do Telegram ficam no PC (`og:title`/`og:image` do `t.me/s`).
+  Telegram e Reddit leem-se ao minuto; **X e Instagram não se leem de graça** (a API do Instagram e o syndication do X foram
+  recusados a 16 nov: não usar acessos internos), por isso a página diz «Só com o Batman ligado». Influencers a 16 nov:
+  X daniworldwide, Telegram martynplaybook e dippy_calls, Instagram david_martyn78.
 - **Robin · Mercado DEX** (3 min): DexScreener (boosts, perfis, pares por endereço, pesquisa por cashtag), GeckoTerminal
   trending (Solana, Base, Ethereum, BSC), CoinGecko trending. Stablecoins e ações tokenizadas ficam de fora (`NOT_MEME`).
 - **Oráculo · Redes sociais** (5 min): o X pelo **Tree News** (`news.treeofalpha.com/api/news`, grátis, ~2000 contas: a escolha da

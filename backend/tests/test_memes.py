@@ -49,3 +49,17 @@ def test_not_memes_and_danger_cap(tmp_path, monkeypatch):
     t = b._apply_pair(pair(liq=3000))
     b.score(t)
     assert t["score"] <= 30 and any(f[0] == "bad" for f in t["flags"])
+
+
+def test_post_gets_its_coin_and_the_price_then(tmp_path, monkeypatch):
+    b = brain(tmp_path, monkeypatch)
+    t = b._apply_pair(pair(symbol="HWAN"))
+    b._post("tg:dippy/1", "Telegram", "dippy_calls", "just bought a bag of $HWAN", "", time.time(), "telegram")
+    b._post("tg:dippy/2", "Telegram", "dippy_calls", "gm", "", time.time(), "telegram")
+    b.state["influencers"].append({"platform": "telegram", "handle": "dippy_calls", "note": ""})
+    b._post("tg:dippy/3", "Telegram", "dippy_calls", "gm", "", time.time(), "telegram")   # an influencer's post counts even without a coin
+    b.link_posts()
+    by_id = {p["id"]: p for p in b.state["posts"]}
+    assert list(by_id["tg:dippy/1"]["coins"]) == [t["key"]] and by_id["tg:dippy/1"]["coins"][t["key"]]["p0"] == 0.01
+    assert "tg:dippy/2" not in by_id and by_id["tg:dippy/3"]["coins"] == {}
+    assert memes._utc("2026-11-16T19:54:34+00:00") == 1794858874

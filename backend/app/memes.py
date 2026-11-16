@@ -21,6 +21,7 @@ PC's person, once per coin every 6 h."""
 from __future__ import annotations
 
 import asyncio
+import calendar
 import html
 import json
 import logging
@@ -69,6 +70,11 @@ def _now() -> float:
     return time.time()
 
 
+def _utc(iso: str) -> float:
+    """«2026-11-16T19:54:34+00:00» (Telegram) or «...Z» (Reddit) -> seconds; both are UTC."""
+    return calendar.timegm(time.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S"))
+
+
 class Brain:
     def __init__(self):
         self.state = {"cfg": dict(DEFAULT), "tokens": {}, "posts": [], "influencers": [], "reports": [], "alerts": [],
@@ -85,10 +91,7 @@ class Brain:
             self.state.update(got)
             self.state["cfg"] = {**DEFAULT, **got.get("cfg", {})}
         except (OSError, ValueError):
-            self.state["influencers"] = [
-                {"platform": "x", "handle": "lookonchain", "note": "on-chain: baleias e carteiras", "by": "", "at": _now()},
-                {"platform": "x", "handle": "DexScreener", "note": "o que está em alta nas DEX", "by": "", "at": _now()},
-                {"platform": "x", "handle": "WatcherGuru", "note": "notícias rápidas de cripto", "by": "", "at": _now()}]
+            pass
 
     def save(self):
         DIR.mkdir(parents=True, exist_ok=True)
@@ -293,10 +296,15 @@ class Brain:
         for ch in chans[:25]:
             try:
                 r = await c.get(f"https://t.me/s/{ch}")
-                for m in re.finditer(r'data-post="([^"]+)".*?(?:tgme_widget_message_text[^>]*>(.*?)</div>).*?datetime="([^"]+)"', r.text, re.S):
-                    text = html.unescape(TAG.sub(" ", m.group(2).replace("<br/>", "\n"))).strip()
-                    ts = time.mktime(time.strptime(m.group(3)[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
-                    n += self._post("tg:" + m.group(1), "Telegram", ch, text, f"https://t.me/{m.group(1)}", ts, "telegram")
+                self._channel_face(ch, r.text)
+                # one block per message: a photo-only message has no text, and its neighbour's text must not become its own
+                for block in r.text.split('class="tgme_widget_message_wrap')[1:]:
+                    pid, body, when = (re.search(r'data-post="([^"]+)"', block), re.search(r'tgme_widget_message_text[^>]*>(.*?)</div>', block, re.S),
+                                       re.search(r'datetime="([^"]+)"', block))
+                    if not (pid and body and when):
+                        continue
+                    text = html.unescape(TAG.sub(" ", body.group(1).replace("<br/>", "\n"))).strip()
+                    n += self._post("tg:" + pid.group(1), "Telegram", ch, text, f"https://t.me/{pid.group(1)}", _utc(when.group(1)), "telegram")
             except (httpx.HTTPError, ValueError) as e:
                 errs.append(f"t.me/{ch}: {type(e).__name__}")
             await asyncio.sleep(0.4)
@@ -305,12 +313,40 @@ class Brain:
                 r = await c.get(f"https://www.reddit.com/r/{sub}/new/.rss", headers={"User-Agent": "Mozilla/5.0 AMG-Hub/1.0"})
                 for m in re.finditer(r"<entry>.*?<name>/u/([^<]+)</name>.*?<link href=\"([^\"]+)\".*?<updated>([^<]+)</updated>.*?<title>([^<]*)</title>(?:.*?<content[^>]*>(.*?)</content>)?", r.text, re.S):
                     text = html.unescape(m.group(4)) + " " + TAG.sub(" ", html.unescape(html.unescape(m.group(5) or "")))[:600]
-                    ts = time.mktime(time.strptime(m.group(3)[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
+                    ts = _utc(m.group(3))
                     n += self._post("rd:" + m.group(2), "Reddit", m.group(1), re.sub(r"\s+", " ", text).strip(), m.group(2), ts, "reddit")
             except (httpx.HTTPError, ValueError) as e:
                 errs.append(f"r/{sub}: {type(e).__name__}")
             await asyncio.sleep(0.6)
         self.run_mark("oraculo", len(errs) < 5, n, f"{n} publicações novas com moedas" + (f"; falharam: {', '.join(errs[:3])}" if errs else ""))
+
+    def _channel_face(self, ch: str, page: str):
+        """The name and the photo of an influencer's Telegram channel, for the page (a face reads faster than a handle)."""
+        inf = self._influencer("telegram", ch)
+        if not inf:
+            return
+        name, img = re.search(r'og:title" content="([^"]+)', page), re.search(r'og:image" content="([^"]+)', page)
+        if name:
+            inf["name"] = html.unescape(name.group(1))[:60]
+        if img and img.group(1).startswith("https://"):
+            inf["avatar"] = img.group(1)
+
+    def link_posts(self):
+        """Each post gets the coins it talks about (its contract addresses, else its cashtags: the deepest coin with that
+        symbol) and the price each had the first time we saw them together: «desde que ele falou: +40%»."""
+        toks = self.state["tokens"]
+        by_addr = {t["address"]: t for t in toks.values()}
+        by_sym: dict[str, dict] = {}
+        for t in toks.values():
+            k = (t.get("symbol") or "").upper()
+            if k and (k not in by_sym or (t.get("liq") or 0) > (by_sym[k].get("liq") or 0)):
+                by_sym[k] = t
+        for p in self.state["posts"]:
+            coins = p.setdefault("coins", {})
+            found = [by_addr[a] for a in p["addrs"] if a in by_addr] or [by_sym[k] for k in p["tickers"] if k in by_sym]
+            for t in found[:3]:
+                if t["key"] not in coins and t.get("price"):
+                    coins[t["key"]] = {"p0": t["price"], "t0": _now()}
 
     def mentions(self, t: dict, hours: float = 6) -> list[dict]:
         since = _now() - hours * 3600
@@ -498,6 +534,7 @@ class Brain:
                         finally:
                             self.busy = ""
                 self.rescore()
+                self.link_posts()
             await self.alerts()
             self.save()
         if force == "batman" or (self.cfg["on"] and self.batman_due()):
@@ -524,9 +561,48 @@ async def send(items: list[tuple]):
             await notify(db, ids, "memes", severity, title, body, "#/memes")
 
 
+async def sync_influencers():
+    """The team's influencers live in the Hub's database (MarketItem, kind «meme_inf», symbol «platform:handle»), which goes
+    by sync to every PC: who adds one on any computer, everyone sees it. The name and the photo of a channel stay here
+    (they are read again by each PC). A PC that had a list of its own before (16 nov) brings it in once."""
+    from sqlalchemy import select
+
+    from .db import SessionLocal
+    from .models import MarketItem, User
+    async with SessionLocal() as db:
+        q = select(MarketItem).where(MarketItem.kind == "meme_inf").order_by(MarketItem.id.desc())
+        rows = (await db.execute(q)).scalars().all()
+        old = [i for i in BRAIN.state["influencers"] if "id" not in i]
+        if old and not BRAIN.state.get("inf_moved"):
+            ids = {u.username: u.id for u in (await db.execute(select(User))).scalars()}
+            have = {r.symbol.lower() for r in rows}
+            for i in old:
+                key = f"{i['platform']}:{i['handle']}"
+                if key.lower() not in have:
+                    db.add(MarketItem(user_id=ids.get(i.get("by")) or next(iter(ids.values())), kind="meme_inf", symbol=key[:60],
+                                      name=(i.get("name") or "")[:120], note=(i.get("note") or "")[:200]))
+            await db.commit()
+            rows = (await db.execute(q)).scalars().all()
+        BRAIN.state["inf_moved"] = True
+        users = {u.id: u.username for u in (await db.execute(select(User))).scalars()}
+        await db.commit()
+    faces = {(i["platform"], i["handle"].lower()): i for i in BRAIN.state["influencers"]}
+    out = []
+    for r in rows:
+        plat, _, handle = r.symbol.partition(":")
+        f = faces.get((plat, handle.lower()), {})
+        out.append({"id": r.id, "platform": plat, "handle": handle, "note": r.note, "by": users.get(r.user_id, ""),
+                    "at": r.created_at.timestamp() if r.created_at else None, "name": f.get("name") or r.name or None, "avatar": f.get("avatar")})
+    BRAIN.state["influencers"] = out
+
+
 async def loop():
     await asyncio.sleep(20)
     while True:
+        try:
+            await sync_influencers()
+        except Exception:  # noqa: BLE001 - a busy database must not stop the agents
+            log.exception("memes influencers")
         try:
             await BRAIN.tick()
         except Exception:  # noqa: BLE001

@@ -34,7 +34,7 @@
   for (const [id, v] of Object.entries(VIEWS)) HUB_VIEWS[id] = () => open(v);
 
   const HEAD = {
-    resumo: ["Memecoins", "O que os nossos agentes estão a ver agora nas memecoins, em palavras simples. Só vigiam: não compram nada."],
+    resumo: ["Memecoins", "Os nossos influencers, as moedas de que falam e o que os agentes descobrem sobre elas. Só vigiamos: não compramos nada."],
     moedas: ["Moedas", "Todas as moedas que os agentes estão a seguir, da mais forte para a mais fraca."],
     redes: ["Redes sociais", "O que se diz no X, no Telegram e no Reddit, e os influencers que a equipa segue."],
     agentes: ["Agentes", "Quem faz o trabalho, o que fez da última vez e as regras que segue."],
@@ -87,54 +87,65 @@
   }
 
   /* ---------------------------------------------------------------- Resumo */
+  // 16 nov, Marco (2.ª volta): «mostras os agentes a fazerem as coisas e em cima os influencers... sempre que mandam um post
+  // aparece a moeda de que estão a falar... uma criança tinha de perceber». So the Resumo reads top to bottom as a story:
+  // the agents at work, our influencers, what each one said with the coin under it, and the best coins of the moment.
+  const DOING = { robin: "está a ver as bolsas de memecoins", oraculo: "está a ler o X, o Telegram e o Reddit", lucius: "está a verificar se as moedas são seguras",
+    batman: "escreve um resumo com o Claude", gmgn: "testa estratégias com dinheiro a fingir" };
+  const PLAT = { x: "X", telegram: "Telegram", youtube: "YouTube", tiktok: "TikTok", instagram: "Instagram", reddit: "Reddit" };
+  const face = (i, big) => i.avatar ? `<img class="mc-face ${big ? "big" : ""}" src="${esc(i.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+    : `<i class="mc-face ${big ? "big" : ""}">${esc((i.name || i.handle || "?").replace(/^@/, "")[0].toUpperCase())}</i>`;
+
   function resumo() {
     const toks = S.tokens, w = (x) => verdict(x)[0];
-    const strong = toks.filter((x) => w(x) === "Forte"), rising = toks.filter((x) => w(x) === "A ganhar força");
-    const weak = toks.filter((x) => ["Fraca", "Ignorar"].includes(w(x))).length, danger = toks.filter((x) => w(x) === "Perigo").length;
-    const best = toks.find((x) => w(x) !== "Perigo");
-    const n6 = S.hours.slice(-6).reduce((a, b) => a + b, 0), prev6 = S.hours.slice(-12, -6).reduce((a, b) => a + b, 0);
-    const today = S.alerts.filter((a) => Date.now() / 1000 - a.t < 86400).length;
-    if (!S.n_tokens) {
-      return paint($("mc-body"), `<section class="panel pad">${ui.empty("target", "Os agentes ainda não fizeram a primeira volta", t("Demora cerca de um minuto depois de o Hub arrancar. Podes mandá-los já."),
-        `<button type="button" class="btn primary" data-act="run" data-agent="all">${esc(t("Atualizar agora"))}</button>`)}</section>`);
-    }
-    const [line, tone] = strong.length ? [t("{n} moedas fortes agora.", { n: strong.length }), "ok"]
-      : rising.length ? [t("Nada forte ainda: {n} a ganhar força.", { n: rising.length }), "warn"]
-      : [t("Mercado calmo: nada que valha a pena agora."), "calm"];
-    const top = toks.filter((x) => w(x) !== "Perigo").slice(0, 6);
+    const top = toks.filter((x) => w(x) !== "Perigo").slice(0, 3);
     paint($("mc-body"), `
-      <div class="pn-split mc-hero">
-        <section class="panel pad mc-gauge"><div class="pn-card-h">${esc(t("A melhor nota agora"))}<small>${esc(t("de 0 a 100"))}</small></div>
-          ${best ? ui.gauge(best.score, 100, { label: `$${sym(best.symbol)} · ${t(w(best))}` }) : ""}</section>
-        <section class="panel pad mc-now ${tone}">
-          <div class="pn-card-h">${esc(t("Agora, numa frase"))}<small>${esc(t("atualizado {h}", { h: ago(lastRun()) }))}</small></div>
-          <h2>${esc(line)}</h2>
-          <p>${esc(t("Os agentes seguem {m} moedas e leram {p} publicações sobre moedas nas últimas 6 horas.", { m: S.n_tokens, p: n6 }))}
-            ${danger ? esc(t("{d} têm perigo e ficam de fora.", { d: danger })) : ""}</p>
-          <div class="mc-count">
-            <a href="#/meme-moedas" data-goto="boas" class="ok"><b>${strong.length}</b><span>${esc(t("Fortes"))}</span></a>
-            <a href="#/meme-moedas" data-goto="boas" class="warn"><b>${rising.length}</b><span>${esc(t("A ganhar força"))}</span></a>
-            <a href="#/meme-moedas" data-goto="todas"><b>${weak}</b><span>${esc(t("Fracas"))}</span></a>
-            <a href="#/meme-moedas" data-goto="perigo" class="bad"><b>${danger}</b><span>${esc(t("Perigo"))}</span></a>
-          </div>
-        </section>
-      </div>
-      ${ui.kpis([
-        ui.kpi({ label: t("Conversa nas redes · 6 h"), value: String(n6), delta: prev6 ? ui.delta(n6, prev6) : "", viz: S.hours.some(Boolean) ? ui.cols(S.hours) : "", sub: t("publicações sobre moedas, por hora, nas últimas 24 h") }),
-        ui.kpi({ label: t("Avisos nas últimas 24 h"), value: String(today), sub: t("quando uma moeda passa a nota {n} sem perigo", { n: S.cfg.alert_score }), cls: "pn-plain" }),
-        ui.kpi({ label: t("Influencers seguidos"), value: String(S.influencers.length), sub: t("o que dizem conta três vezes"), cls: "pn-plain" }),
-      ])}
-      ${ui.sec("As melhores agora", `<a class="mc-more" href="#/meme-moedas">${esc(t("Ver todas"))} ›</a>`)}
-      <div class="mc-cards">${top.map(card).join("")}</div>
-      ${ui.sec("Como ler isto")}
-      <section class="panel pad mc-learn">
-        <div><b>${esc(t("A nota"))}</b><p>${esc(t("De 0 a 100. Junta três coisas: se está a subir, se se fala dela nas redes e se parece segura. 75 ou mais é «Forte»."))}</p></div>
-        <div><b>${esc(t("Dinheiro na pool"))}</b><p>${esc(t("Quanto dinheiro há para comprar e vender (a «liquidez»). Abaixo de {n} é fácil ficar preso sem conseguir vender.", { n: usd(S.cfg.min_liq) }))}</p></div>
-        <div><b>${esc(t("Idade"))}</b><p>${esc(t("Há quanto tempo a moeda existe. Com minutos de vida tudo pode acontecer: subir 10 vezes ou ir a zero."))}</p></div>
-        <div><b>${esc(t("Perigo"))}</b><p>${esc(t("Cada moeda passa pelo RugCheck e pelas nossas regras. Com perigo, pode ser uma burla e fica de fora."))}</p></div>
-      </section>
-      ${ui.sec("Quem está a trabalhar", `<a class="mc-more" href="#/meme-agentes">${esc(t("Ver os agentes"))} ›</a>`)}
-      <section class="panel mc-strip">${S.agents.map((a) => `<a href="#/meme-agentes"><span class="st ${state(a)[0]}"><i></i></span><div><b>${esc(t(a.dept))}</b><small>${esc(state(a)[1])}</small></div></a>`).join("")}</section>`);
+      ${ui.sec("Os agentes, agora", `<a class="mc-more" href="#/meme-agentes">${esc(t("Ver os agentes"))} ›</a>`)}
+      <section class="mc-crew">${S.agents.map((a) => { const st = state(a); return `<a class="panel mc-crew-a ${st[0]}" href="#/meme-agentes">
+        <span class="mc-mono">${esc(a.code)}</span><div><b>${esc(a.name)}</b><p>${esc(st[0] === "off" ? st[1] : t(DOING[a.id] || a.does))}</p>
+        <small><span class="st ${st[0]}"><i></i></span>${esc(st[0] === "off" ? (a.id === "batman" ? t("Liga-se nos Agentes") : t("Por ligar")) : st[0] === "busy" ? t("a trabalhar agora") : st[1])}</small></div></a>`; }).join("")}</section>
+
+      ${ui.sec("Os nossos influencers", `<button type="button" class="mc-more" data-act="add-inf">+ ${esc(t("Juntar influencer"))}</button>`)}
+      <form class="panel pad mc-add" id="mc-inf-f" hidden>
+        <select name="platform" aria-label="${esc(t("Rede"))}">${Object.entries(PLAT).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select>
+        <input name="handle" placeholder="${esc(t("Cola o link do perfil ou escreve o @"))}" required>
+        <input name="note" placeholder="${esc(t("Porque o seguimos (opcional)"))}">
+        <button class="btn primary">${esc(t("Juntar"))}</button>
+      </form>
+      <section class="mc-infs">${S.influencers.length ? S.influencers.map((i) => `<button type="button" class="panel mc-inf ${infFilter === i.handle.toLowerCase() ? "on" : ""}" data-inf="${esc(i.handle.toLowerCase())}">
+        ${face(i, true)}<div><b>${esc(i.name || "@" + i.handle)}</b><small>${esc(PLAT[i.platform] || i.platform)} · @${esc(i.handle)}</small>
+        <span class="mc-inf-last">${esc(i.last ? t("Publicou {h}", { h: ago(i.last) }) : i.reads === "live" ? t("Sem publicações nas últimas 48 h") : t("Ainda sem publicações lidas"))}</span>
+        <span class="mc-reads ${i.reads}">${esc(t(i.reads_txt))}</span></div></button>`).join("")
+        : `<div class="panel pad mc-dim">${esc(t("Ainda não há influencers. Carrega em «Juntar influencer»."))}</div>`}</section>
+
+      ${ui.sec(infFilter ? "O que disse" : "O que disseram", infFilter ? `<button type="button" class="mc-more" data-inf="">${esc(t("Ver todos"))}</button>` : `<small class="mc-dim">${esc(t("o mais recente primeiro"))}</small>`)}
+      <section class="mc-said-l">${saidList()}</section>
+
+      ${ui.sec("As melhores moedas agora", `<a class="mc-more" href="#/meme-moedas">${esc(t("Ver todas"))} ›</a>`)}
+      ${top.length ? `<div class="mc-cards">${top.map(card).join("")}</div>` : `<section class="panel pad mc-dim">${esc(t("Os agentes ainda estão a juntar moedas."))}</section>`}
+      <details class="panel pad mc-learn-d"><summary>${esc(t("Como ler isto"))}</summary><div class="mc-learn">
+        <div><b>${esc(t("A nota e o veredicto"))}</b><p>${esc(t("De 0 a 100: se está a subir, se se fala dela e se parece segura. 75 ou mais é «Forte», 55 a 74 «A ganhar força», menos é «Fraca». «Perigo» quer dizer: não mexer."))}</p></div>
+        <div><b>${esc(t("Desde que falou"))}</b><p>${esc(t("Quanto a moeda subiu ou desceu desde a altura em que o influencer falou dela. É assim que vamos saber quem acerta."))}</p></div>
+        <div><b>${esc(t("Dinheiro na pool"))}</b><p>${esc(t("Quanto dinheiro há para comprar e vender. Abaixo de {n} é fácil ficar preso sem conseguir vender.", { n: usd(S.cfg.min_liq) }))}</p></div>
+        <div><b>${esc(t("Só vigiamos"))}</b><p>${esc(t("Os agentes não compram nada. Memecoins são de altíssimo risco e a maioria vai a zero."))}</p></div>
+      </div></details>`);
+  }
+
+  let infFilter = "";
+  function saidList() {
+    const l = S.inf_posts.filter((p) => !infFilter || p.who.toLowerCase() === infFilter);
+    if (!l.length) return `<div class="panel pad">${ui.empty("eye", infFilter ? "Ainda nada deste influencer" : "Os influencers ainda não publicaram", t("O Oráculo lê os canais do Telegram ao minuto. O X e o Instagram não se leem de graça: aí é o Batman que procura."))}</div>`;
+    return l.slice(0, 25).map((p) => `<article class="panel mc-said-p">
+      <header>${face(p)}<div><b>${esc(p.name)}</b><small>${esc(p.src)} · ${esc(ago(p.t))}</small></div><a class="mc-more" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(t("Abrir"))} ›</a></header>
+      <p>${esc(p.text)}</p>
+      ${p.coins.length ? `<div class="mc-said-c">${p.coins.map((x) => `<button type="button" class="mc-coinbox" data-key="${esc(x.key)}">
+          ${logo(x)}<div class="mc-coinbox-n"><b>$${esc(sym(x.symbol))}</b><small>${esc(x.name || "")}</small></div>${pill(x)}
+          <div class="mc-coinbox-f"><span><small>${esc(x.late ? t("Desde que o vimos") : t("Desde que falou"))}</small><b>${x.since == null ? "—" : pct(x.since)}</b></span>
+            <span><small>${esc(t("Na pool"))}</small><b>${usd(x.liq)}</b></span><span><small>${esc(t("Idade"))}</small><b>${age(x.age_h)}</b></span></div>
+        </button>`).join("")}</div>`
+        : p.tickers.length ? `<p class="mc-said-none">${esc(t("Falou de {k}, mas ainda não encontrámos essa moeda nas bolsas.", { k: p.tickers.map((k) => "$" + k).join(", ") }))}</p>`
+        : `<p class="mc-said-none">${esc(t("Sem moeda nesta publicação."))}</p>`}
+    </article>`).join("");
   }
 
   function card(x) {
@@ -333,6 +344,10 @@
   function bind() {
     const root = $("mc");
     root.addEventListener("click", async (e) => {
+      const inf = e.target.closest("[data-inf]");
+      if (inf) { infFilter = infFilter === inf.dataset.inf ? "" : inf.dataset.inf; return resumo(); }
+      const add = e.target.closest("[data-act=add-inf]");
+      if (add) { const f = $("mc-inf-f"); f.hidden = !f.hidden; if (!f.hidden) f.handle.focus(); return; }
       const g = e.target.closest("[data-goto]");
       if (g) { filter = g.dataset.goto; return; }   // the link itself opens Moedas with that filter
       const k = e.target.closest("[data-key]");
@@ -362,7 +377,7 @@
       try {
         if (f.id === "mc-inf-f") {
           S.influencers = (await api("/api/memes/influencers", { method: "POST", body: { platform: f.platform.value, handle: f.handle.value, note: f.note.value } })).influencers;
-          redes(); msg(t("Juntado. Conta a partir da próxima volta do Oráculo (até 5 minutos)."));
+          (view === "resumo" ? resumo : redes)(); msg(t("Juntado. As publicações dele aparecem a partir da próxima volta do Oráculo (até 5 minutos)."));
         }
         if (f.id === "mc-g-f") {
           const body = { gmgn_url: f.gmgn_url.value.trim(), gmgn_db: f.gmgn_db.value.trim() };

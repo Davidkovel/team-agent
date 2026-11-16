@@ -62,16 +62,52 @@ const tagOf = (x) => x.project_name || companies.find((c) => c.id === x.company)
 /* ---------- the blocks ---------- */
 const greetingOf = (hour) => (hour < 6 ? "Boa noite" : hour < 13 ? "Bom dia" : hour < 20 ? "Boa tarde" : "Boa noite");
 
+// 16 nov, David: «só diz ali um bom dia... quero que seja mesmo uma boa vinda quando entras, confortável, comfy». A saudação
+// passa a ser um cartão de boas-vindas: uma luz suave com a cor da hora do dia (manhã quente, tarde dourada, fim do dia rosa,
+// noite azul), a saudação grande, uma frase sobre o teu dia feita dos dados (welcomeBody) e o relógio grande com a frase do dia.
+// Só entra a deslizar uma vez por sessão (o mesmo `ignite` do carro); parado não anima nada.
+const partOfDay = (hour) => (hour < 6 ? "night" : hour < 12 ? "morning" : hour < 18 ? "afternoon" : hour < 21 ? "evening" : "night");
+const WELCOME = { morning: "Que bom ver-te por cá. Um café e vamos a isso.", afternoon: "Que bom ver-te por cá. A tarde é tua.",
+  evening: "Que bom ver-te por cá. Vamos fechar o dia com calma.", night: "Ainda por aqui? Vai com calma." };
+
 function heroHtml(now, ignite) {
   const date = now.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
-  return `<header class="in-hero ${ignite ? "ignite" : ""}">
+  const part = partOfDay(now.getHours());
+  return `<header class="in-hero wl wl-${part} ${ignite ? "ignite" : ""}">
     <div class="hero-copy">
-      <div class="hero-eyebrow">${t("Centro de comando")}</div>
+      <div class="wl-hi">${esc(t(WELCOME[part]))}</div>
       <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
-      <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}<i></i><time id="in-clock">${fmt.hhmm(now.toISOString())}</time></p>
+      <p class="wl-note" id="in-welcome"></p>
+    </div>
+    <div class="wl-time">
+      <time id="in-clock">${fmt.hhmm(now.toISOString())}</time>
+      <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}</p>
+      <q class="wl-quote">${esc(t(quoteOfDay()))}</q>
     </div>
     <div class="hero-side"><div id="in-focus" class="in-focus"></div><div id="in-newsbar" class="in-newsbar"></div></div>
   </header>`;
+}
+
+// A frase do teu dia, em palavras: as tarefas de hoje, o que o teu agente está a fazer e quem da equipa já está ligado.
+async function welcomeBody() {
+  const [tasks, team, office] = await Promise.all([api("/api/tasks"), soft("/api/team"), soft("/api/office")]);
+  const p = planOf(asOne(tasks));
+  const fin = p.doneToday.length, left = p.today.length, late = p.late.length;
+  const hot = p.today.filter((x) => x.priority === "urgent" || x.priority === "high").length;
+  const said = [];
+  if (!fin && !left) said.push(t("Hoje não tens nada marcado: dia livre para avançar no que quiseres."));
+  else if (!left) said.push(t("Já fizeste tudo o que tinhas para hoje. Bom trabalho."));
+  else said.push(t(left === 1 ? "Tens <b>1 tarefa</b> para hoje" : "Tens <b>{n} tarefas</b> para hoje", { n: left })
+    + (hot ? t(", {n} prioritária{s}", { n: hot, s: hot === 1 ? "" : "s" }) : "")
+    + (late ? t(" e <b>{n} atrasada{s}</b>", { n: late, s: late === 1 ? "" : "s" }) : "")
+    + (fin ? t(" (já fizeste {n})", { n: fin }) : "") + ".");
+  const mine = (office?.sessions || []).filter((x) => x.user === me.username);
+  const work = mine.filter((x) => x.state === "working").length, wait = mine.filter((x) => x.state === "waiting" && Date.now() - new Date(x.updated_at) < 12 * 3600e3).length;
+  if (work) said.push(t(work === 1 ? "O teu agente está a trabalhar numa coisa." : "O teu agente está a tratar de <b>{n} coisas</b> ao mesmo tempo.", { n: work }));
+  else if (wait) said.push(t("O teu agente está à tua espera."));
+  const on = (team || []).filter((m) => m.user !== me.username && m.status !== "OFFLINE").map((m) => esc(m.display_name));
+  if (on.length) said.push(on.length === 1 ? t("{a} já está por cá.", { a: on[0] }) : t("{a} e {b} já estão por cá.", { a: on.slice(0, -1).join(", "), b: on.at(-1) }));
+  return said.join(" ");
 }
 
 // Atalhos, hoje só no Início do telemóvel (mobile.js); o do computador deixou de ter a doca (13 nov, 4.ª volta).
@@ -1129,6 +1165,7 @@ async function loadHome(parts = ["team", "news", "plan", "act", "biz"]) {
   const jobs = [];
   if (["team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-agents"), agentsBody, 1).then(brainStart));
   if (parts.includes("news")) jobs.push(mount($("in-newsbar"), newsBar, 1));
+  if (["plan", "team", "ops"].some((x) => parts.includes(x))) jobs.push(mount($("in-welcome"), welcomeBody, 1));
   if (parts.includes("plan") || parts.includes("news")) jobs.push(mount($("in-alert"), alertBody, 2));
   if (parts.includes("plan") || parts.includes("biz")) jobs.push(mount($("in-pulse"), pulseBody, 1));
   if (parts.includes("plan")) jobs.push(mount($("in-tasks"), iosTasks, 5), mount($("in-thead"), iosHead, 1));

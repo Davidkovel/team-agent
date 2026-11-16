@@ -1481,3 +1481,40 @@ button.td-w { cursor: pointer; } button.td-w:hover { background: rgba(255, 255, 
 .io.pro.done .io-proj, .io.pro.done .io-pg, .io.pro.done .io-who { opacity: .45; }
 .io-panel .io-more { padding-left: 54px; }
 @container (max-width: 1000px) { .io-cols, .io.pro { grid-template-columns: 22px minmax(0, 1fr) 70px 28px; } .io-cols > :nth-child(3), .io-cols > :nth-child(5), .io.pro .io-proj, .io.pro .io-who { display: none; } }
+
+/* ---------- 16 nov, a saudação é um cartão de boas-vindas (David: «não parece uma página de início... quero que seja comfy») ----------
+   Um cartão largo de vidro com uma luz suave atrás da saudação, da cor da hora do dia (--wl): manhã quente, tarde dourada,
+   fim do dia rosa, noite azul. Saudação grande, uma frase do teu dia, e à direita o relógio grande com a data e a frase do
+   dia. Entra a deslizar uma vez por sessão; parado, nada mexe. */
+.inicio .in-hero.wl { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 40px;
+  min-height: 0; padding: 34px 40px 30px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 30px; overflow: hidden;
+  background: radial-gradient(120% 140% at 0% 0%, var(--wl) 0%, transparent 55%), radial-gradient(70% 120% at 100% 100%, var(--wl2) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, 0) 40%), rgba(6, 7, 9, .55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 18px 50px rgba(0, 0, 0, .35); }
+.wl-morning { --wl: rgba(255, 168, 108, .26); --wl2: rgba(255, 214, 160, .08); --wl-ink: #ffd2ae; }
+.wl-afternoon { --wl: rgba(255, 206, 128, .22); --wl2: rgba(255, 236, 190, .07); --wl-ink: #ffe2ad; }
+.wl-evening { --wl: rgba(255, 130, 150, .22); --wl2: rgba(170, 130, 255, .1); --wl-ink: #ffc2cc; }
+.wl-night { --wl: rgba(110, 150, 255, .22); --wl2: rgba(150, 120, 255, .08); --wl-ink: #c5d4ff; }
+.inicio .wl .hero-copy { max-width: 760px; padding: 0; }
+.wl-hi { color: var(--wl-ink); font: 500 14px/1.3 var(--display); letter-spacing: -.005em; opacity: .9; }
+.inicio .in-hero.wl h1 { margin: 8px 0 0; color: #f6f7f9; font: 650 clamp(40px, 4.2vw, 56px)/1.04 var(--display); letter-spacing: -.04em; white-space: normal; }
+.inicio .in-hero.wl h1 em { font-style: normal; color: var(--wl-ink); }
+.wl-note { margin: 14px 0 0; max-width: 640px; min-height: 1.5em; color: rgba(235, 238, 242, .72); font: 400 16px/1.55 var(--display); }
+.wl-note b { color: #f4f6f8; font-weight: 600; }
+.wl-note .skel, .wl-note .sk { max-width: 360px; }
+.wl-time { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.wl-time time { color: #f4f6f8; font: 300 64px/1 var(--display); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.inicio .wl .hero-date { display: block; margin: 8px 0 0; color: rgba(235, 238, 242, .6); font: 500 13px var(--display); letter-spacing: 0; }
+.wl-quote { display: block; max-width: 260px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .1);
+  color: rgba(235, 238, 242, .55); font: italic 400 13px/1.45 var(--display); quotes: "«" "»"; }
+.inicio .wl .hero-side { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.inicio .wl .hero-side:not(:has(> :not(:empty))) { display: none; }
+.inicio .wl .in-newsbar { position: static; max-width: 520px; }
+.wl.ignite .wl-hi, .wl.ignite h1, .wl.ignite .wl-note, .wl.ignite .wl-time { animation: wl-in .9s cubic-bezier(.2, .7, .2, 1) both; }
+.wl.ignite h1 { animation-delay: .08s; } .wl.ignite .wl-note { animation-delay: .2s; } .wl.ignite .wl-time { animation-delay: .14s; }
+@keyframes wl-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .wl.ignite * { animation: none !important; } }
+@container (max-width: 900px) { .inicio .in-hero.wl { grid-template-columns: 1fr; padding: 26px 24px; } .wl-time { align-items: flex-start; text-align: left; }
+  .wl-time time { font-size: 44px; } .wl-quote { display: none; } }
+html.is-phone .inicio .in-hero.wl { grid-template-columns: 1fr; padding: 22px 20px; border-radius: 24px; }
+html.is-phone .wl-time { display: none; }

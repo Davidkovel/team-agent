@@ -163,7 +163,7 @@ def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0, mode:
     p.setPen(Qt.NoPen)
     p.setBrush(QColor(255, 58, 42, round(40 + 90 * pulse)))
     rr = (1.6 + 1.4 * pulse) * g
-    p.drawEllipse(QPointF(16.5 * g, 1.5 * g), rr, rr)
+    p.drawEllipse(QPointF(20 * g, 4 * g), rr * 0.8, rr * 0.8)
     # a blink every few seconds (a double one now and then)
     b = t % 4.3
     if b < 0.14 or 0.32 < b < 0.44 and int(t / 4.3) % 3 == 0:

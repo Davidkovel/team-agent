@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from . import badge, prefs
 
-W, H, PET = 320, 210, 120          # the window, and the robot inside it
+W, H, PET = 104, 100, 84   # 16 Nov, 2nd: smaller and without the bubble («без подсказок»)          # the window, and the robot inside it
 BUB_H = 54                          # the bubble
 
 
@@ -71,8 +71,6 @@ class Pet(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(g)
         p.drawEllipse(QPointF(r.center().x(), r.bottom() - 2), PET * 0.34, 5)
-        if self.title or self.sub:
-            self._bubble(p)
         badge.mascot_live(p, r, time.monotonic(), mode=self.mode)
 
     def _bubble(self, p: QPainter):

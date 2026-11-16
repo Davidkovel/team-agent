@@ -274,6 +274,7 @@ _LIVE: list | None = None
 
 def live_mascot(widget, p: QPainter):
     """Draws the robot where the face noted it, and keeps ~11 frames a second going while the widget is shown."""
+    return   # 16 Nov, David: «один pet, а не два» -- the robot lives only in the pet window (ui/pet.py)
     import time
     for r in getattr(widget, "_mascot_at", ()):
         badge.mascot_live(p, r, time.monotonic())

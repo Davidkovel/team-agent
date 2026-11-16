@@ -100,52 +100,92 @@
   const when = (ts) => new Date(ts * 1000).toLocaleString("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   let openInf = "", callWho = "";
 
-  function crew() {
-    return `<div class="mc-crewbar">${B.agents.map((a) => { const st = state(a); return `<a href="#/meme-agentes" class="${st[0]}" title="${esc(a.dept)}: ${esc(a.note || st[1])}"><span class="st ${st[0]}"><i></i></span>${esc(a.name)}<small>${esc(st[1])}</small></a>`; }).join("")}</div>`;
-  }
 
-  // 16 nov, Marco (4.ª volta): «aquele cérebro que a gente já tem do agente, uma bola com neurónios a funcionar... cria um das
-  // memecoins com os agentes interligados». The same sphere as the Início (brainHtml/brainStart in home.js) in the middle, the six
-  // agents around it, each joined by a line that runs while the agent works, the influencers below as what goes in, and the
-  // team's plan (scripts/plano.py, «Memecoins: do vigiar ao dinheiro») beside it, with the step we are on.
-  const RING = [["oraculo", -90], ["robin", -30], ["lucius", 30], ["arbitro", 90], ["batman", 150], ["gmgn", 210]];
-  function brainHero() {
-    const now = Date.now() / 1000, live = (a) => a.busy || (a.ok && a.at && now - a.at < 150);
-    const at = (deg, r = 39) => [50 + r * Math.cos(deg * Math.PI / 180), 50 + r * Math.sin(deg * Math.PI / 180)];
-    const nodes = RING.map(([id, deg]) => [B.agents.find((a) => a.id === id), ...at(deg)]).filter((n) => n[0]);
-    const work = B.agents.some((a) => a.busy);
-    const infs = S.influencers.slice(0, 8);
-    return `<div class="mc-top">
-      <section class="panel mc-brain">
-        <div class="pn-card-h">${esc(t("O cérebro"))}<small>${esc(work ? t("a pensar agora") : t("a vigiar"))}</small></div>
-        <div class="mc-net">
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${nodes.map(([a, x, y]) => `<line x1="50" y1="50" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="${live(a) ? "on" : state(a)[0] === "off" ? "off" : ""}"/>`).join("")}</svg>
-          <div class="mc-core">${typeof brainHtml === "function" ? brainHtml(work ? "work" : "on", 170) : ""}</div>
-          ${nodes.map(([a, x, y]) => { const st = state(a); return `<a class="mc-node ${st[0]} ${live(a) ? "live" : ""}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" href="#/meme-agentes" title="${esc(a.note || "")}">
-            <span class="mc-mono">${esc(a.code || a.id.slice(0, 3).toUpperCase())}</span><span><b>${esc(a.name)}</b><small>${esc(st[0] === "busy" ? t("a trabalhar") : st[1])}</small></span></a>`; }).join("")}
-        </div>
-        ${infs.length ? `<div class="mc-in"><small>${esc(t("Entram no cérebro"))}</small><div>${infs.map((i) => `<span title="${esc(i.name || "@" + i.handle)}">${face(i)}</span>`).join("")}</div></div>` : ""}
-      </section>
-      ${planCard()}
-    </div>`;
-  }
 
-  function planCard() {
+  // 16 nov, Marco (5.ª volta): «os robôs não estão a mostrar nada... como os robôs em 3D que a gente já tem, os olhos também
+  // ajudam... confuso, muito simultâneo». So the top is one picture: the brain in the middle and the six agents as the chrome
+  // robots of the Escritório de Robôs (robots.js `bot`, drawn front-on here), three each side, each joined to the brain. Eyes
+  // green and the line lit while it works, white while it watches, shut with a «z» when it is off. One sentence each. The plan
+  // is one thin bar under it. Only a working robot moves (10 frames a second); the rest are drawn once.
+  const SIDE = { L: ["oraculo", "robin", "lucius"], R: ["arbitro", "batman", "gmgn"] };
+  const BAND = { oraculo: "#8fb4ff", robin: "#c9cdd3", lucius: "#5fcf8c", arbitro: "#e2b55c", batman: "#eceef1", gmgn: "#9aa1aa" };
+  const JOB = { oraculo: "Lê o X, o Telegram e o Reddit", robin: "Vê as bolsas de memecoins", lucius: "Vê se as moedas são seguras",
+    arbitro: "Julga os calls dos influencers", batman: "Escreve relatórios com o Claude", gmgn: "Liga ao tracker do David e do Kovel" };
+  const live = (a) => a.busy || (a.ok && a.at && Date.now() / 1000 - a.at < 150);
+  const look = (a) => state(a)[0] === "off" ? "off" : a.ok === false ? "bad" : live(a) ? "work" : "watch";
+  const short = (s) => String(s || "").split(/[;,(]/)[0].trim();
+
+  function team() {
+    const work = B.agents.some((a) => a.busy);   // the sphere turns only while an agent is really at work (CPU)
+    const bot = (id, side) => { const a = B.agents.find((x) => x.id === id); if (!a) return ""; const st = state(a), lk = look(a);
+      return `<a class="mc-bot lk-${lk} ${side} ${a.busy ? "moving" : ""}" href="#/meme-agentes" title="${esc(a.note || "")}">
+        <canvas class="mc-bot-c" data-id="${id}" data-look="${lk}" data-move="${a.busy ? 1 : ""}" width="84" height="96" aria-hidden="true"></canvas>
+        <span class="mc-bot-t"><b>${esc(a.name)}</b><small>${esc(t(JOB[id] || a.dept))}</small>
+          <em>${esc(lk === "work" ? (a.busy ? t("A trabalhar agora…") : cap(short(a.note)) || t("Acabou agora")) : lk === "off" ? (id === "batman" ? t("Desligado") : t("Por ligar")) : lk === "bad" ? t("Teve um erro {h}", { h: ago(a.at) }) : t("Atento · {h}", { h: ago(a.at) }))}</em></span>
+        <i class="mc-wire"></i></a>`; };
     const p = (P || []).find((x) => /^Memecoins/i.test(x.title) && x.status !== "done");
-    if (!p) return "";
-    const cur = p.steps.findIndex((s) => !s.done);
-    return `<section class="panel pad mc-plan">
-      <div class="pn-card-h">${esc(t("O plano para começar a ganhar"))}<small>${esc(cur < 0 ? t("tudo feito") : t("passo {n} de {m}", { n: cur + 1, m: p.steps.length }))}</small></div>
-      <ol>${p.steps.map((s, i) => { const [head, ...rest] = s.text.split(":"); return `<li class="${s.done ? "done" : i === cur ? "now" : ""}">
-        <i>${s.done ? "✓" : i + 1}</i><span><b>${esc(head)}</b>${i === cur && rest.length ? `<small>${esc(rest.join(":").trim())}</small>` : ""}</span></li>`; }).join("")}</ol>
-      <a class="mc-more" href="#/escritorio">${esc(t("O plano está no Escritório"))} ›</a>
-    </section>`;
+    const cur = p ? p.steps.findIndex((s) => !s.done) : -1;
+    return `<section class="panel mc-team">
+        <div class="mc-col">${SIDE.L.map((id) => bot(id, "l")).join("")}</div>
+        <div class="mc-mid"><div class="mc-core">${typeof brainHtml === "function" ? brainHtml(work ? "work" : "on", 200) : ""}</div>
+          <b>${esc(t("O cérebro"))}</b><small>${esc(work ? t("a pensar agora") : t("a vigiar"))}</small></div>
+        <div class="mc-col">${SIDE.R.map((id) => bot(id, "r")).join("")}</div>
+      </section>
+      ${p && cur >= 0 ? `<a class="panel mc-planbar" href="#/escritorio"><span class="mc-sub">${esc(t("O plano"))}</span>
+        <b>${esc(t("Passo {n} de {m}", { n: cur + 1, m: p.steps.length }))}: ${esc(p.steps[cur].text.split(":")[0])}</b>
+        <span class="mc-planbar-p">${p.steps.map((s, i) => `<i class="${s.done ? "done" : i === cur ? "now" : ""}"></i>`).join("")}</span><span class="mc-more">${esc(t("Ver o plano"))} ›</span></a>` : ""}`;
+  }
+
+  // the robot, front-on: the chrome capsule and visor of robots.js
+  function drawBot(cv, time) {
+    const g = cv.getContext("2d"), W = cv.width, H = cv.height, lk = cv.dataset.look, id = cv.dataset.id, s = W * .9, px = W / 2;
+    const col = lk === "work" ? "#5fcf8c" : lk === "bad" ? "#ef6f5e" : lk === "watch" ? "#eceef1" : "#59606a";
+    const bob = lk === "work" ? Math.sin(time * 3) * 1.5 : 0;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = "rgba(0,0,0,.5)"; g.beginPath(); g.ellipse(px, H - 6, s * .3, s * .07, 0, 0, 7); g.fill();
+    const by = H * .5 + bob;
+    const body = g.createLinearGradient(px - s * .3, 0, px + s * .3, 0);
+    body.addColorStop(0, "#8e959e"); body.addColorStop(.45, "#f4f6f8"); body.addColorStop(1, "#5c636c");
+    rr(g, px - s * .27, by, s * .54, s * .42, s * .14); g.fillStyle = body; g.fill();
+    g.fillStyle = BAND[id] || "#c9cdd3"; g.globalAlpha = lk === "off" ? .35 : .9; g.fillRect(px - s * .27, by + s * .2, s * .54, s * .05); g.globalAlpha = 1;
+    g.strokeStyle = "#b9bfc7"; g.lineWidth = s * .06; g.lineCap = "round";
+    const sw = lk === "work" ? Math.sin(time * 9) * s * .04 : 0;
+    g.beginPath(); g.moveTo(px - s * .26, by + s * .08); g.lineTo(px - s * .38, by + s * .3 + sw); g.moveTo(px + s * .26, by + s * .08); g.lineTo(px + s * .38, by + s * .3 - sw); g.stroke();
+    const hy = by - s * .44;
+    const head = g.createLinearGradient(px - s * .3, hy, px + s * .3, hy + s * .4);
+    head.addColorStop(0, "#ffffff"); head.addColorStop(.5, "#cfd4da"); head.addColorStop(1, "#6d747d");
+    rr(g, px - s * .32, hy, s * .64, s * .4, s * .15); g.fillStyle = head; g.fill();
+    rr(g, px - s * .25, hy + s * .1, s * .5, s * .18, s * .09); g.fillStyle = "#0b0d10"; g.fill();
+    const blink = lk !== "off" && Math.sin(time * 1.3 + id.length) > .985 ? .15 : 1;
+    g.shadowColor = col; g.shadowBlur = lk === "off" ? 0 : 10; g.fillStyle = col; g.globalAlpha = blink;
+    if (lk === "off") { g.fillRect(px - s * .16, hy + s * .19, s * .1, s * .02); g.fillRect(px + s * .06, hy + s * .19, s * .1, s * .02); }
+    else { g.beginPath(); g.arc(px - s * .1, hy + s * .19, s * .045, 0, 7); g.arc(px + s * .1, hy + s * .19, s * .045, 0, 7); g.fill(); }
+    g.globalAlpha = 1; g.shadowBlur = 0;
+    g.strokeStyle = "#9aa1aa"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(px, hy); g.lineTo(px, hy - s * .12); g.stroke();
+    const glow = lk === "work" ? .6 + .4 * Math.sin(time * 5) : 1;
+    g.beginPath(); g.arc(px, hy - s * .14, s * .045, 0, 7); g.fillStyle = col; g.globalAlpha = glow; g.shadowColor = col; g.shadowBlur = lk === "off" ? 0 : 8; g.fill();
+    g.shadowBlur = 0; g.globalAlpha = 1;
+    if (lk === "off") { g.fillStyle = "rgba(255,255,255,.45)"; g.font = `600 ${s * .16}px Inter, system-ui`; g.fillText("z", px + s * .3, hy - s * .02); }
+  }
+  function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
+  let botRaf = 0, botAt = 0;
+  function bots() {
+    const all = [...document.querySelectorAll("canvas.mc-bot-c")];
+    all.forEach((cv) => drawBot(cv, performance.now() / 1000));
+    cancelAnimationFrame(botRaf);
+    const loop = (now) => {
+      const moving = [...document.querySelectorAll('canvas.mc-bot-c[data-move="1"]')];
+      if (!moving.length || !$("mc")) return;
+      if (!document.hidden && now - botAt > 100) { botAt = now; moving.forEach((cv) => drawBot(cv, now / 1000)); }
+      botRaf = requestAnimationFrame(loop);
+    };
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) botRaf = requestAnimationFrame(loop);
   }
 
   function quem() {
     const R = B.ranking.filter((r) => r.calls || true), lead = R.find((r) => r.judged >= 5 && r.usd > 0);
     const judged = R.reduce((a, r) => a + r.judged, 0);
-    paint($("mc-body"), `${brainHero()}
+    paint($("mc-body"), `${team()}
       ${lead ? `<section class="panel mc-lead-c">
           <span class="mc-lead-k">${esc(t("O melhor a seguir agora"))}</span>
           <div class="mc-lead-w">${face(lead, true)}<div><b>${esc(lead.name || "@" + lead.handle)}</b><small>${esc(PLAT[lead.platform] || lead.platform)}</small></div></div>
@@ -166,6 +206,7 @@
       </section>
       <p class="mc-foot">${esc(t("Como contamos: compra ao preço da hora do call, venda 24 horas depois, sem taxas. Ninguém comprou nada: é só para comparar quem acerta."))}</p>`);
     if (typeof brainStart === "function") brainStart();
+    bots();
   }
 
   function row(r, n) {
@@ -204,7 +245,7 @@
   function callsView() {
     const who = [...new Map(B.calls.map((x) => [x.who.toLowerCase(), x.name])).entries()];
     const l = B.calls.filter((x) => !callWho || x.who.toLowerCase() === callWho);
-    paint($("mc-body"), `${crew()}
+    paint($("mc-body"), `
       <div class="mc-bar"><div class="segx"><button type="button" data-cw="" class="${callWho ? "" : "on"}">${esc(t("Todos"))}</button>${who.map(([k, n]) => `<button type="button" data-cw="${esc(k)}" class="${k === callWho ? "on" : ""}">${esc(n)}</button>`).join("")}</div>
         <small class="mc-dim">${esc(t("{n} calls · o mais recente primeiro", { n: l.length }))}</small></div>
       <section class="panel mc-list">${l.length ? `<div class="mc-tw"><table class="mc-t mc-calls">

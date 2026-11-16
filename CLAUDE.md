@@ -603,11 +603,15 @@ nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada v
   linha, o melhor a seguir, e o ranking: uma linha por influencer com o veredicto, os últimos calls em bolinhas e um número grande
   «100 $ em cada call»; clicar abre o dia a dia e os últimos calls), **Calls** (`#/meme-calls`), **Moedas** e **Agentes**.
   Poucas palavras, números grandes. Cada moeda tem veredicto em palavras (`verdict` no `memes.js`).
-- **O cérebro e o plano** (4.ª volta, 16 nov, Marco: «aquele cérebro que a gente já tem, uma bola com neurónios... com os agentes
-  interligados»): no topo de «Quem acerta» a esfera do Início (`brainHtml`/`brainStart` do `home.js`) com os seis agentes à volta
-  (`RING`), cada um ligado por uma linha que corre a verde enquanto trabalha (ou correu há < 150 s), e os influencers por baixo
-  («Entram no cérebro»). Ao lado, o plano da equipa **«Memecoins: do vigiar ao dinheiro»** (`scripts/plano.py`, #162144911),
-  lido de `/api/plans`, com o passo em que vamos. Regra do plano: dinheiro a fingir primeiro, depois pouco real, automático no fim.
+- **O cérebro e os robôs** (4.ª e 5.ª voltas, 16 nov, Marco: «uma bola com neurónios... os agentes interligados»; depois «os
+  robôs não mostram nada... como os robôs em 3D que a gente já tem, os olhos ajudam... confuso, muito simultâneo»): o topo de
+  «Quem acerta» é uma imagem só: a esfera do Início (`brainHtml`/`brainStart` do `home.js`) ao meio e os seis agentes como os
+  robôs cromados do Escritório de Robôs (`drawBot` no `memes.js`, a partir do `bot` do `robots.js`, de frente), três de cada lado,
+  cada um com um fio para o cérebro. Olhos verdes e fio aceso quando correu há < 150 s, brancos atento, fechados com «z»
+  desligado, vermelhos com erro; uma frase de cada um. **Só mexe enquanto um agente está mesmo a trabalhar** (`busy`: esfera,
+  robô a 10 imagens/s e fio a correr): parada a página gasta ~0,1% de um núcleo (medido a 16 nov). O plano da equipa
+  («Memecoins: do vigiar ao dinheiro», `scripts/plano.py` #162144911) é uma barra fina por baixo, com o passo em que vamos.
+  Armadilha: o `design.css` tem uma classe global `.work` (coluna, padding): as classes de estado dos robôs são `lk-*`.
 - **X a sério pelo twitterapi.io** (`x_page`/`x_accounts` no `memes.py`, `x_history` no `memes_calls.py`): com a chave (Memecoins ›
   Agentes › Regras, `x_key` só no `state.json` deste PC, nunca na base nem na página) o Oráculo lê cada influencer do X de
   `x_every` (15) em 15 min e o Alfred lê 30 dias para trás; `x_used` conta os tweets (≈ 0,15 $ por 1000). Testado só com uma

@@ -123,6 +123,8 @@ def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0, mode:
     k = rect.width() / 100.0 * 0.9
     ox, floor = rect.left() + rect.width() / 2, rect.bottom() - 1
     c = t % 5.2 if mode == "idle" else (3.25 + t % 1.5 if mode == "wait" else -1.0)   # wait: hops non-stop
+    if mode in ("sleep", "calm"):                 # 16 Nov, Marco: asleep (eyes shut) or calm, only the slow breathing
+        c = t % 3.0
     dx = hop = tilt = 0.0
     sx = sy = 1.0
     if c < 0:                                     # Claude working: it types, quick little bounces on the keys
@@ -166,7 +168,7 @@ def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0, mode:
     p.drawEllipse(QPointF(20 * g, 4 * g), rr * 0.8, rr * 0.8)
     # a blink every few seconds (a double one now and then)
     b = t % 4.3
-    if b < 0.14 or 0.32 < b < 0.44 and int(t / 4.3) % 3 == 0:
+    if mode == "sleep" or b < 0.14 or 0.32 < b < 0.44 and int(t / 4.3) % 3 == 0:
         p.setBrush(QColor(8, 8, 10))
         p.drawRect(QRectF(8 * g, 11 * g, 16 * g, 3 * g))
         p.setBrush(QColor("#ff3b30"))

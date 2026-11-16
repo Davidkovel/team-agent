@@ -1544,3 +1544,9 @@ html.is-phone .wl-time { display: none; }
 .wl-quote blockquote::before { content: "«"; } .wl-quote blockquote::after { content: "»"; }
 .wl-hi { font-family: var(--wl-font); font-weight: 400; letter-spacing: -.015em; }
 @container (max-width: 900px) { .wl-quote { display: block; } .wl-quote figcaption { justify-content: flex-start; } .wl-time time { font-size: 56px; } }
+/* 5.ª volta (David: «a hora um bocado mais em cima, para a frase do dia se notar mais, e a frase maior, bem visível, para dar
+   motivação»): a hora sobe para o topo da saudação e a frase do dia fica grande e branca por baixo dela. */
+.inicio .in-hero.wl .wl-time { align-self: start; padding-top: 2px; }
+.wl-quote { max-width: 400px; margin-top: 22px; }
+.wl-quote figcaption { font-size: 10.5px; color: rgba(235, 238, 242, .55); }
+.wl-quote blockquote { margin-top: 10px; color: #f4f6f8; font: 600 22px/1.32 var(--wl-font); letter-spacing: -.02em; text-shadow: 0 2px 16px rgba(0, 0, 0, .6); }

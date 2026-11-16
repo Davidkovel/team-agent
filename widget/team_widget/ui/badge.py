@@ -13,6 +13,7 @@ from PySide6.QtSvg import QSvgRenderer
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 _svgs: dict[str, QSvgRenderer] = {}
 _images: dict[tuple, QImage] = {}
+MARK = "mascot.svg"   # 16 nov, David: o robô com o portátil em vez da estrela da Mercedes
 
 
 def _svg(name: str) -> QSvgRenderer:
@@ -83,7 +84,7 @@ def star(p: QPainter, rect: QRectF, opacity: float = 1.0, shadow: bool = False):
             img.fill(Qt.transparent)
             q = QPainter(img)
             q.setRenderHint(QPainter.Antialiasing)
-            _svg("mercedes-star.svg").render(q, QRectF(0, 0, rect.width(), rect.height()))
+            _svg(MARK).render(q, QRectF(0, 0, rect.width(), rect.height()))
             q.setCompositionMode(QPainter.CompositionMode_SourceIn)
             q.fillRect(QRectF(0, 0, rect.width(), rect.height()), QColor(0, 0, 0, 110))
             q.end()
@@ -96,5 +97,5 @@ def star(p: QPainter, rect: QRectF, opacity: float = 1.0, shadow: bool = False):
     p.save()
     p.setRenderHint(QPainter.Antialiasing)
     p.setOpacity(p.opacity() * opacity)
-    _svg("mercedes-star.svg").render(p, rect)
+    _svg(MARK).render(p, rect)
     p.restore()

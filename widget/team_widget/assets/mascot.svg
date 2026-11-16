@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3d44"/>
+      <stop offset="1" stop-color="#16181c"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b0c0f"/>
+      <stop offset="1" stop-color="#1b1d22"/>
+    </linearGradient>
+    <linearGradient id="lap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9dde3"/>
+      <stop offset="1" stop-color="#8b9099"/>
+    </linearGradient>
+    <radialGradient id="eye" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ff6b4a" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#ff3b2f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- antenna -->
+  <path d="M50 22 V12" stroke="#2a2d33" stroke-width="3" stroke-linecap="round"/>
+  <path d="M50 12 q6 -6 1 -9" fill="none" stroke="#2a2d33" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="50" cy="11" r="3.4" fill="#ff4a36"/>
+  <!-- ears -->
+  <rect x="15" y="34" width="7" height="14" rx="3" fill="#24272c"/>
+  <rect x="78" y="34" width="7" height="14" rx="3" fill="#24272c"/>
+  <!-- head -->
+  <rect x="20" y="21" width="60" height="42" rx="15" fill="url(#body)" stroke="#4b4f57" stroke-width="1.2"/>
+  <rect x="27" y="28" width="46" height="28" rx="10" fill="url(#face)"/>
+  <!-- happy eyes -->
+  <circle cx="40" cy="41" r="9" fill="url(#eye)"/>
+  <circle cx="60" cy="41" r="9" fill="url(#eye)"/>
+  <path d="M34.5 44 L40 38 L45.5 44" fill="none" stroke="#ff4a36" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M54.5 44 L60 38 L65.5 44" fill="none" stroke="#ff4a36" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- body -->
+  <rect x="30" y="62" width="40" height="22" rx="9" fill="url(#body)" stroke="#4b4f57" stroke-width="1"/>
+  <!-- feet -->
+  <rect x="33" y="84" width="11" height="8" rx="3" fill="#1d2025"/>
+  <rect x="56" y="84" width="11" height="8" rx="3" fill="#1d2025"/>
+  <!-- laptop -->
+  <path d="M38 60 L74 56 L78 82 L42 86 Z" fill="url(#lap)" stroke="#5c616a" stroke-width="1"/>
+  <path d="M56 66 l6 5 l-6 5" fill="none" stroke="#4a4f57" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 86 L80 81 L82 85 L32 90 Z" fill="#6f747d"/>
+  <!-- hands on the laptop -->
+  <circle cx="33" cy="74" r="5" fill="#2a2d33"/>
+  <circle cx="79" cy="70" r="5" fill="#2a2d33"/>
+</svg>

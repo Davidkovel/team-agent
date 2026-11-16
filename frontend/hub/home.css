@@ -1527,26 +1527,20 @@ button.td-w { cursor: pointer; } button.td-w:hover { background: rgba(255, 255, 
   .wl-time time { font-size: 56px; } .wl-quote { display: none; } }
 html.is-phone .wl-time { display: none; }
 
-/* 3.ª volta (David: «os números estão bem pequenos e o estilo feio... as letras podiam estar num design muito melhor, chamativo»):
-   a hora e o nome numa letra larga, como a escrita dos carros AMG (Archivo Expanded, do Google Fonts como a Inter), a hora
-   enorme e cromada com os dois pontos apagados; a frase do dia, nova todos os dias, em destaque por baixo da hora. */
-.wl { --wide: "Archivo", var(--display); }
-.wl-eyebrow { font: 600 11px var(--wide); font-stretch: 125%; letter-spacing: .34em; }
-.inicio .in-hero.wl h1 { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; font: 300 clamp(26px, 2.4vw, 34px)/1 var(--wide); font-stretch: 125%;
-  letter-spacing: .02em; text-transform: uppercase; color: rgba(235, 238, 242, .7); }
-.inicio .in-hero.wl h1 em { font: 800 clamp(58px, 6.4vw, 96px)/.92 var(--wide); font-stretch: 125%; letter-spacing: -.035em;
-  background: linear-gradient(180deg, #ffffff 0%, #eef1f4 34%, #8d949c 50%, #c9ced4 64%, #ffffff 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 2px 18px rgba(0, 0, 0, .55)); }
-.inicio .in-hero.wl h1 span { padding-left: 3px; }
-.wl-time time { display: block; font: 700 clamp(84px, 9vw, 136px)/.86 var(--wide); font-stretch: 118%; letter-spacing: -.04em; font-variant-numeric: tabular-nums;
-  background: linear-gradient(180deg, #ffffff 0%, #eef1f4 34%, #8d949c 50%, #c9ced4 64%, #ffffff 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 2px 22px rgba(0, 0, 0, .55)); }
-.wl-time time i { font-style: normal; opacity: .4; margin: 0 -.02em; }
-.wl-quote { max-width: 360px; margin: 22px 0 0; padding: 0; border: 0; }
-.wl-quote figcaption { display: flex; align-items: center; justify-content: flex-end; gap: 10px; color: rgba(235, 238, 242, .45);
-  font: 600 10px var(--wide); font-stretch: 125%; letter-spacing: .3em; text-transform: uppercase; }
-.wl-quote figcaption::before { content: ""; width: 26px; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--wl), .8)); }
-.wl-quote blockquote { margin: 10px 0 0; color: #f1f3f5; font: 500 19px/1.35 var(--display); letter-spacing: -.015em; text-wrap: balance; }
+/* 4.ª volta (David: «tão grande, horrível... como tava antes, com 88... só queria o estilo... números um bocadinho mais pequenos e do
+   mesmo estilo que as letras, letras fixes, não básicas»): os tamanhos da 2.ª volta e «Bom dia, David» numa linha, mas numa
+   letra com carácter (--wl-font, do Google Fonts no index.html); a hora na mesma letra, cromada e um pouco mais pequena. */
+.wl { --wl-font: "Syne", var(--display); }
+.wl-eyebrow { font-family: var(--wl-font); letter-spacing: .3em; }
+.inicio .in-hero.wl h1 { margin-top: 16px; font: 400 clamp(44px, 4.8vw, 68px)/1.02 var(--wl-font); letter-spacing: -.045em; color: rgba(244, 246, 248, .9); }
+.inicio .in-hero.wl h1 em { font-weight: 700; letter-spacing: -.05em; }
+.wl-time time { display: block; font: 500 86px/.95 var(--wl-font); letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+.wl-time time i { font-style: normal; }
+.wl-quote { max-width: 300px; margin: 16px 0 0; padding: 0; border: 0; }
+.wl-quote figcaption { display: flex; align-items: center; justify-content: flex-end; gap: 10px; color: rgba(235, 238, 242, .42);
+  font: 600 9.5px var(--wl-font); letter-spacing: .28em; text-transform: uppercase; }
+.wl-quote figcaption::before { content: ""; width: 22px; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--wl), .8)); }
+.wl-quote blockquote { margin: 8px 0 0; color: rgba(241, 243, 245, .82); font: 400 14.5px/1.45 var(--wl-font); letter-spacing: -.01em; text-wrap: balance; }
 .wl-quote blockquote::before { content: "«"; } .wl-quote blockquote::after { content: "»"; }
-.wl-hi { font-size: 18px; }
-@container (max-width: 900px) { .wl-quote { display: block; } .wl-quote figcaption { justify-content: flex-start; } .wl-time time { font-size: 72px; } }
+.wl-hi { font-family: var(--wl-font); font-weight: 400; letter-spacing: -.015em; }
+@container (max-width: 900px) { .wl-quote { display: block; } .wl-quote figcaption { justify-content: flex-start; } .wl-time time { font-size: 56px; } }

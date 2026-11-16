@@ -1,0 +1,46 @@
+/* Finder (16 nov, David: «como se fosse um finder»): the sidebar's entries are folders whose pages show in a small card
+   beside them on hover (sideFly in app.js), and every page has a path bar with the search at the top right (drawSubtabs). */
+
+/* a folder in the sidebar: a small arrow at the end, brighter on hover */
+.hside .side-link.is-folder::after { content: ""; flex: none; width: 5px; height: 5px; margin: 0 4px 0 2px; border: solid currentColor;
+  border-width: 1.5px 1.5px 0 0; transform: rotate(45deg); opacity: .32; transition: opacity .2s; }
+.hside .side-link.is-folder:hover::after, .hside .side-link.is-folder.active::after { opacity: .75; }
+.hub.collapsed .side-link.is-folder::after { display: none; }
+
+/* the card of a folder's pages, beside the sidebar */
+.side-fly { position: fixed; z-index: 70; min-width: 200px; max-width: 260px; padding: 6px; border-radius: 14px;
+  background: linear-gradient(180deg, rgba(28, 31, 36, .97), rgba(12, 13, 16, .97)); border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 22px 60px rgba(0, 0, 0, .6); animation: pop .14s var(--ease); }
+.side-fly[hidden] { display: none; }
+.side-fly .fly-h { display: flex; align-items: center; gap: 8px; padding: 6px 8px 7px; color: #fff; font: 650 13px var(--display); letter-spacing: -.01em; }
+.side-fly .fly-h svg.i { width: 15px; height: 15px; color: #cfd5dc; }
+.side-fly .fly-h small { margin-left: auto; color: var(--faint); font: 500 11px var(--ui); }
+.side-fly .fly-h:not(:last-child) { border-bottom: 1px solid rgba(255, 255, 255, .07); margin-bottom: 4px; }
+.side-fly .fly-i { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 9px; color: #b9c0c9; font: 500 13px var(--ui); text-decoration: none; }
+.side-fly .fly-i svg.i { width: 14px; height: 14px; flex: none; color: #9aa1aa; }
+.side-fly .fly-i span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.side-fly .fly-i:hover { color: #fff; background: rgba(255, 255, 255, .07); }
+.side-fly .fly-i:hover svg.i { color: #fff; }
+.side-fly .fly-i.on { color: #fff; background: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .06)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3); }
+.side-fly .fly-i .badge { min-width: 18px; padding: 0 5px; border-radius: 999px; background: rgba(255, 255, 255, .14); color: #fff; font: 600 10.5px/18px var(--ui); text-align: center; }
+
+/* the path bar on top of each page: where it is on the left, the search on the right */
+.fbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: -4px 0 14px; min-height: 34px; }
+.fpath { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--faint); font: 500 12.5px var(--ui); white-space: nowrap; overflow: hidden; }
+.fpath > svg.i { width: 11px; height: 11px; flex: none; opacity: .5; }
+.fpath a, .fpath b { display: inline-flex; align-items: center; gap: 6px; padding: 3px 7px; border-radius: 7px; color: #aab1ba; text-decoration: none; font-weight: 500; }
+.fpath a svg.i, .fpath b svg.i { width: 13px; height: 13px; }
+.fpath a:hover { color: #fff; background: rgba(255, 255, 255, .06); }
+.fpath b { color: #fff; font-weight: 600; }
+.fsearch { display: flex; align-items: center; gap: 8px; width: 260px; height: 34px; padding: 0 8px 0 12px; border-radius: 999px; cursor: text;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .03)); border: 1px solid rgba(255, 255, 255, .11);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18); color: #9aa1aa; font: 400 13px var(--ui); transition: background .2s, color .2s; }
+.fsearch:hover { color: #fff; background: linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .05)); }
+.fsearch svg.i { width: 15px; height: 15px; flex: none; }
+.fsearch span { flex: 1; text-align: left; }
+.fsearch kbd { padding: 1px 6px; border-radius: 6px; background: rgba(255, 255, 255, .08); color: var(--faint); font: 500 10.5px var(--ui); }
+html.is-phone .fbar, html.is-mini .fbar { display: none !important; }
+
+/* the search opened from the bar: the box drops from where the bar's search is, not from the middle */
+.pal.pal-at { z-index: 400; display: block; padding: 0; background: rgba(4, 5, 7, .35); }
+.pal.pal-at .pal-box { position: absolute; top: calc(var(--pal-top) - 6px); right: calc(var(--pal-right) - 6px); width: min(520px, 92vw); }

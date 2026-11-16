@@ -88,7 +88,7 @@
   function blocksOf(root) {
     let el = root;
     for (let i = 0; i < 4; i++) {
-      const kids = [...el.children].filter((k) => !k.matches(".subtabs, script, style, template, .mo-ink"));
+      const kids = [...el.children].filter((k) => !k.matches(".subtabs, .fbar, script, style, template, .mo-ink"));
       if (kids.length !== 1 || !kids[0].children.length) break;
       el = kids[0];
     }
@@ -107,7 +107,7 @@
 
   function enter(root) {
     const free = (el) => getComputedStyle(el).animationName === "none";   // a block with its own animation keeps it (the news bar floats)
-    const blocks = [...root.children].filter((el) => !el.matches(".subtabs, .mo-in, .mo-ink, script, style, template") && el.offsetParent !== null && free(el));
+    const blocks = [...root.children].filter((el) => !el.matches(".subtabs, .fbar, .mo-in, .mo-ink, script, style, template") && el.offsetParent !== null && free(el));
     const vh = innerHeight;
     let n = 0;
     for (const block of blocks) {
@@ -140,7 +140,7 @@
     const ghost = view.cloneNode(true);
     ghost.removeAttribute("id");
     ghost.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));   // the new page must find its own elements, not these
-    ghost.querySelectorAll(".subtabs").forEach((el) => el.remove());
+    ghost.querySelectorAll(".subtabs, .fbar").forEach((el) => el.remove());
     const src = view.querySelectorAll("canvas"), dst = ghost.querySelectorAll("canvas");
     dst.forEach((c, k) => { try { c.getContext("2d").drawImage(src[k], 0, 0); } catch (e) { /* webgl: stays blank for 0.26 s */ } });
     ghost.className += " mo-ghost";

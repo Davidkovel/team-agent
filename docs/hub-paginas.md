@@ -20,6 +20,14 @@ A barra do lado tem cinco secções numeradas (`NAV` em `frontend/app.js`, o 4.�
 Uma página nova entra numa destas secções: como separador de uma entrada que já existe (o normal) ou como entrada nova se
 for um mundo à parte. A procura (Ctrl+K) e o «Mais» do telemóvel leem a mesma lista, por isso a página aparece lá sozinha.
 
+**Finder** (16 nov, David: «como se fosse um finder»; só se juntou, nada mudou de sítio): passar o rato numa entrada com
+separadores mostra-os num cartão pequeno ao lado (`sideFly` no `app.js`, estilos em `hub/finder.css`); cada página tem por
+cima uma barra com o caminho (secção › entrada › página) e, à direita, «Procurar no Hub», que abre o Ctrl+K ali mesmo.
+A procura (`/api/search` no `routers/work.py`) encontra também leads do CRM, pesquisas do Radar, desenhos da Fábrica Etsy,
+e-mails, fotos e planos. **Guardar no sítio certo**: um lead vai para o Radar/CRM, um desenho para a Fábrica Etsy, uma foto
+para Fotos, um trabalho grande para um plano (`scripts/plano.py`), uma decisão para a Memória. O que se guarda fora destes
+sítios a procura não encontra; um sítio novo junta-se ao `search` com o seu `type` e o ícone em `RESULT_ICON` (`shell.js`).
+
 ## A anatomia de uma página
 
 1. **Cabeçalho**: sempre `ui.head(eyebrow, título, frase, ações)`. O pequeno texto por cima do título é posto pela moldura

@@ -438,6 +438,35 @@ async def search(q: str, user: User = Depends(current_user), db: AsyncSession = 
         activity = activity.where(Activity.user_id == user.id)
     for a in (await db.execute(activity)).scalars():
         out.append({"type": "activity", "title": a.message, "detail": a.user.display_name, "href": "#/historico"})
+    # what lives outside these tables too, each found where it is kept (16 nov, David: «quando guardes as cenas vá tudo aos sítios certos»)
+    from ..etsy import FACTORY
+    from ..models import MailThread, Photo, Plan
+    from ..radar import RADAR
+    try:
+        leads, scans = await asyncio.to_thread(lambda: (RADAR.leads(), RADAR.list()))
+    except Exception:
+        leads, scans = [], []
+    hit = lambda *xs: any(needle in str(x or "").lower() for x in xs)
+    for lead in [x for x in leads if hit(x.get("nome"), x.get("local"), x.get("nota"))][:6]:
+        out.append({"type": "lead", "title": lead["nome"], "detail": " · ".join(filter(None, ["CRM", lead.get("estado"), lead.get("local")])), "href": "#/crm"})
+    seen = set()  # the same search made twice shows once
+    for s in [x for x in scans if hit(x.get("ramo_nome"), x.get("local"))]:
+        title = f"{s.get('ramo_nome') or s.get('ramo')} · {s.get('local') or ''}".strip(" ·")
+        if title.lower() not in seen and len(seen) < 4:
+            seen.add(title.lower())
+            out.append({"type": "scan", "title": title, "detail": "Pesquisa do Radar", "href": "#/radar"})
+    for item in [x for x in FACTORY.state.get("items", []) if hit(x.get("titulo"), x.get("frase"), x.get("nicho"))][:5]:
+        out.append({"type": "product", "title": item.get("titulo") or item.get("frase") or "Desenho", "detail": "Fábrica Etsy", "href": "#/etsy"})
+    mails = select(MailThread).where(or_(func.lower(MailThread.nome).like(like), func.lower(MailThread.email).like(like),
+                                         func.lower(MailThread.local).like(like))).order_by(MailThread.id.desc()).limit(5)
+    for m in (await db.execute(mails)).scalars():
+        out.append({"type": "mail", "title": m.nome or m.email, "detail": f"E-mail · {m.status}", "href": "#/emails"})
+    photos = select(Photo.title, Photo.album).where(or_(func.lower(Photo.title).like(like), func.lower(Photo.album).like(like))).limit(5)
+    for title, album in (await db.execute(photos)).all():
+        out.append({"type": "photo", "title": title or album, "detail": f"Fotos · {album}", "href": "#/fotos"})
+    plans = select(Plan).where(or_(func.lower(Plan.title).like(like), func.lower(Plan.goal).like(like))).order_by(Plan.id.desc()).limit(4)
+    for p in (await db.execute(plans)).scalars():
+        out.append({"type": "plan", "title": p.title, "detail": "Plano · " + ("aberto" if p.status == "open" else "fechado"), "href": "#/escritorio"})
     try:
         recent = await asyncio.wait_for(asyncio.to_thread(commits.recent, 100), 1.5)
     except Exception:

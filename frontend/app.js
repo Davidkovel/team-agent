@@ -227,6 +227,10 @@ const NAV = [
   ["Sistema", "gear", [["memoria", "Memória"], ["saude", "Saúde"], ["definicoes", "Definições"]], "sistema"],
 ];
 const TABS = NAV.flatMap(([, , pages]) => pages);
+// the icon of a page inside its entry's folder (the Finder card of the sidebar); a page not here takes its entry's icon
+const PAGE_ICON = { crm: "users", vinted: "bag", aprovacoes: "check", semana: "calendar", galeria: "grid", aovivo: "bolt", agentes: "bot",
+  historico: "history", codigo: "code", entregas: "check", kit: "layers", projetos: "folder", sinal: "news", fundednext: "wallet",
+  robos: "bot", gap: "chart", uso: "chart", despesas: "wallet", memoria: "layers", saude: "spark", definicoes: "gear" };
 // the entry and the section a page belongs to: {entry, section: ["04", "Trading"]}
 function navOf(tab) {
   const entry = NAV.find(([, , pages]) => pages.some(([id]) => id === tab));
@@ -253,7 +257,8 @@ function render() {
   const r = route();
   $("tabs").innerHTML = NAV.map(([label, ic, pages, sec], i) =>
     (sec !== (NAV[i - 1] || [])[3] ? `<div class="side-group"><i>${SECTIONS[sec][0]}</i>${t(SECTIONS[sec][1])}</div>` : "")
-    + `<a class="side-link ${pages.some(([id]) => id === r.tab) ? "active" : ""}" href="#/${pages[0][0]}" title="${t(label)}">${icon(ic)}<span>${t(label)}</span>${badgeHtml(pages[0][0])}</a>`).join("");
+    + `<a class="side-link ${pages.some(([id]) => id === r.tab) ? "active" : ""} ${pages.filter(([, , hidden]) => !hidden).length > 1 ? "is-folder" : ""}" href="#/${pages[0][0]}" data-nav="${i}">${icon(ic)}<span>${t(label)}</span>${badgeHtml(pages[0][0])}</a>`).join("");
+  $("side-fly").hidden = true;
   $("view").scrollTop = 0;
   $("view").onclick = null; // a page's own click handling ends with the page
   // the pages of the Team AI Hub (frontend/hub/*.js) take the place of the older ones with the same name
@@ -265,14 +270,46 @@ function render() {
 }
 window.addEventListener("hashchange", render);
 
-// The tabs of the current section sit on top of the page. A page redraws #view whenever it likes, so they are put
-// back each time its content changes.
+// Finder (16 nov, David: «como se fosse um finder... quando metemos o rato no radar aparece em pequeno a Vinted e o CRM»):
+// each entry of the sidebar is a folder, and the mouse on one shows its pages in a small card beside it, each opening on
+// its own. With the sidebar folded to icons (the widget's window) every entry shows its card, so the name is there too.
+let flyTimer = 0;
+function sideFly(link) {
+  clearTimeout(flyTimer);
+  const fly = $("side-fly"), entry = link && NAV[Number(link.dataset.nav)], tab = route().tab;
+  const pages = entry ? entry[2].filter(([id, , hidden]) => !hidden || id === tab) : [];
+  if (!pages.length || (pages.length < 2 && !$("app").classList.contains("collapsed"))) { fly.hidden = true; return; }
+  fly.innerHTML = `<div class="fly-h">${icon(pages.length > 1 ? "folder" : entry[1])}<b>${esc(t(entry[0]))}</b>${pages.length > 1 ? `<small>${pages.length} ${t("páginas")}</small>` : ""}</div>`
+    + (pages.length > 1 ? pages.map(([id, label]) => `<a class="fly-i ${id === tab ? "on" : ""}" href="#/${id}">${icon(PAGE_ICON[id] || entry[1])}<span>${esc(t(label))}</span>${badgeHtml(id)}</a>`).join("") : "");
+  fly.hidden = false;
+  const r = link.getBoundingClientRect();
+  fly.style.left = `${Math.round(r.right + 10)}px`;
+  fly.style.top = `${Math.round(Math.max(8, Math.min(r.top - 8, innerHeight - fly.offsetHeight - 8)))}px`;
+}
+const flyLater = () => { clearTimeout(flyTimer); flyTimer = setTimeout(() => { $("side-fly").hidden = true; }, 220); };
+if (matchMedia("(hover: hover)").matches) {
+  $("tabs").onmouseover = (e) => { const link = e.target.closest(".side-link"); if (link) sideFly(link); };
+  $("tabs").onmouseleave = flyLater;
+  $("side-fly").onmouseenter = () => clearTimeout(flyTimer);
+  $("side-fly").onmouseleave = flyLater;
+}
+$("side-fly").onclick = (e) => { if (e.target.closest("a")) $("side-fly").hidden = true; };
+
+// On top of every page, like a Finder window: where the page is (section › folder › page) on the left and the search on
+// the right, which opens the Ctrl+K search under it. Then the tabs of the folder. A page redraws #view whenever it likes,
+// so they are put back each time its content changes. The phone has its own bar and search (mobile.js).
 function drawSubtabs() {
-  const view = $("view"), tab = route().tab;
-  const pages = ((NAV.find(([, , list]) => list.some(([id]) => id === tab)) || [])[2] || []).filter(([id, , hidden]) => !hidden || id === tab);
-  if (pages.length < 2 || !view.firstElementChild || view.querySelector(":scope > .subtabs")) return;
-  view.insertAdjacentHTML("afterbegin", `<nav class="subtabs">${pages.map(([id, label]) =>
+  const view = $("view"), tab = route().tab, where = navOf(tab);
+  if (!view.firstElementChild || view.querySelector(":scope > .fbar, :scope > .subtabs")) return;
+  const pages = ((where || {}).entry?.[2] || []).filter(([id, , hidden]) => !hidden || id === tab);
+  if (pages.length > 1) view.insertAdjacentHTML("afterbegin", `<nav class="subtabs">${pages.map(([id, label]) =>
     `<a class="${id === tab ? "on" : ""}" href="#/${id}">${t(label)}${badgeHtml(id)}</a>`).join("")}</nav>`);
+  if (!where || document.documentElement.classList.contains("is-phone")) return;
+  const [entry, ic, list] = where.entry, page = list.find(([id]) => id === tab);
+  view.insertAdjacentHTML("afterbegin", `<div class="fbar"><nav class="fpath"><span>${esc(t(where.section[1]))}</span>${icon("chevron")}
+    <a href="#/${list[0][0]}">${icon(list.length > 1 ? "folder" : ic)}${esc(t(entry))}</a>${page[1] !== entry ? `${icon("chevron")}<b>${icon(PAGE_ICON[tab] || ic)}${esc(t(page[1]))}</b>` : ""}</nav>
+    <button class="fsearch" type="button" data-fsearch>${icon("search")}<span>${t("Procurar no Hub")}</span><kbd>${/Mac|iP/.test(navigator.platform) ? "⌘" : "Ctrl "}K</kbd></button></div>`);
+  view.querySelector("[data-fsearch]").onclick = (e) => togglePalette(true, e.currentTarget.getBoundingClientRect());
 }
 new MutationObserver(drawSubtabs).observe($("view"), { childList: true });
 

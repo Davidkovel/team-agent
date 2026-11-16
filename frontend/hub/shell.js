@@ -389,8 +389,10 @@ function allCommands() {
   }
   return COMMANDS;
 }
-const RESULT_ICON = { person: "users", task: "tasks", project: "folder", company: "building", memory: "layers", approval: "check", activity: "history", code: "code" };
-const RESULT_LABEL = { person: "Pessoa", task: "Tarefa", project: "Projeto", company: "Empresa", memory: "Memória", approval: "Aprovação", activity: "Atividade", code: "Código" };
+const RESULT_ICON = { person: "users", task: "tasks", project: "folder", company: "building", memory: "layers", approval: "check", activity: "history", code: "code",
+  lead: "target", scan: "target", product: "bag", mail: "mail", photo: "fotos", plan: "tasks" };
+const RESULT_LABEL = { person: "Pessoa", task: "Tarefa", project: "Projeto", company: "Empresa", memory: "Memória", approval: "Aprovação", activity: "Atividade", code: "Código",
+  lead: "CRM", scan: "Radar", product: "Fábrica Etsy", mail: "E-mail", photo: "Foto", plan: "Plano" };
 let palItems = [], palIndex = 0, palTimer = null, palQuery = 0;
 
 function drawPalette(results = []) {
@@ -411,9 +413,12 @@ function runPalette(i) {
   togglePalette(false);
   if (typeof item.run === "string") location.hash = item.run; else item.run();
 }
-function togglePalette(open = $("palette").hidden) {
+// at: the rectangle of the page's search (top right, the Finder bar in app.js): the box opens over it instead of centred
+function togglePalette(open = $("palette").hidden, at = null) {
   $("palette").hidden = !open;
   if (!open) return;
+  $("palette").classList.toggle("pal-at", !!at);
+  $("palette").style.cssText = at ? `--pal-top:${Math.round(at.top)}px;--pal-right:${Math.round(innerWidth - at.right)}px` : "";
   $("palette").innerHTML = `<div class="pal-box"><div class="pal-in">${icon("search")}<input id="pal-q" placeholder="${t("Procurar ou executar um comando…")}" autocomplete="off"><kbd>Esc</kbd></div>
     <div class="pal-list" id="pal-list"></div></div>`;
   palIndex = 0;

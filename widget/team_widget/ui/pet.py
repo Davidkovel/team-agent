@@ -83,7 +83,7 @@ class Pet(QWidget):
         the next request."""
         fm_t, fm_s = QFontMetricsF(self._f_title), QFontMetricsF(self._f_sub)
         title = self.title or self.sub
-        sub = self.sub if self.title else ""
+        sub = ""   # 16 Nov: only the request, no grey line under it
         btn, gap = 30, 6
         room = W - 8 - 22 - 2 * btn - gap - 14
         text_w = min(max(fm_t.horizontalAdvance(title), fm_s.horizontalAdvance(sub)), room)
@@ -95,11 +95,11 @@ class Pet(QWidget):
         for i, a in ((3, 14), (1.5, 22)):   # a soft shadow
             p.setBrush(QColor(0, 0, 0, a))
             p.drawRoundedRect(rect.translated(0, i), BUB_H / 2, BUB_H / 2)
-        p.setPen(QPen(QColor(255, 255, 255, 200), 1))
-        p.setBrush(QColor(236, 236, 238, 242))
+        p.setPen(QPen(QColor(255, 255, 255, 26), 1))
+        p.setBrush(QColor(14, 14, 16, 240))
         p.drawRoundedRect(rect, BUB_H / 2, BUB_H / 2)
         x = rect.left() + 22
-        p.setPen(QColor("#3a3a3c"))
+        p.setPen(QColor("#f2f2f4"))
         p.setFont(self._f_title)
         ty = rect.top() + (9 if sub else (BUB_H - fm_t.height()) / 2)
         p.drawText(QRectF(x, ty, text_w, fm_t.height()), Qt.AlignLeft | Qt.AlignVCenter, fm_t.elidedText(title, Qt.ElideRight, text_w))
@@ -109,10 +109,10 @@ class Pet(QWidget):
             p.drawText(QRectF(x, ty + fm_t.height(), text_w, fm_s.height()), Qt.AlignLeft | Qt.AlignVCenter, fm_s.elidedText(sub, Qt.ElideRight, text_w))
         # ↩ open
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255, 235))
+        p.setBrush(QColor(255, 255, 255, 28))
         p.drawEllipse(self._btn_open)
         c = self._btn_open.center()
-        pen = QPen(QColor("#9a9aa0"), 1.7)
+        pen = QPen(QColor("#d8d8dc"), 1.7)
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
         p.setPen(pen)
@@ -125,9 +125,9 @@ class Pet(QWidget):
         p.drawLine(c + QPointF(-5, 1), c + QPointF(-2, 4))
         # ■ hide
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(205, 205, 210, 255))
+        p.setBrush(QColor(255, 255, 255, 230))
         p.drawEllipse(self._btn_hide)
-        p.setBrush(QColor("#5a5a60"))
+        p.setBrush(QColor("#111113"))
         p.drawRoundedRect(QRectF(self._btn_hide.center().x() - 4.5, self._btn_hide.center().y() - 4.5, 9, 9), 2, 2)
 
     # ---- drag and click

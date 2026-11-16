@@ -1554,12 +1554,17 @@ html.is-phone .wl-time { display: none; }
    um reflexo sombrio, junto com as outras peças»): a estrela grande atrás da hora e da frase do dia, quase preta, com o
    reflexo do cromado só no aro de cima a apagar-se para baixo, como se estivesse na sombra. Uma imagem parada, sem animação. */
 .inicio .in-hero.wl .wl-time { position: relative; isolation: isolate; }
-.wl-star { position: absolute; z-index: -1; top: -18px; right: 190px; width: 290px; height: 290px;
-  pointer-events: none; user-select: none; opacity: .15; filter: grayscale(1) brightness(.8) contrast(1.3) drop-shadow(0 20px 40px rgba(0, 0, 0, .8));
-  -webkit-mask-image: linear-gradient(170deg, #000 0%, rgba(0, 0, 0, .8) 40%, rgba(0, 0, 0, .45) 75%, rgba(0, 0, 0, .25) 100%);
-  mask-image: linear-gradient(170deg, #000 0%, rgba(0, 0, 0, .8) 40%, rgba(0, 0, 0, .45) 75%, rgba(0, 0, 0, .25) 100%); }
-/* 7.ª volta (David: «nem dá para perceber que é a estrela da Mercedes... um bocadinho mais visível, mas não a cena principal»):
-   a estrela direita (rodada não se reconhecia), inteira, um pouco mais clara e à esquerda da hora, para não ficar tapada. */
-.wl.ignite .wl-star { animation: wl-lamp 2s ease-out .3s both; }
-@container (max-width: 900px) { .wl-star { width: 220px; height: 220px; right: auto; left: 40%; } }
-html.is-phone .wl-star { display: none; }
+/* 8.ª volta (David: «a estrela está em cima do carro... não fica bem com o texto»): a estrela sai de trás do texto e passa a
+   ser uma peça própria, à direita da hora, inteira e sem nada por cima. Um halo preto à volta tapa o carro do fundo (fica como
+   uma sombra), e a estrela é cromado escuro com o reflexo de luz no aro de cima. */
+.inicio .in-hero.wl { grid-template-columns: minmax(0, 1fr) auto auto; }
+.inicio .wl .hero-side { grid-column: 1 / -1; }
+.wl-emblem { position: relative; align-self: start; width: 190px; height: 190px; margin: -6px -4px 0 4px; }
+.wl-emblem::before { content: ""; position: absolute; inset: -60px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, .92) 0%, rgba(0, 0, 0, .75) 55%, transparent 100%); }
+.wl-emblem img { position: relative; display: block; width: 100%; height: 100%; opacity: .42;
+  filter: grayscale(1) brightness(.75) contrast(1.35) drop-shadow(0 18px 30px rgba(0, 0, 0, .9));
+  -webkit-mask-image: linear-gradient(170deg, #000 0%, rgba(0, 0, 0, .75) 45%, rgba(0, 0, 0, .4) 100%);
+  mask-image: linear-gradient(170deg, #000 0%, rgba(0, 0, 0, .75) 45%, rgba(0, 0, 0, .4) 100%); }
+.wl.ignite .wl-emblem img { animation: wl-lamp 2s ease-out .3s both; }
+@container (max-width: 1100px) { .wl-emblem { display: none; } .inicio .in-hero.wl { grid-template-columns: minmax(0, 1fr) auto; } }

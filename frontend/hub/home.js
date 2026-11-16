@@ -111,10 +111,10 @@ function heroHtml(now, ignite) {
       <p class="wl-note" id="in-welcome"></p>
     </div>
     <div class="wl-time">
-      <img class="wl-star" src="assets/mercedes-star.svg" alt="" aria-hidden="true">
       <time id="in-clock">${clockHtml(now)}</time>
       <figure class="wl-quote"><figcaption>${t("Frase do dia")}</figcaption><blockquote>${esc(t(quoteOfDay()))}</blockquote></figure>
     </div>
+    <div class="wl-emblem" aria-hidden="true"><img src="assets/mercedes-star.svg" alt=""></div>
     <div class="hero-side"><div id="in-focus" class="in-focus"></div><div id="in-newsbar" class="in-newsbar"></div></div>
   </header>`;
 }

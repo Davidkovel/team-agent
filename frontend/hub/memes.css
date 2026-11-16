@@ -312,6 +312,49 @@ html.is-phone .mc-rank-h > span:nth-child(3), html.is-phone .mc-rank-l > span:nt
 html.is-phone .mc-big > span { font-size: 18px; }
 html.is-phone .mc-rank-d { grid-template-columns: 1fr; padding: 4px 12px 14px; }
 
+/* the brain (4.ª volta, 16 nov): the Início's sphere with the agents around it, and the plan beside */
+.mc-top { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; margin-bottom: 18px; }
+.mc-brain { padding: 16px 18px 14px; overflow: hidden; }
+.mc-net { position: relative; height: 330px; margin: 4px 0; }
+.mc-net svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mc-net line { stroke: rgba(255, 255, 255, .14); stroke-width: .35; vector-effect: non-scaling-stroke; stroke-width: 1.2; }
+.mc-net line.off { stroke: rgba(255, 255, 255, .05); stroke-dasharray: 3 4; }
+.mc-net line.on { stroke: rgba(95, 207, 140, .75); stroke-dasharray: 6 8; animation: mc-flow 1.1s linear infinite; }
+@keyframes mc-flow { to { stroke-dashoffset: -14; } }
+@media (prefers-reduced-motion: reduce) { .mc-net line.on { animation: none; } }
+.mc-core { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 170px; height: 170px; }
+.mc-node { position: absolute; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; padding: 6px 11px 6px 6px; border-radius: 999px;
+  background: rgba(14, 16, 19, .92); border: 1px solid var(--line-2); color: var(--text); text-decoration: none; white-space: nowrap; transition: border-color .2s; }
+.mc-node .mc-mono { width: 30px; height: 30px; border-radius: 50%; font-size: 9px; }
+.mc-node b { display: block; font: 650 12.5px var(--display); }
+.mc-node small { display: block; color: var(--faint); font-size: 10.5px; }
+.mc-node.live { border-color: rgba(95, 207, 140, .55); box-shadow: 0 0 18px rgba(95, 207, 140, .12); }
+.mc-node.live .mc-mono { color: var(--ok); }
+.mc-node.off { opacity: .45; }
+.mc-in { display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.mc-in small { color: var(--faint); font-size: 11.5px; white-space: nowrap; }
+.mc-in > div { display: flex; }
+.mc-in .mc-face { width: 28px; height: 28px; font-size: 11px; margin-left: -6px; box-shadow: 0 0 0 2px #0e1013; }
+.mc-in > div > span:first-child .mc-face { margin-left: 0; }
+.mc-plan ol { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.mc-plan li { display: flex; gap: 11px; padding: 8px 6px; border-radius: 10px; color: var(--faint); }
+.mc-plan li i { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 700 11px var(--display); font-style: normal;
+  border: 1px solid var(--line-2); color: var(--muted); }
+.mc-plan li b { display: block; font: 600 13px var(--ui); line-height: 1.35; }
+.mc-plan li small { display: block; margin-top: 3px; color: var(--muted); font: 400 12px/1.45 var(--ui); }
+.mc-plan li.done { color: var(--muted); }
+.mc-plan li.done i { background: var(--ok); color: #06130b; border-color: transparent; }
+.mc-plan li.now { color: var(--text); background: rgba(255, 255, 255, .04); }
+.mc-plan li.now i { background: var(--text); color: #0b0c0e; border-color: transparent; }
+.mc-xkey p { margin: 4px 0 8px; color: var(--muted); font-size: 12.5px; }
+.mc-xkey-f { display: flex; gap: 8px; max-width: 560px; }
+.mc-xkey-f input { flex: 1; }
+@media (max-width: 1180px) { .mc-top { grid-template-columns: 1fr; } }
+html.is-phone .mc-net { height: 300px; }
+html.is-phone .mc-net { height: 340px; }
+html.is-phone .mc-node { padding: 4px; }
+html.is-phone .mc-node > span:last-child { display: none; }
+
 @media (max-width: 1180px) { .mc-crew { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 html.is-phone .mc-crew { grid-template-columns: 1fr 1fr; }
 html.is-phone .mc-infs, html.is-phone .mc-said-c { grid-template-columns: 1fr; }

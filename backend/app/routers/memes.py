@@ -37,6 +37,7 @@ def _slim(t: dict) -> dict:
 def _cfg_out() -> dict:
     c = dict(BRAIN.cfg)
     c["gmgn_key"] = bool(c.get("gmgn_key"))   # the key never goes back to the page
+    c["x_key"] = bool(c.get("x_key"))
     return c
 
 
@@ -68,6 +69,8 @@ async def state(user: User = Depends(viewer)):
                               key=lambda x: -x["n"])[:20],
             "influencers": _influencers(st), "inf_posts": _inf_posts(st), "reports": st["reports"][:10], "alerts": st["alerts"][:30],
             "cg_trending": st.get("cg_trending", []), "gmgn": BRAIN.gmgn,
+            "x": {"on": bool(BRAIN.cfg.get("x_key")), "tweets": st.get("x_used", {}).get("tweets", 0),
+                  "usd": round(st.get("x_used", {}).get("tweets", 0) * 0.00015, 2), "since": st.get("x_used", {}).get("since")},
             "claude": {"installed": council.claude_exe() is not None, "today": BRAIN.claude_today()}}
 
 
@@ -89,7 +92,7 @@ def _influencers(st: dict) -> list[dict]:
             last[k] = max(last.get(k, 0), p["t"])
     for i in st["influencers"]:
         k = (i["platform"], i["handle"].lower())
-        r = READS.get(i["platform"], NOT_FREE)
+        r = ("live", "Lido de {n} em {n} min".format(n=BRAIN.cfg["x_every"])) if i["platform"] == "x" and BRAIN.cfg.get("x_key") else READS.get(i["platform"], NOT_FREE)
         out.append({**i, "last": last.get(k), "reads": r[0], "reads_txt": r[1],
                     "posts48": sum(1 for p in st["posts"] if (p.get("platform"), p["who"].lower()) == k)})
     return sorted(out, key=lambda i: -(i["last"] or 0))   # who posted last comes first
@@ -121,7 +124,7 @@ def _inf_posts(st: dict) -> list[dict]:
 async def board(user: User = Depends(viewer)):
     """Quem acerta: the influencers ranked by how their calls went 24 h later, and the calls (memes_calls.py)."""
     from ..memes_calls import board as board_of
-    return {**board_of(BRAIN.state), "agents": [{"id": k, "name": a["name"], "dept": a["dept"], **{x: BRAIN.state["runs"].get(k, {}).get(x) for x in ("at", "ok", "note")},
+    return {**board_of(BRAIN.state), "agents": [{"id": k, "name": a["name"], "dept": a["dept"], "code": a["code"], **{x: BRAIN.state["runs"].get(k, {}).get(x) for x in ("at", "ok", "note")},
                                                  "busy": BRAIN.busy == k} for k, a in AGENTS.items()],
             "claude": BRAIN.cfg["claude"], "gmgn": bool(BRAIN.gmgn and BRAIN.gmgn.get("ok")), "on": BRAIN.cfg["on"]}
 
@@ -148,6 +151,8 @@ class Cfg(BaseModel):
     gmgn_db: str | None = None
     gmgn_url: str | None = None
     gmgn_key: str | None = None
+    x_key: str | None = None
+    x_every: int | None = None
 
 
 NAME = re.compile(r"^[A-Za-z0-9_]{3,40}$")
@@ -159,7 +164,7 @@ async def cfg(body: Cfg, user: User = Depends(viewer)):
     d = body.model_dump(exclude_none=True)
     if "model" in d and d["model"] not in ("haiku", "sonnet", "opus"):
         raise HTTPException(400, "Modelo desconhecido")
-    for k, lo, hi in (("cap", 1, 40), ("every_min", 20, 1440), ("alert_score", 40, 100), ("min_liq", 0, 10_000_000)):
+    for k, lo, hi in (("x_every", 5, 240), ("cap", 1, 40), ("every_min", 20, 1440), ("alert_score", 40, 100), ("min_liq", 0, 10_000_000)):
         if k in d:
             d[k] = max(lo, min(hi, d[k]))
     for k in ("telegram", "reddit"):

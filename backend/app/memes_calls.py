@@ -106,8 +106,31 @@ class Judge:
                 if oldest[1] < _now() - DAYS * 86400 or oldest[0] <= 1:
                     h["done"] = True
                 await asyncio.sleep(0.5)
+        got += await self.x_history()
         self.collect(got)
         return len(got)
+
+    async def x_history(self) -> list[dict]:
+        """With an X key: each X influencer's tweets back to DAYS days, a few pages a pass (each page is paid: ~20 tweets)."""
+        b = self.b
+        if not b.cfg.get("x_key"):
+            return []
+        hist, got = b.state.setdefault("history", {}), []
+        async with httpx.AsyncClient(timeout=25) as c:
+            for i in [i for i in b.state["influencers"] if i["platform"] == "x"]:
+                h = hist.setdefault("x:" + i["handle"].lower(), {"before": None, "done": False})
+                for _ in range(3):
+                    if h["done"]:
+                        break
+                    try:
+                        tweets, cursor = await b.x_page(c, i["handle"], h["before"] or "")
+                    except (httpx.HTTPError, ValueError, RuntimeError):
+                        break
+                    got += [{"id": "x:" + tw["id"], "platform": "x", "who": i["handle"], "t": tw["t"], "url": tw["url"], "text": tw["text"]} for tw in tweets]
+                    h["before"] = cursor
+                    if not cursor or not tweets or min(tw["t"] for tw in tweets) < _now() - DAYS * 86400:
+                        h["done"] = True
+        return got
 
     # ---------- 2. resolve: which coin each call is about ----------
     async def resolve(self, c: httpx.AsyncClient) -> int:

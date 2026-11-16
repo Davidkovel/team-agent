@@ -79,3 +79,29 @@ def test_judge_ranks_and_counts_a_repeat_once():
     r = b["ranking"][0]
     assert r["judged"] == 6 and r["up"] == 5 and r["usd"] == 115.0   # the second $A within 24 h is the same call
     assert r["verdict"] == "Vale a pena seguir"
+
+
+def test_x_tweets_through_twitterapi(tmp_path, monkeypatch):
+    """The answer of twitterapi.io's last_tweets (its documented shape), with a fake network."""
+    import asyncio
+
+    import httpx
+    b = brain(tmp_path, monkeypatch)
+    b.cfg["x_key"] = "k"
+    b.state["influencers"].append({"platform": "x", "handle": "daniworldwide", "note": ""})
+    seen = {}
+
+    def answer(req):
+        seen["key"], seen["user"] = req.headers.get("X-API-Key"), req.url.params.get("userName")
+        return httpx.Response(200, json={"status": "success", "data": {"tweets": [
+            {"id": "1", "url": "https://x.com/daniworldwide/status/1", "text": "aping $HWAN", "createdAt": "Mon Nov 16 19:00:00 +0000 2026",
+             "author": {"userName": "daniworldwide", "name": "Dani", "profilePicture": "https://pbs.twimg.com/a.jpg"}}]}, "has_next_page": False})
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(answer)) as c:
+            return await b.x_accounts(c, [])
+    assert asyncio.run(go()) == 1
+    assert seen == {"key": "k", "user": "daniworldwide"}
+    p = b.state["posts"][0]
+    assert p["platform"] == "x" and p["tickers"] == ["HWAN"] and p["t"] == 1794855600
+    assert b.state["influencers"][0]["name"] == "Dani" and b.state["x_used"]["tweets"] == 1

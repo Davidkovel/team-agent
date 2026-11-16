@@ -57,6 +57,7 @@ DEFAULT = {
     "telegram": ["pumpfunalerts", "dexscreener_trending", "solanatrending", "memecoins", "solanadailynews", "WatcherGuru", "whale_alert_io"],
     "reddit": ["memecoins", "SolanaMemeCoins", "CryptoMoonShots", "solana", "CryptoCurrency"],
     "gmgn_db": "", "gmgn_url": "", "gmgn_key": "",
+    "x_key": "", "x_every": 15,   # twitterapi.io: the key stays on this PC (state.json), never in the database nor the page
 }
 AGENTS = {
     "robin": {"name": "Robin", "dept": "Mercado DEX", "code": "DEX", "does": "Lê a DexScreener, a GeckoTerminal e a CoinGecko: as moedas que estão a subir, com preço, volume, liquidez e compras/vendas.", "every": 180},
@@ -70,6 +71,17 @@ AGENTS = {
 
 def _now() -> float:
     return time.time()
+
+
+def _tweet_time(v) -> float:
+    """«Tue Dec 10 07:00:30 +0000 2024» (X) or an ISO date -> seconds."""
+    from datetime import datetime
+    for f in ("%a %b %d %H:%M:%S %z %Y", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z"):
+        try:
+            return datetime.strptime(str(v).replace("Z", "+0000"), f).timestamp()
+        except ValueError:
+            pass
+    return _now()
 
 
 def _utc(iso: str) -> float:
@@ -283,6 +295,7 @@ class Brain:
     async def oraculo(self, c: httpx.AsyncClient):
         n, errs = 0, []
         self.state["posts"] = [p for p in self.state["posts"] if _now() - p["t"] <= 48 * 3600]
+        n += await self.x_accounts(c, errs)
         try:  # X: Tree News relays tweets of ~2000 accounts, free (the history endpoint; the websocket is the next step)
             r = await c.get("https://news.treeofalpha.com/api/news?limit=100")
             for e in r.json() or []:
@@ -322,6 +335,50 @@ class Brain:
                 errs.append(f"r/{sub}: {type(e).__name__}")
             await asyncio.sleep(0.6)
         self.run_mark("oraculo", len(errs) < 5, n, f"{n} publicações novas com moedas" + (f"; falharam: {', '.join(errs[:3])}" if errs else ""))
+
+    # ---------- X through twitterapi.io (paid, ~0.15 $ per 1000 tweets read) ----------
+    X_API = "https://api.twitterapi.io/twitter/user/last_tweets"
+
+    async def x_page(self, c: httpx.AsyncClient, handle: str, cursor: str = "") -> tuple[list[dict], str]:
+        """One page (~20) of an account's latest tweets: ([{id, text, url, t}], next cursor). Counts what was read, for the cost."""
+        r = await c.get(self.X_API, params={"userName": handle, **({"cursor": cursor} if cursor else {})},
+                        headers={"X-API-Key": self.cfg["x_key"]}, timeout=25)
+        if r.status_code in (401, 403):
+            raise RuntimeError("a chave do X foi recusada")
+        r.raise_for_status()
+        j = r.json()
+        d = j.get("data") if isinstance(j.get("data"), dict) else j
+        out = []
+        for tw in d.get("tweets") or []:
+            a = tw.get("author") or {}
+            if a.get("userName", "").lower() == handle.lower():
+                inf = self._influencer("x", handle)
+                if inf:
+                    inf["name"], inf["avatar"] = a.get("name") or inf.get("name"), a.get("profilePicture") or inf.get("avatar")
+            out.append({"id": str(tw.get("id")), "text": tw.get("text") or "", "url": tw.get("url") or f"https://x.com/{handle}/status/{tw.get('id')}",
+                        "t": _tweet_time(tw.get("createdAt"))})
+        x = self.state.setdefault("x_used", {"tweets": 0, "since": _now()})
+        x["tweets"] += len(out)
+        return out, (j.get("next_cursor") or d.get("next_cursor") or "") if (j.get("has_next_page") or d.get("has_next_page")) else ""
+
+    async def x_accounts(self, c: httpx.AsyncClient, errs: list) -> int:
+        """The team's influencers on X, each every x_every minutes, when there is a key."""
+        if not self.cfg.get("x_key"):
+            return 0
+        last, n = self.state.setdefault("x_last", {}), 0
+        for i in [i for i in self.state["influencers"] if i["platform"] == "x"]:
+            h = i["handle"]
+            if _now() - last.get(h.lower(), 0) < self.cfg["x_every"] * 60:
+                continue
+            try:
+                tweets, _ = await self.x_page(c, h)
+            except (httpx.HTTPError, ValueError, RuntimeError) as e:
+                errs.append(f"X @{h}: {e if isinstance(e, RuntimeError) else type(e).__name__}")
+                continue
+            last[h.lower()] = _now()
+            for tw in tweets:
+                n += self._post("x:" + tw["id"], "X", h, tw["text"], tw["url"], tw["t"], "x")
+        return n
 
     def _channel_face(self, ch: str, page: str):
         """The name and the photo of an influencer's Telegram channel, for the page (a face reads faster than a handle)."""

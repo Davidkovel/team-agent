@@ -7,7 +7,7 @@
 // (Resumo, Moedas, Redes sociais, Agentes, the NAV entry's pages), the Resumo says in one sentence what is going on, every
 // coin gets a verdict in words (Forte, A ganhar força, Fraca, Ignorar, Perigo) and every term is explained in plain words.
 (function () {
-  let S = null, B = null, timer = 0, view = "quem", filter = "todas";
+  let S = null, B = null, P = [], timer = 0, view = "quem", filter = "todas";
   const loc = (v, d = 0) => Number(v).toLocaleString("pt-PT", { minimumFractionDigits: d, maximumFractionDigits: d });
   const usd = (v) => (v == null ? "—" : v >= 1e9 ? `${loc(v / 1e9, 1)} mil M$` : v >= 1e6 ? `${loc(v / 1e6, 1)} M$` : v >= 1e3 ? `${loc(v / 1e3, 0)} mil $` : `${loc(v, 0)} $`);
   const price = (v) => (v == null ? "—" : v >= 1 ? `${loc(v, 2)} $` : v > 0 ? `${Number(v).toPrecision(3)} $` : "0 $");
@@ -55,7 +55,8 @@
   }
 
   async function load(first) {
-    [S, B] = await Promise.all([api("/api/memes/state"), view === "quem" || view === "calls" ? api("/api/memes/board") : Promise.resolve(B)]);
+    [S, B, P] = await Promise.all([api("/api/memes/state"), view === "quem" || view === "calls" ? api("/api/memes/board") : Promise.resolve(B),
+      view === "quem" ? api("/api/plans").catch(() => []) : Promise.resolve(P)]);
     paintCtl();
     const typing = $("mc-body").querySelector("input:focus, textarea:focus, select:focus, details[open]");
     if (first || !typing) ({ quem, calls: callsView, moedas, agentes })[view]();
@@ -103,10 +104,48 @@
     return `<div class="mc-crewbar">${B.agents.map((a) => { const st = state(a); return `<a href="#/meme-agentes" class="${st[0]}" title="${esc(a.dept)}: ${esc(a.note || st[1])}"><span class="st ${st[0]}"><i></i></span>${esc(a.name)}<small>${esc(st[1])}</small></a>`; }).join("")}</div>`;
   }
 
+  // 16 nov, Marco (4.ª volta): «aquele cérebro que a gente já tem do agente, uma bola com neurónios a funcionar... cria um das
+  // memecoins com os agentes interligados». The same sphere as the Início (brainHtml/brainStart in home.js) in the middle, the six
+  // agents around it, each joined by a line that runs while the agent works, the influencers below as what goes in, and the
+  // team's plan (scripts/plano.py, «Memecoins: do vigiar ao dinheiro») beside it, with the step we are on.
+  const RING = [["oraculo", -90], ["robin", -30], ["lucius", 30], ["arbitro", 90], ["batman", 150], ["gmgn", 210]];
+  function brainHero() {
+    const now = Date.now() / 1000, live = (a) => a.busy || (a.ok && a.at && now - a.at < 150);
+    const at = (deg, r = 39) => [50 + r * Math.cos(deg * Math.PI / 180), 50 + r * Math.sin(deg * Math.PI / 180)];
+    const nodes = RING.map(([id, deg]) => [B.agents.find((a) => a.id === id), ...at(deg)]).filter((n) => n[0]);
+    const work = B.agents.some((a) => a.busy);
+    const infs = S.influencers.slice(0, 8);
+    return `<div class="mc-top">
+      <section class="panel mc-brain">
+        <div class="pn-card-h">${esc(t("O cérebro"))}<small>${esc(work ? t("a pensar agora") : t("a vigiar"))}</small></div>
+        <div class="mc-net">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${nodes.map(([a, x, y]) => `<line x1="50" y1="50" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="${live(a) ? "on" : state(a)[0] === "off" ? "off" : ""}"/>`).join("")}</svg>
+          <div class="mc-core">${typeof brainHtml === "function" ? brainHtml(work ? "work" : "on", 170) : ""}</div>
+          ${nodes.map(([a, x, y]) => { const st = state(a); return `<a class="mc-node ${st[0]} ${live(a) ? "live" : ""}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" href="#/meme-agentes" title="${esc(a.note || "")}">
+            <span class="mc-mono">${esc(a.code || a.id.slice(0, 3).toUpperCase())}</span><span><b>${esc(a.name)}</b><small>${esc(st[0] === "busy" ? t("a trabalhar") : st[1])}</small></span></a>`; }).join("")}
+        </div>
+        ${infs.length ? `<div class="mc-in"><small>${esc(t("Entram no cérebro"))}</small><div>${infs.map((i) => `<span title="${esc(i.name || "@" + i.handle)}">${face(i)}</span>`).join("")}</div></div>` : ""}
+      </section>
+      ${planCard()}
+    </div>`;
+  }
+
+  function planCard() {
+    const p = (P || []).find((x) => /^Memecoins/i.test(x.title) && x.status !== "done");
+    if (!p) return "";
+    const cur = p.steps.findIndex((s) => !s.done);
+    return `<section class="panel pad mc-plan">
+      <div class="pn-card-h">${esc(t("O plano para começar a ganhar"))}<small>${esc(cur < 0 ? t("tudo feito") : t("passo {n} de {m}", { n: cur + 1, m: p.steps.length }))}</small></div>
+      <ol>${p.steps.map((s, i) => { const [head, ...rest] = s.text.split(":"); return `<li class="${s.done ? "done" : i === cur ? "now" : ""}">
+        <i>${s.done ? "✓" : i + 1}</i><span><b>${esc(head)}</b>${i === cur && rest.length ? `<small>${esc(rest.join(":").trim())}</small>` : ""}</span></li>`; }).join("")}</ol>
+      <a class="mc-more" href="#/escritorio">${esc(t("O plano está no Escritório"))} ›</a>
+    </section>`;
+  }
+
   function quem() {
     const R = B.ranking.filter((r) => r.calls || true), lead = R.find((r) => r.judged >= 5 && r.usd > 0);
     const judged = R.reduce((a, r) => a + r.judged, 0);
-    paint($("mc-body"), `${crew()}
+    paint($("mc-body"), `${brainHero()}
       ${lead ? `<section class="panel mc-lead-c">
           <span class="mc-lead-k">${esc(t("O melhor a seguir agora"))}</span>
           <div class="mc-lead-w">${face(lead, true)}<div><b>${esc(lead.name || "@" + lead.handle)}</b><small>${esc(PLAT[lead.platform] || lead.platform)}</small></div></div>
@@ -126,6 +165,7 @@
         ${R.map((r, n) => row(r, n)).join("")}
       </section>
       <p class="mc-foot">${esc(t("Como contamos: compra ao preço da hora do call, venda 24 horas depois, sem taxas. Ninguém comprou nada: é só para comparar quem acerta."))}</p>`);
+    if (typeof brainStart === "function") brainStart();
   }
 
   function row(r, n) {
@@ -280,6 +320,11 @@
       <label>${esc(t("Batman: um relatório a cada (minutos)"))}<input name="every_min" type="number" min="20" max="1440" value="${c.every_min}"></label>
       <label>${esc(t("Batman: máximo por dia"))}<input name="cap" type="number" min="1" max="40" value="${c.cap}"></label>
       <label class="mc-chk"><input type="checkbox" name="alerts" ${c.alerts ? "checked" : ""}>${esc(t("Mandar avisos"))}</label>
+      <div class="mc-wide mc-xkey"><b>${esc(t("X (Twitter)"))}</b>
+        <p>${esc(S.x.on ? t("Ligado: lê as contas do X dos nossos influencers de {m} em {m} minutos. Já leu {n} tweets (≈ {u} $).", { m: c.x_every, n: S.x.tweets, u: loc(S.x.usd, 2) })
+          : t("Para ler as contas do X: cria conta em twitterapi.io, põe 5 $ de crédito, copia a «API Key» e cola aqui. Custa cerca de 0,15 $ por cada 1000 tweets lidos."))}</p>
+        <div class="mc-xkey-f"><input id="mc-xkey" type="password" autocomplete="off" placeholder="${esc(S.x.on ? t("chave guardada · cola outra para trocar") : t("cola aqui a API Key"))}">
+          <button type="button" class="btn sm primary" data-act="xkey">${esc(t("Guardar"))}</button>${S.x.on ? `<button type="button" class="btn sm quiet" data-act="xoff">${esc(t("Tirar a chave"))}</button>` : ""}</div></div>
       <details class="mc-det mc-wide"><summary>${esc(t("Fontes avançadas: canais do Telegram, comunidades do Reddit, modelo do Claude"))}</summary>
         <div class="mc-cfg-adv">
           <label>${esc(t("Canais do Telegram (públicos)"))}<textarea name="telegram" rows="3">${esc(c.telegram.join(", "))}</textarea></label>
@@ -351,6 +396,13 @@
       if (!b) return;
       b.disabled = true;
       try {
+        if (b.dataset.act === "xkey" || b.dataset.act === "xoff") {
+          const v = b.dataset.act === "xoff" ? "" : $("mc-xkey").value.trim();
+          if (b.dataset.act === "xkey" && v.length < 10) throw new Error(t("Cola a chave inteira."));
+          await api("/api/memes/cfg", { method: "POST", body: { x_key: v } });
+          msg(v ? t("Chave guardada. O Oráculo lê o X na próxima volta (até 5 minutos).") : t("Chave tirada."));
+          await load(true);
+        }
         if (b.dataset.act === "toggle") { S.cfg = (await api("/api/memes/cfg", { method: "POST", body: { on: !S.cfg.on } })).cfg; paintCtl(); }
         if (b.dataset.act === "claude") { S.cfg = (await api("/api/memes/cfg", { method: "POST", body: { claude: !S.cfg.claude } })).cfg; agentes(); }
         if (b.dataset.act === "run") {

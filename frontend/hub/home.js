@@ -73,15 +73,20 @@ const WELCOME = { morning: "Que bom ver-te por cá. Um café e vamos a isso.", a
 function heroHtml(now, ignite) {
   const date = now.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   const part = partOfDay(now.getHours());
+  // 2.ª volta (David: «sem quadrado nenhum, sem divisão, só espaço livre e texto... estilo Mercedes AMG, uns faróis mal
+  // visíveis»): sem cartão. Letras cromadas no fundo da página e um risco de luz como a assinatura LED de um farol, que acende
+  // ao entrar.
   return `<header class="in-hero wl wl-${part} ${ignite ? "ignite" : ""}">
+    <div class="wl-lamp" aria-hidden="true"><i></i></div>
     <div class="hero-copy">
-      <div class="wl-hi">${esc(t(WELCOME[part]))}</div>
-      <h1>${esc(t(greetingOf(now.getHours())))}, <em>${esc(me.display_name)}</em></h1>
+      <div class="wl-eyebrow"><span class="wl-stripes"></span>${esc(date[0].toUpperCase() + date.slice(1))}</div>
+      <h1><span>${esc(t(greetingOf(now.getHours())))},</span> <em>${esc(me.display_name)}</em></h1>
+      <i class="wl-beam" aria-hidden="true"></i>
+      <p class="wl-hi">${esc(t(WELCOME[part]))}</p>
       <p class="wl-note" id="in-welcome"></p>
     </div>
     <div class="wl-time">
       <time id="in-clock">${fmt.hhmm(now.toISOString())}</time>
-      <p class="hero-date">${esc(date[0].toUpperCase() + date.slice(1))}</p>
       <q class="wl-quote">${esc(t(quoteOfDay()))}</q>
     </div>
     <div class="hero-side"><div id="in-focus" class="in-focus"></div><div id="in-newsbar" class="in-newsbar"></div></div>

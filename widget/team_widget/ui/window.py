@@ -261,8 +261,26 @@ def glow_disc(p: QPainter, centre: QPointF, rx: float, ry: float, colour: str, a
 
 
 def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
-    """The Mercedes star (vector, chrome) in `rect`."""
+    """The mark (the AMG robot since 16 Nov) in `rect`. While a widget builds its cached face (_LIVE set), only the shadow
+    goes into it and the place is noted: the robot is drawn alive on top at every frame (badge.mascot_live)."""
+    if _LIVE is not None:
+        _LIVE.append(p.transform().mapRect(rect))
+        return
     badge.star(p, rect, opacity, shadow)
+
+
+_LIVE: list | None = None
+
+
+def live_mascot(widget, p: QPainter):
+    """Draws the robot where the face noted it, and keeps ~11 frames a second going while the widget is shown."""
+    import time
+    for r in getattr(widget, "_mascot_at", ()):
+        badge.mascot_live(p, r, time.monotonic())
+    if not hasattr(widget, "_mascot_tick"):
+        widget._mascot_tick = QTimer(widget)
+        widget._mascot_tick.timeout.connect(lambda: [widget.update(r.toAlignedRect().adjusted(-8, -10, 8, 8)) for r in getattr(widget, "_mascot_at", ())] if widget.isVisible() else None)
+        widget._mascot_tick.start(90)
 
 
 GLASS_ROOM = ASSETS / "c63s-black.jpg"   # 29 Oct: a black C63 S lit from the front on an all-black stage (David: «minimalista», «só o carro a aparecer mais desfocado»)
@@ -1889,7 +1907,7 @@ class Orb(QWidget):
     click elsewhere opens the central; dragging moves the card and nothing else. It reads the same on any wallpaper.
 
     It paints a cached face and only repaints when the minute, a figure, the line or the count changes, or under the mouse."""
-    PAD, STAR, RADIUS, M = 8, 46, 22, 14
+    PAD, STAR, RADIUS, M = 8, 60, 22, 14
     CHIP_H, CHIP_GAP, PER_ROW = 20, 4, 4
     X0 = PAD + STAR + 10      # where the right column (chips, time, badge) begins
     on_icon = None            # the window: what a click on a chip does
@@ -2176,7 +2194,12 @@ class Orb(QWidget):
         key = (self.devicePixelRatioF(), now, datetime.now().day, self.line, self.line_colour, self._count, self.CW, self.CH,
                self._hot, tuple((k, tuple(g.arcs), g.value, tuple(g.segments or ()), g.ink) for k, g in self.items))
         if self._face_key != key:
-            self._face, self._face_key = self._build_face(now), key
+            global _LIVE
+            _LIVE = []
+            try:
+                self._face, self._face_key = self._build_face(now), key
+            finally:
+                self._mascot_at, _LIVE = _LIVE, None
         p = QPainter(self)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.setRenderHint(QPainter.Antialiasing)
@@ -2187,6 +2210,7 @@ class Orb(QWidget):
         p.scale(s, s)
         p.translate(-c)
         p.drawPixmap(0, 0, self._face)
+        live_mascot(self, p)
 
 
 class StarOrb(Orb):
@@ -2195,7 +2219,7 @@ class StarOrb(Orb):
     chips drop down under it in a column of clear glass, the star lights up, and they go again a moment after the
     mouse leaves them. The mouse is read on a timer from the cursor, not only from enter/leave events: those were
     missed now and then on a translucent window («nem sempre funciona»)."""
-    STAR, PAD, M = 30, 4, 10
+    STAR, PAD, M = 42, 4, 10
     CHIP_H, CHIP_GAP, GAP = 22, 5, 8   # chip; between chips; between the star and the first chip
 
     def __init__(self, on_click):
@@ -2338,7 +2362,10 @@ class StarOrb(Orb):
         q = QPainter(layer)
         q.setRenderHint(QPainter.Antialiasing)
         q.setRenderHint(QPainter.SmoothPixmapTransform)
-        paint_star(q, QRectF(6, 6, sr.width(), sr.height()), shadow=True)
+        if _LIVE is not None:   # the robot is drawn alive over the face (live_mascot)
+            _LIVE.append(p.transform().mapRect(sr))
+        else:
+            paint_star(q, QRectF(6, 6, sr.width(), sr.height()), shadow=True)
         q.setCompositionMode(QPainter.CompositionMode_SourceAtop)
         q.fillRect(QRectF(0, 0, sr.width() + 12, sr.height() + 12), QColor(14, 15, 18, round(95 * (1 - 0.7 * self._reveal))))
         q.end()

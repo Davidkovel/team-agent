@@ -6,8 +6,8 @@ scripts/make_badge.py renders the same AMG badge for the Hub (frontend/assets/am
 """
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPen
 from PySide6.QtSvg import QSvgRenderer
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
@@ -98,4 +98,50 @@ def star(p: QPainter, rect: QRectF, opacity: float = 1.0, shadow: bool = False):
     p.setRenderHint(QPainter.Antialiasing)
     p.setOpacity(p.opacity() * opacity)
     _svg(MARK).render(p, rect)
+    p.restore()
+
+
+def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0):
+    """The robot alive (16 Nov, David: «интерактивнее, в движении, маленькими шагами»): it steps in place, little hops
+    with a sway from foot to foot, blinks now and then, and the antenna tip breathes. The robot itself is one cached
+    image per size, so a frame is a drawImage and three small shapes: cheap enough for ~11 frames a second."""
+    import math
+    dpr = p.device().devicePixelRatioF() if p.device() else 1.0
+    key = ("robot", round(rect.width(), 1), round(dpr, 2))
+    if key not in _images:
+        img = QImage(max(1, round(rect.width() * dpr)), max(1, round(rect.height() * dpr)), QImage.Format_ARGB32_Premultiplied)
+        img.setDevicePixelRatio(dpr)
+        img.fill(Qt.transparent)
+        q = QPainter(img)
+        q.setRenderHint(QPainter.Antialiasing)
+        _svg(MARK).render(q, QRectF(0, 0, rect.width(), rect.height()))
+        q.end()
+        _images[key] = img
+    k = rect.width() / 100.0
+    phase = (t / 0.85) % 1.0                     # one step every 0.425 s, left foot then right
+    hop = abs(math.sin(math.pi * 2 * phase)) * 3.2 * k
+    tilt = math.sin(math.pi * 2 * phase) * 4.0
+    p.save()
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.setOpacity(p.opacity() * opacity)
+    p.translate(rect.left() + 50 * k, rect.top() + 93 * k - hop)
+    p.rotate(tilt)
+    p.translate(-50 * k, -93 * k)
+    p.drawImage(QRectF(0, 0, rect.width(), rect.height()), _images[key])
+    # the antenna tip breathes
+    pulse = 0.5 + 0.5 * math.sin(t * 3.1)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(255, 58, 42, round(40 + 90 * pulse)))
+    p.drawEllipse(QRectF((50 - 4 - 3 * pulse) * k, (7 - 4 - 3 * pulse) * k, (8 + 6 * pulse) * k, (8 + 6 * pulse) * k))
+    # a blink every few seconds (a double one now and then)
+    b = t % 4.3
+    if b < 0.14 or 0.32 < b < 0.44 and int(t / 4.3) % 3 == 0:
+        p.setBrush(QColor(8, 8, 10))
+        p.drawRoundedRect(QRectF(26 * k, 27 * k, 48 * k, 22 * k), 9 * k, 9 * k)
+        pen = QPen(QColor("#ff4433"), 3.0 * k)
+        pen.setCapStyle(Qt.RoundCap)
+        p.setPen(pen)
+        p.drawLine(QPointF(33 * k, 39 * k), QPointF(45 * k, 39 * k))
+        p.drawLine(QPointF(55 * k, 39 * k), QPointF(67 * k, 39 * k))
     p.restore()

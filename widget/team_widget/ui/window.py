@@ -2524,6 +2524,7 @@ class WidgetWindow(QWidget):
         self.punched.connect(self._punched)
         self.notices = Notices(self._open_notice)  # the black card that says a task was sent
         self.news.connect(self.notices.push)
+        self.news.connect(lambda items: self.pet.alert(items) if hasattr(self, "pet") else None)   # the car calls until clicked
         self.presence = Presence(self)  # the corner card that says a teammate came online
         self._online_seen = None
         self._work_seen = None      # user -> the task they are working on (None when not working), as last seen
@@ -2569,7 +2570,7 @@ class WidgetWindow(QWidget):
         self.orb.on_icon = self._gauge_clicked
         self.orb.on_drag = self._hide_spot
         from .pet import Pet   # 16 Nov: the big pixel robot over every window, like the ChatGPT pets
-        self.pet = Pet(self.expand)
+        self.pet = Pet(self.expand, self._open_notice)   # 16 Nov, Marco: our own little AMG, not a copy of the ChatGPT pet
         self.pet.show()
         app = QApplication.instance()   # the gauges' lines show in a dark glass tooltip, like the card
         if app is not None and "QToolTip" not in app.styleSheet():
@@ -3221,6 +3222,8 @@ class WidgetWindow(QWidget):
         self.setFixedSize(size)
         self.move(x, y)
         self.orb.hide()   # the window draws the face itself while it grows
+        if hasattr(self, "pet"):
+            self.pet.leave()   # the central opens: the little car drives away
         QToolTip.hideText()
         self.panel.layout().activate()
         fresh = (self._snap_ready is not None and time.monotonic() - self._snap_at < SNAP_KEEP
@@ -3311,6 +3314,8 @@ class WidgetWindow(QWidget):
             self.orb.fade = 1.0
             self._layout_orb(face)
             self.orb.show()
+            if hasattr(self, "pet"):
+                self.pet.arrive()   # the central closed: the car drops back in
         self.update()
 
     def _cascade_in_done(self):

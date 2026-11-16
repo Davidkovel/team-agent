@@ -1554,10 +1554,12 @@ html.is-phone .wl-time { display: none; }
    um reflexo sombrio, junto com as outras peças»): a estrela grande atrás da hora e da frase do dia, quase preta, com o
    reflexo do cromado só no aro de cima a apagar-se para baixo, como se estivesse na sombra. Uma imagem parada, sem animação. */
 .inicio .in-hero.wl .wl-time { position: relative; isolation: isolate; }
-.wl-star { position: absolute; z-index: -1; top: -14px; right: 40px; width: 290px; height: 290px; transform: rotate(-8deg);
-  pointer-events: none; user-select: none; opacity: .11; filter: grayscale(1) brightness(.7) contrast(1.25) drop-shadow(0 20px 40px rgba(0, 0, 0, .8));
-  -webkit-mask-image: linear-gradient(165deg, #000 0%, rgba(0, 0, 0, .55) 38%, rgba(0, 0, 0, .12) 70%, transparent 92%);
-  mask-image: linear-gradient(165deg, #000 0%, rgba(0, 0, 0, .55) 38%, rgba(0, 0, 0, .12) 70%, transparent 92%); }
+.wl-star { position: absolute; z-index: -1; top: -18px; right: 190px; width: 290px; height: 290px;
+  pointer-events: none; user-select: none; opacity: .15; filter: grayscale(1) brightness(.8) contrast(1.3) drop-shadow(0 20px 40px rgba(0, 0, 0, .8));
+  -webkit-mask-image: linear-gradient(170deg, #000 0%, rgba(0, 0, 0, .8) 40%, rgba(0, 0, 0, .45) 75%, rgba(0, 0, 0, .25) 100%);
+  mask-image: linear-gradient(170deg, #000 0%, rgba(0, 0, 0, .8) 40%, rgba(0, 0, 0, .45) 75%, rgba(0, 0, 0, .25) 100%); }
+/* 7.ª volta (David: «nem dá para perceber que é a estrela da Mercedes... um bocadinho mais visível, mas não a cena principal»):
+   a estrela direita (rodada não se reconhecia), inteira, um pouco mais clara e à esquerda da hora, para não ficar tapada. */
 .wl.ignite .wl-star { animation: wl-lamp 2s ease-out .3s both; }
 @container (max-width: 900px) { .wl-star { width: 220px; height: 220px; right: auto; left: 40%; } }
 html.is-phone .wl-star { display: none; }

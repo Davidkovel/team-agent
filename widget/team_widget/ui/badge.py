@@ -117,16 +117,42 @@ def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0):
         _svg(MARK).render(q, QRectF(0, 0, rect.width(), rect.height()))
         q.end()
         _images[key] = img
-    k = rect.width() / 100.0
-    phase = (t / 0.85) % 1.0                     # one step every 0.425 s, left foot then right
-    hop = abs(math.sin(math.pi * 2 * phase)) * 3.2 * k
-    tilt = math.sin(math.pi * 2 * phase) * 4.0
+    # 16 Nov, 2nd pass (David: «меньше; когда нет движения, чтобы прыгал как обезьяна»): drawn at 84% of the rect,
+    # standing on its floor, so the jumps have air above. A 5.2 s cycle: 3 s of calm breathing, then a monkey burst:
+    # crouch, three bouncy hops from side to side with squash and stretch, and a little landing wobble.
+    k = rect.width() / 100.0 * 0.84
+    ox, floor = rect.left() + rect.width() / 2, rect.bottom() - 1
+    c = t % 5.2
+    dx = hop = tilt = 0.0
+    sx = sy = 1.0
+    if c < 3.0:                                   # calm: breathing, a slow sway
+        sy = 1 + 0.015 * math.sin(c * 2.6)
+        sx = 2 - sy
+        tilt = 2.0 * math.sin(c * 1.4)
+    elif c < 3.25:                                # the crouch before the jump
+        u = (c - 3.0) / 0.25
+        sy, sx = 1 - 0.14 * math.sin(math.pi * u / 2), 1 + 0.10 * math.sin(math.pi * u / 2)
+    elif c < 4.75:                                # three monkey hops, left, right, left
+        n, u = divmod((c - 3.25) / 0.5, 1.0)
+        side = (-1, 1, -1)[int(n)]
+        hop = math.sin(math.pi * u) * 11 * k
+        dx = side * math.sin(math.pi * u) * 6 * k
+        tilt = side * 14 * math.sin(math.pi * u)
+        st = math.sin(math.pi * u)
+        sy, sx = 1 + 0.08 * st, 1 - 0.06 * st     # stretched in the air
+        if u < 0.12 or u > 0.88:                  # squashed on the ground
+            sy, sx = 0.9, 1.08
+    else:                                         # landing wobble
+        u = (c - 4.75) / 0.45
+        tilt = 6 * math.sin(u * math.pi * 3) * (1 - u)
     p.save()
     p.setRenderHint(QPainter.Antialiasing)
     p.setRenderHint(QPainter.SmoothPixmapTransform)
     p.setOpacity(p.opacity() * opacity)
-    p.translate(rect.left() + 50 * k, rect.top() + 93 * k - hop)
+    p.translate(ox + dx, floor - hop)
     p.rotate(tilt)
+    p.scale(sx * 0.84, sy * 0.84)
+    k = rect.width() / 100.0
     p.translate(-50 * k, -93 * k)
     p.drawImage(QRectF(0, 0, rect.width(), rect.height()), _images[key])
     # the antenna tip breathes

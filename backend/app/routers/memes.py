@@ -117,6 +117,15 @@ def _inf_posts(st: dict) -> list[dict]:
     return out
 
 
+@router.get("/board")
+async def board(user: User = Depends(viewer)):
+    """Quem acerta: the influencers ranked by how their calls went 24 h later, and the calls (memes_calls.py)."""
+    from ..memes_calls import board as board_of
+    return {**board_of(BRAIN.state), "agents": [{"id": k, "name": a["name"], "dept": a["dept"], **{x: BRAIN.state["runs"].get(k, {}).get(x) for x in ("at", "ok", "note")},
+                                                 "busy": BRAIN.busy == k} for k, a in AGENTS.items()],
+            "claude": BRAIN.cfg["claude"], "gmgn": bool(BRAIN.gmgn and BRAIN.gmgn.get("ok")), "on": BRAIN.cfg["on"]}
+
+
 @router.get("/token")
 async def token(key: str, user: User = Depends(viewer)):
     t = BRAIN.state["tokens"].get(key)

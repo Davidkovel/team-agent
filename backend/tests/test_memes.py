@@ -63,3 +63,19 @@ def test_post_gets_its_coin_and_the_price_then(tmp_path, monkeypatch):
     assert list(by_id["tg:dippy/1"]["coins"]) == [t["key"]] and by_id["tg:dippy/1"]["coins"][t["key"]]["p0"] == 0.01
     assert "tg:dippy/2" not in by_id and by_id["tg:dippy/3"]["coins"] == {}
     assert memes._utc("2026-11-16T19:54:34+00:00") == 1794858874
+
+
+def test_judge_ranks_and_counts_a_repeat_once():
+    from app.memes_calls import board, call_refs
+    assert call_refs("buy $HWAN and $NVDA and $SOL")[1] == ["HWAN"]   # shares and majors are no calls
+    coin = lambda k: {"key": k, "symbol": k, "name": k, "image": None, "url": "", "chain": "solana"}
+    t0 = 1_790_000_000
+    calls = {}
+    for n, (k, dt, r) in enumerate([("A", 0, 50.0), ("A", 3600, -90.0), ("B", 90000, -20.0), ("C", 200000, 30.0), ("D", 300000, 10.0),
+                                     ("E", 400000, 5.0), ("F", 500000, 40.0)]):
+        calls[str(n)] = {"id": str(n), "platform": "telegram", "who": "dippy_calls", "url": "", "text": "", "t": t0 + dt, "how": "ticker",
+                         "coin": coin(k), "r24": r, "done": True}
+    b = board({"influencers": [{"platform": "telegram", "handle": "dippy_calls"}], "calls": calls})
+    r = b["ranking"][0]
+    assert r["judged"] == 6 and r["up"] == 5 and r["usd"] == 115.0   # the second $A within 24 h is the same call
+    assert r["verdict"] == "Vale a pena seguir"

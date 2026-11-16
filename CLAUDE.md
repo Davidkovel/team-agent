@@ -597,18 +597,19 @@ Armadilhas que custaram tempo:
 memecoins, até a dormir.» `#/memes`, a **primeira entrada de 04 · Trading** (`frontend/hub/memes.js` + `.css`), `/api/memes`
 (`routers/memes.py`), motor `backend/app/memes.py`, testes `tests/test_memes.py`. **Por agora só vigia e dá nota: não compra
 nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada vai por sync; os avisos vão para a pessoa do PC.
-- **A página são quatro separadores** (16 nov, Marco sobre a 1.ª versão, uma página comprida: «está tudo baralhado... tenho de
-  mostrar aos comparsas... uma pessoa que não percebe nada de trading»): **Resumo** (`#/memes`: a frase do momento, o mostrador
-  da melhor nota, Fortes/A ganhar força/Fracas/Perigo, as 6 melhores em cartões, «Como ler isto»), **Moedas** (`#/meme-moedas`,
-  tabela com filtros), **Redes sociais** (`#/meme-redes`, publicações e influencers) e **Agentes** (`#/meme-agentes`, cartões,
-  relatórios do Batman, Motor GMGN, regras). Cada moeda tem um veredicto em palavras (`verdict` no `memes.js`: ≥ 75 Forte,
-  ≥ 55 A ganhar força, ≥ 35 Fraca, abaixo Ignorar; perigo ou alerta vermelho = Perigo) e os termos vêm em português simples
-  («Dinheiro na pool» = liquidez, «Tamanho» = capitalização). Novos textos seguem esta regra: palavras antes de números.
-- **O Resumo conta a história dos influencers** (2.ª volta, 16 nov, Marco: «sempre que mandam um post aparece a moeda de que
-  estão a falar... uma criança tinha de perceber»): os agentes agora (uma frase cada), os nossos influencers (cara, nome, quando
-  publicaram, como os lemos) e «O que disseram»: cada publicação com a moeda por baixo (veredicto, «desde que falou», pool, idade).
-  `link_posts()` liga cada publicação às moedas (endereços, senão o cashtag da moeda com mais liquidez) e guarda o preço da
-  primeira vez que os viu juntos; se o agente só a viu > 15 min depois, a página diz «desde que o vimos» (`late`).
+- **A página é uma pergunta: «quem acerta?»** (3.ª volta, 16 nov, Marco: «uma análise a cada dia, se os calls eram positivos ou
+  negativos, para ver se vale a pena seguir... encontrar os melhores... empresários têm de perceber»; as voltas antes, uma página
+  comprida e depois um Resumo com publicações, foram «baralhadas»). Separadores: **Quem acerta** (`#/memes`: os agentes numa
+  linha, o melhor a seguir, e o ranking: uma linha por influencer com o veredicto, os últimos calls em bolinhas e um número grande
+  «100 $ em cada call»; clicar abre o dia a dia e os últimos calls), **Calls** (`#/meme-calls`), **Moedas** e **Agentes**.
+  Poucas palavras, números grandes. Cada moeda tem veredicto em palavras (`verdict` no `memes.js`).
+- **O Árbitro (Alfred)**, `backend/app/memes_calls.py`, `GET /api/memes/board`: um call = publicação de um influencer da equipa com
+  um contrato (certo) ou um $TICKER (a moeda com mais liquidez com esse nome que já existia na hora do post). Lê o Telegram para
+  trás até 30 dias (`t.me/s/<canal>?before=<id>`), preço na hora do call pela vela de 15 min e as 24 h seguintes pelas velas de
+  1 h da GeckoTerminal (grátis, ~30 pedidos/min: num 429 pára e continua na volta seguinte; ~2 a 14 preços por volta de 5 min).
+  Resultado = preço 24 h depois / preço do call − 1; «100 $ em cada call» soma os resultados. A mesma moeda dita outra vez pela
+  mesma pessoa em < 24 h é o mesmo call. Veredicto com ≥ 5 julgados: ≥ 55% a subir e saldo > 0 «Vale a pena seguir», saldo < 0 e
+  < 45% «Não vale a pena», senão «A observar». Testes em `tests/test_memes.py`.
 - **A lista de influencers é da equipa**: `MarketItem` com `kind="meme_inf"` e `symbol="<rede>:<nome>"`, por isso vai por sync
   (`sync_influencers()` lê-a a cada volta). Nome e foto do canal do Telegram ficam no PC (`og:title`/`og:image` do `t.me/s`).
   Telegram e Reddit leem-se ao minuto; **X e Instagram não se leem de graça** (a API do Instagram e o syndication do X foram

@@ -33,6 +33,7 @@ from pathlib import Path
 import httpx
 
 from . import gmgn_link
+from .memes_calls import Judge
 
 log = logging.getLogger("memes")
 DIR = Path.home() / ".team-agent" / "memes"
@@ -61,6 +62,7 @@ AGENTS = {
     "robin": {"name": "Robin", "dept": "Mercado DEX", "code": "DEX", "does": "Lê a DexScreener, a GeckoTerminal e a CoinGecko: as moedas que estão a subir, com preço, volume, liquidez e compras/vendas.", "every": 180},
     "oraculo": {"name": "Oráculo", "dept": "Redes sociais", "code": "SOC", "does": "Ouve o X (pelo Tree News), os canais públicos do Telegram e o Reddit, e conta quem fala de cada moeda. Os influencers da equipa pesam três vezes.", "every": 300},
     "lucius": {"name": "Lucius", "dept": "Segurança", "code": "SEG", "does": "Passa cada candidata pelo RugCheck e pelas regras do Hub: liquidez fina, moeda de horas, vendas muito acima das compras.", "every": 180},
+    "arbitro": {"name": "Alfred", "dept": "Árbitro dos calls", "code": "ARB", "does": "Pega em cada call dos nossos influencers, vê o preço da moeda na hora do call e 24 horas depois, e diz se subiu ou desceu.", "every": 300},
     "batman": {"name": "Batman", "dept": "Analista", "code": "ANL", "does": "Com o Claude ligado, lê as melhores candidatas e o que se diz delas, procura na web o que os influencers disseram e escreve um relatório com veredicto.", "every": 0},
     "gmgn": {"name": "Motor GMGN", "dept": "Sinais e paper trading", "code": "GMG", "does": "O gmgn-tracker: apanha todas as moedas novas da pump.fun, faz paper trading por estratégia e aprende quais ganham.", "every": 300},
 }
@@ -83,6 +85,7 @@ class Brain:
         self.busy: str = ""
         self.lock = asyncio.Lock()
         self._load()
+        self.judge = Judge(self)
 
     # ---------- state ----------
     def _load(self):
@@ -523,7 +526,7 @@ class Brain:
     async def tick(self, force: str = ""):
         async with self.lock:
             async with httpx.AsyncClient(headers=UA, timeout=20, follow_redirects=True) as c:
-                for name, fn in (("oraculo", self.oraculo), ("robin", self.robin), ("lucius", self.lucius), ("gmgn", self.gmgn_pass)):
+                for name, fn in (("oraculo", self.oraculo), ("robin", self.robin), ("lucius", self.lucius), ("arbitro", self.judge.run), ("gmgn", self.gmgn_pass)):
                     if force in (name, "all") or (self.cfg["on"] and self.due(name)):
                         self.busy = name
                         try:
@@ -572,7 +575,9 @@ async def sync_influencers():
     async with SessionLocal() as db:
         q = select(MarketItem).where(MarketItem.kind == "meme_inf").order_by(MarketItem.id.desc())
         rows = (await db.execute(q)).scalars().all()
-        old = [i for i in BRAIN.state["influencers"] if "id" not in i]
+        # the first version (16 nov) put three examples in every PC's own list: they are not the team's and never come in
+        seeds = {"on-chain: baleias e carteiras", "o que está em alta nas DEX", "notícias rápidas de cripto"}
+        old = [i for i in BRAIN.state["influencers"] if "id" not in i and i.get("note") not in seeds]
         if old and not BRAIN.state.get("inf_moved"):
             ids = {u.username: u.id for u in (await db.execute(select(User))).scalars()}
             have = {r.symbol.lower() for r in rows}

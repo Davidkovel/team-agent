@@ -115,9 +115,31 @@ function heroHtml(now, ignite) {
       <figure class="wl-quote"><figcaption>${t("Frase do dia")}</figcaption><blockquote>${esc(t(quoteOfDay()))}</blockquote></figure>
     </div>
     <div class="wl-emblem" aria-hidden="true"><img src="assets/mercedes-star.svg" alt=""></div>
+    <i class="wl-link a" aria-hidden="true" hidden></i><i class="wl-link b" aria-hidden="true" hidden></i>
     <div class="hero-side"><div id="in-focus" class="in-focus"></div><div id="in-newsbar" class="in-newsbar"></div></div>
   </header>`;
 }
+
+// 9.ª volta (David: «a estrela parece que está ali sozinha... quero uma conexão com o texto»): o risco do farol continua até à
+// estrela. Duas linhas finas medidas no ecrã: do fim do farol até à etiqueta «Frase do dia» (que desce para ficar na linha) e
+// dela até ao aro da estrela, onde a luz acende. Mede-se ao abrir, quando as letras chegam e quando a janela muda de tamanho.
+function wlLink() {
+  const hero = document.querySelector(".in-hero.wl"), link = hero?.querySelectorAll(".wl-link");
+  if (!link?.length) return;
+  const beam = hero.querySelector(".wl-beam"), star = hero.querySelector(".wl-emblem img"), quote = hero.querySelector(".wl-quote"), cap = quote.querySelector("figcaption");
+  if (!star.offsetWidth || !cap.offsetWidth) { link.forEach((x) => { x.hidden = true; }); return; }
+  quote.style.marginTop = "";
+  const top = (el) => el.getBoundingClientRect();
+  const y = top(beam).top + 1, cy = top(cap).top + top(cap).height / 2;
+  quote.style.marginTop = `${Math.max(8, parseFloat(getComputedStyle(quote).marginTop) + y - cy)}px`;
+  const words = document.createRange(); words.selectNodeContents(cap); // the words, not the whole (right-aligned) line
+  const H = top(hero), b = { right: top(beam.parentElement).left + beam.offsetLeft + beam.offsetWidth }, c = words.getBoundingClientRect(), s = top(star);
+  const r = s.width * 0.48, dy = y - (s.top + s.height / 2), ring = s.left + s.width / 2 - Math.sqrt(Math.max(0, r * r - dy * dy));
+  const put = (el, from, to) => { el.hidden = to - from < 20; Object.assign(el.style, { left: `${from - H.left}px`, top: `${y - H.top}px`, width: `${to - from}px` }); };
+  put(link[0], b.right - 30, c.left - 14);
+  put(link[1], c.right + 14, ring);
+}
+window.addEventListener("resize", () => requestAnimationFrame(wlLink));
 
 // A frase do teu dia, em palavras: as tarefas de hoje, o que o teu agente está a fazer e quem da equipa já está ligado.
 async function welcomeBody() {
@@ -1242,7 +1264,8 @@ HUB_VIEWS.home = async function viewHome() {
   $("qk").onsubmit = (e) => { e.preventDefault(); quickSend(false); };
   $("qk-in").onkeydown = (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); quickSend(true); } };
   startHomeClock();
-  loadHome().then(() => { if (focusGet()) mount($("in-focus"), focusBody, 1).then(focusRun); });
+  wlLink(); document.fonts.ready.then(wlLink); setTimeout(wlLink, 1600); // and once the start-up animation has finished
+  loadHome().then(wlLink).then(() => { if (focusGet()) mount($("in-focus"), focusBody, 1).then(focusRun); });
 };
 
 // A live event reloads only what shows that kind of thing ("tick" is the slow safety net: all of it).

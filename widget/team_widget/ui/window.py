@@ -2567,6 +2567,9 @@ class WidgetWindow(QWidget):
         self.orb.setParent(self)
         self.orb.on_icon = self._gauge_clicked
         self.orb.on_drag = self._hide_spot
+        from .pet import Pet   # 16 Nov: the big pixel robot over every window, like the ChatGPT pets
+        self.pet = Pet(self.expand)
+        self.pet.show()
         app = QApplication.instance()   # the gauges' lines show in a dark glass tooltip, like the card
         if app is not None and "QToolTip" not in app.styleSheet():
             app.setStyleSheet(app.styleSheet() + "QToolTip { background: #141518; color: #f2f3f5; border: 1px solid #34373c;"
@@ -3575,6 +3578,7 @@ class WidgetWindow(QWidget):
         me = self._identity(shown) if shown else None
         mine = next((p for p in shown if p["user"] == me), {})
         mine_live = mine.get("live") or {}
+        self.pet.set_state(mine_live, mine)
         self.apps["mensagens"].set_count(mine_live.get("messages") or 0)
         self.apps["tarefas"].set_count(mine_live.get("tasks") or 0, "#5b5f66")
         self.apps["escritorio"].set_count(sum((p.get("live") or {}).get("working") or 0 for p in shown), "#2f9e57")

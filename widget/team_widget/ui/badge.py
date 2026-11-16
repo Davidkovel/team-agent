@@ -101,7 +101,7 @@ def star(p: QPainter, rect: QRectF, opacity: float = 1.0, shadow: bool = False):
     p.restore()
 
 
-def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0):
+def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0, mode: str = "idle"):
     """The robot alive (16 Nov, David: «интерактивнее, в движении, маленькими шагами»): it steps in place, little hops
     with a sway from foot to foot, blinks now and then, and the antenna tip breathes. The robot itself is one cached
     image per size, so a frame is a drawImage and three small shapes: cheap enough for ~11 frames a second."""
@@ -122,10 +122,13 @@ def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0):
     # crouch, three bouncy hops from side to side with squash and stretch, and a little landing wobble.
     k = rect.width() / 100.0 * 0.9
     ox, floor = rect.left() + rect.width() / 2, rect.bottom() - 1
-    c = t % 5.2
+    c = t % 5.2 if mode == "idle" else (3.25 + t % 1.5 if mode == "wait" else -1.0)   # wait: hops non-stop
     dx = hop = tilt = 0.0
     sx = sy = 1.0
-    if c < 3.0:                                   # calm: breathing, a slow sway
+    if c < 0:                                     # Claude working: it types, quick little bounces on the keys
+        hop = abs(math.sin(t * 9.0)) * 1.6 * k
+        tilt = 1.2 * math.sin(t * 4.5)
+    elif c < 3.0:                                 # calm: breathing, a slow sway
         sy = 1 + 0.015 * math.sin(c * 2.6)
         sx = 2 - sy
         tilt = 2.0 * math.sin(c * 1.4)
@@ -160,13 +163,13 @@ def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0):
     p.setPen(Qt.NoPen)
     p.setBrush(QColor(255, 58, 42, round(40 + 90 * pulse)))
     rr = (1.6 + 1.4 * pulse) * g
-    p.drawEllipse(QPointF(17 * g, 3 * g), rr, rr)
+    p.drawEllipse(QPointF(16.5 * g, 1.5 * g), rr, rr)
     # a blink every few seconds (a double one now and then)
     b = t % 4.3
     if b < 0.14 or 0.32 < b < 0.44 and int(t / 4.3) % 3 == 0:
         p.setBrush(QColor(8, 8, 10))
-        p.drawRect(QRectF(9 * g, 12 * g, 14 * g, 3 * g))
+        p.drawRect(QRectF(8 * g, 11 * g, 16 * g, 3 * g))
         p.setBrush(QColor("#ff3b30"))
-        p.drawRect(QRectF(10 * g, 14 * g, 5 * g, g))
-        p.drawRect(QRectF(17 * g, 14 * g, 5 * g, g))
+        p.drawRect(QRectF(9 * g, 13 * g, 6 * g, g))
+        p.drawRect(QRectF(18 * g, 13 * g, 6 * g, g))
     p.restore()

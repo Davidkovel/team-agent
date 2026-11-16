@@ -120,7 +120,7 @@ def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0):
     # 16 Nov, 2nd pass (David: «меньше; когда нет движения, чтобы прыгал как обезьяна»): drawn at 84% of the rect,
     # standing on its floor, so the jumps have air above. A 5.2 s cycle: 3 s of calm breathing, then a monkey burst:
     # crouch, three bouncy hops from side to side with squash and stretch, and a little landing wobble.
-    k = rect.width() / 100.0 * 0.84
+    k = rect.width() / 100.0 * 0.9
     ox, floor = rect.left() + rect.width() / 2, rect.bottom() - 1
     c = t % 5.2
     dx = hop = tilt = 0.0
@@ -151,23 +151,22 @@ def mascot_live(p: QPainter, rect: QRectF, t: float, opacity: float = 1.0):
     p.setOpacity(p.opacity() * opacity)
     p.translate(ox + dx, floor - hop)
     p.rotate(tilt)
-    p.scale(sx * 0.84, sy * 0.84)
-    k = rect.width() / 100.0
-    p.translate(-50 * k, -93 * k)
+    p.scale(sx * 0.9, sy * 0.9)
+    g = rect.width() / 32.0                       # the pixel-art grid (assets/mascot.svg is 32 x 32)
+    p.translate(-16 * g, -31 * g)
     p.drawImage(QRectF(0, 0, rect.width(), rect.height()), _images[key])
     # the antenna tip breathes
     pulse = 0.5 + 0.5 * math.sin(t * 3.1)
     p.setPen(Qt.NoPen)
     p.setBrush(QColor(255, 58, 42, round(40 + 90 * pulse)))
-    p.drawEllipse(QRectF((50 - 4 - 3 * pulse) * k, (7 - 4 - 3 * pulse) * k, (8 + 6 * pulse) * k, (8 + 6 * pulse) * k))
+    rr = (1.6 + 1.4 * pulse) * g
+    p.drawEllipse(QPointF(17 * g, 3 * g), rr, rr)
     # a blink every few seconds (a double one now and then)
     b = t % 4.3
     if b < 0.14 or 0.32 < b < 0.44 and int(t / 4.3) % 3 == 0:
         p.setBrush(QColor(8, 8, 10))
-        p.drawRoundedRect(QRectF(26 * k, 27 * k, 48 * k, 22 * k), 9 * k, 9 * k)
-        pen = QPen(QColor("#ff4433"), 3.0 * k)
-        pen.setCapStyle(Qt.RoundCap)
-        p.setPen(pen)
-        p.drawLine(QPointF(33 * k, 39 * k), QPointF(45 * k, 39 * k))
-        p.drawLine(QPointF(55 * k, 39 * k), QPointF(67 * k, 39 * k))
+        p.drawRect(QRectF(9 * g, 12 * g, 14 * g, 3 * g))
+        p.setBrush(QColor("#ff3b30"))
+        p.drawRect(QRectF(10 * g, 14 * g, 5 * g, g))
+        p.drawRect(QRectF(17 * g, 14 * g, 5 * g, g))
     p.restore()

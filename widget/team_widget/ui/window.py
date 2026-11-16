@@ -1907,7 +1907,7 @@ class Orb(QWidget):
     click elsewhere opens the central; dragging moves the card and nothing else. It reads the same on any wallpaper.
 
     It paints a cached face and only repaints when the minute, a figure, the line or the count changes, or under the mouse."""
-    PAD, STAR, RADIUS, M = 8, 48, 22, 14
+    PAD, STAR, RADIUS, M = 8, 60, 22, 14
     CHIP_H, CHIP_GAP, PER_ROW = 20, 4, 4
     X0 = PAD + STAR + 10      # where the right column (chips, time, badge) begins
     on_icon = None            # the window: what a click on a chip does
@@ -2219,7 +2219,7 @@ class StarOrb(Orb):
     chips drop down under it in a column of clear glass, the star lights up, and they go again a moment after the
     mouse leaves them. The mouse is read on a timer from the cursor, not only from enter/leave events: those were
     missed now and then on a translucent window («nem sempre funciona»)."""
-    STAR, PAD, M = 34, 4, 10
+    STAR, PAD, M = 44, 4, 10
     CHIP_H, CHIP_GAP, GAP = 22, 5, 8   # chip; between chips; between the star and the first chip
 
     def __init__(self, on_click):

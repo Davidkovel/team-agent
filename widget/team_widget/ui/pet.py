@@ -1,54 +1,89 @@
-"""The pet (16 Nov). 1st pass, David: a pixel robot like the ChatGPT pets. 2nd pass, Marco: «tu imitas literalmente o
-robô do ChatGPT... faz uma cena completamente diferente, com o tema e as cores do nosso widget»: now it is our own
-character, a little black AMG seen from the front, chrome trim, the headlights are its eyes and the intake its mouth.
+"""Farol, the widget's pet (16 Nov, Marco: «quero que o robôzinho seja mesmo assim... um Jarvis, o nosso cérebro»).
 
-What it does:
-  * the central opens -> it drives off (shrinks into the distance) and is gone; the central closes -> it drops back in
-    and bounces on its suspension (`leave` / `arrive`, called by window.py);
-  * a message or a task sent to this person -> hazard lights, horn waves and a red count on the roof, and it keeps
-    nagging (a hop every few seconds) until it is clicked: the click opens what was sent (`alert`);
-  * Claude working -> the engine idles: a light shake and exhaust puffs; Claude waiting for you -> hazards;
-    a job finished -> a chequered flag; five quiet minutes -> it parks, lights off, «z»;
-  * calm -> now and then it looks around, flashes its high beams, revs or honks.
+Marco's own drawing (assets/farol-*.png, cut from ~/Desktop/AMG/Robozin): a brushed-chrome robot on tracks, a headlight for a
+face with big blue eyes, a helmet with the star, AMG on the plate. Three poses: idle (looking at you), think (hand on the
+chin), work (wrench on a bolt). Like his GIF: it appears out of a blue ring, thinks, works, looks, and sinks back into it.
 
-Weight (Marco: «roubar o mínimo de CPU e nunca afetar nada»): the car body is one cached image; a frame is a drawImage and
-a few small shapes. Frames a second follow what is on: 1 asleep, 2-5 calm, 30 only while it arrives or leaves; the busier
-the computer the slower, almost frozen when it works flat out; and the process runs at low priority (nice)."""
+What it does (window.py calls `set_state`, `alert`, `leave`, `arrive`):
+  * the central opens -> it sinks into the ring and is gone; it closes -> it rises out of the ring again;
+  * a task or a message for this person -> a red count on the helmet, a hop now and then, and a small black card next to it
+    saying who sent what; it stays until clicked (opens it) or closed with ×;
+  * Claude starts -> it thinks a moment, then works with the wrench; Claude waits for you -> it says so;
+    Claude finished -> «Pronto: ...»; back at the computer after a while -> a short briefing (what is waiting);
+  * the mouse on it -> what it knows right now (messages, tasks, what the Claude is doing);
+  * calm -> now and then it thinks; five quiet minutes -> eyes half shut, «z».
+
+Weight (Marco: «roubar o mínimo de CPU e nunca afetar nada»): each pose is a pixmap scaled once; a still frame is one
+drawPixmap. It repaints only when something changes: a blink every few seconds, the wrench 6 times a second while
+Claude works, 30 frames a second only while it appears, disappears, hops or changes pose. Slower with the computer
+busy, and the process runs at low priority (nice)."""
+import ctypes
 import math
 import os
 import random
+import sys
 import time
+from pathlib import Path
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPen, QPixmap, QRadialGradient
 from PySide6.QtWidgets import QApplication, QWidget
 
 from . import prefs
 
-W, H = 128, 112             # the window
-CW, CH = 84, 50             # the car (front view) inside it
-GROUND = H - 14             # where the tyres touch
+ASSETS = Path(__file__).resolve().parents[1] / "assets"
+SRC_W, SRC_H = 293, 320          # the pose images
+RH = 124                         # the robot on screen (points)
+RW = round(RH * SRC_W / SRC_H)
+AW, AH = RW + 22, RH + 34        # the robot's area: room for the ring below and the count above
+FLOOR = AH - 12                  # where the tracks stand
+BW = 238                         # the card
+GAP = 4
 
-CHROME_HI, CHROME_LO = QColor("#f4f6f8"), QColor("#7c828c")
-BODY_HI, BODY_LO = QColor("#2a2d33"), QColor("#060708")
+# where the eyes are in each pose image (the blue irises, found with a scan of the pictures)
+EYES = {"idle": ((121, 102, 138, 117), (158, 101, 175, 117)),
+        "think": ((164, 89, 177, 100), (202, 77, 214, 89)),
+        "work": ((115, 130, 127, 143), (151, 136, 163, 150))}
+
+BLUE = QColor("#4fc3ff")         # the ring of his GIF
 RED = QColor("#ff3b30")
-AMBER = QColor("#e3bd6b")    # the widget's colour for «this is for you»
-EYE = QColor("#eaf2ff")
+TEXT, MUTED = QColor("#f2f3f5"), QColor("#a3a7ae")
+UI = "Helvetica Neue" if sys.platform == "darwin" else "Segoe UI"
+
+STATE = {"think": "A pensar", "work": "A trabalhar", "idle": "A olhar", "sleep": "A descansar",
+         "alert": "Para ti", "wait": "À tua espera"}
 
 
-def _ease_out(u: float) -> float:
+_QUARTZ = []
+
+
+def _idle_seconds() -> float:
+    """How long since the last key or mouse movement (0 when unknown)."""
+    try:
+        if sys.platform == "darwin":
+            if not _QUARTZ:
+                q = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")
+                q.CGEventSourceSecondsSinceLastEventType.restype = ctypes.c_double
+                _QUARTZ.append(q)
+            return _QUARTZ[0].CGEventSourceSecondsSinceLastEventType(1, ctypes.c_uint32(0xFFFFFFFF))
+        if sys.platform == "win32":
+            class LII(ctypes.Structure):
+                _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+            lii = LII()
+            lii.cbSize = ctypes.sizeof(LII)
+            if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
+                return (ctypes.windll.kernel32.GetTickCount() - lii.dwTime) / 1000.0
+    except (OSError, AttributeError, ValueError):
+        pass
+    return 0.0
+
+
+def _ease(u: float) -> float:
     return 1 - (1 - u) ** 3
 
 
-def _bounce(u: float) -> float:
-    """0 -> 1 with a drop and two little bounces (the suspension)."""
-    if u < 0.55:
-        return (u / 0.55) ** 2
-    if u < 0.8:
-        v = (u - 0.675) / 0.125
-        return 1 - 0.10 * (1 - v * v)
-    v = (u - 0.9) / 0.1
-    return 1 - 0.03 * (1 - v * v)
+def _plural(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
 
 
 class Pet(QWidget):
@@ -56,417 +91,535 @@ class Pet(QWidget):
         super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.NoDropShadowWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WA_MacAlwaysShowToolWindow)   # on the Mac a tool window hides when the widget is not the front app
-        self.setFixedSize(W, H)
+        self.setAttribute(Qt.WA_MacAlwaysShowToolWindow)   # on the Mac a tool window hides when the widget is not in front
         self.on_click, self.open_page = on_click, open_page
-        self.mode = "idle"
-        self._press, self._moved = None, False
-        pos = prefs.load().get("pet_at")
-        if pos:
-            self.move(QPoint(*pos))
-        else:
-            g = QApplication.primaryScreen().availableGeometry()
-            self.move(g.right() - W - 24, g.bottom() - H - 24)
+        self._src = {k: QImage(str(ASSETS / f"farol-{k}.png")) for k in EYES}
+        self._pix = {}                        # pose -> (pixmap at this screen's pixel ratio, ratio)
+        self._lid = {k: self._lid_colour(k) for k in EYES}
+        # where the robot stands on the screen (its area's top-left); the window grows around it for the card
+        g = QApplication.primaryScreen().availableGeometry()
+        at = prefs.load().get("farol_at")
+        self._at = QPoint(*at) if at else QPoint(g.right() - AW - 24, g.bottom() - AH - 24)
+        self.mode, self.topic, self.live = "idle", "", {}
         now = time.monotonic()
-        self._mode_at = now                    # when the Claude state last changed (it parks after a long calm)
-        self._party_until = 0.0                # a job just finished: chequered flag
-        self._gag, self._gag_until, self._next_gag = None, 0.0, now + 20
-        self._alerts, self._alert_href = 0, None   # messages / tasks for this person not yet looked at
-        self._enter = None                     # (start, +1 arriving / -1 leaving)
-        self._busy = 0.0                       # load average / cores
-        self._body = None                      # the cached car body (QImage, pixel ratio)
+        self._mode_at = now
+        self._think_until = 0.0               # thinking a moment before working, and now and then when calm
+        self._next_think = now + 45
+        self._alerts = []                     # items sent to this person, newest last
+        self._card = None                     # (header, text, href or None, until or None = until closed, kind)
+        self._hover = False
+        self._enter = None                    # (start, +1 appear / -1 leave)
+        self._pose, self._from, self._pose_at = "idle", None, 0.0
+        self._hop_at = 0.0
+        self._next_blink = now + random.uniform(2.5, 5)
+        self._busy = 0.0
+        self._last_check, self._away = now, False
+        self._press, self._moved, self._press_at = None, False, QPoint()
+        self._robot_x = self._robot_y = 0
+        self._x_rect = self._card_rect = QRectF()
+        self._f_head = QFont(UI)
+        self._f_head.setPixelSize(10)
+        self._f_head.setBold(True)
+        self._f_head.setLetterSpacing(QFont.AbsoluteSpacing, 1.2)
+        self._f_text = QFont(UI)
+        self._f_text.setPixelSize(12)
         self._load = QTimer(self)
-        self._load.timeout.connect(self._read_load)
+        self._load.timeout.connect(self._check)
         self._load.start(4000)
-        self._read_load()
         self._tick = QTimer(self)
+        self._tick.setSingleShot(True)
         self._tick.timeout.connect(self._frame)
-        self._tick.start(400)
-        if hasattr(os, "nice"):                # the widget always gives way to real work
+        if hasattr(os, "nice"):               # the widget always gives way to real work
             try:
                 os.nice(10)
             except OSError:
                 pass
+        self._enter = (now, +1)
+        self._layout()
 
     # ------------------------------------------------------------ from the widget
     def set_state(self, live: dict, person: dict):
         live = live or {}
+        first = not self.live
+        self.live = live
+        topic = (live.get("topic") or "").strip()
         if live.get("working"):
             mode = "work"
         elif live.get("waiting") and live.get("wait") in ("permission", "answer"):
             mode = "wait"
         else:
             mode = "idle"
-        if mode != self.mode:
-            now = time.monotonic()
-            if self.mode == "work" and mode == "idle":
-                self._party_until = now + 4.0
-            self._mode_at = now
-            self.mode = mode
-            self._wake()
+        if first:                             # the first news from the Hub: say hello with what is waiting
+            self.topic = topic
+            self._say("FAROL", self._briefing(first=True), None, 8, "info")
+        if mode == self.mode:
+            self.topic = topic or self.topic
+            return
+        now = time.monotonic()
+        before, self.mode, self._mode_at = self.mode, mode, now
+        if mode == "work":
+            self._think_until = now + 4.0     # it thinks first, then picks up the wrench
+        elif mode == "wait":
+            what = "Pede autorização" if live.get("wait") == "permission" else "Espera pela tua resposta"
+            self._say("O CLAUDE", what + (f": {topic}" if topic else "."), None, None, "wait")
+        elif before == "work" and not first:
+            self._say("PRONTO", topic or "O Claude acabou o que estava a fazer.", None, 9, "done")
+        if before == "wait" and self._card and self._card[4] == "wait":
+            self._card = None
+            self._layout()
+        self.topic = topic or self.topic
+        self._schedule(0)
 
     def alert(self, items):
-        """Messages or tasks arrived (the same list the corner cards get). Only the ones sent to this person count."""
+        """Tasks or messages arrived (the same list the corner cards get); only the ones sent to this person count."""
         mine = [i for i in items or () if i.get("directed")]
         if not mine:
             return
-        self._alerts += len(mine)
-        self._alert_href = mine[-1].get("href") or self._alert_href
-        self._mode_at = time.monotonic()
-        self._wake()
+        self._alerts.extend(mine)
+        last = mine[-1]
+        kind = "MENSAGEM" if (last.get("href") or "").startswith("#/mensagens") else "TAREFA NOVA"
+        head = kind if len(self._alerts) == 1 else f"{len(self._alerts)} COISAS PARA TI"
+        text = (last.get("title") or "").strip()
+        body = (last.get("body") or "").strip()
+        if body and body != text:
+            text = f"{text} — {body}" if text else body
+        self._say(head, text or "Tens uma coisa nova no Hub.", last.get("href"), None, "alert")
+        self._hop_at = time.monotonic()
+        self._schedule(0)
 
     def leave(self):
-        """The central opens: the car drives off into the distance and the window hides."""
+        """The central opens: Farol sinks into the ring and the window hides."""
         if not self.isVisible() or (self._enter and self._enter[1] < 0):
             return
-        self._alerts, self._alert_href = 0, None   # the central shows them now
+        self._alerts, self._card, self._hover = [], None, False   # the central shows it all now
         self._enter = (time.monotonic(), -1)
-        self._wake()
+        self._layout()
+        self._schedule(0)
 
     def arrive(self):
-        """The central closed: the car drops back in and bounces."""
+        """The central closed: Farol rises out of the ring."""
         self._enter = (time.monotonic(), +1)
         self._mode_at = time.monotonic()
+        self._layout()
         self.show()
-        self._wake()
+        self._schedule(0)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._schedule(0)
+
+    # ------------------------------------------------------------ what it says
+    def _briefing(self, first=False) -> str:
+        m, t = self.live.get("messages") or 0, self.live.get("tasks") or 0
+        lead = "Estou cá." if first else "Bem-vindo de volta."
+        bits = []
+        if m:
+            bits.append(_plural(m, "mensagem por ler", "mensagens por ler"))
+        if t:
+            bits.append(_plural(t, "tarefa aberta", "tarefas abertas"))
+        out = lead + (" Tens " + " e ".join(bits) + "." if bits else "")
+        if self.live.get("working"):
+            out += " O Claude está a trabalhar" + (f" em «{self.topic}»." if self.topic else ".")
+        elif not bits:
+            out += " Está tudo em dia." if first else " Tudo calmo enquanto estiveste fora."
+        return out
+
+    def _status(self) -> str:
+        m, t = self.live.get("messages") or 0, self.live.get("tasks") or 0
+        claude = ("a trabalhar" + (f" em «{self.topic}»" if self.topic else "")) if self.mode == "work" else \
+            ("à tua espera" if self.mode == "wait" else "parado")
+        return f"{_plural(m, 'mensagem', 'mensagens')} · {_plural(t, 'tarefa', 'tarefas')}\nClaude: {claude}"
+
+    def _say(self, head: str, text: str, href, seconds, kind: str):
+        self._card = (head, text, href, (time.monotonic() + seconds) if seconds else None, kind)
+        self._layout()
+        self._schedule(0)
+
+    # ------------------------------------------------------------ the window around the robot and the card
+    def _card_lines(self) -> list:
+        if not self._card and not self._hover:
+            return []
+        text = self._card[1] if self._card else self._status()
+        fm = QFontMetricsF(self._f_text)
+        out = []
+        for para in text.split("\n"):
+            line = ""
+            for w in para.split():
+                trial = f"{line} {w}".strip()
+                if fm.horizontalAdvance(trial) <= BW - 30 or not line:
+                    line = trial
+                else:
+                    out.append(line)
+                    line = w
+            out.append(fm.elidedText(line, Qt.ElideRight, BW - 30))
+        if len(out) > 4:
+            out = out[:4]
+            out[-1] = fm.elidedText(out[-1] + " …", Qt.ElideRight, BW - 30)
+        return out
+
+    def _layout(self):
+        lines = [] if (self._enter and self._enter[1] < 0) else self._card_lines()
+        screen = QApplication.screenAt(self._at + QPoint(AW // 2, AH // 2)) or QApplication.primaryScreen()
+        g = screen.availableGeometry()
+        if lines:
+            ch = 36 + 16 * len(lines) + 8
+            left = self._at.x() + AW / 2 > g.center().x()       # the card goes on the side with room
+            w, h = AW + GAP + BW, max(AH, ch)
+            self._robot_x = BW + GAP if left else 0
+            self._robot_y = h - AH
+            # the card sits level with the robot's head
+            top = max(0.0, min(h - ch, self._robot_y + 14))
+            self._card_rect = QRectF(0 if left else AW + GAP, top, BW, ch)
+            self.setFixedSize(round(w), round(h))
+            self.move(self._at.x() - round(self._robot_x), self._at.y() - round(self._robot_y))
+        else:
+            self._robot_x = self._robot_y = 0
+            self._card_rect = QRectF()
+            self.setFixedSize(AW, AH)
+            self.move(self._at)
+        self.update()
 
     # ------------------------------------------------------------ timing
-    def _read_load(self):
+    def _check(self):
+        """Every 4 s: how busy the computer is, cards that ran out, and whether the person just came back."""
+        now = time.monotonic()
         try:
             self._busy = os.getloadavg()[0] / max(1, os.cpu_count() or 1)
-        except (OSError, AttributeError):   # Windows has no load average
+        except (OSError, AttributeError):
             self._busy = 0.0
-
-    def _wake(self):
-        self._tick.setInterval(33)
-        self.update()
+        slept = now - self._last_check > 60          # the computer was asleep
+        self._last_check = now
+        idle = _idle_seconds()
+        if idle > 600 or slept:
+            self._away = True
+        elif self._away and idle < 5:
+            self._away = False
+            self._mode_at = now
+            if self.isVisible() and not (self._card and self._card[3] is None):
+                self._say("FAROL", self._briefing(), None, 10, "info")
+                self._hop_at = now
+        if self._card and self._card[3] and now > self._card[3]:
+            self._card = None
+            self._layout()
+        self._schedule(0)
 
     def _look(self, now: float) -> str:
         if self._alerts:
             return "alert"
+        if self.mode == "work":
+            return "think" if now < self._think_until else "work"
         if self.mode == "wait":
             return "wait"
-        if now < self._party_until:
-            return "party"
-        if self.mode == "work":
-            return "work"
-        if now - self._mode_at > 300:
+        if now - self._mode_at > 300 and not self._card:
             return "sleep"
-        if self._gag is None and now >= self._next_gag and self._busy < 0.7:
-            self._gag, self._gag_until = random.choice(("look", "beams", "rev", "honk")), now + 3.0
-        if self._gag and now > self._gag_until:
-            self._gag, self._next_gag = None, now + random.uniform(30, 70)
-        return self._gag or "idle"
+        if now >= self._next_think and self._busy < 0.7:
+            self._think_until, self._next_think = now + 5.0, now + random.uniform(50, 110)
+        return "think" if now < self._think_until else "idle"
 
-    FPS = {"alert": 5, "wait": 2, "party": 8, "work": 4, "sleep": 1, "idle": 2,
-           "look": 4, "beams": 3, "rev": 10, "honk": 6}
+    @staticmethod
+    def _pose_of(look: str) -> str:
+        return {"work": "work", "think": "think"}.get(look, "idle")
+
+    def _schedule(self, ms=None):
+        """The next repaint, as late as it can be (ms=0: now)."""
+        if ms is None:
+            now = time.monotonic()
+            look = self._look(now)
+            if self._enter or (self._from and now - self._pose_at < 0.35) or now - self._hop_at < 0.5:
+                ms = 33
+            elif look == "work" and self._busy < 0.9:
+                ms = 400                      # the sparks at the wrench (each new frame costs the Mac a window flush)
+            elif look == "alert":
+                ms = max(33, min(1000, round((self._hop_at + 3.0 - now) * 1000)))
+            elif look == "sleep":
+                ms = 1500
+            else:
+                ms = max(33, min(3000, round((self._next_blink - now) * 1000)))
+                if self._next_blink <= now:
+                    ms = 140                  # the eyes open again
+            if self._busy > 1.0:
+                ms = max(ms, 1500)
+        self._tick.start(ms)
 
     def _frame(self):
+        now = time.monotonic()
+        if self._enter and now - self._enter[0] > (0.75 if self._enter[1] > 0 else 0.45):
+            gone = self._enter[1] < 0
+            self._enter = None
+            if gone:
+                self.hide()
+                return
         if not self.isVisible():
             return
-        now = time.monotonic()
-        if self._enter:
-            fps = 30
-            if now - self._enter[0] > (0.7 if self._enter[1] > 0 else 0.35):
-                gone = self._enter[1] < 0
-                self._enter = None
-                if gone:
-                    self.hide()
-                    return
+        look = self._look(now)
+        if look == "alert" and now - self._hop_at > 3.0:
+            self._hop_at = now
+        pose = self._pose_of(look)
+        if pose != self._pose:
+            self._from, self._pose, self._pose_at = self._pose, pose, now
+        moving = (self._enter or (self._from and now - self._pose_at < 0.4) or now - self._hop_at < 0.6
+                  or look == "sleep")
+        if moving:
+            self.update()
+        elif look == "work":
+            self.update(self._spark_rect())           # only the sparks change: a few pixels, not the robot
         else:
-            fps = self.FPS.get(self._look(now), 2)
-            if self._busy > 1.0:
-                fps = min(fps, 0.5)
-            elif self._busy > 0.7:
-                fps = min(fps, 2)
-        ms = round(1000 / fps)
-        if self._tick.interval() != ms:
-            self._tick.setInterval(ms)
-        self.update()
+            self.update(self._eyes_rect())            # a blink: only the eyes
+        if now > self._next_blink + 0.14:
+            self._next_blink = now + random.uniform(3, 6)
+        self._schedule()
 
-    # ------------------------------------------------------------ the car
-    def _car_image(self, dpr: float) -> QImage:
-        """The body, drawn once: black paint with a chrome line, glass, the grille with vertical chrome bars, the red
-        AMG line, tyres. Eyes, mouth and lights are drawn live on top."""
-        if self._body and self._body[1] == dpr:
-            return self._body[0]
-        img = QImage(round(CW * dpr), round(CH * dpr), QImage.Format_ARGB32_Premultiplied)
-        img.setDevicePixelRatio(dpr)
-        img.fill(Qt.transparent)
-        p = QPainter(img)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setPen(Qt.NoPen)
-        # tyres
-        p.setBrush(QColor("#0b0c0e"))
-        p.drawRoundedRect(QRectF(6, CH - 13, 15, 13), 3, 3)
-        p.drawRoundedRect(QRectF(CW - 21, CH - 13, 15, 13), 3, 3)
-        # cabin: chrome frame, dark glass, a streak of light
-        cab = QPainterPath()
-        cab.moveTo(20, 20)
-        cab.lineTo(27, 4)
-        cab.quadTo(CW / 2, 0, CW - 27, 4)
-        cab.lineTo(CW - 20, 20)
-        cab.closeSubpath()
-        g = QLinearGradient(0, 0, 0, 20)
-        g.setColorAt(0, CHROME_HI)
-        g.setColorAt(1, CHROME_LO)
-        p.setBrush(g)
-        p.drawPath(cab)
-        glass = QPainterPath()
-        glass.moveTo(23.5, 19)
-        glass.lineTo(29, 6)
-        glass.quadTo(CW / 2, 2.5, CW - 29, 6)
-        glass.lineTo(CW - 23.5, 19)
-        glass.closeSubpath()
-        g = QLinearGradient(0, 3, 0, 19)
-        g.setColorAt(0, QColor("#3b4049"))
-        g.setColorAt(1, QColor("#0d0f12"))
-        p.setBrush(g)
-        p.drawPath(glass)
-        p.setBrush(QColor(255, 255, 255, 46))
-        streak = QPainterPath()
-        streak.moveTo(33, 6)
-        streak.lineTo(39, 6)
-        streak.lineTo(32, 18)
-        streak.lineTo(27, 18)
-        streak.closeSubpath()
-        p.drawPath(streak)
-        # body: wide and low, glossy black, a light rim
-        body = QRectF(2, 18, CW - 4, CH - 26)
-        g = QLinearGradient(0, body.top(), 0, body.bottom())
-        g.setColorAt(0, BODY_HI)
-        g.setColorAt(0.45, QColor("#121317"))
-        g.setColorAt(1, BODY_LO)
-        p.setBrush(g)
-        p.drawRoundedRect(body, 11, 9)
-        p.setPen(QPen(QColor(255, 255, 255, 70), 1.2))
-        p.setBrush(Qt.NoBrush)
-        p.drawRoundedRect(body.adjusted(0.6, 0.6, -0.6, -0.6), 10.5, 8.5)
-        p.setPen(Qt.NoPen)
-        # mirrors
-        p.setBrush(BODY_HI)
-        p.drawRoundedRect(QRectF(10, 15, 9, 5), 2, 2)
-        p.drawRoundedRect(QRectF(CW - 19, 15, 9, 5), 2, 2)
-        # the grille: chrome frame, vertical bars, a chrome badge
-        gr = QRectF(CW / 2 - 13, 22, 26, 12)
-        g = QLinearGradient(0, gr.top(), 0, gr.bottom())
-        g.setColorAt(0, CHROME_HI)
-        g.setColorAt(1, CHROME_LO)
-        p.setBrush(g)
-        p.drawRoundedRect(gr, 4, 4)
-        p.setBrush(QColor("#050506"))
-        p.drawRoundedRect(gr.adjusted(1.6, 1.6, -1.6, -1.6), 3, 3)
-        p.setBrush(QColor(220, 224, 230, 210))
-        for i in range(9):
-            p.drawRect(QRectF(gr.left() + 3.2 + i * 2.35, gr.top() + 2.2, 1.0, gr.height() - 4.4))
-        p.setBrush(CHROME_HI)
-        p.drawEllipse(QPointF(gr.center().x(), gr.center().y()), 2.6, 2.6)
-        # the red AMG line low on the bumper
-        p.setBrush(RED)
-        p.drawRoundedRect(QRectF(14, CH - 9.6, CW - 28, 1.5), 0.75, 0.75)
-        p.end()
-        self._body = (img, dpr)
-        return img
+    def _robot_rect(self) -> QRectF:
+        return QRectF(self._robot_x + AW / 2 - RW / 2, self._robot_y + FLOOR - RH, RW, RH)
+
+    def _spark_rect(self):
+        r = self._robot_rect()
+        sx, sy = r.width() / SRC_W, r.height() / SRC_H
+        bx, by = r.left() + 150 * sx, r.top() + 218 * sy
+        return QRectF(bx - 14, by - 14, 28, 22).toAlignedRect()
+
+    def _eyes_rect(self):
+        r = self._robot_rect()
+        sx, sy = r.width() / SRC_W, r.height() / SRC_H
+        (a, b, _, _), (_, _, c, d) = EYES[self._pose]
+        top = min(b, EYES[self._pose][1][1])
+        bottom = max(EYES[self._pose][0][3], d)
+        return QRectF(r.left() + (a - 10) * sx, r.top() + (top - 12) * sy, (c - a + 20) * sx, (bottom - top + 24) * sy).toAlignedRect()
+
+    # ------------------------------------------------------------ painting
+    def _lid_colour(self, pose: str) -> QColor:
+        """The colour of the headlight glass just outside the left eye, for the eyelids."""
+        img = self._src[pose]
+        x0, y0, x1, y1 = EYES[pose][0]
+        return QColor.fromRgba(img.pixel(max(0, x0 - 9), (y0 + y1) // 2))
+
+    def _pixmap(self, pose: str) -> QPixmap:
+        dpr = self.devicePixelRatioF()
+        got = self._pix.get(pose)
+        if got and got[1] == dpr:
+            return got[0]
+        img = self._src[pose].scaled(round(RW * dpr), round(RH * dpr), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pix = QPixmap.fromImage(img)
+        pix.setDevicePixelRatio(dpr)
+        self._pix[pose] = (pix, dpr)
+        return pix
 
     def paintEvent(self, _):
         now = time.monotonic()
-        look = "idle" if self._enter else self._look(now)
+        look = self._look(now)
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        # arriving drops in from above; leaving shrinks away into the distance
-        dy, sc, op = 0.0, 1.0, 1.0
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        if not self._card_rect.isNull():
+            self._paint_card(p, look)
+        p.translate(self._robot_x, self._robot_y)
+        cx = AW / 2
+        # appear: the blue ring opens, Farol rises out of it; leave: it sinks back and the ring closes
+        rise, ring = 1.0, 0.0
         if self._enter:
-            u = min(1.0, (now - self._enter[0]) / (0.7 if self._enter[1] > 0 else 0.35))
+            u = min(1.0, (now - self._enter[0]) / (0.75 if self._enter[1] > 0 else 0.45))
             if self._enter[1] > 0:
-                dy = -(1 - _bounce(u)) * 70
-                op = min(1.0, u * 3)
+                ring = math.sin(math.pi * min(1.0, u * 1.15))
+                rise = _ease(max(0.0, (u - 0.15) / 0.85))
             else:
-                e = _ease_out(u)
-                sc, dy, op = 1 - 0.85 * e, -26 * e, 1 - e
-        shake = 0.0
-        if look in ("work", "rev"):
-            shake = 0.7 * math.sin(now * 47)
-            bob = 0.5 * math.sin(now * 31)
-        elif look == "sleep":
-            bob = 2.0                                  # parked low
-        elif look == "alert" and (now % 2.4) < 0.5:   # a hop to be seen
-            bob = -9 * math.sin(math.pi * (now % 2.4) / 0.5)
-        else:
-            bob = 0.6 * math.sin(now * 2.2)
-        p.setOpacity(op)
-        cx = W / 2 + shake
-        p.setPen(Qt.NoPen)                             # the shadow on the ground
-        sh = max(0.35, 1 - abs(min(0.0, bob + dy)) / 60)
-        p.setBrush(QColor(0, 0, 0, round(90 * sh)))
-        p.drawEllipse(QPointF(W / 2, GROUND + 1), CW * 0.48 * sc * sh, 4.5 * sc)
-        if look in ("work", "rev") and not self._enter:
-            self._exhaust(p, now, cx, look == "rev")
+                ring = math.sin(math.pi * min(1.0, 0.15 + u))
+                rise = 1 - _ease(u)
+        hop = 0.0
+        if now - self._hop_at < 0.5 and not self._enter:
+            hop = 10 * math.sin(math.pi * (now - self._hop_at) / 0.5)
+        if ring > 0.01:
+            self._paint_ring(p, cx, FLOOR, ring)
+        if not self._enter:                                     # the shadow on the ground
+            p.setPen(Qt.NoPen)
+            sh = QRadialGradient(QPointF(cx, FLOOR), RW * 0.42)
+            sh.setColorAt(0, QColor(0, 0, 0, max(30, 100 - round(hop * 5))))
+            sh.setColorAt(1, QColor(0, 0, 0, 0))
+            p.setBrush(sh)
+            p.drawEllipse(QPointF(cx, FLOOR), RW * 0.42, 6)
+        if rise <= 0.001:
+            p.end()
+            return
+        top = FLOOR - RH * rise - hop
         p.save()
-        p.translate(cx, GROUND + dy + bob)
-        p.scale(sc, sc)
-        p.translate(-CW / 2, -CH)
-        p.drawImage(QRectF(0, 0, CW, CH), self._car_image(self.devicePixelRatioF()))
-        self._face(p, look, now)
+        if rise < 1.0:                                          # coming out of / going into the ring
+            p.setClipRect(QRectF(0, 0, AW, FLOOR + 2))
+        rect = QRectF(cx - RW / 2, FLOOR - RH - hop + (RH - RH * rise), RW, RH)
+        fade = 1.0
+        if self._from and now - self._pose_at < 0.35 and not self._enter:
+            fade = (now - self._pose_at) / 0.35
+            p.setOpacity(1 - fade)
+            p.drawPixmap(rect, self._pixmap(self._from), QRectF())
+            p.setOpacity(fade)
+        p.drawPixmap(rect, self._pixmap(self._pose), QRectF())
+        p.setOpacity(1.0)
+        if fade >= 1.0:
+            self._from = None
+            blink = self._next_blink <= now <= self._next_blink + 0.14
+            if (blink or look == "sleep") and not self._enter:
+                self._paint_lids(p, rect, half=(look == "sleep" and not blink))
         p.restore()
-        if not self._enter:
-            self._extras(p, look, now, cx, GROUND + bob)
+        if look == "work" and self._busy < 0.9 and int(now * 2.5) % 2 == 0:
+            self._paint_spark(p, rect, now)
+        if self._alerts and not self._enter:
+            self._paint_count(p, cx + RW * 0.26, top + 10)
+        if look == "sleep":
+            f = QFont(UI)
+            f.setPixelSize(13)
+            f.setBold(True)
+            p.setFont(f)
+            u = (now * 0.3) % 1.0
+            p.setPen(QColor(230, 236, 244, round(220 * math.sin(math.pi * u))))
+            p.drawText(QPointF(cx + RW * 0.3 + u * 8, top + 14 - u * 14), "z")
         p.end()
 
-    # ---- the face: the headlights are the eyes, the intake is the mouth
-    def _face(self, p: QPainter, look: str, t: float):
-        hazard = look in ("alert", "wait") and int(t * 2) % 2 == 0
-        lit = look != "sleep"
-        for side in (-1, 1):
-            cx, cy = CW / 2 + side * 26, 28.5
-            lamp = QPainterPath()                      # a slanted, sharp headlight
-            lamp.moveTo(cx - 10 * side, cy - 3.5)
-            lamp.lineTo(cx + 9 * side, cy - 5.5)
-            lamp.quadTo(cx + 11 * side, cy + 1, cx + 6 * side, cy + 5)
-            lamp.lineTo(cx - 8 * side, cy + 4)
-            lamp.closeSubpath()
-            p.setPen(QPen(QColor(255, 255, 255, 60), 0.8))
-            p.setBrush(QColor("#0a0b0d"))
-            p.drawPath(lamp)
-            p.setPen(Qt.NoPen)
-            if lit:
-                if look == "beams":
-                    glow = QRadialGradient(QPointF(cx, cy), 14)
-                    glow.setColorAt(0, QColor(255, 255, 255, 170))
-                    glow.setColorAt(1, QColor(255, 255, 255, 0))
-                    p.setBrush(glow)
-                    p.drawEllipse(QPointF(cx, cy), 14, 14)
-                p.save()
-                p.setClipPath(lamp)
-                p.setBrush(EYE)
-                p.drawRect(QRectF(cx - 10, cy - 6, 20, 2.2))   # the daytime-light brow
-                p.drawEllipse(QPointF(cx + side * 0.5, cy + 0.5), 4.6, 4.2)
-                look_x = 0.0
-                if look == "look":
-                    look_x = 2.2 * math.copysign(1, math.sin(t * 1.6))
-                elif look == "alert":
-                    look_x = -side * 0.8
-                p.setBrush(QColor("#111216"))
-                p.drawEllipse(QPointF(cx + side * 0.5 + look_x, cy + 1), 2.2, 2.4)
-                p.setBrush(QColor(255, 255, 255, 230))
-                p.drawEllipse(QPointF(cx + side * 0.5 + look_x + 0.9, cy - 0.2), 0.8, 0.8)
-                p.restore()
-                if (t % 5.3) < 0.13:                   # a blink
-                    p.setBrush(BODY_HI)
-                    p.drawRect(QRectF(cx - 7, cy - 4, 14, 8))
-            else:                                      # asleep: lights off, a thin closed line
-                p.setPen(QPen(QColor(234, 242, 255, 120), 1.2))
-                p.drawLine(QPointF(cx - 5, cy + 1), QPointF(cx + 5, cy + 1))
-                p.setPen(Qt.NoPen)
-            if hazard:                                 # amber indicators at the outer corners
-                p.setBrush(AMBER)
-                p.drawRoundedRect(QRectF(cx + side * 9 - 2.5, cy + 1, 5, 3.5), 1.2, 1.2)
-        mx, my = CW / 2, 37                          # the mouth: the lower intake
-        if look in ("honk", "alert"):
-            p.setBrush(QColor("#050506"))
-            p.setPen(QPen(CHROME_LO, 1))
-            p.drawEllipse(QPointF(mx, my + 0.5), 3.6, 2.8)   # «oh!»
-            return
-        m = QPainterPath()
-        if look == "sleep":
-            m.moveTo(mx - 6, my)
-            m.lineTo(mx + 6, my)
-        elif look == "wait":
-            m.moveTo(mx - 6, my + 1)
-            m.quadTo(mx, my - 1.5, mx + 6, my + 1)
-        else:
-            w = 9 if look in ("party", "rev", "beams") else 7
-            m.moveTo(mx - w, my - 1.2)
-            m.quadTo(mx, my + 4.5, mx + w, my - 1.2)
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(CHROME_HI, 1.4, Qt.SolidLine, Qt.RoundCap))
-        p.drawPath(m)
-
-    def _exhaust(self, p: QPainter, t: float, cx: float, strong: bool):
-        n = 4 if strong else 2
+    def _paint_ring(self, p: QPainter, cx: float, y: float, k: float):
+        """The hologram ring on the floor, as in his GIF."""
+        rx, ry = RW * 0.62 * (0.4 + 0.6 * k), 8 * (0.4 + 0.6 * k)
+        glow = QRadialGradient(QPointF(cx, y), rx)
+        glow.setColorAt(0, QColor(79, 195, 255, round(90 * k)))
+        glow.setColorAt(1, QColor(79, 195, 255, 0))
         p.setPen(Qt.NoPen)
-        for side in (-1, 1):
-            for i in range(n):
-                u = (t * (1.6 if strong else 0.9) + i / n) % 1.0
-                r = 2 + u * (6 if strong else 4)
-                p.setBrush(QColor(120, 124, 132, round((110 if strong else 70) * (1 - u))))
-                p.drawEllipse(QPointF(cx + side * (CW / 2 - 6 + u * 16), GROUND - 4 - u * 12), r, r)
-
-    def _waves(self, p: QPainter, cx: float, y: float, col: QColor, rings: int):
+        p.setBrush(glow)
+        p.drawEllipse(QPointF(cx, y), rx, ry * 1.6)
+        c = QColor(BLUE)
+        c.setAlpha(round(230 * k))
+        p.setPen(QPen(c, 2.2))
+        p.setBrush(QColor(8, 20, 30, round(160 * k)))
+        p.drawEllipse(QPointF(cx, y), rx, ry)
+        c.setAlpha(round(120 * k))
+        p.setPen(QPen(c, 1))
         p.setBrush(Qt.NoBrush)
-        for side in (-1, 1):
-            x = cx + side * (CW / 2 + 2)
-            a0 = 120 * 16 if side < 0 else -60 * 16
-            for i in range(rings):
-                c = QColor(col)
-                c.setAlpha(max(60, col.alpha() - 80 * i))
-                r = 6 + 5 * i
-                p.setPen(QPen(QColor(10, 10, 12, c.alpha() // 2), 4, Qt.SolidLine, Qt.RoundCap))   # a dark rim: reads on white
-                p.drawArc(QRectF(x - r, y - r, 2 * r, 2 * r), a0, 120 * 16)
-                p.setPen(QPen(c, 2, Qt.SolidLine, Qt.RoundCap))
-                p.drawArc(QRectF(x - r, y - r, 2 * r, 2 * r), a0, 120 * 16)
+        p.drawEllipse(QPointF(cx, y), rx * 0.8, ry * 0.7)
 
-    def _extras(self, p: QPainter, look: str, t: float, cx: float, ground: float):
-        top = ground - CH
-        f = QFont()
+    def _paint_lids(self, p: QPainter, rect: QRectF, half: bool):
+        """Eyelids in the colour of the headlight glass; half shut when asleep."""
+        sx, sy = rect.width() / SRC_W, rect.height() / SRC_H
+        col = self._lid[self._pose]
+        for x0, y0, x1, y1 in EYES[self._pose]:
+            ecx, ecy = rect.left() + (x0 + x1) / 2 * sx, rect.top() + (y0 + y1) / 2 * sy
+            rx, ry = ((x1 - x0) / 2 + 7) * sx, ((y1 - y0) / 2 + 9) * sy
+            p.save()
+            if half:
+                p.setClipRect(QRectF(ecx - rx - 1, ecy - ry - 1, 2 * rx + 2, ry + 2))
+            p.setPen(Qt.NoPen)
+            p.setBrush(col)
+            p.drawEllipse(QPointF(ecx, ecy), rx, ry)
+            p.restore()
+            p.setPen(QPen(QColor(40, 36, 32, 200), 1.3, Qt.SolidLine, Qt.RoundCap))
+            y = ecy if half else ecy + ry * 0.2
+            p.drawLine(QPointF(ecx - rx * 0.7, y), QPointF(ecx + rx * 0.7, y))
+
+    def _paint_spark(self, p: QPainter, rect: QRectF, t: float):
+        """A few sparks where the wrench meets the bolt."""
+        sx, sy = rect.width() / SRC_W, rect.height() / SRC_H
+        bx, by = rect.left() + 150 * sx, rect.top() + 218 * sy
+        rnd = random.Random(int(t * 2.5))
+        p.setPen(Qt.NoPen)
+        for _ in range(3):
+            a = rnd.uniform(-2.6, -0.5)
+            d = rnd.uniform(4, 10)
+            p.setBrush(QColor(255, 214, 120, 230) if rnd.random() < 0.6 else QColor(79, 195, 255, 220))
+            p.drawEllipse(QPointF(bx + math.cos(a) * d, by + math.sin(a) * d), 1.3, 1.3)
+
+    def _paint_count(self, p: QPainter, x: float, y: float):
+        n = len(self._alerts)
+        b = QRectF(x - 9, y - 9, 18, 18)
+        p.setPen(QPen(QColor(0, 0, 0, 140), 2))
+        p.setBrush(RED)
+        p.drawEllipse(b)
+        f = QFont(UI)
         f.setPixelSize(11)
         f.setBold(True)
-        if look == "alert":                            # horn waves and the red count on the roof
-            if int(t * 4) % 2 == 0:
-                self._waves(p, cx, top + 26, QColor(227, 189, 107, 230), 2)
-            n = str(min(self._alerts, 9)) + ("+" if self._alerts > 9 else "")
-            b = QRectF(cx - 9, top - 14, 18, 16)
-            p.setPen(QPen(QColor(0, 0, 0, 120), 2))
-            p.setBrush(RED)
-            p.drawRoundedRect(b, 8, 8)
-            p.setPen(QColor("white"))
-            p.setFont(f)
-            p.drawText(b, Qt.AlignCenter, n)
-        elif look == "party":
-            self._flag(p, cx + 12, top - 16, t)
-        elif look == "honk" and int(t * 6) % 2 == 0:
-            self._waves(p, cx, top + 33, QColor(242, 243, 245, 210), 1)
-        elif look == "sleep":
-            p.setFont(f)
-            u = (t * 0.25) % 1.0
-            p.setPen(QColor(242, 243, 245, round(220 * math.sin(math.pi * u))))
-            p.drawText(QPointF(cx + CW / 2 - 12 + u * 10, top + 2 - u * 16), "z")
+        p.setFont(f)
+        p.setPen(QColor("white"))
+        p.drawText(b, Qt.AlignCenter, str(n) if n < 10 else "9+")
 
-    def _flag(self, p: QPainter, x: float, y: float, t: float):
-        """A chequered flag on a chrome stick, waving."""
-        p.setPen(QPen(CHROME_LO, 1.6))
-        p.drawLine(QPointF(x, y), QPointF(x - 6, y + 30))
-        s = 4
+    def _paint_card(self, p: QPainter, look: str):
+        """The card, in the widget's black glass: what it is about / what Farol is doing, then what it has to say."""
+        r = self._card_rect
+        lines = self._card_lines()
+        if not lines:
+            return
+        head = self._card[0] if self._card else "FAROL"
         p.setPen(Qt.NoPen)
-        for cx in range(4):
-            for cy in range(3):
-                wave = 2 * math.sin(t * 9 - cx * 0.9)
-                p.setBrush(QColor("#0b0c0e") if (cx + cy) % 2 else QColor("#f2f3f5"))
-                p.drawRect(QRectF(x + 1 + cx * s, y + cy * s + wave, s, s))
+        for i, a in ((3, 16), (1.5, 26)):
+            p.setBrush(QColor(0, 0, 0, a))
+            p.drawRoundedRect(r.translated(0, i), 14, 14)
+        p.setBrush(QColor(16, 17, 20, 242))
+        p.setPen(QPen(QColor(255, 255, 255, 30), 1))
+        p.drawRoundedRect(r, 14, 14)
+        x = r.left() + 14
+        p.setFont(self._f_head)
+        p.setPen(QColor(RED) if (self._card and self._card[4] == "alert") else TEXT)
+        p.drawText(QRectF(x, r.top() + 9, BW - 110, 14), Qt.AlignLeft | Qt.AlignVCenter, head)
+        f = QFont(self._f_head)
+        f.setBold(False)
+        f.setLetterSpacing(QFont.AbsoluteSpacing, 0.3)
+        p.setFont(f)
+        p.setPen(QColor(143, 211, 255))
+        p.drawText(QRectF(r.right() - 110, r.top() + 9, 110 - (30 if self._card else 14), 14),
+                   Qt.AlignRight | Qt.AlignVCenter, STATE.get(look, ""))
+        p.setPen(QPen(QColor(255, 255, 255, 26), 1))
+        p.drawLine(QPointF(x, r.top() + 29), QPointF(r.right() - 14, r.top() + 29))
+        p.setFont(self._f_text)
+        p.setPen(TEXT)
+        for i, line in enumerate(lines):
+            p.drawText(QRectF(x, r.top() + 35 + 16 * i, BW - 28, 16), Qt.AlignLeft | Qt.AlignVCenter, line)
+        if self._card:                                          # × closes
+            self._x_rect = QRectF(r.right() - 24, r.top() + 8, 16, 16)
+            p.setPen(QPen(MUTED, 1.4, Qt.SolidLine, Qt.RoundCap))
+            c = self._x_rect.center()
+            p.drawLine(c + QPointF(-3.5, -3.5), c + QPointF(3.5, 3.5))
+            p.drawLine(c + QPointF(-3.5, 3.5), c + QPointF(3.5, -3.5))
+        else:
+            self._x_rect = QRectF()
 
-    # ------------------------------------------------------------ drag and click
+    # ------------------------------------------------------------ mouse
+    def enterEvent(self, e):
+        if not self._card and not self._enter:
+            self._hover = True
+            self._layout()
+
+    def leaveEvent(self, e):
+        if self._hover:
+            self._hover = False
+            self._layout()
+
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
-            self._press, self._moved = e.globalPosition().toPoint() - self.pos(), False
+            self._press, self._moved, self._press_at = e.globalPosition().toPoint(), False, QPoint(self._at)
 
     def mouseMoveEvent(self, e):
         if self._press is not None:
-            to = e.globalPosition().toPoint() - self._press
-            if (to - self.pos()).manhattanLength() > 3 or self._moved:
+            d = e.globalPosition().toPoint() - self._press
+            if d.manhattanLength() > 3 or self._moved:
                 self._moved = True
-                self.move(to)
+                self._at = self._press_at + d
+                self.move(self._at.x() - round(self._robot_x), self._at.y() - round(self._robot_y))
 
     def mouseReleaseEvent(self, e):
         if self._press is None:
             return
         self._press = None
         if self._moved:
-            prefs.save(pet_at=[self.x(), self.y()])
+            prefs.save(farol_at=[self._at.x(), self._at.y()])
+            self._layout()
             return
-        self._mode_at = time.monotonic()   # a click wakes it up
-        if self._alerts:                   # it was calling: open what was sent
-            href, self._alerts, self._alert_href = self._alert_href, 0, None
-            if href and self.open_page:
-                self.open_page(href)
-                return
-        if self.on_click:
+        pos = e.position()
+        self._mode_at = time.monotonic()                        # a click wakes it up
+        if self._card and self._x_rect.contains(pos):           # × : just close the card
+            if self._card[4] == "alert":
+                self._alerts = []
+            self._card = None
+            self._layout()
+            return
+        href = self._card[2] if self._card else None
+        if self._alerts:
+            href = href or self._alerts[-1].get("href")
+            self._alerts = []
+        self._card, self._hover = None, False
+        self._layout()
+        if href and self.open_page:
+            self.open_page(href)
+        elif self.on_click:
             self.on_click()

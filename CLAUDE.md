@@ -597,6 +597,13 @@ Armadilhas que custaram tempo:
 memecoins, até a dormir.» `#/memes`, a **primeira entrada de 04 · Trading** (`frontend/hub/memes.js` + `.css`), `/api/memes`
 (`routers/memes.py`), motor `backend/app/memes.py`, testes `tests/test_memes.py`. **Por agora só vigia e dá nota: não compra
 nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada vai por sync; os avisos vão para a pessoa do PC.
+- **A página são quatro separadores** (16 nov, Marco sobre a 1.ª versão, uma página comprida: «está tudo baralhado... tenho de
+  mostrar aos comparsas... uma pessoa que não percebe nada de trading»): **Resumo** (`#/memes`: a frase do momento, o mostrador
+  da melhor nota, Fortes/A ganhar força/Fracas/Perigo, as 6 melhores em cartões, «Como ler isto»), **Moedas** (`#/meme-moedas`,
+  tabela com filtros), **Redes sociais** (`#/meme-redes`, publicações e influencers) e **Agentes** (`#/meme-agentes`, cartões,
+  relatórios do Batman, Motor GMGN, regras). Cada moeda tem um veredicto em palavras (`verdict` no `memes.js`: ≥ 75 Forte,
+  ≥ 55 A ganhar força, ≥ 35 Fraca, abaixo Ignorar; perigo ou alerta vermelho = Perigo) e os termos vêm em português simples
+  («Dinheiro na pool» = liquidez, «Tamanho» = capitalização). Novos textos seguem esta regra: palavras antes de números.
 - **Robin · Mercado DEX** (3 min): DexScreener (boosts, perfis, pares por endereço, pesquisa por cashtag), GeckoTerminal
   trending (Solana, Base, Ethereum, BSC), CoinGecko trending. Stablecoins e ações tokenizadas ficam de fora (`NOT_MEME`).
 - **Oráculo · Redes sociais** (5 min): o X pelo **Tree News** (`news.treeofalpha.com/api/news`, grátis, ~2000 contas: a escolha da

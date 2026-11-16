@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
-from ..memes import AGENTS, BRAIN, CHAINS
+from ..memes import AGENTS, BRAIN, CHAINS, NOT_MEME
 from ..models import User
 from ..security import current_user
 from ..tradingroom import council
@@ -56,13 +56,16 @@ async def state(user: User = Depends(viewer)):
         if now - p["t"] < 6 * 3600:
             for k in p["tickers"]:
                 tick.setdefault(k, set()).add((p["src"], p["who"].lower()))
+    known = {(t.get("symbol") or "").upper() for t in st["tokens"].values()}
     agents = []
     for k, a in AGENTS.items():
         r = st["runs"].get(k, {})
         agents.append({"id": k, **a, "at": r.get("at"), "ok": r.get("ok"), "n": r.get("n"), "note": r.get("note", ""), "busy": BRAIN.busy == k})
     return {"now": now, "cfg": _cfg_out(), "agents": agents, "tokens": [_slim(t) for t in toks[:80]],
             "n_tokens": len(st["tokens"]), "posts": st["posts"][:80], "hours": hours,
-            "tickers": sorted(({"t": k, "n": len(v)} for k, v in tick.items()), key=lambda x: -x["n"])[:20],
+            # a cashtag counts when it is a coin we follow or two accounts used it: one WatcherGuru post about $NVDA is no memecoin
+            "tickers": sorted(({"t": k, "n": len(v)} for k, v in tick.items() if not NOT_MEME.search(k) and (k in known or len(v) >= 2)),
+                              key=lambda x: -x["n"])[:20],
             "influencers": st["influencers"], "reports": st["reports"][:10], "alerts": st["alerts"][:30],
             "cg_trending": st.get("cg_trending", []), "gmgn": BRAIN.gmgn,
             "claude": {"installed": council.claude_exe() is not None, "today": BRAIN.claude_today()}}

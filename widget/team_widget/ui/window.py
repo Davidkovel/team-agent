@@ -2570,7 +2570,7 @@ class WidgetWindow(QWidget):
         self.orb.on_icon = self._gauge_clicked
         self.orb.on_drag = self._hide_spot
         from .pet import Pet   # 16 Nov: the big pixel robot over every window, like the ChatGPT pets
-        self.pet = Pet(self.expand, self._open_notice)   # 17 Nov, Marco: Bit, our little pixel programmer (ui/pet.py)
+        self.pet = Pet(self.expand, self._open_notice)   # 17 Nov, Marco: the Farol, programmer version (ui/pet.py)
         self.pet.show()
         self._add_farol_control()
         app = QApplication.instance()   # the gauges' lines show in a dark glass tooltip, like the card
@@ -2759,7 +2759,7 @@ class WidgetWindow(QWidget):
         col.addWidget(side)
 
         # Farol, the pet (16 Nov, Marco: «uma cena para aumentar e diminuir o tamanho»): his size and on/off, per computer
-        farol = Platter("Bit", "", "")
+        farol = Platter("Farol", "", "")
         self.farol_sub = farol.sub
         farol.sub.setText("o teu robô programador no ecrã")
         self._farol_box = farol.box

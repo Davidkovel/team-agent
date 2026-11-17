@@ -25,44 +25,24 @@ import os
 import random
 import sys
 import time
+from pathlib import Path
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QCursor, QFont, QFontMetricsF, QImage, QPainter, QPen, QRadialGradient
+from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetricsF, QImage, QLinearGradient, QPainter, QPainterPath,
+                           QPen, QRadialGradient)
 from PySide6.QtWidgets import QApplication, QWidget
 
 from . import prefs
 
-W, H = 32, 32                            # the sprite, in cells
-CELLS = (1.5, 2.0, 2.5, 3.0, 3.5)        # «Tamanho» in the central: logical pixels per cell
-HEADROOM = 4                             # cells above the sprite for a hop
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+
+W, H = 30, 36                            # the canvas, in units (10 pixels of the Farol pictures)
+CELLS = (1.8, 2.2, 2.6, 3.0, 3.5)        # «Tamanho» in the central: logical pixels per unit
+HEADROOM = 2                             # units above the canvas for a hop
 BW = 214                                 # the card
 GAP = 2
-NAME = "BIT"
+NAME = "FAROL"
 
-
-def _c(hexs: str, a: int = 255) -> int:
-    v = int(hexs.lstrip("#"), 16)
-    return (a << 24) | v
-
-
-# the palette: the widget's black chrome, ice blue, the AMG red
-K = _c("#050506")                        # outline
-HEAD, HEAD_HI, HEAD_LO = _c("#34373e"), _c("#5d626d"), _c("#1d1f23")
-RIM = _c("#0b0c0e")
-BODY, BODY_HI, BODY_LO = _c("#3a3d45"), _c("#575c67"), _c("#25272c")
-HAND, LIMB = _c("#9aa1ad"), _c("#5d626d")
-RED, RED_DK = _c("#ff3b30"), _c("#5a1612")
-AMBER, GREEN = _c("#ffb340"), _c("#34c759")
-SCR, SCR_LINE, SCR_GLARE = _c("#06121b"), _c("#0a1824"), _c("#183244")
-EYE, EYE_HI, EYE_DIM = _c("#8fdcff"), _c("#effaff"), _c("#2f6580")
-LID, LID_HI, BASE, BASE_LO = _c("#2a2d33"), _c("#4b505a"), _c("#71767f"), _c("#3b3e45")
-EAR, EAR_HI = _c("#2a2d33"), _c("#4f5560")
-PUPIL, GLOSS = _c("#0b2a3f"), _c("#a9b0bb")
-TREAD, TREAD_HI, TRACK_IN = _c("#16171a"), _c("#3a3d44"), _c("#0c0d0f")
-WHEEL, WHEEL_HI, HUB = _c("#40444c"), _c("#9aa1ad"), _c("#25272c")
-PLATE, PLATE_HI = _c("#5b606b"), _c("#8a909b")
-CODE = (_c("#8fdcff"), _c("#7ee2a8"), _c("#ff7a70"), _c("#cfd8e3"), _c("#c9a7ff"))
-BUBBLE = _c("#dfe6ee", 230)
 
 TEXT, MUTED = QColor("#f2f3f5"), QColor("#9a9fa7")
 QRED = QColor("#ff3b30")
@@ -72,8 +52,6 @@ STATE = {"think": "a pensar", "edit": "a programar", "run": "a correr um comando
          "idle": "contigo", "sleep": "a descansar", "alert": "para ti", "wait": "à tua espera", "done": "pronto",
          "walk": "a passear"}
 
-GLYPHS = {"?": (".###.", "#...#", "....#", "..##.", "..#..", ".....", "..#.."),
-          "!": ("..##.", "..##.", "..##.", "..##.", ".....", "..##.", "..##.")}
 
 _QUARTZ = []
 
@@ -122,257 +100,225 @@ def kind_of(action: str) -> str:
 
 
 # ---------------------------------------------------------------------------------------------- the sprite
-def _mirror(pts):
-    return [(W - 1 - x, y) for (x, y) in pts]
+# The canvas, in pixels of the Farol pictures (293 x 320), with room on top for the bubbles. One «unit» is 10 of them.
+CW, CH, TOP = 300, 360, 40
+_SRC = {}
 
 
-# the arms, left side (the right one is the mirror): segments from the shoulder, then the claw
-ARM = {"down": [(9, 20), (8, 21), (8, 22)],
-       "up": [(9, 20), (8, 20), (7, 19), (6, 19), (5, 18), (4, 17), (3, 16), (3, 15)],
-       "wave2": [(9, 20), (8, 20), (7, 19), (6, 19), (5, 18), (4, 18), (3, 17), (2, 16)],
-       "chin": [(9, 20), (8, 20), (7, 19), (7, 18)]}
-CLAW_DOWN = [(7, 23), (8, 23), (9, 23), (7, 24), (9, 24)]                 # a «U» upside down
-CLAW_UP = {"up": [(2, 14), (3, 14), (4, 14), (2, 13), (4, 13)],
-           "wave2": [(1, 15), (2, 15), (3, 15), (1, 14), (3, 14)],
-           "chin": [(8, 17), (9, 17), (10, 17), (8, 16)]}
+def _src(pose: str) -> QImage:
+    if pose not in _SRC:
+        _SRC[pose] = QImage(str(ASSETS / f"farol-{pose}.png")).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+    return _SRC[pose]
+
+
+# the eyes of the «idle» picture (canvas coordinates): the white, and where the iris sits when he looks at you
+EYE_L, EYE_R = (122.5, 142.5), (180.5, 142.5)
+EYE_RX, EYE_RY = 21.5, 24.5
+IRIS = ((133.0, 142.0), (170.0, 142.0))
+GLASS = QColor("#ead7c4")
+
+
+def _qc(v: int) -> QColor:
+    return QColor.fromRgba(v)
 
 
 def build(spec: tuple) -> QImage:
-    """One frame of Bit, from a hashable description (so equal frames come from the cache).
-    spec = (arms, tracks, head_dy, screen, led, laptop, fx, dissolve)"""
-    arms, legs, hdy, screen, led, laptop, fx, dissolve = spec
-    cells = {}
-
-    def rect(x, y, w, h, col):
-        for j in range(y, y + h):
-            for i in range(x, x + w):
-                cells[(i, j)] = col
-
-    def put(pts, col):
-        for p in pts:
-            cells[p] = col
-
-    # the tracks: a rubber band round two wheels, the AMG plate in the middle
-    ty = 25 if legs == "dangle" else 24
-    roll = {"roll1": 1, "roll2": 2, "roll3": 3}.get(legs, 0)
-    band = [(x, ty) for x in range(6, 26)] + [(x, ty + 5) for x in range(6, 26)] + \
-           [(5, ty + j) for j in range(1, 5)] + [(26, ty + j) for j in range(1, 5)]
-    for (x, y) in band:                            # the treads move round when he rolls
-        k = (x - roll) if y == ty else (x + roll) if y == ty + 5 else (y + (roll if x > 15 else -roll))
-        cells[(x, y)] = TREAD_HI if k % 3 == 0 else TREAD
-    rect(6, ty + 1, 20, 4, TRACK_IN)
-    for cx in (6, 22):                             # the wheels, the spokes turn
-        rect(cx, ty + 1, 4, 4, WHEEL)
-        for p in ((cx, ty + 1), (cx + 3, ty + 1), (cx, ty + 4), (cx + 3, ty + 4)):
-            cells[p] = TRACK_IN
-        spoke = (((cx + 1, ty + 2), (cx + 2, ty + 3)), ((cx + 2, ty + 2), (cx + 1, ty + 3)))[roll % 2]
-        put([(cx + 1, ty + 2), (cx + 2, ty + 2), (cx + 1, ty + 3), (cx + 2, ty + 3)], HUB)
-        put(spoke, WHEEL_HI)
-    rect(11, ty + 1, 10, 4, PLATE)                 # the plate
-    rect(11, ty + 1, 10, 1, PLATE_HI)
-    rect(13, ty + 2, 6, 1, RED)
-    rect(13, ty + 3, 6, 1, RED_DK)
-    # the body
-    rect(11, 20, 10, 4, BODY)
-    rect(11, 20, 10, 1, BODY_HI)
-    rect(11, 23, 10, 1, BODY_LO)
-    rect(14, 21, 4, 2, BODY_LO)                    # a small chest panel
-    cells[(15, 21)] = led if led != RED_DK else BODY_LO
-    rect(14, 19, 4, 1, HEAD_LO)                    # neck
-    # the head: a round helmet with a visor, a headlight for a face, ear cups
-    hy = 3 + hdy
-    for r, (a, b) in enumerate(((12, 19), (10, 21), (9, 22), (8, 23), (8, 23), (7, 24))):
-        rect(a, hy + r, b - a + 1, 1, HEAD)
-    rect(12, hy, 8, 1, HEAD_HI)
-    put([(10, hy + 1), (11, hy + 1), (9, hy + 2), (8, hy + 3), (8, hy + 4)], HEAD_HI)
-    put([(22, hy + 2), (23, hy + 3), (23, hy + 4), (23, hy + 5)], HEAD_LO)
-    put([(11, hy + 2), (10, hy + 3)], GLOSS)       # the shine on the chrome
-    rect(14, hy + 1, 4, 2, HEAD_HI)                # the badge on top, its light
-    put([(15, hy + 1), (16, hy + 1), (15, hy + 2), (16, hy + 2)], RIM)
-    cells[(15, hy + 1)] = led
-    cells[(16, hy + 2)] = led if led != RED_DK else RIM
-    rect(7, hy + 6, 18, 1, HEAD_LO)                # the visor's lip
-    rect(8, hy + 6, 16, 1, HEAD_HI)
-    rect(8, hy + 7, 16, 9, HEAD)                   # the face frame
-    rect(8, hy + 7, 1, 8, HEAD_HI)
-    rect(23, hy + 7, 1, 9, HEAD_LO)
-    put([(8, hy + 15), (23, hy + 15)], None)
-    rect(9, hy + 15, 14, 1, HEAD_LO)
-    for ex in (5, 24):                             # the ear cups
-        rect(ex, hy + 9, 3, 5, EAR)
-        cells.pop((ex if ex == 5 else ex + 2, hy + 9), None)
-        cells.pop((ex if ex == 5 else ex + 2, hy + 13), None)
-        rect(ex + (1 if ex == 5 else 0), hy + 10, 2, 3, EAR_HI if ex == 5 else HEAD_LO)
-    _screen(cells, 9, hy + 7, screen)
-    cells = {k: v for k, v in cells.items() if v is not None}
-    # the arms (after the head: a raised one passes in front of it)
-    if arms in ("type1", "type2"):
-        pass
-    else:
-        la = "wave2" if arms == "wave2" else ("up" if arms == "up" else "down")
-        ra = {"wave1": "up", "wave2": "wave2", "up": "up", "chin": "chin"}.get(arms, "down")
-        if arms == "wave2":
-            la = "down"
-        put(ARM[la], LIMB), put(_mirror(ARM[ra]), LIMB)
-        put([ARM[la][0], _mirror(ARM[ra])[0]], HEAD_LO)            # the shoulders
-        put(CLAW_UP.get(la, CLAW_DOWN), HAND)
-        put(_mirror(CLAW_UP.get(ra, CLAW_DOWN)), HAND)
-    # the laptop in front (working)
-    if laptop:
-        rect(10, 18, 12, 6, LID)
-        for p in ((10, 18), (21, 18)):
-            cells.pop(p, None)
-        rect(11, 18, 10, 1, LID_HI)
-        put([(15, 20), (16, 20), (15, 21), (16, 21)], EYE if laptop == 2 else EYE_DIM)
-        rect(8, 24, 16, 1, BASE)
-        rect(8, 25, 16, 1, BASE_LO)
-        put([(9, 20), (8, 21), (22, 20), (23, 21)], LIMB)            # the arms reach the keys
-        hl, hr = ((9, 23), (22, 22)) if arms == "type1" else ((9, 22), (22, 23))
-        put([(8, 22), (23, 22)], LIMB)
-        put([hl, hr], HAND)
-    # the outline: every empty cell touching the robot
-    solid = set(cells)
-    for (x, y) in list(solid):
-        for n in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-            if n not in solid and 0 <= n[0] < W and 0 <= n[1] < H:
-                cells[n] = K
-    # effects (no outline)
-    kind = fx[0] if fx else None
-    if kind == "bubble":
-        k = fx[1]
-        cells[(27, 3)] = BUBBLE
-        if k >= 1:
-            rect(28, 0, 3, 2, BUBBLE)
-    elif kind == "z":
-        y0 = fx[1]
-        for dx, dy in ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (3, 1), (2, 2), (1, 3), (0, 4), (1, 4), (2, 4), (3, 4), (4, 4)):
-            if 0 <= y0 + dy < H:
-                cells[(26 + dx, y0 + dy)] = _c("#c8e4ff", 200)
-    elif kind == "bits":
-        for (bx, by, col) in fx[1]:
-            if (bx, by) not in solid:
-                cells[(bx, by)] = col
-    img = QImage(W, H, QImage.Format_ARGB32)
+    """One frame of the Farol, from a hashable description (equal frames come from the cache).
+    spec = (pose, eyes, holo, fx, tilt)
+      eyes = (dx, dy, lid, mood) on the idle picture (dx, dy in -1..1, lid 0 open .. 1 shut, mood open|happy|sleep)
+      holo = None | ("code", n) | ("term", n, cursor, seed) | ("read", k) | ("done",)
+      fx   = None | ("dots", k) | ("glyph", "?"|"!") | ("z", k)"""
+    pose, eyes, holo, fx, tilt = spec
+    img = QImage(CW, CH, QImage.Format_ARGB32_Premultiplied)
     img.fill(0)
-    for (x, y), col in cells.items():
-        if 0 <= x < W and 0 <= y < H:
-            if dissolve < 1.0 and ((x * 73 + y * 151) % 97) / 97.0 >= dissolve:
-                continue
-            img.setPixel(x, y, col)
+    p = QPainter(img)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    if tilt:
+        p.translate(CW / 2, CH)
+        p.rotate(tilt)
+        p.translate(-CW / 2, -CH)
+    p.drawImage(QPointF(3, TOP), _src(pose))
+    if pose == "idle" and eyes:
+        _eyes(p, *eyes)
+    if holo:
+        _holo(p, holo)
+    p.resetTransform()
+    if fx:
+        _fx(p, fx)
+    p.end()
     return img
 
 
-SW, SH = 14, 8                                    # the headlight glass
-_GLASS_CUT = {(0, 0), (SW - 1, 0), (0, SH - 1), (SW - 1, SH - 1)}
+def _eyes(p: QPainter, dx: float, dy: float, lid: float, mood: str):
+    """Big glossy eyes drawn over the picture's own, so they can look, blink, smile and sleep."""
+    for (cx, cy), (ix, iy) in zip((EYE_L, EYE_R), IRIS):
+        white = QPainterPath()
+        white.addEllipse(QPointF(cx, cy), EYE_RX, EYE_RY)
+        p.save()
+        p.setClipPath(white)
+        g = QRadialGradient(QPointF(cx - 6, cy - 9), EYE_RY * 1.5)
+        g.setColorAt(0, QColor("#fffdf8"))
+        g.setColorAt(0.6, QColor("#f4ece2"))
+        g.setColorAt(1, QColor("#b9c4cc"))
+        p.setPen(Qt.NoPen)
+        p.setBrush(g)
+        p.drawEllipse(QPointF(cx, cy), EYE_RX, EYE_RY)
+        if mood != "sleep":
+            x, y = ix + dx * 6.5 - (3 if cx < 150 else -3) * abs(dx), iy + dy * 7
+            ig = QRadialGradient(QPointF(x, y + 3), 15)
+            ig.setColorAt(0, QColor("#0d3f5e"))
+            ig.setColorAt(0.45, QColor("#2a8fc4"))
+            ig.setColorAt(0.8, QColor("#63c9ef"))
+            ig.setColorAt(1, QColor("#1b5878"))
+            p.setBrush(ig)
+            p.drawEllipse(QPointF(x, y), 10.5, 15.5)
+            p.setBrush(QColor("#06090c"))
+            p.drawEllipse(QPointF(x, y), 6.6, 10.8)
+            p.setBrush(QColor(255, 255, 255, 235))
+            p.drawEllipse(QPointF(x - 3.2, y - 7.5), 3.4, 3.4)
+            p.setBrush(QColor(255, 255, 255, 150))
+            p.drawEllipse(QPointF(x + 3.5, y + 6.5), 1.6, 1.6)
+        if mood == "happy":                        # the cheeks push up: a «^» of an eye
+            p.setBrush(GLASS)
+            p.drawEllipse(QPointF(cx, cy + EYE_RY * 0.95), EYE_RX * 1.6, EYE_RY * 1.0)
+        if mood == "sleep":                        # shut: only a soft curve where the eye was
+            p.setBrush(GLASS)
+            p.drawEllipse(QPointF(cx, cy), EYE_RX + 1, EYE_RY + 1)
+            p.restore()
+            arc = QPainterPath(QPointF(cx - 14, cy + 2))
+            arc.quadTo(QPointF(cx, cy + 14), QPointF(cx + 14, cy + 2))
+            p.setPen(QPen(QColor("#3a312b"), 3.2, Qt.SolidLine, Qt.RoundCap))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(arc)
+            p.setPen(Qt.NoPen)
+            continue
+        shut = lid
+        if shut > 0.02:                            # a chrome eyelid coming down
+            top = cy - EYE_RY
+            h = 2 * EYE_RY * shut
+            lg = QLinearGradient(0, top, 0, top + h)
+            lg.setColorAt(0, QColor("#e4d6c8"))
+            lg.setColorAt(1, QColor("#8e8177"))
+            p.setBrush(lg)
+            p.drawRect(QRectF(cx - EYE_RX - 1, top - 1, 2 * EYE_RX + 2, h + 1))
+            p.setPen(QPen(QColor("#3f362f"), 1.6))
+            p.drawLine(QPointF(cx - EYE_RX, top + h), QPointF(cx + EYE_RX, top + h))
+            p.setPen(Qt.NoPen)
+        p.restore()
+        p.setPen(QPen(QColor(70, 60, 52, 110), 1.2))           # a soft rim so the eye sits in the glass
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(QPointF(cx, cy), EYE_RX, EYE_RY)
+        p.setPen(Qt.NoPen)
 
 
-def _screen(cells, sx, sy, screen):
-    """The face: a 14 x 8 headlight glass with ribs, where the eyes (and the work) show."""
-    kind = screen[0]
-    for j in range(SH):
-        for i in range(SW):
-            cells[(sx + i, sy + j)] = RIM if (i, j) in _GLASS_CUT else (SCR_LINE if i % 2 else SCR)
-    for p in ((11, 1), (12, 1), (12, 2)):
-        cells[(sx + p[0], sy + p[1])] = SCR_GLARE
+HOLO = QRectF(68, 238, 164, 66)                    # between the claws, in front of the plate
 
-    def px(i, j, col):
-        if 0 <= i < SW and 0 <= j < SH and (i, j) not in _GLASS_CUT:
-            cells[(sx + i, sy + j)] = col
 
-    if kind == "off":
-        return
-    if kind == "crt":                              # powering on/off: a line that opens into the picture
-        p = screen[1]
-        if p < 0.5:
-            w = max(1, round(SW * p * 2))
-            for i in range(7 - w // 2, 7 + (w + 1) // 2):
-                px(i, 4, EYE_HI)
-        else:
-            h = max(1, round(SH * (p - 0.5) * 2))
-            for j in range(4 - h // 2, 4 + (h + 1) // 2):
-                for i in range(SW):
-                    px(i, j, _c("#bfe9ff") if j == 4 else EYE_DIM)
-        return
-    if kind == "eyes":
-        _, dx, dy, shape, col = screen
-        for ex in (2, 8):
-            x, y = ex + dx, 1 + dy
-            if shape == "open":                    # a big round eye: iris, pupil, a spark of light
-                for j in range(5):
-                    for i in range(4):
-                        if i in (0, 3) and j in (0, 4):
-                            continue
-                        px(x + i, y + j, col)
-                for p in ((1, 2), (2, 2), (1, 3), (2, 3)):
-                    px(x + p[0], y + p[1], PUPIL)
-                px(x + 1, y + 1, EYE_HI)
-            elif shape == "blink":
-                for i in range(4):
-                    px(x + i, y + 3, col)
-            elif shape == "squint":
-                for i in range(4):
-                    px(x + i, y + 2, col), px(x + i, y + 3, col)
-                px(x + 1, y + 3, PUPIL), px(x + 2, y + 3, PUPIL)
-            elif shape == "sleep":
-                px(ex, 4, EYE_DIM), px(ex + 1, 5, EYE_DIM), px(ex + 2, 5, EYE_DIM), px(ex + 3, 4, EYE_DIM)
-            elif shape == "happy":
-                px(ex, 4, col), px(ex + 1, 3, col), px(ex + 2, 3, col), px(ex + 3, 4, col)
-        if shape == "happy":
-            px(5, 6, col), px(6, 7, col), px(7, 7, col), px(8, 6, col)
-        return
-    if kind == "scan":
-        _, dx, line = screen
-        for i in range(SW):
-            px(i, line, _c("#13324a"))
-        for ex in (2, 8):
-            for i in range(4):
-                px(ex + dx + i, 3, EYE), px(ex + dx + i, 4, EYE)
-            px(ex + dx + 1, 4, PUPIL), px(ex + dx + 2, 4, PUPIL)
-        return
-    if kind == "dots":
-        k = screen[1]
-        for n, x in enumerate((2, 6, 10)):
-            col = EYE if n == k else EYE_DIM
-            for i in range(2):
-                for j in range(2):
-                    px(x + i, 3 + j, col)
-        return
+def _holo(p: QPainter, holo: tuple):
+    """The programmer's screen: a hologram he holds between his claws."""
+    r = HOLO
+    kind = holo[0]
+    if kind == "done":
+        r = QRectF(112, 246, 76, 50)
+    g = QLinearGradient(0, r.top(), 0, r.bottom())
+    g.setColorAt(0, QColor(70, 190, 255, 92))
+    g.setColorAt(1, QColor(40, 140, 230, 40))
+    p.setBrush(g)
+    p.setPen(QPen(QColor(150, 225, 255, 215), 1.6))
+    p.drawRoundedRect(r, 7, 7)
+    p.setPen(QPen(QColor(220, 245, 255, 200), 1.2))       # the top edge catches the light
+    p.drawLine(QPointF(r.left() + 8, r.top() + 1.5), QPointF(r.right() - 8, r.top() + 1.5))
+    p.setPen(Qt.NoPen)
+    x0, y0 = r.left() + 10, r.top() + 9
     if kind == "code":
-        off = screen[1]
-        for row in range(SH):
-            r = random.Random((off + row) * 7919)
-            if r.random() < 0.18:
-                continue
-            x = r.choice((1, 1, 2, 3, 4))
-            for _ in range(r.choice((1, 2, 2, 3))):
-                ln = r.randint(1, 4)
-                col = r.choice(CODE)
-                for i in range(ln):
-                    px(x + i, row, col)
-                x += ln + 1
-                if x >= SW - 2:
+        n = holo[1]
+        cols = (QColor("#9be3ff"), QColor("#8ff0b4"), QColor("#ff8f86"), QColor("#e6edf5"), QColor("#d3b6ff"))
+        for row in range(5):
+            rr = random.Random((n + row) * 7919)
+            x = x0 + rr.choice((0, 0, 8, 16, 24))
+            for _ in range(rr.choice((1, 2, 2, 3))):
+                w = rr.randint(10, 34)
+                if x + w > r.right() - 10:
                     break
-        if screen[2]:                              # the cursor on the last line
-            px(min(12, 2 + (off % 10)), 6, EYE_HI)
-        return
-    if kind == "term":
-        n, cursor = screen[1], screen[2]
-        for j, i in ((1, 1), (2, 2), (3, 3), (4, 2), (5, 1)):
-            px(i + 1, j, GREEN)
+                c = rr.choice(cols)
+                c.setAlpha(230)
+                p.setBrush(c)
+                p.drawRoundedRect(QRectF(x, y0 + row * 10.5, w, 5), 2.5, 2.5)
+                x += w + 6
+        if n % 2:
+            p.setBrush(QColor(255, 255, 255, 240))
+            p.drawRect(QRectF(x0 + 8 + (n % 7) * 12, y0 + 4 * 10.5 - 1, 3, 8))
+    elif kind == "term":
+        n, cursor, seed = holo[1:]
+        p.setPen(QPen(QColor("#5cf08f"), 2.6, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.drawPolyline([QPointF(x0, y0), QPointF(x0 + 7, y0 + 5), QPointF(x0, y0 + 10)])
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(225, 240, 250, 220))
         for j in range(min(n, 3)):
-            r = random.Random(j * 31 + screen[3])
-            for i in range(6, 6 + r.randint(3, 6)):
-                px(i, 1 + j, _c("#9aa4b1"))
+            rr = random.Random(j * 31 + seed)
+            p.drawRoundedRect(QRectF(x0 + (16 if j == 0 else 0), y0 + 2 + j * 12 + (0 if j == 0 else 4),
+                                     rr.randint(40, 110), 5), 2.5, 2.5)
         if cursor:
-            for i in range(6, 9):
-                px(i, 5, EYE_HI)
-        return
-    if kind == "glyph":
-        g, col = GLYPHS[screen[1]], screen[2]
-        for j, line in enumerate(g):
-            for i, ch in enumerate(line):
-                if ch == "#":
-                    px(5 + i, j, col)
+            p.setBrush(QColor("#5cf08f"))
+            p.drawRect(QRectF(x0, r.bottom() - 13, 10, 4))
+    elif kind == "read":
+        k = holo[1]
+        p.setBrush(QColor(225, 240, 250, 150))
+        for row in range(5):
+            w = (120, 96, 132, 80, 110)[row]
+            p.drawRoundedRect(QRectF(x0, y0 + row * 10.5, w, 4.5), 2, 2)
+        band = y0 + (k % 5) * 10.5 - 2.5
+        p.setBrush(QColor(120, 220, 255, 110))
+        p.drawRoundedRect(QRectF(x0 - 4, band, r.width() - 12, 9.5), 3, 3)
+        mx = x0 + 20 + (k * 23) % 110
+        p.setPen(QPen(QColor(255, 255, 255, 235), 2.4))
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(QPointF(mx, band + 4.5), 7, 7)
+        p.drawLine(QPointF(mx + 5, band + 9.5), QPointF(mx + 10, band + 14.5))
+        p.setPen(Qt.NoPen)
+    elif kind == "done":
+        p.setPen(QPen(QColor("#5cf08f"), 5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.drawPolyline([QPointF(r.center().x() - 15, r.center().y()), QPointF(r.center().x() - 4, r.center().y() + 11),
+                        QPointF(r.center().x() + 17, r.center().y() - 11)])
+        p.setPen(Qt.NoPen)
+
+
+def _fx(p: QPainter, fx: tuple):
+    kind = fx[0]
+    if kind == "dots":                             # a thought bubble with three dots that run
+        k = fx[1]
+        p.setPen(QPen(QColor(0, 0, 0, 120), 1.5))
+        p.setBrush(QColor(242, 245, 248, 245))
+        p.drawEllipse(QPointF(236, 58), 5, 5)
+        p.drawEllipse(QPointF(250, 42), 7.5, 7.5)
+        p.drawRoundedRect(QRectF(214, 0, 82, 34), 17, 17)
+        p.setPen(Qt.NoPen)
+        for i in range(3):
+            p.setBrush(QColor("#1d1e22") if i == k else QColor("#9aa0a8"))
+            p.drawEllipse(QPointF(236 + i * 19, 17 - (3 if i == k else 0)), 6, 6)
+    elif kind == "glyph":                          # «?» waiting for you, «!» something for you
+        ch = fx[1]
+        col = QColor("#ff3b30") if ch == "!" else QColor("#ffb340")
+        p.setPen(QPen(QColor(0, 0, 0, 140), 2))
+        p.setBrush(col)
+        p.drawEllipse(QPointF(262, 30), 26, 26)
+        p.setPen(QColor("white"))
+        f = QFont(UI)
+        f.setPixelSize(36)
+        f.setWeight(QFont.Black)
+        p.setFont(f)
+        p.drawText(QRectF(236, 4, 52, 52), Qt.AlignCenter, ch)
+    elif kind == "z":
+        k = fx[1]
+        f = QFont(UI)
+        f.setWeight(QFont.Black)
+        for i in range(3):
+            u = ((k + i * 4) % 12) / 12.0
+            f.setPixelSize(round(16 + 14 * u))
+            p.setFont(f)
+            p.setPen(QColor(200, 228, 255, round(230 * (1 - u))))
+            p.drawText(QPointF(232 + 26 * u, 64 - 56 * u), "z")
 
 
 # ---------------------------------------------------------------------------------------------- the window
@@ -560,7 +506,7 @@ class Pet(QWidget):
     # ------------------------------------------------------------ what he says
     def _briefing(self, first=False) -> str:
         m, t = self.live.get("messages") or 0, self.live.get("tasks") or 0
-        lead = "Olá, sou o Bit." if first else "Bem-vindo de volta."
+        lead = "Olá, sou o Farol." if first else "Bem-vindo de volta."
         bits = []
         if m:
             bits.append(_plural(m, "mensagem por ler", "mensagens por ler"))
@@ -663,7 +609,7 @@ class Pet(QWidget):
         """Four times a second: is the mouse near? Then the eyes follow it."""
         if not self.isVisible() or self._enter:
             return
-        face = self.mapToGlobal(QPoint(round(self._robot_x + self.AW / 2), round(self._robot_y + self.AH - 18 * self.CELL)))
+        face = self.mapToGlobal(QPoint(round(self._robot_x + self.AW / 2), round(self._robot_y + self.AH - 21 * self.CELL)))
         d = QCursor.pos() - face
         near = None
         if math.hypot(d.x(), d.y()) < 360:
@@ -772,85 +718,57 @@ class Pet(QWidget):
     def _spec(self, look: str, now: float):
         t = now - self._t0
         blink = 0 <= now - self._blink_at < 0.15
-        arms, legs, hdy, laptop, fx = "down", "stand", 0, 0, None
-        led = RED_DK
         gx, gy = self._glance
         if self._mouse and look in ("idle", "wait", "done", "alert"):
             gx, gy = self._mouse
-        eyes = ("eyes", gx, gy, "blink" if blink else "open", EYE)
+        lid = 1.0 if blink else 0.0
+        pose, eyes, holo, fx, tilt = "idle", (gx, gy, lid, "open"), None, None, 0
         if look == "idle":
-            hdy = 1 if (self._busy < 0.85 and (t % 3.2) > 2.2) else 0         # a slow breath, one cell
-            led = EYE if (t % 4.0) < 0.25 else RED_DK
-            if self._hover and now - self._hover_at < 1.6:
-                arms = "wave1" if int(t * 6) % 2 else "wave2"
-            screen = eyes
+            if self._hover and now - self._hover_at < 2.5:
+                eyes = (gx, gy, 0.0, "happy")
         elif look == "walk":
-            legs = ("roll1", "roll2", "roll3", "stand")[int(t * 8) % 4]
-            hdy = 1 if int(t * 4) % 2 else 0
-            screen = ("eyes", self._face, 0, "blink" if blink else "open", EYE)
+            eyes = (self._face, 0, lid, "open")
+            tilt = (-1.5, 0, 1.5, 0)[int(t * 6) % 4]
         elif look == "sleep":
-            hdy = 1
-            screen = ("eyes", 0, 0, "sleep", EYE)
-            fx = ("z", 6 - int(t * 1.5) % 7)
-        elif look == "think":
-            arms = "chin"
-            screen = ("dots", int(t * 3.5) % 3)
-            led = RED if int(t * 2) % 2 else RED_DK
-            fx = ("bubble", int(t * 1.5) % 2)
-        elif look == "edit":                     # one 32-frame loop, so every frame is built once and kept
+            eyes = (0, 0, 1.0, "sleep")
+            fx = ("z", int(t * 4) % 12)
+        elif look == "think":                    # the thinking picture: hand on the chin, eyes up
+            pose, eyes = "think", None
+            fx = ("dots", int(t * 3.5) % 3)
+        elif look == "edit":                     # he codes on his hologram (one 32-frame loop, built once)
             f = int(t * 3) % 32
-            arms = "type1" if f % 2 else "type2"
-            laptop = 2 if (f // 2) % 2 else 1
-            led = RED if f % 2 else RED_DK
-            screen = ("code", f // 2, (f // 2) % 2)
+            eyes = (0, 0.9, max(lid, 0.22), "open")
+            holo = ("code", f)
         elif look == "run":
             f = int(t * 3) % 40
-            arms = "type1" if f % 2 else "type2"
-            laptop = 1
-            led = GREEN if f % 2 else RED_DK
-            screen = ("term", (f // 2) % 5, (f // 2) % 2, f // 10)
+            eyes = (0, 0.9, max(lid, 0.22), "open")
+            holo = ("term", (f // 2) % 5, (f // 2) % 2, f // 10)
         elif look == "read":
-            led = EYE if int(t * 2) % 2 else RED_DK
-            screen = ("scan", (-1, 0, 1, 0)[int(t * 2.5) % 4], int(t * 6) % 7)
+            k = int(t * 2.5) % 10
+            eyes = ((-1, -0.3, 0.3, 1, 0.3, -0.3)[int(t * 2) % 6], 0.9, lid, "open")
+            holo = ("read", k)
         elif look == "wait":
-            arms = "wave1" if int(t * 3) % 2 else "wave2"
-            led = AMBER if int(t * 2) % 2 else RED_DK
-            screen = ("glyph", "?", AMBER) if int(t / 1.2) % 2 else ("eyes", 0, 1, "open", EYE)
+            fx = ("glyph", "?") if int(t / 0.8) % 2 else None
         elif look == "alert":
-            arms = "wave1" if int(t * 4) % 2 else "wave2"
-            led = RED if int(t * 4) % 2 else RED_DK
-            screen = ("glyph", "!", RED) if int(t / 0.9) % 2 else ("eyes", 0, 0, "open", EYE)
+            fx = ("glyph", "!") if int(t / 0.6) % 2 else None
         else:                                                                 # done
-            arms = "up"
-            led = GREEN
-            screen = ("eyes", 0, 0, "happy", EYE)
-        if self._press and self._moved:                                       # picked up: the tracks hang, arms up
-            arms, legs, laptop, hdy = "up", "dangle", 0, 0
-            screen = ("eyes", 0, -1, "open", EYE)
-        h = now - self._hop_at
-        if 0.42 < h < 0.52:                                                   # landing: the head gives a cell
-            hdy = 1
-        dissolve = 1.0
-        if self._enter:
-            u = now - self._enter[0]
-            if self._enter[1] > 0:
-                dissolve = min(1.0, u / 0.35)
-                p = (u - 0.35) / 0.35
-                screen = ("off",) if p <= 0 else (("crt", min(1.0, p)) if p < 1 else screen)
-            else:
-                p = 1 - u / 0.25
-                screen = ("crt", max(0.0, p)) if p > 0 else ("off",)
-                dissolve = 1.0 if u < 0.25 else max(0.0, 1 - (u - 0.25) / 0.33)
-            dissolve = round(dissolve * 12) / 12
-        return (arms, legs, hdy, screen, led, laptop, fx, dissolve)
+            eyes = (0, 0, 0.0, "happy")
+            holo = ("done",)
+        if self._press and self._moved:                                       # picked up: eyes wide, looking up
+            pose, eyes, holo, tilt = "idle", (0, -1, 0.0, "open"), None, 0
+        return (pose, eyes, holo, fx, tilt)
 
     def _image(self, spec) -> QImage:
-        img = self._cache.get(spec)
+        dpr = self.devicePixelRatioF()
+        key = (spec, self._step, dpr)
+        img = self._cache.get(key)
         if img is None:
-            if len(self._cache) > 320:
+            if len(self._cache) > 160:
                 self._cache.clear()
-            img = build(spec)
-            self._cache[spec] = img
+            w, h = round(W * self.CELL * dpr), round(H * self.CELL * dpr)
+            img = build(spec).scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            img.setDevicePixelRatio(dpr)
+            self._cache[key] = img
         return img
 
     # ------------------------------------------------------------ painting
@@ -869,28 +787,29 @@ class Pet(QWidget):
             hop = 3.2 * c * math.sin(math.pi * h / 0.42)
         if self._press and self._moved:
             hop = 1.5 * c
-        spec = self._spec(look, now)
-        img = self._image(spec)
-        if self._face < 0 and look == "walk":
-            img = img.mirrored(True, False)
+        alpha = 1.0
+        if self._enter:                          # comes up out of the floor fading in; goes down fading out
+            u = now - self._enter[0]
+            k = min(1.0, u / 0.45) if self._enter[1] > 0 else max(0.0, 1 - u / 0.45)
+            k = 1 - (1 - k) ** 3
+            alpha, hop = k, hop - (1 - k) * 3 * c
+        img = self._image(self._spec(look, now))
         x0 = 0.0
         y0 = self.AH - H * c - hop
         # the shadow on the floor, smaller in the air
-        if spec[7] > 0.3:
-            fy = self.AH - 1.2 * c
-            k = max(0.4, 1 - hop / (5 * c))
-            sh = QRadialGradient(QPointF(self.AW / 2, fy), 11 * c)
-            sh.setColorAt(0, QColor(0, 0, 0, round(90 * k * spec[7])))
-            sh.setColorAt(1, QColor(0, 0, 0, 0))
-            p.setPen(Qt.NoPen)
-            p.setBrush(sh)
-            p.drawEllipse(QPointF(self.AW / 2, fy), 11 * c * k, 1.4 * c)
-        p.setRenderHint(QPainter.SmoothPixmapTransform, False)
-        p.setRenderHint(QPainter.Antialiasing, False)
-        p.drawImage(QRectF(x0, y0, W * c, H * c), img)
-        p.setRenderHint(QPainter.Antialiasing)
+        fy = self.AH - 1.0 * c
+        k = max(0.4, 1 - max(0.0, hop) / (5 * c))
+        sh = QRadialGradient(QPointF(self.AW / 2, fy), 11 * c)
+        sh.setColorAt(0, QColor(0, 0, 0, round(80 * k * alpha)))
+        sh.setColorAt(1, QColor(0, 0, 0, 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(sh)
+        p.drawEllipse(QPointF(self.AW / 2, fy), 11 * c * k, 1.3 * c)
+        p.setOpacity(alpha)
+        p.drawImage(QPointF(x0, y0), img)
+        p.setOpacity(1.0)
         if self._alerts and not self._enter:
-            self._paint_badge(p, x0 + 24.5 * c, y0 + 4 * c, now)
+            self._paint_badge(p, x0 + 25 * c, y0 + 6 * c, now)
         p.end()
 
     def _paint_badge(self, p: QPainter, x: float, y: float, now: float):
@@ -1022,7 +941,7 @@ class Pet(QWidget):
 
 
 class FarolControl(QWidget):
-    """The central's «Bit» line: − five dots + to size him, and a switch to show or hide him. Per computer."""
+    """The central's «Farol» line: − five dots + to size him, and a switch to show or hide him. Per computer."""
 
     def __init__(self, pet: "Pet"):
         super().__init__()

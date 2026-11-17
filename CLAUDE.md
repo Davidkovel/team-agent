@@ -614,6 +614,16 @@ nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada v
   buraco negro tem o seu próprio `click` (`holeClick`) e o da página ignora o que está dentro dele; o `vidro.js` salta o `.mc-hole`
   (punha-lhe o fundo transparente). Construído uma vez: as atualizações só repintam os Farois, a doca e o vidro aberto. Gira e
   puxa faíscas só com um agente a trabalhar ou maximizado (10 imagens/s, ~4% de um núcleo); parado, uma imagem só.
+- **Ao vivo** (17 nov, Marco mandou o gmgn-tracker outra vez: «tem que abrir uma merda tipo assim... mete lá em cima, de
+  forma que combina»): o widget MemeIntel do `desktop/` do gmgn-tracker (WPF, só Windows, em russo) refeito em cima de «Quem
+  acerta» (`liveStart` no `memes.js`, `backend/app/memes_live.py`, `GET /api/memes/live` de 3 em 3 s, `POST/DELETE
+  /api/memes/radar`). Os mesmos 4 separadores: **Sinais** (cada moeda nova vista na DexScreener aos 3, 10 e 30 min: ≥ 25 mil $,
+  pool ≥ 8 mil $, compras ≥ 1,5× vendas e a subir), **Rugs** (contratos que a equipa cola, vistos de 20 em 20 s: queda ≥ 30% em
+  5 min, pool a perder 30%, vendas ≥ 3× compras, −50% numa hora; barra vermelha em cima), **X ao vivo** (websocket do Tree News;
+  moedas da pump.fun lançadas até 20 min depois de um tweet com o mesmo nome/ticker, como o `XFeed.cs`: chaves, palavras comuns,
+  o nome do autor nunca conta, 12 seguidas/3 mostradas, a melhor com ★; as contas da lista do GMGN X Tracker e os influencers
+  do X aparecem sempre) e **Novas** (websocket da PumpPortal). O stream de trades da PumpPortal pede chave paga: os preços vêm da
+  DexScreener. Tudo em memória, só a lista do radar fica no `state.json`; arranca com o loop dos memes ou ao abrir a página.
 - **O Leitor** (17 nov, Marco: «não pode só dizer o que está lá no Telegram... tens mesmo que ler o que está escrito, ouvir o que
   eles dizem nos vídeos»), `backend/app/memes_ler.py` + `memes_ouvir.py`, 7.º Farol e portal «O que dizem» (o primeiro da doca):
   cada publicação de um influencer é lida por inteiro (`full`, até 3000 car.), as imagens vão ao Claude (ferramenta Read numa

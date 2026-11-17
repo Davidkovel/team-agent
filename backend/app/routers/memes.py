@@ -294,3 +294,31 @@ async def watch(body: Watch, user: User = Depends(viewer)):
         del w[50:]
     BRAIN.save()
     return {"watched": body.key in w}
+
+
+# ---------- Ao vivo: the gmgn-tracker's MemeIntel widget, remade (memes_live.py) ----------
+@router.get("/live")
+async def live(user: User = Depends(viewer)):
+    if not BRAIN.live.started:   # a PC without the memes loop starts it when somebody opens it
+        BRAIN.live_task = asyncio.create_task(BRAIN.live.run())
+    return BRAIN.live.view()
+
+
+class Mint(BaseModel):
+    mint: str
+
+
+@router.post("/radar")
+async def radar_add(body: Mint, user: User = Depends(viewer)):
+    m = re.search(r"[1-9A-HJ-NP-Za-km-z]{32,44}", body.mint or "")
+    if not m or not BRAIN.live.radar_add(m.group(0)):
+        raise HTTPException(400, "Isso não é um contrato de Solana (ou já está no radar)")
+    BRAIN.save()
+    return {"ok": True}
+
+
+@router.delete("/radar/{mint}")
+async def radar_del(mint: str, user: User = Depends(viewer)):
+    BRAIN.live.radar_del(mint)
+    BRAIN.save()
+    return {"ok": True}

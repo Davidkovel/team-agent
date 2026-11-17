@@ -35,6 +35,7 @@ import httpx
 from . import gmgn_link
 from .memes_calls import Judge
 from .memes_ler import Reader, tg_media
+from .memes_live import Live
 
 log = logging.getLogger("memes")
 DIR = Path.home() / ".team-agent" / "memes"
@@ -102,6 +103,7 @@ class Brain:
         self._load()
         self.judge = Judge(self)
         self.reader = Reader(self)
+        self.live = Live(self)   # Ao vivo: pump.fun and X in real time (memes_live.py)
 
     # ---------- state ----------
     def _load(self):
@@ -674,6 +676,7 @@ async def sync_influencers():
 
 
 async def loop():
+    BRAIN.live_task = asyncio.create_task(BRAIN.live.run())
     await asyncio.sleep(20)
     while True:
         try:

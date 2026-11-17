@@ -106,6 +106,112 @@
 
 
 
+  /* Ao vivo: the gmgn-tracker's MemeIntel widget (desktop/, Windows only, in Russian) remade here, in Portuguese, on top of
+     the page (17 nov, Marco: «tem que abrir uma merda tipo assim... dá uns toques para melhorar... mete lá em cima, de forma
+     que combina»). The same four tabs, fed by backend/app/memes_live.py: Sinais, Rugs (the radar), X ao vivo (posts and the
+     coins launched under them) and Novas (every pump.fun launch). Polls /api/memes/live every 3 s while it is on screen. */
+  let LV = null, lvTab = "x", lvTimer = 0, lvOnlyWatched = true, lvOnlyCoins = false, lvQ = "";
+  const LVTABS = [["sinais", "Sinais"], ["rugs", "Rugs"], ["x", "X ao vivo"], ["novas", "Novas"]];
+  const mcap = (v) => (v ? usd(v) : "—");
+  const since = (s) => s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`;
+  const coinImg = (c) => c.image ? `<img class="mc-lv-img" src="${esc(c.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<i class="mc-lv-img">${esc(sym(c.symbol || "?")[0] || "?")}</i>`;
+  const acts = (m) => `<span class="mc-lv-acts"><button type="button" data-lv-copy="${esc(m)}" title="${esc(t("Copiar o contrato"))}">${esc(t("Copiar"))}</button><a href="https://gmgn.ai/sol/token/${esc(m)}" target="_blank" rel="noopener">GMGN</a><a href="https://dexscreener.com/solana/${esc(m)}" target="_blank" rel="noopener">Dex</a></span>`;
+
+  function liveStart() {
+    if (!$("mc-live")) {
+      $("mc-live-w").innerHTML = `<section class="mc-live" id="mc-live">
+        <header class="mc-lv-h"><span class="mc-lv-dot" id="mc-lv-dot"></span><b>${esc(t("Ao vivo"))}</b><small id="mc-lv-st">${esc(t("a ligar…"))}</small></header>
+        <nav class="mc-lv-tabs" id="mc-lv-tabs"></nav>
+        <button type="button" class="mc-lv-danger" id="mc-lv-danger" data-lv-tab="rugs" hidden></button>
+        <div class="mc-lv-tools" id="mc-lv-tools"></div>
+        <div class="mc-lv-body" id="mc-lv-body">${ui.skeleton(3)}</div>
+      </section>`;
+      const el = $("mc-live");
+      el.addEventListener("click", liveClick);
+      el.addEventListener("submit", liveSubmit);
+      el.addEventListener("input", (e) => { if (e.target.name === "lvq") { lvQ = e.target.value.trim().toLowerCase(); livePaint(); } });
+      liveTools();
+    }
+    clearInterval(lvTimer);
+    const tick = () => { if (!$("mc-live")) { clearInterval(lvTimer); return; } if (!document.hidden) api("/api/memes/live").then((d) => { LV = d; livePaint(); }).catch(() => {}); };
+    tick();
+    lvTimer = setInterval(tick, 3000);
+  }
+
+  function liveTools() {
+    const el = $("mc-lv-tools");
+    if (lvTab === "rugs") el.innerHTML = `<form class="mc-lv-add" id="mc-lv-add"><input name="mint" placeholder="${esc(t("Cola o contrato de uma moeda para a vigiar"))}" autocomplete="off" spellcheck="false"><button class="btn sm primary">${esc(t("Vigiar"))}</button></form>`;
+    else if (lvTab === "x") el.innerHTML = `<div class="mc-lv-chips"><button type="button" data-lv-opt="watched" class="${lvOnlyWatched ? "on" : ""}">${esc(t("Só as contas que seguimos"))}</button><button type="button" data-lv-opt="coins" class="${lvOnlyCoins ? "on" : ""}">${esc(t("Só com moedas"))}</button></div>`;
+    else if (lvTab === "novas") el.innerHTML = `<input class="mc-lv-q" name="lvq" value="${esc(lvQ)}" placeholder="${esc(t("Procurar nome ou contrato"))}" autocomplete="off">`;
+    else el.innerHTML = "";
+  }
+
+  function livePaint() {
+    if (!LV || !$("mc-live")) return;
+    const pp = LV.src.pump, tr = LV.src.tree, on = pp.on && tr.on;
+    $("mc-lv-dot").className = `mc-lv-dot ${on ? "on" : pp.on || tr.on ? "half" : ""}`;
+    paint($("mc-lv-st"), esc([LV.sol ? `SOL ${loc(LV.sol, 2)} $` : "", pp.on ? t("{n} moedas novas/min", { n: loc(LV.per_min, 1) }) : t("pump.fun a ligar"),
+      tr.on ? (LV.lag != null ? t("X a {s} s do tweet", { s: loc(LV.lag, 1) }) : t("X ligado")) : t("X a ligar")].filter(Boolean).join(" · ")));
+    const bad = LV.alerts.filter((a) => a.level === "bad").length;
+    const n = { sinais: LV.signals.length, rugs: bad, x: LV.posts.filter((p) => p.coins.length).length, novas: LV.launches.length };
+    paint($("mc-lv-tabs"), LVTABS.map(([k, l]) => `<button type="button" data-lv-tab="${k}" class="${k === lvTab ? "on" : ""} ${k === "rugs" && bad ? "alarm" : ""}">${esc(t(l))}${n[k] ? `<small>${n[k]}</small>` : ""}</button>`).join(""));
+    const last = LV.alerts.find((a) => a.level === "bad"), dz = $("mc-lv-danger");
+    dz.hidden = !last || Date.now() / 1000 - last.t > 1800;
+    if (last) paint(dz, `${icon("alert")}<b>$${esc(sym(last.symbol))}</b> ${esc(last.text)} <small>${esc(ago(last.t))}</small>`);
+    paint($("mc-lv-body"), ({ sinais: lvSinais, rugs: lvRugs, x: lvX, novas: lvNovas })[lvTab]());
+  }
+
+  const lvEmpty = (txt) => `<p class="mc-lv-e">${esc(txt)}</p>`;
+  function lvSinais() {
+    return LV.signals.length ? LV.signals.map((s) => `<div class="mc-lv-row">${coinImg(s)}<span class="mc-lv-m"><b>$${esc(sym(s.symbol))} <span class="mc-v ${s.tone} mc-tipo">${esc(t(s.word))}</span></b>
+      <small>${esc(s.name)} · ${esc(since(Date.now() / 1000 - s.t))} · ${esc(s.why)}${s.x.length ? " · " + esc(t("do X: @{w}", { w: s.x.join(", @") })) : ""}</small></span>
+      <span class="mc-lv-n"><b>${mcap(s.mcap)}</b><small>${esc(t("pool {v}", { v: mcap(s.liq) }))}</small></span>${acts(s.mint)}</div>`).join("")
+      : lvEmpty(t("Ainda nenhum sinal. Cada moeda nova da pump.fun é vista aos 3, 10 e 30 minutos: aparece aqui se tiver dinheiro na pool, compradores a mais e preço a subir."));
+  }
+  function lvRugs() {
+    const al = LV.alerts.length ? `<div class="mc-lv-al">${LV.alerts.slice(0, 20).map((a) => `<div class="mc-lv-alert ${a.level}"><b>$${esc(sym(a.symbol))}</b><span>${esc(a.text)}</span><small>${esc(ago(a.t))}</small></div>`).join("")}</div>`
+      : lvEmpty(t("Sem alarmes. Se o preço cair a pique, se tirarem dinheiro da pool ou se houver vendas a mais, aparece aqui a vermelho."));
+    const rd = LV.radar.length ? `<p class="mc-sub mc-lv-sub">${esc(t("No radar"))}</p>` + LV.radar.map((r) => `<div class="mc-lv-row">${coinImg(r)}<span class="mc-lv-m"><b>$${esc(sym(r.symbol || r.mint.slice(0, 4)))}</b>
+      <small>${r.at ? esc(t("pool {l} · 5 min: {b} compras, {s} vendas", { l: mcap(r.liq), b: r.b5 ?? 0, s: r.s5 ?? 0 })) : esc(t("à espera dos primeiros números"))}</small></span>
+      <span class="mc-lv-n"><b>${mcap(r.mcap)}</b><small>${r.ch5 != null ? pct(r.ch5) : ""}</small></span>${acts(r.mint)}<button type="button" class="mc-lv-x" data-lv-del="${esc(r.mint)}" aria-label="${esc(t("Tirar do radar"))}">${icon("x")}</button></div>`).join("") : "";
+    return al + rd;
+  }
+  function lvX() {
+    const l = LV.posts.filter((p) => (!lvOnlyWatched || p.watched || p.coins.length) && (!lvOnlyCoins || p.coins.length)).slice(0, 40);
+    return l.length ? l.map((p) => `<article class="mc-lv-post ${p.coins.length ? "has" : ""}">
+      <header><b>${esc(p.name)}</b><small>@${esc(p.who)}</small>${p.inf ? ui.tag(t("Influencer"), "ok") : ""}<time>${esc(ago(p.t))}</time></header>
+      <a class="mc-lv-txt" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.text)}</a>
+      ${p.coins.map((c) => `<div class="mc-lv-coin">${coinImg(c)}<span class="mc-lv-m"><b>${c.best ? "★ " : ""}${c.symbol ? "$" + esc(sym(c.symbol)) : esc(t("Contrato"))} <em>${esc(t("+{s} depois", { s: since(c.after) }))}</em></b>
+        <small>${c.mcap ? esc(t("agora {a} · máximo {p}", { a: mcap(c.mcap), p: mcap(c.peak) })) : esc(t("à espera do preço"))} · ${esc(c.why === "contrato no post" ? t("contrato no post") : t("nome igual a «{w}»", { w: c.why }))}</small></span>${acts(c.mint)}</div>`).join("")}
+      ${p.more ? `<small class="mc-lv-more">${esc(t("+{n} cópias com menos valor", { n: p.more }))}</small>` : ""}
+    </article>`).join("") : lvEmpty(t("À espera de tweets. Chegam em tempo real (menos de um segundo depois do tweet)."));
+  }
+  function lvNovas() {
+    const l = LV.launches.filter((x) => !lvQ || (x.symbol + " " + x.name + " " + x.mint).toLowerCase().includes(lvQ)).slice(0, 80);
+    return l.length ? l.map((x) => `<div class="mc-lv-row sm">${coinImg(x)}<span class="mc-lv-m"><b>$${esc(sym(x.symbol))}${x.sig ? ` <span class="mc-v ${x.sig.tone} mc-tipo">${esc(t(x.sig.word))}</span>` : ""}${x.migrated ? ` <span class="mc-v ok mc-tipo">${esc(t("Migrou"))}</span>` : ""}</b>
+      <small>${esc(x.name)} · ${esc(t("há {s}", { s: since(Date.now() / 1000 - x.t) }))}${x.dev_sol ? " · " + esc(t("o criador comprou {n} SOL", { n: loc(x.dev_sol, 2) })) : ""}</small></span>
+      <span class="mc-lv-n"><b>${mcap(x.mcap)}</b></span>${acts(x.mint)}</div>`).join("") : lvEmpty(lvQ ? t("Nenhuma com esse nome.") : t("À espera de moedas novas da pump.fun…"));
+  }
+
+  async function liveClick(e) {
+    const tb = e.target.closest("[data-lv-tab]");
+    if (tb) { lvTab = tb.dataset.lvTab; liveTools(); livePaint(); return; }
+    const op = e.target.closest("[data-lv-opt]");
+    if (op) { if (op.dataset.lvOpt === "watched") lvOnlyWatched = !lvOnlyWatched; else lvOnlyCoins = !lvOnlyCoins; liveTools(); livePaint(); return; }
+    const cp = e.target.closest("[data-lv-copy]");
+    if (cp) { try { await navigator.clipboard.writeText(cp.dataset.lvCopy); cp.textContent = t("Copiado"); setTimeout(() => { cp.textContent = t("Copiar"); }, 1500); } catch { msg(cp.dataset.lvCopy); } return; }
+    const dl = e.target.closest("[data-lv-del]");
+    if (dl) { await api(`/api/memes/radar/${encodeURIComponent(dl.dataset.lvDel)}`, { method: "DELETE" }).catch(() => {}); LV.radar = LV.radar.filter((r) => r.mint !== dl.dataset.lvDel); livePaint(); }
+  }
+  async function liveSubmit(e) {
+    if (e.target.id !== "mc-lv-add") return;
+    e.preventDefault(); e.stopPropagation();
+    const f = e.target, v = f.mint.value.trim();
+    if (!v) return;
+    try { await api("/api/memes/radar", { method: "POST", body: { mint: v } }); f.mint.value = ""; LV = await api("/api/memes/live"); livePaint(); }
+    catch (err) { msg(err.message); }
+  }
+
   // 16 nov, Marco (6.ª volta): «quero que seja um buraco negro... o pet do widget, o Farol, nesse buraco negro... quando
   // maximizar tenho o buraco negro enorme e acesso a tudo: clicar na aba do Twitter, do Reddit, do Telegram e ver os calls
   // todos... um buraco negro cheio de coisas, cheio de robôs». So the top of the page is a black hole (canvas: chrome and
@@ -329,7 +435,8 @@
   function quem() {
     const R = B.ranking.filter((r) => r.calls || true), lead = R.find((r) => r.judged >= 5 && r.usd > 0);
     const judged = R.reduce((a, r) => a + r.judged, 0);
-    if (!$("mc-hole-w")) $("mc-body").innerHTML = `<div id="mc-hole-w"></div><div id="mc-rest"></div>`;
+    if (!$("mc-hole-w")) $("mc-body").innerHTML = `<div id="mc-live-w"></div><div id="mc-hole-w"></div><div id="mc-rest"></div>`;
+    liveStart();
     hole();
     paint($("mc-rest"), `
       ${lead ? `<section class="panel mc-lead-c">
@@ -589,7 +696,7 @@
   function bind() {
     const root = $("mc");
     root.addEventListener("click", async (e) => {
-      if (e.target.closest("#mc-hole")) return;   // the hole answers its own clicks (holeClick)
+      if (e.target.closest("#mc-hole") || e.target.closest("#mc-live")) return;   // the hole and Ao vivo answer their own clicks
       const inf = e.target.closest("[data-inf]");
       if (inf) { openInf = openInf === inf.dataset.inf ? "" : inf.dataset.inf; return quem(); }
       const cw = e.target.closest("[data-cw]");

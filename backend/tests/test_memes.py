@@ -133,3 +133,22 @@ def test_leitor_reads_video_coins_into_calls(tmp_path, monkeypatch):
     b.state["reads"][p["id"]]["tipo"] = "compra"
     b.judge.collect(b.state["posts"])
     assert board(b.state)["ranking"][0]["judged"] == 1
+
+
+def test_live_launch_under_a_post(tmp_path, monkeypatch):
+    """Ao vivo (memes_live.py): a pump.fun launch named like a fresh tweet is a coin «under» it; the author's name never counts."""
+    from app.memes_live import keys_of
+    keys, cas = keys_of("Elon: my dog Floki the Viking is back #FLOKI", "elonmusk", "Elon Musk")
+    assert "floki" in keys and "elon" not in keys and not cas
+    b = brain(tmp_path, monkeypatch)
+    lv = b.live
+    lv.on_tree({"source": "Twitter", "title": "Elon Musk (@elonmusk): my dog Floki the Viking is back", "url": "https://x.com/elonmusk/status/1",
+                "time": time.time() * 1000})
+    lv.on_pump({"txType": "create", "mint": "M" * 43, "symbol": "FLOKIV", "name": "Floki Viking", "marketCapSol": 30, "solAmount": 1})
+    lv.on_pump({"txType": "create", "mint": "N" * 43, "symbol": "CAT", "name": "cat", "marketCapSol": 30, "solAmount": 1})
+    p = lv.view()["posts"][0]
+    assert p["watched"] and [c["symbol"] for c in p["coins"]] == ["FLOKIV"]
+    r = {"mint": "R" * 43}
+    lv.radar.append(r)
+    lv._radar(r, {"price": 1, "mcap": 1, "liq": 10000, "ch5": -40, "ch1": -10, "b5": 2, "s5": 20, "at": 0, "symbol": "R", "image": None, "url": ""})
+    assert {a["level"] for a in lv.alerts} == {"bad", "warn"}

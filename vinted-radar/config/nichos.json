@@ -51,48 +51,66 @@
     "damaged",
     "hole",
     "stain",
-    "ripped"
+    "ripped",
+    "virement",
+    "transferência",
+    "transferencia",
+    "bank transfer",
+    "bonifico",
+    "whatsapp",
+    "fora do vinted",
+    "hors vinted",
+    "troca",
+    "échange",
+    "scambio",
+    "intercambio",
+    "não comprar",
+    "ne pas acheter",
+    "non comprare",
+    "no comprar"
   ],
   "nichos": [
     {
       "nome": "Casacos de nylon / corta-vento",
       "pesquisa": "nylon jacket",
-      "tamanhos": []
+      "tamanhos": [],
+      "ativo": true,
+      "grupo": "Roupa"
     },
     {
       "nome": "The North Face Nuptse",
       "pesquisa": "north face nuptse",
-      "tamanhos": []
+      "tamanhos": [],
+      "ativo": false,
+      "grupo": "Roupa"
     },
     {
       "nome": "Patagonia",
       "pesquisa": "patagonia",
-      "tamanhos": []
+      "tamanhos": [],
+      "ativo": false,
+      "grupo": "Roupa"
     },
     {
       "nome": "Arc'teryx",
       "pesquisa": "arcteryx",
-      "tamanhos": []
+      "tamanhos": [],
+      "ativo": false,
+      "grupo": "Roupa"
     },
     {
       "nome": "Stone Island",
       "pesquisa": "stone island",
-      "tamanhos": []
+      "tamanhos": [],
+      "ativo": false,
+      "grupo": "Roupa"
     },
     {
       "nome": "Carhartt WIP",
       "pesquisa": "carhartt jacket",
-      "tamanhos": []
-    },
-    {
-      "nome": "Ralph Lauren",
-      "pesquisa": "ralph lauren",
-      "tamanhos": []
-    },
-    {
-      "nome": "Salomon XT-6",
-      "pesquisa": "salomon xt-6",
-      "tamanhos": []
+      "tamanhos": [],
+      "ativo": false,
+      "grupo": "Roupa"
     },
     {
       "nome": "iPhone",
@@ -100,7 +118,9 @@
       "tamanhos": [],
       "tech": true,
       "preco_max": 700,
-      "ativo": true
+      "ativo": true,
+      "grupo": "Tecnologia",
+      "portes": 4.5
     },
     {
       "nome": "MacBook",
@@ -108,7 +128,59 @@
       "tamanhos": [],
       "tech": true,
       "preco_max": 1200,
-      "ativo": true
+      "ativo": true,
+      "grupo": "Tecnologia",
+      "portes": 7.0
+    },
+    {
+      "nome": "AirPods",
+      "pesquisa": "airpods",
+      "tamanhos": [],
+      "ativo": true,
+      "grupo": "Tecnologia",
+      "tech": true,
+      "preco_max": 250,
+      "portes": 4.0
+    },
+    {
+      "nome": "iPad",
+      "pesquisa": "ipad",
+      "tamanhos": [],
+      "ativo": true,
+      "grupo": "Tecnologia",
+      "tech": true,
+      "preco_max": 700,
+      "portes": 6.0
+    },
+    {
+      "nome": "PlayStation 5",
+      "pesquisa": "ps5",
+      "tamanhos": [],
+      "ativo": true,
+      "grupo": "Tecnologia",
+      "tech": true,
+      "preco_max": 500,
+      "portes": 9.0
+    },
+    {
+      "nome": "Nintendo Switch",
+      "pesquisa": "nintendo switch",
+      "tamanhos": [],
+      "ativo": true,
+      "grupo": "Tecnologia",
+      "tech": true,
+      "preco_max": 300,
+      "portes": 6.0
+    },
+    {
+      "nome": "Apple Watch",
+      "pesquisa": "apple watch",
+      "tamanhos": [],
+      "ativo": true,
+      "grupo": "Tecnologia",
+      "tech": true,
+      "preco_max": 400,
+      "portes": 4.5
     }
   ],
   "tech_min_pct_do_mercado": 0.4

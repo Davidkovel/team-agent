@@ -5,14 +5,19 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
+import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import angariacao as A
-from ..db import SessionLocal
+from .. import chamadas as C
+from ..db import SessionLocal, get_db
+from ..security import user_from_jwt
 from ..models import User
 from ..services import notify
 from .tradingroom import viewer
@@ -68,6 +73,63 @@ def lead(key: str, request: Request, user: User = Depends(viewer)):
         return A.ficha(key, _hub(request))
     except ValueError as e:
         raise HTTPException(404, str(e))
+
+
+@router.get("/chamadas")
+def chamadas(key: str = "", user: User = Depends(viewer)):
+    return {"personas": C.PERSONAS, "resultados": C.RESULTADOS, "agora_em_horario": C.em_horario(time.time()),
+            "chamadas": [{k: c.get(k) for k in ("id", "key", "code", "nome", "persona", "estado", "criada", "quando", "duracao",
+                                                "nota", "analise", "transcricao", "contexto", "log")} | {"pdf": bool(c.get("pdf"))}
+                         for c in C.lista(key or None)[:60]]}
+
+
+@router.post("/simular")
+async def simular(body: dict, user: User = Depends(viewer)):
+    """Uma chamada em simulação (ninguém é ligado). «hora_teste» deixa ensaiar dentro do horário fora de horas."""
+    ts = time.time()
+    if body.get("hora_teste"):
+        ts = C.proxima_vaga(ts)
+    try:
+        return await asyncio.to_thread(C.simular, str(body.get("key") or ""), str(body.get("persona") or ""), ts)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+async def _pdf(token: str, db: AsyncSession, fn, nome: str):
+    if not await user_from_jwt(token, db):
+        raise HTTPException(401, "Invalid token")
+    await db.commit()
+    try:
+        path = await asyncio.to_thread(fn)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+    return FileResponse(path, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{nome}"'})
+
+
+@router.get("/chamada/{cid}/pdf")
+async def chamada_pdf(cid: str, token: str = Query(...), db: AsyncSession = Depends(get_db)):
+    def fn():
+        c = C.get(cid)
+        if not c or not c.get("analise"):
+            raise ValueError("chamada sem análise")
+        card = A.lead_card(c["key"]) or {"key": c["key"], "nome": c.get("nome") or c["key"]}
+        return C.pdf_chamada(c, card)
+    return await _pdf(token, db, fn, f"chamada-{cid}.pdf")
+
+
+@router.get("/diario.pdf")
+async def diario_pdf(token: str = Query(...), dia: str = "", db: AsyncSession = Depends(get_db)):
+    if dia and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", dia):
+        raise HTTPException(400, "dia AAAA-MM-DD")
+    return await _pdf(token, db, lambda: C.pdf_diario(dia or None), f"diario-{dia or 'hoje'}.pdf")
+
+
+@router.get("/validacao.pdf")
+async def validacao_pdf(request: Request, token: str = Query(...), db: AsyncSession = Depends(get_db)):
+    hub = _hub(request)
+    return await _pdf(token, db, lambda: C.pdf_validacao(hub), "validacao-angariacao.pdf")
 
 
 def _person() -> str:

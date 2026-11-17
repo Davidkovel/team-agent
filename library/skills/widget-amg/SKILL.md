@@ -9,6 +9,12 @@ O widget é `widget/team_widget` (PySide6). Quase tudo está em `ui/window.py`: 
 ícones; o `InfoColumn` antigo já não se mostra), `WidgetWindow` (a central de comando e o crescer/encolher). `ui/tokens.py` é a Central de tokens. Os dados
 vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 
+**17 nov: a marca é o Farol.** A estrela da Mercedes (até 16 nov) e o robô do portátil (`mascot.svg`, 16 nov) saíram:
+`badge.MARK = "farol-idle.png"` desenha o Farol no botão em repouso, no atalho Hub e nos avisos, e a app do Mac (ícone e barra
+de menus, `mac/build.sh` + `main.swift`) também. Com o Farol ligado ele é o botão: o `StarOrb` fica escondido (era um sítio
+vazio que apanhava o rato) e o módulo «No robô» (antes «Na estrela») só aparece com o Farol desligado (`_orb_wanted`,
+`_farol_changed`). Onde este texto diz «estrela», leia-se o botão em repouso.
+
 ## O visual que fica (decidido a 23 out, depois de várias voltas)
 
 - **Minimizado = transparente, sem cartão** (24 out, 4.ª volta do dia: «não curti... mete tipo transparente, como tava

@@ -11,7 +11,32 @@ func hubURL() -> URL {
     return URL(string: s) ?? URL(string: defaultHub)!
 }
 
-/// A estrela de três pontas dentro do círculo, desenhada em vetor (fica nítida em qualquer tamanho).
+/// 17 nov (Marco: «nas estrelas já não há estrela, há um robô»): na barra de menus, o Farol, o pet do widget, em traço
+/// de ícone do macOS: o capacete com o farol em cima, a cara com os dois olhos e as lagartas. Imagem «template»: o macOS
+/// pinta-a de preto ou branco conforme a barra. (Uma silhueta da imagem do Farol ficava uma bolha sem cara a 18 pt.)
+func farolImage() -> NSImage? {
+    let img = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
+        NSColor.black.set()
+        let lamp = NSBezierPath(roundedRect: NSRect(x: 7.6, y: 0.6, width: 2.8, height: 2.2), xRadius: 1, yRadius: 1)
+        lamp.fill()
+        let head = NSBezierPath(roundedRect: NSRect(x: 3.2, y: 2.4, width: 11.6, height: 9.2), xRadius: 4.6, yRadius: 4.2)
+        head.windingRule = .evenOdd
+        head.append(NSBezierPath(roundedRect: NSRect(x: 5.0, y: 4.8, width: 8.0, height: 5.0), xRadius: 2.4, yRadius: 2.4))
+        head.fill()
+        NSBezierPath(ovalIn: NSRect(x: 6.3, y: 6.0, width: 1.9, height: 2.3)).fill()
+        NSBezierPath(ovalIn: NSRect(x: 9.8, y: 6.0, width: 1.9, height: 2.3)).fill()
+        NSBezierPath(rect: NSRect(x: 7.3, y: 11.4, width: 3.4, height: 1.4)).fill()
+        let tracks = NSBezierPath(roundedRect: NSRect(x: 2.4, y: 12.6, width: 13.2, height: 4.8), xRadius: 2.4, yRadius: 2.4)
+        tracks.windingRule = .evenOdd
+        tracks.append(NSBezierPath(roundedRect: NSRect(x: 4.0, y: 14.0, width: 10.0, height: 2.0), xRadius: 1, yRadius: 1))
+        tracks.fill()
+        return true
+    }
+    img.isTemplate = true
+    return img
+}
+
+/// A estrela de três pontas dentro do círculo (antes do Farol; fica se faltar a imagem), desenhada em vetor (fica nítida em qualquer tamanho).
 func starImage(size: CGFloat, color: NSColor, template: Bool) -> NSImage {
     let img = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
         let c = NSPoint(x: rect.midX, y: rect.midY)
@@ -240,12 +265,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
 
-    // MARK: estrela na barra de menus
+    // MARK: o Farol na barra de menus
 
     func buildStatusItem() {
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let b = status.button {
-            b.image = starImage(size: 18, color: .black, template: true)
+            b.image = farolImage() ?? starImage(size: 18, color: .black, template: true)
             b.toolTip = "Agente AMG"
             b.target = self
             b.action = #selector(statusClicked(_:))

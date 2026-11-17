@@ -1,4 +1,4 @@
-// Gera o ícone da app (estrela da Mercedes do projeto sobre fundo escuro) em PNG.
+// Gera o ícone da app (o Farol, o pet do widget, sobre fundo escuro; antes a estrela da Mercedes) em PNG.
 // Uso: swift makeicon.swift <svg> <png de saída> <tamanho>
 import Cocoa
 
@@ -18,7 +18,9 @@ NSGradient(starting: NSColor(white: 0.16, alpha: 1), ending: NSColor(white: 0.02
 NSColor(white: 1, alpha: 0.08).setStroke()
 shape.lineWidth = size * 0.004
 shape.stroke()
-let s = box.width * 0.74
-svg.draw(in: NSRect(x: box.midX - s / 2, y: box.midY - s / 2, width: s, height: s))
+// a imagem cabe em 78% da caixa sem se deformar (o Farol é mais alto do que largo)
+let fit = box.width * 0.78, k = min(fit / svg.size.width, fit / svg.size.height)
+let w = svg.size.width * k, h = svg.size.height * k
+svg.draw(in: NSRect(x: box.midX - w / 2, y: box.midY - h / 2, width: w, height: h))
 NSGraphicsContext.restoreGraphicsState()
 try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: args[2]))

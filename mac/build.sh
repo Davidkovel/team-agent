@@ -7,7 +7,9 @@ rm -rf build && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" build/A
 
 swiftc -O -o "$APP/Contents/MacOS/AgenteAMG" main.swift -framework Cocoa -framework WebKit
 
-for s in 16 32 64 128 256 512 1024; do swift makeicon.swift mercedes-star.svg "build/icon_$s.png" $s; done
+# 17 nov: o ícone é o Farol (a barra de menus desenha-o em traço, main.swift), o pet do widget (já não a estrela da Mercedes)
+FAROL=../widget/team_widget/assets/farol-idle.png
+for s in 16 32 64 128 256 512 1024; do swift makeicon.swift "$FAROL" "build/icon_$s.png" $s; done
 cp build/icon_16.png   build/AppIcon.iconset/icon_16x16.png
 cp build/icon_32.png   build/AppIcon.iconset/icon_16x16@2x.png
 cp build/icon_32.png   build/AppIcon.iconset/icon_32x32.png

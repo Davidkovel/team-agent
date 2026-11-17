@@ -261,27 +261,8 @@ def glow_disc(p: QPainter, centre: QPointF, rx: float, ry: float, colour: str, a
 
 
 def paint_star(p: QPainter, rect: QRectF, opacity=1.0, shadow=False):
-    """The mark (the AMG robot since 16 Nov) in `rect`. While a widget builds its cached face (_LIVE set), only the shadow
-    goes into it and the place is noted: the robot is drawn alive on top at every frame (badge.mascot_live)."""
-    if _LIVE is not None:
-        _LIVE.append(p.transform().mapRect(rect))
-        return
+    """The mark in `rect`: the Farol since 17 Nov (badge.MARK; the Mercedes star until 16 Nov, then a pixel robot)."""
     badge.star(p, rect, opacity, shadow)
-
-
-_LIVE: list | None = None
-
-
-def live_mascot(widget, p: QPainter):
-    """Draws the robot where the face noted it, and keeps ~11 frames a second going while the widget is shown."""
-    return   # 16 Nov, David: «один pet, а не два» -- the robot lives only in the pet window (ui/pet.py)
-    import time
-    for r in getattr(widget, "_mascot_at", ()):
-        badge.mascot_live(p, r, time.monotonic())
-    if not hasattr(widget, "_mascot_tick"):
-        widget._mascot_tick = QTimer(widget)
-        widget._mascot_tick.timeout.connect(lambda: [widget.update(r.toAlignedRect().adjusted(-14, -24, 14, 6)) for r in getattr(widget, "_mascot_at", ())] if widget.isVisible() else None)
-        widget._mascot_tick.start(90)
 
 
 GLASS_ROOM = ASSETS / "c63s-black.jpg"   # 29 Oct: a black C63 S lit from the front on an all-black stage (David: «minimalista», «só o carro a aparecer mais desfocado»)
@@ -1096,10 +1077,11 @@ APP_GLYPHS = {   # the Hub's pages as iOS icons (24-unit strokes, like the Hub's
     "trading": '<path d="M3.5 17l5.5-5.5 4 4 7.5-7.5"/><path d="M15 8h5.5v5.5"/>',
     "radar": '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l5.5-5.5"/><circle cx="12" cy="12" r=".6"/>',
     "fundednext": '<path d="M12 3l7.5 2.8v5.7c0 4.4-3.2 7.8-7.5 9-4.3-1.2-7.5-4.6-7.5-9V5.8z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/>',
+    "memes": '<path d="M13 2.8L5 13.2h6l-1 8 8-10.4h-6z"/>',   # 17 Nov: Memecoins (the black hole, Quem acerta, Ao vivo)
 }
 APPS = (("hub", "Hub", "#/home"), ("escritorio", "Escritório", "#/escritorio"), ("tarefas", "Tarefas", "#/tarefas"),
         ("mensagens", "Mensagens", "#/mensagens"), ("radar", "Radar", "#/radar"), ("empresa", "Empresa", "#/empresa"), ("skills", "Skills", "#/skills"),
-        ("trading", "Trading", "#/trading"), ("fundednext", "FundedNext", "#/fundednext"))
+        ("trading", "Trading", "#/trading"), ("memes", "Memecoins", "#/memes"), ("fundednext", "FundedNext", "#/fundednext"))
 _app_icons: dict[tuple, QPixmap] = {}
 
 
@@ -1689,7 +1671,7 @@ class Toggle(Hover):
         self._tip()
 
     def _tip(self):
-        self.setToolTip(f"Tirar «{self.name}» da estrela" if self.on else f"Pôr «{self.name}» na estrela quando minimizas")
+        self.setToolTip(f"Tirar «{self.name}» do robô" if self.on else f"Pôr «{self.name}» no robô quando minimizas")
 
     def toggle(self):
         self.on = not self.on
@@ -2195,12 +2177,7 @@ class Orb(QWidget):
         key = (self.devicePixelRatioF(), now, datetime.now().day, self.line, self.line_colour, self._count, self.CW, self.CH,
                self._hot, tuple((k, tuple(g.arcs), g.value, tuple(g.segments or ()), g.ink) for k, g in self.items))
         if self._face_key != key:
-            global _LIVE
-            _LIVE = []
-            try:
-                self._face, self._face_key = self._build_face(now), key
-            finally:
-                self._mascot_at, _LIVE = _LIVE, None
+            self._face, self._face_key = self._build_face(now), key
         p = QPainter(self)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.setRenderHint(QPainter.Antialiasing)
@@ -2211,7 +2188,6 @@ class Orb(QWidget):
         p.scale(s, s)
         p.translate(-c)
         p.drawPixmap(0, 0, self._face)
-        live_mascot(self, p)
 
 
 class StarOrb(Orb):
@@ -2363,10 +2339,7 @@ class StarOrb(Orb):
         q = QPainter(layer)
         q.setRenderHint(QPainter.Antialiasing)
         q.setRenderHint(QPainter.SmoothPixmapTransform)
-        if _LIVE is not None:   # the robot is drawn alive over the face (live_mascot)
-            _LIVE.append(p.transform().mapRect(sr))
-        else:
-            paint_star(q, QRectF(6, 6, sr.width(), sr.height()), shadow=True)
+        paint_star(q, QRectF(6, 6, sr.width(), sr.height()), shadow=True)   # the Farol (17 Nov)
         q.setCompositionMode(QPainter.CompositionMode_SourceAtop)
         q.fillRect(QRectF(0, 0, sr.width() + 12, sr.height() + 12), QColor(14, 15, 18, round(95 * (1 - 0.7 * self._reveal))))
         q.end()
@@ -2573,6 +2546,16 @@ class WidgetWindow(QWidget):
         self.pet = Pet(self.expand, self._open_notice)   # 17 Nov, Marco: the Farol, programmer version (ui/pet.py)
         self.pet.show()
         self._add_farol_control()
+        # 17 Nov (Marco: «nas estrelas já não há estrela, há um robô... muita merda desnecessária»): with the Farol on he is
+        # the button (click = central), so the old mark at rest is not shown: it was an empty spot that caught the mouse.
+        # The Farol's switch (FarolControl in pet.py calls pet.set_on) brings it back when he is switched off.
+        set_on = self.pet.set_on
+
+        def farol_on(on, set_on=set_on):
+            set_on(on)
+            self._farol_changed()
+        self.pet.set_on = farol_on
+        self._farol_changed()
         app = QApplication.instance()   # the gauges' lines show in a dark glass tooltip, like the card
         if app is not None and "QToolTip" not in app.styleSheet():
             app.setStyleSheet(app.styleSheet() + "QToolTip { background: #141518; color: #f2f3f5; border: 1px solid #34373c;"
@@ -2679,8 +2662,10 @@ class WidgetWindow(QWidget):
         # 02 No relógio: the icons over the minimized clock, chosen here (23 Oct, Marco: «quero ativar os tokens, quero
         # ativar as câmaras»; 24 Oct: options «que combinem com a funcionalidade de uma empresa»)
         # 12 Nov: shut in one line and last, it opens only to change the icons (it was the tallest module and is set once)
-        side = Platter("Na estrela", "MUDAR ›", "03")
+        # 17 Nov: the star became the robot, and with the Farol on, the Farol is the button: this module shows only without him
+        side = Platter("No robô", "MUDAR ›", "04")
         self.side_note = side.sub
+        self.side_box = side
         tiles_w = QWidget()
         tiles = QGridLayout(tiles_w)
         tiles.setContentsMargins(0, 0, 0, 2)
@@ -2759,7 +2744,7 @@ class WidgetWindow(QWidget):
         col.addWidget(side)
 
         # Farol, the pet (16 Nov, Marco: «uma cena para aumentar e diminuir o tamanho»): his size and on/off, per computer
-        farol = Platter("Farol", "", "")
+        farol = Platter("Farol", "", "03")
         self.farol_sub = farol.sub
         farol.sub.setText("o teu robô programador no ecrã")
         self._farol_box = farol.box
@@ -2767,7 +2752,7 @@ class WidgetWindow(QWidget):
         col.addWidget(farol)
 
         # the FundedNext account (the Hub's #/fundednext in a few numbers); only on a PC with the account
-        self.fn = Platter("FundedNext", "", "04")
+        self.fn = Platter("FundedNext", "", "05")
         figures = QHBoxLayout()
         figures.setContentsMargins(0, 2, 0, 2)
         self.fn_equity = label("", 15, TEXT, QFont.DemiBold, DISPLAY)
@@ -3221,6 +3206,8 @@ class WidgetWindow(QWidget):
         if self.mode != "orb":
             return
         self._hide_spot()
+        if hasattr(self, "side_box"):   # «No robô» only matters without the Farol (set before the panel is measured)
+            self.side_box.setVisible(self._orb_wanted())
         size = self._panel_size()
         face = QRect(self.pos() + self.orb.pos() + self.orb.FACE.topLeft(), self.orb.FACE.size())
         x, y = face.right() + 1 - WIDTH - SHADOW, face.top() - SHADOW
@@ -3259,6 +3246,16 @@ class WidgetWindow(QWidget):
         self._snap = self._snapshot(modules=False)
         self.panel.hide()
         self._start_morph(-1)
+
+    def _orb_wanted(self) -> bool:
+        """The mark at rest only when the Farol is off (or missing): otherwise the Farol is the button."""
+        return not (hasattr(self, "pet") and self.pet.is_on())
+
+    def _farol_changed(self):
+        if hasattr(self, "side_box") and getattr(self, "mode", "orb") != "panel":   # open: it changes at the next opening
+            self.side_box.setVisible(self._orb_wanted())
+        if getattr(self, "mode", "orb") == "orb":
+            self.orb.setVisible(self._orb_wanted())
 
     def _add_farol_control(self):
         """The central's Farol line, once both the pet and the central exist."""
@@ -3329,7 +3326,7 @@ class WidgetWindow(QWidget):
             face = self.pos() + self._orb_face
             self.orb.fade = 1.0
             self._layout_orb(face)
-            self.orb.show()
+            self.orb.setVisible(self._orb_wanted())
             if hasattr(self, "pet"):
                 self.pet.arrive()   # the central closed: the car drops back in
         self.update()

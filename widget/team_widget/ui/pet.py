@@ -571,7 +571,7 @@ class Pet(QWidget):
         self._tp = None                         # a mini teleport through the portal: (to x, when it started)
         self._base = _Base()                    # his place, shown while he is out
         self._spots, self._marks, self._at_work, self._stay = [], [], False, False
-        self._grab, self._dwell = False, None     # he takes the mouse only after it rests on him a moment   # the Claude windows working; the wrench on the others
+        self._grab, self._dwell, self._passing = False, None, False   # out on your windows: clicks go through him
         self._busy = 0.0
         self._last_check, self._away = now, False
         self._press, self._moved, self._press_at = None, False, QPoint()
@@ -730,8 +730,8 @@ class Pet(QWidget):
 
     def showEvent(self, e):
         super().showEvent(e)
-        self._grab, self._dwell = False, None
-        QTimer.singleShot(0, lambda: _click_through(self, True))
+        self._grab, self._dwell, self._passing = False, None, False
+        QTimer.singleShot(0, lambda: _click_through(self, False))
         if not self._on:
             QTimer.singleShot(0, self.hide)
             return
@@ -845,11 +845,18 @@ class Pet(QWidget):
         if not self.isVisible() or self._enter:
             return
         now = time.monotonic()
+        # at home he takes a click at once (clicking him opens the central); out on your windows the clicks go through
+        # him, and he is taken only when the mouse rests on him for a moment
+        want = self._through and not self._grab and self._press is None
+        if want != self._passing:
+            self._passing = want
+            _click_through(self, want)
         over = self.frameGeometry().contains(QCursor.pos())
         if over:
             self._dwell = self._dwell or now
-            if not self._grab and now - self._dwell >= 0.45:
+            if self._through and not self._grab and now - self._dwell >= 0.45:
                 self._grab = True
+                self._passing = False
                 _click_through(self, False)
                 self.enterEvent(None)
                 self.update()
@@ -857,7 +864,6 @@ class Pet(QWidget):
             self._dwell = None
             if self._grab:
                 self._grab = False
-                _click_through(self, True)
                 self.leaveEvent(None)
                 self.update()
         face = self.mapToGlobal(QPoint(round(self._robot_x + self.AW / 2), round(self._robot_y + self.AH - 21 * self.CELL)))

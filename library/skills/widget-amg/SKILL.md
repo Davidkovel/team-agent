@@ -37,7 +37,8 @@ vazio que apanhava o rato) e o módulo «No robô» (antes «Na estrela») só a
   - Recusado: rolar para a frente e para trás, brincadeiras que trocam de pose, e trocas de pose em fade («parece trocar
     de foto»). Uma pose nova entra com um pequeno mergulho.
 - **O rato:**
-  - os cliques passam sempre através dele (`setIgnoresMouseEvents`);
+  - em casa apanha o clique logo (clicar nele abre a central); fora, em cima das janelas, os cliques passam através dele
+    (`setIgnoresMouseEvents`);
   - com o rato meio segundo em cima, acende uma luz azul e então arrasta-se ou clica-se;
   - largado, ali passa a ser a casa dele; largado durante o trabalho, fica lá até o Claude acabar.
 - **Avisos:** uma tarefa ou mensagem para a pessoa aparece no holograma com o número e um brilho vermelho. Ele volta para

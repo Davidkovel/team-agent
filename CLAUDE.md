@@ -505,6 +505,20 @@ Armadilhas que custaram tempo:
   (referência). Estatística por agente em `Book.stats` (acerto, R total, % da conta a 1% por trade, profit factor,
   expectativa, drawdown, série, curva). Página: placar dos três por baixo do radar, «Diário de trades» com filtros (clicar numa
   linha abre o porquê, a revisão, MFE/MAE), as trades no gráfico, os chips na fala. Cave: o placar de cada um na secretária.
+- **Desafio 50k** (17 nov, Marco: «como se fosse uma funda de 50k, para sabermos se eles estão a compensar... cuidado com as
+  apostas, com o risco, com as regras todas que as fundas têm»), `tradingroom/prop.py`, testes `tests/test_prop.py`: o livro de
+  cada agente (Macro, Análise técnica, Modelo, EMA, VWAP, Combinado) refeito como uma conta de funda de 50 000 $, com as regras do
+  Stellar 2 fases da FundedNext: Fase 1 +8 % e Fase 2 +5 % (mín. 5 dias de trading cada), perda diária 5 % do saldo do início do
+  dia (meia-noite de Lisboa), perda máxima 10 % fixa (nunca abaixo de 45 000 $), financiada com 80 % do lucro a cada 14 dias
+  (o saldo volta a 50 000 $). Partir um limite queima a conta (a próxima trade abre a tentativa seguinte, cada uma custa `FEE`
+  299 $). Tudo recalculado do livro (nada guardado): o resultado em $ = R × `risco` % do saldo de então; o pior momento da trade
+  (MAE) conta para os limites; as abertas ao preço de agora. **Risco**: cada trade traz `risco` (0,25–1 %, 0,5 se não disser;
+  `risk_pct` no `book.py`); o `Book.guard` (posto pela sala) recusa com «regra da funda: …» o que passar de 1 % por trade, 2 %
+  abertos, a perda diária ou máxima se todos os stops batessem, ou uma entrada a mercado a ±5 min de notícia de alto impacto da
+  moeda. O Macro e a Análise técnica leem a conta no diário (`prop.brief`) e o prompt das trades pede o `risco`. Página: «Desafio
+  50k» antes do placar (as regras numa faixa, um cartão por agente: fase, dinheiro, objetivo, os dois limites em barra, risco
+  aberto, contas queimadas, recebido − taxas e uma palavra: Compensa, Financiada, Na fase 2, A tentar, Em perigo, Não compensa).
+  Cave: a placa da secretária mostra a fase e o dinheiro da conta (`pulse.score[].prop`).
 - **Cada trade com plano** (12 out, pedido do David: «não percebo quando era a entry perfeita e se já perdi a trade»): o
   agente escreve o `plano` (o que esperamos que o preço faça antes e depois da entrada), a `zona`, o `gatilho`, a `janela`
   (hora ideal em hora de Lisboa, `book.window`; se já passou hoje, é amanhã) e o `invalida` (fecho além dele antes da entrada

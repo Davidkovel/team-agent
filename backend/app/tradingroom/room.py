@@ -20,6 +20,7 @@ from . import council, reaction, sessions
 from .analysis import analyse
 from .book import Book
 from .institutional import Institutional, drivers
+from . import prop
 from .markets import CONTEXT, INSTRUMENTS, UA, CandleStore, calendar, headlines, split_live
 
 log = logging.getLogger("tradingroom")
@@ -52,6 +53,8 @@ class Room:
         self.published = 0.0
         self.state = self._load()
         self.book = Book(self.state)
+        # the 50k challenge's rules before a trade is booked (prop.py, 17 Nov)
+        self.book.guard = lambda trades, t: prop.guard(trades, t, self.view, self.calendar, datetime.now(UTC))
         self.inst = Institutional()
         self.macro: dict = {}
 
@@ -130,7 +133,7 @@ class Room:
     def room(self) -> dict:
         last = next((m["at"] for m in self.state["meetings"] if m["status"] == "done" and m["mode"] == "claude"), None)
         return {"instruments": list(self.view.values()), "context": self.context, "calendar": self.calendar, "news": self.news,
-                "macro": self.macro, "cot": self.inst.cot, "journals": {a: self.book.journal(a, self.view, last) for a in ("penguin", "twoface")}}
+                "macro": self.macro, "cot": self.inst.cot, "journals": {a: self.book.journal(a, self.view, last) + "\n" + prop.brief(self.book.trades, a, self.view) for a in ("penguin", "twoface")}}
 
     # ---------------------------------------------------------------- when to meet
     def triggers(self, now: datetime) -> list[dict]:
@@ -272,6 +275,12 @@ class Room:
             self.state["acks"][username] = acks[-60:]
             self.save()
 
+    def _prop_short(self, agent: str) -> dict:
+        """The Desafio 50k in a few words, for the desk plates of the cave (crew.js) and the widget."""
+        a = prop.account(self.book.trades, agent, self.view)
+        return {"phase": a["phase"]["name"], "equity": round(a["equity"]), "word": a["verdict"]["word"], "tone": a["verdict"]["tone"],
+                "n": a["n"], "lost": a["history"]["lost"]}
+
     # ---------------------------------------------------------------- one turn of the loop
     async def tick(self):
         await self.refresh()
@@ -330,7 +339,8 @@ class Room:
         return {"wall": wall, "meeting": meeting, "alert": live_alert and {"id": live_alert["id"], "level": live_alert["level"], "title": live_alert["title"]},
                 "ticker": [{"id": a["id"], "price": a["price"], "chg": a["chg"], "dp": a["dp"]} for a in self.view.values()]
                 + [{"id": c["id"], "price": c["price"], "chg": c["chg"], "dp": c["dp"]} for c in self.context],
-                "score": {a: {k: v for k, v in self.book.stats(a).items() if k in ("wins", "losses", "total_r", "open", "winrate")} for a in ("penguin", "twoface")},
+                "score": {a: {k: v for k, v in self.book.stats(a).items() if k in ("wins", "losses", "total_r", "open", "winrate")}
+                          | {"prop": self._prop_short(a)} for a in ("penguin", "twoface")},
                 "news": reaction.pulse(), "updated": self.updated}
 
 

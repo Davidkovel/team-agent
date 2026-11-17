@@ -86,6 +86,9 @@
           <section class="panel pad tr-table" id="tr-table"></section>
         </aside>
       </div>
+      ${sec("Desafio 50k", esc(t("cada agente com uma conta de funda de 50 000 $ e as regras dela · toca numa para ver as trades")))}
+      <div class="tr-pr-rules" id="tr-pr-rules"></div>
+      <section class="cards tr-prop" id="tr-prop"></section>
       ${sec("Placar das contas", esc(t("cada conta a 1% de risco por trade · toca numa para ver as trades dela")))}
       <section class="cards tr-score" id="tr-score"></section>
       ${sec("Diário de trades", esc(t("cada trade seguida vela a vela · R = múltiplos do risco, spread descontado")))}
@@ -126,6 +129,7 @@
       const r = e.target.closest("[data-trade]"); if (!r) return;
       openTrade = openTrade === r.dataset.trade ? null : r.dataset.trade; paintBook();
     };
+    root.querySelector("#tr-prop").onclick = (e) => { const c = e.target.closest("[data-agent]"); if (c) { bookFilter.agent = bookFilter.agent === c.dataset.agent ? "" : c.dataset.agent; $("tr-book-f").querySelector('[data-f="agent"]').value = bookFilter.agent; paintBook(); $("tr-book").scrollIntoView({ behavior: "smooth", block: "start" }); } };
     root.querySelector("#tr-score").onclick = (e) => { const c = e.target.closest("[data-agent]"); if (c) { bookFilter.agent = bookFilter.agent === c.dataset.agent ? "" : c.dataset.agent; $("tr-book-f").querySelector('[data-f="agent"]').value = bookFilter.agent; paintBook(); $("tr-book").scrollIntoView({ behavior: "smooth", block: "start" }); } };
     root.querySelector("#tr-bt-run").onclick = async () => { BT = { ...(BT || {}), ...(await api("/api/trading-room/backtest", { method: "POST" })) }; paintBacktest(); };
     bindChart($("tr-chart"));
@@ -264,7 +268,7 @@
     finally { if (b) b.disabled = false; }
   }
 
-  function paintAll() { paintHead(); paintKpis(); paintClocks(); paintTape(); paintRadar(); paintScore(); paintLive(); paintBar(); paintRead(); paintInst(); paintTable(); paintBook(); paintReaction(); paintCal(); paintNews(); }
+  function paintAll() { paintHead(); paintKpis(); paintClocks(); paintTape(); paintRadar(); paintProp(); paintScore(); paintLive(); paintBar(); paintRead(); paintInst(); paintTable(); paintBook(); paintReaction(); paintCal(); paintNews(); }
 
   function paintHead() {
     const st = S && S.settings; if (!st) return;
@@ -414,6 +418,47 @@
         <div class="panel pad"><div class="pn-card-h">${esc(t("Trades fechadas por dia"))}<small>${esc(t("últimos 14 dias"))}</small></div>
           ${ui.bars(days.map((d, i) => ({ label: d.label, value: d.value, tip: `${t(d.value === 1 ? "1 trade" : "{n} trades", { n: d.value })} · ${rfmt(dayR[i].value)}` })))}</div></div>`));
   }
+  // 17 nov, Marco: «como se fosse uma funda de 50k, para sabermos se eles estão a compensar ou não... cuidado com as apostas,
+  // com o risco, com as regras todas que as fundas têm». Each agent's paper book replayed as a prop-firm challenge
+  // (backend/app/tradingroom/prop.py): the phase, the money, the two loss limits as meters, the days, the risk open now, the
+  // accounts it burned and what it was paid, and one word: Compensa / Financiada / Na fase 2 / A tentar / Em perigo / Não compensa.
+  const usd0 = (v) => `${v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString("pt-PT")} $`;
+  const usdS = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString("pt-PT")} $`;
+  function paintProp() {
+    const el = $("tr-prop");
+    if (!el || !S.prop) return;
+    const R = S.prop_rules;
+    if (R) paint($("tr-pr-rules"), `<div class="tr-pr-r">${[
+      [t("Conta"), usd0(R.size)], [t("Fase 1"), `+${R.phases[0].target}% · ${R.phases[0].min_days} ${t("dias")}`], [t("Fase 2"), `+${R.phases[1].target}% · ${R.phases[1].min_days} ${t("dias")}`],
+      [t("Perda diária"), `${R.daily}%`], [t("Perda máxima"), `${R.max}%`], [t("Risco por trade"), `${t("até")} ${String(R.risk_max).replace(".", ",")}%`],
+      [t("Risco aberto"), `${t("até")} ${R.open_max}%`], [t("Notícias"), `±${R.news_min} min ${t("sem trades novas")}`], [t("Financiada"), `${R.split}% ${t("do lucro")} / ${R.payout_days} ${t("dias")}`],
+    ].map(([k, v]) => `<span><small>${esc(k)}</small><b>${esc(v)}</b></span>`).join("")}</div>`);
+    const meter = (label, m, hint) => {
+      const p = Math.min(100, m.pct || 0), tone = p >= 70 ? "bad" : p >= 40 ? "warn" : "ok";
+      return `<div class="tr-pr-m ${tone}"><div><span>${esc(label)}</span><b>${usd0(m.used)} <i>/ ${usd0(m.limit)}</i></b></div><span class="tr-pr-bar"><i style="width:${p}%"></i></span><small>${esc(hint)}</small></div>`;
+    };
+    paint(el, S.prop.map((a) => {
+      const v = a.verdict, h = a.history, ph = a.phase, pnl = a.equity - R.size;
+      const tgt = a.target ? `<div class="tr-pr-goal"><div><span>${esc(t("Objetivo da {f}", { f: t(ph.name) }))}</span><b>${usdS(a.target.have)} <i>/ +${usd0(a.target.need)}</i></b></div>
+          <span class="tr-pr-bar goal"><i style="width:${Math.min(100, a.target.pct)}%"></i></span>
+          <small>${esc(t("{d} de {n} dias de trading", { d: a.days.have, n: a.days.need }))}${a.target.pct >= 100 && a.days.have < a.days.need ? " · " + esc(t("objetivo feito, faltam dias")) : ""}</small></div>`
+        : `<div class="tr-pr-goal"><div><span>${esc(t("Próximo levantamento"))}</span><b>${usdS(Math.max(0, a.balance - R.size) * R.split / 100)}</b></div><small>${esc(t("{p}% do lucro a cada {d} dias", { p: R.split, d: R.payout_days }))}</small></div>`;
+      const steps = R.phases.map((p, i) => `<i class="${i < a.phase_i ? "pr-done" : i === a.phase_i ? "pr-now" : ""}" title="${esc(t(p.name))}"></i>`).join("");
+      return `<button type="button" class="panel tr-pr ${v.tone} ${bookFilter.agent === a.agent ? "on" : ""}" data-agent="${a.agent}">
+        <header>${face(a.agent)}<div><b>${esc(t(NAMES[a.agent] || a.name))}</b><small>${esc(t("Conta {n}", { n: a.n }))} · ${esc(t(ph.name))} <span class="tr-pr-steps">${steps}</span></small></div><span class="tr-pr-v ${v.tone}">${esc(t(v.word))}</span></header>
+        <div class="tr-pr-big"><strong>${usd0(a.equity)}</strong><span class="${pnl > 0.5 ? "up" : pnl < -0.5 ? "down" : ""}">${usdS(pnl)}</span>${a.floating ? `<small>${esc(t("{v} em trades abertas", { v: usdS(a.floating) }))}</small>` : ""}</div>
+        ${tgt}
+        ${meter(t("Perda diária hoje"), a.daily, t("a conta não pode descer de {v} hoje", { v: usd0(a.daily.floor) }))}
+        ${meter(t("Perda máxima"), a.max, t("nunca abaixo de {v}", { v: usd0(a.max.floor) }))}
+        <dl class="tr-pr-k"><div><dt>${esc(t("Risco aberto"))}</dt><dd>${String(a.open_risk).replace(".", ",")}%</dd></div>
+          <div><dt>${esc(t("Pode perder hoje"))}</dt><dd>${usd0(a.left_today)}</dd></div>
+          <div><dt>${esc(t("Contas queimadas"))}</dt><dd class="${h.lost ? "down" : ""}">${h.lost}</dd></div>
+          <div><dt>${esc(t("Recebido − taxas"))}</dt><dd class="${h.net > 0 ? "up" : "down"}">${usdS(h.net)}</dd></div></dl>
+        <p class="tr-pr-why">${esc(v.text)}${h.lost_list.length ? ` <span>${esc(t("Última conta perdida: {w}.", { w: h.lost_list[h.lost_list.length - 1].why }))}</span>` : ""}</p>
+      </button>`;
+    }).join(""));
+  }
+
   function paintScore() {
     const list = S.stats || [];
     const lead = list.filter((s) => s.agent !== "model" && s.n).sort((p, q) => q.total_r - p.total_r)[0];

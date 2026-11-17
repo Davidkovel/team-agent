@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_db
 from ..models import User
 from ..security import current_user
-from ..tradingroom import backtest, council, reaction, sessions
+from ..tradingroom import backtest, council, prop, reaction, sessions
 from ..tradingroom.analysis import chart as chart_of
 from ..tradingroom.markets import BY_ID, INSTRUMENTS, TF
 from ..tradingroom.book import AGENTS
@@ -49,7 +49,9 @@ async def state(user: User = Depends(viewer)):
             "settings": _settings(), "people": council.PEOPLE, "pending": ROOM.pending and {k: ROOM.pending[k] for k in ("reason", "kind")},
             "sources": {i: ROOM.store.source.get(i, "") for i in BY_ID},
             "stats": [ROOM.book.stats(a) for a in AGENTS], "trades": [ROOM.book.out(t, ROOM.view) for t in ROOM.book.trades[:80]],
-            "macro": ROOM.macro, "cot": ROOM.inst.cot}
+            "macro": ROOM.macro, "cot": ROOM.inst.cot,
+            # the Desafio 50k: each agent's paper book as a prop-firm account (tradingroom/prop.py)
+            "prop": prop.board(ROOM.book.trades, list(AGENTS), ROOM.view), "prop_rules": prop.RULES}
 
 
 @router.get("/chart")

@@ -78,6 +78,8 @@ def _ts(s: str | None) -> float:
 
 
 class Book:
+    guard = None   # prop.guard through the room: the 50k challenge's rules before a trade is booked (None in backtests)
+
     def __init__(self, state: dict):
         self.state = state
         state.setdefault("trades", [])
@@ -99,6 +101,11 @@ class Book:
             t = self._make(agent, it, meeting, view, now, key)
             if t["status"] != "refused" and len(self.active(agent)) >= MAX_ACTIVE:
                 t["status"], t["note"] = "refused", f"já tem {MAX_ACTIVE} trades ativas"
+            if t["status"] != "refused" and self.guard is not None:
+                why = self.guard(self.trades, t)
+                if why:
+                    t["status"], t["note"] = "refused", f"regra da funda: {why}"[:240]
+                    t.pop("filled_at", None)
             self.trades.insert(0, t)
             out.append(t)
         del self.trades[600:]
@@ -118,6 +125,9 @@ class Book:
         zone = sorted(x for x in (num(z) for z in (it.get("zona") or it.get("zone") or [])[:2]) if x is not None)
         if t["entry"] is None and len(zone) == 2:
             t["entry"] = (zone[0] + zone[1]) / 2
+        asked = num(it.get("risco") or it.get("risk"))   # % of the balance at risk (the 50k challenge, prop.py)
+        t["risk_pct_asked"] = asked
+        t["risk_pct"] = max(.25, min(1.0, asked)) if asked else .5
         win = window(it.get("janela"), now)
         t.update(plan=str(it.get("plano") or "")[:600], trigger=str(it.get("gatilho") or "")[:300], zone=zone if len(zone) == 2 else None,
                  win_from=win[0] if win else None, win_to=win[1] if win else None, invalid=num(it.get("invalida")), best=None, best_at=None)

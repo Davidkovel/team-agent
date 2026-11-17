@@ -69,7 +69,7 @@ TRADES = """"trades": [{"simbolo": "XAUUSD", "direcao": "compra ou venda",
               "zona": [4150.0, 4160.0], "entrada": 4155.0,
               "gatilho": "o sinal concreto que confirma a entrada no momento (ex.: CHoCH de alta em M5 dentro do FVG, ou uma vela M15
                           a fechar acima de 4158 depois de tocar na zona)",
-              "janela": "14:30-16:00", "invalida": 4146.0, "stop": 4144.5, "alvos": [4196.5, 4210.0], "validade_h": 6,
+              "janela": "14:30-16:00", "invalida": 4146.0, "stop": 4144.5, "alvos": [4196.5, 4210.0], "validade_h": 6, "risco": 0.5,
               "porque": "a confluência numa frase: liquidez, estrutura, zona, macro"}],
   "fechar": [{"id": 1791563000123, "porque": "a tese morreu porque..."}],
   "revisoes": [{"id": 1791563000123, "nota": "uma frase honesta: o que correu bem ou mal e o que aprendes"}]
@@ -77,7 +77,10 @@ Regras das trades: no máximo 2 novas; números simples com ponto decimal (4182.
 faz sentido (o FVG, o OB) e a "entrada" o preço exato dentro dela, uma ordem limite (se estiver do outro lado do preço entra a
 mercado). A "janela" é a hora ideal para a entrada acontecer, em hora de Lisboa (HH:MM-HH:MM), normalmente uma killzone. O
 "invalida" é o preço que, fechado antes da entrada, cancela a ideia. O stop fica onde a ideia está errada; o 1.º alvo com RR de
-pelo menos 1,5 e o 2.º opcional (no 1.º fecha metade e o stop vai para a entrada); validade de 1 a 24 horas. Sê específico: um
+pelo menos 1,5 e o 2.º opcional (no 1.º fecha metade e o stop vai para a entrada); validade de 1 a 24 horas. O "risco" é a % do saldo da tua conta de 50 000 $ que perdes se o stop for tocado: 0,25 a 1 (mais convicção, mais
+risco; depois de perdas, menos). Respeita as regras da funda que vêm no teu diário: perda diária de 5 %, máxima de 10 %, no
+máximo 2 % em risco ao mesmo tempo, nada 5 min antes ou depois de notícias de alto impacto; se a conta está perto de um limite,
+não arrisques o que te queima a conta. Sê específico: um
 sócio tem de ler o plano e saber exatamente o que esperar, a que horas e quando já não vale. Não repitas uma trade que já tens
 ativa. Nada de trade é uma decisão válida: trades: []. Em "fechar" ficam as tuas ordens ou posições ativas cuja tese morreu;
 em "revisoes" uma nota para cada trade tua marcada "por rever" no diário."""

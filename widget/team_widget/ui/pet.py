@@ -9,7 +9,9 @@ um petzinho cérebro super funcional». Drawn over the picture, in code:
   * thinking: the hand-on-chin picture and a bubble of dots; «?» waiting for you;
   * something for you (a task, a message): the hologram shows it with its count, a red glow, and every few seconds he
     jumps and wiggles to call you until the mouse goes over him (the card says what it is) or you click.
-Free, he rolls a few steps now and then and falls asleep after 5 minutes. Each frame is built once and cached; he only
+Free, he stays where you left him and lives: now and then he rolls back and forth on his tracks, looks around, ponders,
+gives himself a tune-up with the wrench, sinks into his blue portal and comes back (the GIF in Desktop/AMG/Robozin),
+or hops for joy; asleep after 5 minutes. He comes and goes through the portal; poses cross-fade with a little squash. Each frame is built once and cached; he only
 repaints when the picture changes."""
 import ctypes
 import math
@@ -28,7 +30,7 @@ from . import prefs
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
-W, H = 30, 36                            # the canvas, in units (10 pixels of the Farol pictures)
+W, H = 32, 36                            # the canvas, in units (10 pixels of the Farol pictures)
 CELLS = (1.8, 2.2, 2.6, 3.0, 3.5)        # «Tamanho» in the central: logical pixels per unit
 HEADROOM = 2                             # units above the canvas for a hop
 BW = 214                                 # the card
@@ -93,7 +95,7 @@ def kind_of(action: str) -> str:
 
 # ---------------------------------------------------------------------------------------------- the sprite
 # The canvas, in pixels of the Farol pictures (293 x 320), with room on top for the bubbles. One «unit» is 10 of them.
-CW, CH, TOP = 300, 360, 40
+CW, CH, TOP, OX = 320, 360, 40, 10         # OX: room on the sides for the hologram and a roll
 _SRC = {}
 
 
@@ -117,25 +119,28 @@ def _qc(v: int) -> QColor:
 def build(spec: tuple) -> QImage:
     """One frame of the Farol, from a hashable description (equal frames come from the cache).
     spec = (pose, eyes, holo, fx, tilt)
+      pose = idle (front) | think (hand on the chin) | work (the wrench, the boss look)
       eyes = (dx, dy, lid, mood) on the idle picture (dx, dy in -1..1, lid 0 open .. 1 shut, mood open|happy|sleep)
-      holo = None | ("code", n) | ("term", n, cursor, seed) | ("read", k) | ("done",)
-      fx   = None | ("dots", k) | ("glyph", "?"|"!") | ("z", k)"""
+      holo = None | ("code", n) | ("term", n, cursor, seed) | ("read", k) | ("done",) | ("note", what, n)
+      fx   = None | ("dots", k) | ("glyph", "?"|"!") | ("z", k) | ("sparks", k)"""
     pose, eyes, holo, fx, tilt = spec
     img = QImage(CW, CH, QImage.Format_ARGB32_Premultiplied)
     img.fill(0)
     p = QPainter(img)
     p.setRenderHint(QPainter.Antialiasing)
     p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.translate(OX, 0)
+    p.save()
     if tilt:
-        p.translate(CW / 2, CH)
+        p.translate(150, CH)
         p.rotate(tilt)
-        p.translate(-CW / 2, -CH)
+        p.translate(-150, -CH)
     p.drawImage(QPointF(3, TOP), _src(pose))
     if pose == "idle" and eyes:
         _eyes(p, *eyes)
     if holo:
-        _holo(p, holo)
-    p.resetTransform()
+        _holo(p, holo, WORK_HOLO if pose == "work" else None)
+    p.restore()
     if fx:
         _fx(p, fx)
     p.end()
@@ -215,11 +220,12 @@ def _eyes(p: QPainter, dx: float, dy: float, lid: float, mood: str):
 
 
 HOLO = QRectF(68, 238, 164, 66)                    # between the claws, in front of the plate
+WORK_HOLO = QRectF(-6, 62, 104, 62)                # working with the wrench: a small one floating by his head
 
 
-def _holo(p: QPainter, holo: tuple):
+def _holo(p: QPainter, holo: tuple, at=None):
     """The programmer's screen: a hologram he holds between his claws."""
-    r = HOLO
+    r = at or HOLO
     kind = holo[0]
     if kind in ("done", "note"):
         r = QRectF(112, 246, 76, 50)
@@ -308,8 +314,30 @@ def _holo(p: QPainter, holo: tuple):
         p.setPen(Qt.NoPen)
 
 
+BOLT = (103.0, 236.0)                               # where the wrench meets the bolt (work picture, canvas)
+
+
 def _fx(p: QPainter, fx: tuple):
     kind = fx[0]
+    if kind == "sparks":                           # the wrench turns: sparks fly off the bolt
+        k = fx[1]
+        rr = random.Random(k * 977)
+        bx, by = BOLT
+        glow = QRadialGradient(QPointF(bx, by), 16)
+        glow.setColorAt(0, QColor(255, 210, 120, 200 if k % 2 else 120))
+        glow.setColorAt(1, QColor(255, 160, 60, 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(glow)
+        p.drawEllipse(QPointF(bx, by), 16, 16)
+        for _ in range(5 + k % 3):
+            a = rr.uniform(-2.9, -0.2)
+            d0, d1 = rr.uniform(4, 9), rr.uniform(14, 30)
+            col = QColor(255, 236, 170) if rr.random() < 0.5 else QColor(255, 170, 70)
+            p.setPen(QPen(col, rr.uniform(1.4, 2.4), Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(QPointF(bx + d0 * math.cos(a), by + d0 * math.sin(a)),
+                       QPointF(bx + d1 * math.cos(a), by + d1 * math.sin(a)))
+        p.setPen(Qt.NoPen)
+        return
     if kind == "dots":                             # a thought bubble with three dots that run
         k = fx[1]
         p.setPen(QPen(QColor(0, 0, 0, 120), 1.5))
@@ -378,7 +406,8 @@ class Pet(QWidget):
         self._blink_at, self._next_blink = -9.0, now + random.uniform(2, 4)
         self._glance, self._next_glance = (0, 0), now + random.uniform(2.5, 5)
         self._mouse = None
-        self._walk, self._next_walk, self._face = None, now + random.uniform(25, 50), 1
+        self._walk, self._next_walk, self._face = None, now + random.uniform(20, 40), 1
+        self._pose_now, self._pose_at, self._prev_spec, self._shown_spec = "idle", -9.0, None, None
         self._busy = 0.0
         self._last_check, self._away = now, False
         self._press, self._moved, self._press_at = None, False, QPoint()
@@ -655,7 +684,7 @@ class Pet(QWidget):
         if now < self._done_until:
             return "done"
         if self._walk:
-            return "walk"
+            return "play"
         if now - self._mode_at > 300 and not self._card and not self._hover:
             return "sleep"
         return "idle"
@@ -664,25 +693,65 @@ class Pet(QWidget):
         if not self._tick.isActive() or self._tick.remainingTime() > 34:
             self._tick.start(0)
 
+    # ------------------------------------------------------------ his life, where you left him (never runs off)
+    PLAYS = {"shuffle": (2.6, 3), "look": (3.2, 2), "ponder": (3.6, 2), "tune": (3.2, 2), "portal": (2.3, 1),
+             "happy": (1.3, 1)}
+
     def _start_walk(self, now: float):
-        scr = QApplication.screenAt(self._at + QPoint(self.AW // 2, self.AH // 2)) or QApplication.primaryScreen()
-        g = scr.availableGeometry()
-        if abs(self._at.x() - self._home.x()) > 12:
-            target = self._home.x()
-        else:
-            target = self._home.x() + random.choice((-1, 1)) * random.uniform(45, 120)
-        target = max(g.left() + 4, min(g.right() - self.AW - 4, target))
-        if abs(target - self._at.x()) > 8:
-            self._walk = float(target)
-            self._face = 1 if target > self._at.x() else -1
-            self._walk_x = float(self._at.x())
-        self._next_walk = now + random.uniform(40, 110)
+        names = [n for n, (_, w) in self.PLAYS.items() for _ in range(w)]
+        name = random.choice(names)
+        self._walk = (name, now, self.PLAYS[name][0])
+        if name == "happy":
+            self._hop_at = now
+        self._next_walk = now + random.uniform(22, 55)
+
+    def _play(self, now: float):
+        """(name, 0..1) of the trick he is doing, or (None, 0)."""
+        if not self._walk:
+            return None, 0.0
+        name, t0, dur = self._walk
+        return name, min(1.0, (now - t0) / dur)
+
+    def _portal(self, now: float):
+        """The blue ring of the GIF: (ring 0..1, rise 0..1) while he comes up out of it or sinks into it, else None."""
+        def up(u):                                  # u: 0..1 of coming up
+            ring = min(1.0, u / 0.25)
+            ring = (1 - (1 - ring) ** 3) * (1 - max(0.0, (u - 0.8) / 0.2))
+            r = max(0.0, min(1.0, (u - 0.15) / 0.6))
+            return ring, 1 - (1 - r) ** 3
+        if self._enter:
+            u = now - self._enter[0]
+            return up(min(1.0, u / 1.0)) if self._enter[1] > 0 else up(max(0.0, 1 - u / 0.9))
+        name, k = self._play(now)
+        if name == "portal":
+            u = k * self.PLAYS["portal"][0]
+            if u < 0.9:
+                return up(1 - u / 0.9)
+            if u < 1.3:
+                return 0.0, 0.0
+            return up(min(1.0, (u - 1.3) / 1.0))
+        return None
+
+    def _motion(self, look: str, now: float):
+        """What moves the whole picture: (dx, dy, tilt) in units and degrees. Painted, never built."""
+        t = now - self._t0
+        dx = dy = tilt = 0.0
+        name, k = self._play(now)
+        if name == "shuffle":                       # rolls forward and back on his tracks
+            env = math.sin(math.pi * k)
+            dx = 0.9 * math.sin(2 * math.pi * 2 * k) * env
+            tilt = -2.5 * math.cos(2 * math.pi * 2 * k) * env
+        elif look in ("idle", "play", "alert", "wait") and self._busy < 0.85 and (t % 3.0) > 1.9:
+            dy = 0.25                               # a breath
+        c = now - self._call_at
+        if look in ("alert", "wait") and 0 <= c < 0.9:                       # the call: a jump and a wiggle
+            tilt = 7 * math.sin(c * 22) * (1 - c / 0.9)
+        return round(dx, 2), dy, round(tilt, 1)
 
     def _frame(self):
         now = time.monotonic()
-        dt = min(0.25, max(0.0, now - self._last))
         self._last = now
-        if self._enter and now - self._enter[0] > (0.75 if self._enter[1] > 0 else 0.6):
+        if self._enter and now - self._enter[0] > (1.05 if self._enter[1] > 0 else 0.95):
             gone = self._enter[1] < 0
             self._enter = None
             if gone:
@@ -697,23 +766,18 @@ class Pet(QWidget):
         if now >= self._next_glance:
             self._glance = random.choice(((0, 0), (0, 0), (-1, 0), (1, 0), (1, -1), (-1, 1), (0, 1)))
             self._next_glance = now + random.uniform(1.6, 4.0)
-        # a walk now and then, when he is free and nobody is looking at him
+        # a trick now and then, when he is free and nobody is looking at him
         if (look == "idle" and not self._card and not self._hover and not self._press and not self._enter
                 and self._busy < 0.7 and now >= self._next_walk):
             self._start_walk(now)
             look = self._look(now)
-        if self._walk is not None:
-            if look != "walk":
+        if self._walk:
+            name, t0, dur = self._walk
+            if look != "play" or now - t0 >= dur:
                 self._walk = None
-            else:
-                step = 26.0 * dt * self._face
-                self._walk_x += step
-                if (self._face > 0 and self._walk_x >= self._walk) or (self._face < 0 and self._walk_x <= self._walk):
-                    self._walk_x = self._walk
-                    self._walk = None
-                    self._glance = (0, 0)
-                self._at = QPoint(round(self._walk_x), self._at.y())
-                self.move(self._at)
+                look = self._look(now)
+            elif name == "happy" and now - t0 > 0.55 and self._hop_at < t0 + 0.5:
+                self._hop_at = now                  # the second little jump
         # something for you that you have not seen yet: he calls you, a jump and a wiggle every few seconds, until the
         # mouse goes over him (the card says what it is) or you click
         if look in ("alert", "wait") and not self._enter and not self._press:
@@ -722,29 +786,36 @@ class Pet(QWidget):
                 self._call_at = self._hop_at = now
         calling = now - self._call_at < 1.2
         hop = now - self._hop_at
+        spec = self._spec(look, now)
+        if spec[0] != self._pose_now:               # a new pose: a quick cross-fade with a little squash
+            self._prev_spec, self._pose_now, self._pose_at = self._shown_spec, spec[0], now
+        fading = now - self._pose_at < 0.3
+        name, _ = self._play(now)
+        moving = name in ("shuffle", "portal") or self._enter is not None
         # paint only when the picture changes (a paint costs ~2 ms of the window server on the Mac)
-        sig = (self._spec(look, now), look == "walk" and self._face, self._alerts and len(self._alerts))
-        if sig != self._painted or self._enter or hop < 0.7 or calling or self._press_down or now - self._card_at < 0.3 \
-                or now - self._badge_at < 0.5:
+        sig = (spec, self._motion(look, now), self._alerts and len(self._alerts))
+        if sig != self._painted or moving or fading or hop < 0.7 or calling or self._press_down \
+                or now - self._card_at < 0.3 or now - self._badge_at < 0.5:
             self._painted = sig
             self.update()
         # the next frame: as late as it can be
-        if self._enter or hop < 0.7 or calling or now - self._card_at < 0.3 or self._press_down or now - self._badge_at < 0.5:
+        if moving or fading or hop < 0.7 or calling or now - self._card_at < 0.3 or self._press_down \
+                or now - self._badge_at < 0.5:
             ms = 33
-        elif look == "walk":
-            ms = 83
-        elif look in ("edit", "run") and self._busy < 0.85:
-            ms = 333                            # typing: 3 a second is enough for pixel art (each paint ~2 ms of macOS)
-        elif look in ("think", "read", "alert", "wait", "done"):
+        elif look in ("edit", "run") or name == "tune":
+            ms = 250 if self._busy < 0.85 else 500  # the wrench and the sparks, 4 a second
+        elif look in ("think", "read", "alert", "wait", "done", "play"):
             ms = 280 if self._busy < 0.85 else 600
         elif look == "sleep":
             ms = 700
         elif self._hover and now - self._hover_at < 1.6:
             ms = 160
-        else:                                   # idle: wake for the next blink, glance or breath
+        else:                                   # idle: wake for the next blink, glance, breath or trick
             nxt = min(self._next_blink, self._next_glance, self._next_walk)
             if now - self._blink_at < 0.16:
                 nxt = self._blink_at + 0.16
+            t = (now - self._t0) % 3.0
+            nxt = min(nxt, now + ((1.9 - t) if t < 1.9 else (3.0 - t)) + 0.01)
             ms = max(120, min(1200, round((nxt - now) * 1000)))
         self._tick.start(ms)
 
@@ -756,27 +827,36 @@ class Pet(QWidget):
         if self._mouse and look in ("idle", "wait", "done", "alert"):
             gx, gy = self._mouse
         lid = 1.0 if blink else 0.3              # a patrão: eyes a little lowered, sure of himself
-        pose, eyes, holo, fx, tilt = "idle", (gx, gy, lid, "open"), None, None, 0
+        pose, eyes, holo, fx = "idle", (gx, gy, lid, "open"), None, None
         if look == "idle":
             if self._hover and now - self._hover_at < 2.5:
                 eyes = (gx, gy, 0.0, "happy")
-        elif look == "walk":
-            eyes = (self._face, 0, lid, "open")
-            tilt = (-1.5, 0, 1.5, 0)[int(t * 6) % 4]
+        elif look == "play":
+            name, k = self._play(now)
+            if name == "shuffle":
+                eyes = (1 if math.cos(2 * math.pi * 2 * k) > 0 else -1, 0, lid, "open")
+            elif name == "look":
+                eyes = ((-1, 0), (-1, -1), (1, -1), (1, 0), (0, 0))[min(4, int(k * 5))] + (lid, "open")
+            elif name == "ponder":
+                pose, eyes, fx = "think", None, ("dots", int(t * 3.5) % 3)
+            elif name == "tune":
+                pose, eyes, fx = "work", None, ("sparks", int(t * 4) % 6)
+            elif name == "happy":
+                eyes = (0, 0, 0.0, "happy")
         elif look == "sleep":
             eyes = (0, 0, 1.0, "sleep")
             fx = ("z", int(t * 4) % 12)
         elif look == "think":                    # the thinking picture: hand on the chin, eyes up
             pose, eyes = "think", None
             fx = ("dots", int(t * 3.5) % 3)
-        elif look == "edit":                     # he codes on his hologram (one 32-frame loop, built once)
-            f = int(t * 3) % 32
-            eyes = (0, 0.9, max(lid, 0.4), "open")
-            holo = ("code", f)
+        elif look == "edit":                     # the boss at work: the wrench, sparks, the code floating by
+            f = int(t * 4) % 48
+            pose, eyes = "work", None
+            holo, fx = ("code", f // 3), ("sparks", f % 6)
         elif look == "run":
-            f = int(t * 3) % 40
-            eyes = (0, 0.9, max(lid, 0.4), "open")
-            holo = ("term", (f // 2) % 5, (f // 2) % 2, f // 10)
+            f = int(t * 4) % 60
+            pose, eyes = "work", None
+            holo, fx = ("term", (f // 3) % 5, (f // 3) % 2, f // 15), ("sparks", f % 6)
         elif look == "read":
             k = int(t * 2.5) % 10
             eyes = ((-1, -0.3, 0.3, 1, 0.3, -0.3)[int(t * 2) % 6], 0.9, lid, "open")
@@ -790,16 +870,14 @@ class Pet(QWidget):
             holo = ("note", what, len(self._alerts))
             fx = ("glyph", "!") if int(t / 0.6) % 2 else None
             eyes = (gx, gy, 0.0 if not blink else 1.0, "happy" if self._hover else "open")   # wide: he calls you
-        c = now - self._call_at
-        if look in ("alert", "wait") and 0 <= c < 0.9:                       # the call: a jump and a wiggle
-            tilt = round(7 * math.sin(c * 22) * (1 - c / 0.9))
-            fx = ("glyph", "!" if look == "alert" else "?")
         else:                                                                 # done
             eyes = (0, 0, 0.0, "happy")
             holo = ("done",)
+        if look in ("alert", "wait") and 0 <= now - self._call_at < 0.9:
+            fx = ("glyph", "!" if look == "alert" else "?")
         if self._press and self._moved:                                       # picked up: eyes wide, looking up
-            pose, eyes, holo, tilt = "idle", (0, -1, 0.0, "open"), None, 0
-        return (pose, eyes, holo, fx, tilt)
+            pose, eyes, holo, fx = "idle", (0, -1, 0.0, "open"), None, None
+        return (pose, eyes, holo, fx, 0)
 
     def _image(self, spec) -> QImage:
         dpr = self.devicePixelRatioF()
@@ -830,24 +908,23 @@ class Pet(QWidget):
             hop = 3.2 * c * math.sin(math.pi * h / 0.42)
         if self._press and self._moved:
             hop = 1.5 * c
-        alpha = 1.0
-        if self._enter:                          # comes up out of the floor fading in; goes down fading out
-            u = now - self._enter[0]
-            k = min(1.0, u / 0.45) if self._enter[1] > 0 else max(0.0, 1 - u / 0.45)
-            k = 1 - (1 - k) ** 3
-            alpha, hop = k, hop - (1 - k) * 3 * c
-        img = self._image(self._spec(look, now))
-        x0 = 0.0
-        y0 = self.AH - H * c - hop
-        # the shadow on the floor, smaller in the air
-        fy = self.AH - 1.0 * c
-        k = max(0.4, 1 - max(0.0, hop) / (5 * c))
-        sh = QRadialGradient(QPointF(self.AW / 2, fy), 11 * c)
-        sh.setColorAt(0, QColor(0, 0, 0, round(80 * k * alpha)))
-        sh.setColorAt(1, QColor(0, 0, 0, 0))
+        spec = self._spec(look, now)
+        self._shown_spec = spec
+        img = self._image(spec)
+        mdx, mdy, tilt = self._motion(look, now)
+        x0 = mdx * c
+        y0 = self.AH - H * c - hop + mdy * c
+        cx, fy = self.AW / 2, self.AH - 1.0 * c
+        portal = self._portal(now)
+        # the shadow on the floor, smaller in the air (none while he is in the portal)
         p.setPen(Qt.NoPen)
-        p.setBrush(sh)
-        p.drawEllipse(QPointF(self.AW / 2, fy), 11 * c * k, 1.3 * c)
+        if not portal:
+            k = max(0.4, 1 - max(0.0, hop) / (5 * c))
+            sh = QRadialGradient(QPointF(cx + x0, fy), 11 * c)
+            sh.setColorAt(0, QColor(0, 0, 0, round(80 * k)))
+            sh.setColorAt(1, QColor(0, 0, 0, 0))
+            p.setBrush(sh)
+            p.drawEllipse(QPointF(cx + x0, fy), 11 * c * k, 1.3 * c)
         unseen = (self._alerts and len(self._alerts) > self._seen) or (self.mode == "wait" and now > self._quiet_until)
         if unseen and not self._enter:
             col = QColor("#ff3b30") if self._alerts else QColor("#ffb340")
@@ -865,12 +942,73 @@ class Pet(QWidget):
                 p.setBrush(Qt.NoBrush)
                 p.drawEllipse(QPointF(self.AW / 2, fy), (5 + 11 * u) * c, (1 + 2.6 * u) * c)
                 p.setPen(Qt.NoPen)
-        p.setOpacity(alpha)
+        ry = self.AH - 1.4 * c                      # the ring's line on the floor
+        if portal:
+            ring, rise = portal
+            self._paint_ring(p, cx, ry, ring, rise, back=True)
+            y0 += (1 - rise) * 33 * c
+            p.save()
+            p.setClipRect(QRectF(-50, -50, self.AW + 100, ry + 50 + (self.AH - ry) * rise))
+        p.save()
+        if tilt:                                    # leans around the middle of his tracks
+            p.translate(cx + x0, self.AH)
+            p.rotate(tilt)
+            p.translate(-(cx + x0), -self.AH)
+        u = (now - self._pose_at) / 0.3
+        if u < 1 and self._prev_spec and self._prev_spec[0] != spec[0]:
+            s = 1 - 0.07 * math.sin(math.pi * u)    # a little squash as he changes pose
+            p.translate(cx + x0, self.AH)
+            p.scale(2 - s, s)
+            p.translate(-(cx + x0), -self.AH)
+            p.setOpacity(1 - u)
+            p.drawImage(QPointF(x0, y0), self._image(self._prev_spec))
+            p.setOpacity(u)
         p.drawImage(QPointF(x0, y0), img)
         p.setOpacity(1.0)
+        p.restore()
+        if portal:
+            p.restore()
+            self._paint_ring(p, cx, ry, ring, rise, back=False)
         if self._alerts and not self._enter:
-            self._paint_badge(p, x0 + 25 * c, y0 + 6 * c, now)
+            self._paint_badge(p, x0 + 26 * c, y0 + 6 * c, now)
         p.end()
+
+    def _paint_ring(self, p: QPainter, cx: float, cy: float, k: float, rise: float, back: bool):
+        """The portal of the GIF: a blue ring of light on the floor, the star in it while he is below."""
+        if k <= 0.01:
+            return
+        c = self.CELL
+        rx, ry = 13 * c * k, 2.7 * c * k
+        p.save()
+        if back:
+            hole = QRadialGradient(QPointF(cx, cy), rx)
+            hole.setColorAt(0, QColor(6, 30, 52, round(230 * k)))
+            hole.setColorAt(0.8, QColor(10, 60, 100, round(170 * k)))
+            hole.setColorAt(1, QColor(40, 170, 255, 0))
+            p.setPen(Qt.NoPen)
+            p.setBrush(hole)
+            p.drawEllipse(QPointF(cx, cy), rx, ry)
+            beam = QLinearGradient(0, cy - 14 * c, 0, cy)   # a soft light rising out of it
+            beam.setColorAt(0, QColor(80, 200, 255, 0))
+            beam.setColorAt(1, QColor(80, 200, 255, round(70 * k * (1 - rise * 0.6))))
+            p.setBrush(beam)
+            p.drawRect(QRectF(cx - rx * 0.8, cy - 14 * c, rx * 1.6, 14 * c))
+            if rise < 0.6:                          # the star in the middle while he is under
+                a = round(200 * k * (1 - rise / 0.6))
+                p.setPen(QPen(QColor(220, 240, 255, a), max(1.2, 0.35 * c), Qt.SolidLine, Qt.RoundCap))
+                for ang in (-90, 30, 150):
+                    r = math.radians(ang)
+                    p.drawLine(QPointF(cx, cy), QPointF(cx + 0.9 * ry * 2.2 * math.cos(r), cy + 0.9 * ry * math.sin(r)))
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor(80, 210, 255, round(230 * k)), max(1.5, 0.45 * c)))
+            p.drawArc(QRectF(cx - rx, cy - ry, 2 * rx, 2 * ry), 0, 180 * 16)
+        else:
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor(80, 210, 255, round(70 * k)), max(4.0, 1.4 * c)))
+            p.drawArc(QRectF(cx - rx, cy - ry, 2 * rx, 2 * ry), 180 * 16, 180 * 16)
+            p.setPen(QPen(QColor(150, 230, 255, round(250 * k)), max(1.5, 0.5 * c)))
+            p.drawArc(QRectF(cx - rx, cy - ry, 2 * rx, 2 * ry), 180 * 16, 180 * 16)
+        p.restore()
 
     def _paint_badge(self, p: QPainter, x: float, y: float, now: float):
         n = len(self._alerts)

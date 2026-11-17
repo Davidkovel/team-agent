@@ -15,8 +15,10 @@ ASSETS = Path(__file__).resolve().parent.parent / "team_widget" / "assets"
 
 # (cx, cy, rx, ry) in the picture's pixels: what stays silver, and the eyes that keep their colours
 SILVER = {"idle": [("ellipse", 150, 20, 21, 20), ("rect", 104, 246, 190, 299)],
-          "think": [("ellipse", 147, 19, 21, 20), ("rect", 140, 252, 218, 303)]}
-EYES = {"idle": [], "think": [(156.5, 90.5, 22.5, 24.5), (200, 78, 17.5, 23)]}
+          "think": [("ellipse", 147, 19, 21, 20), ("rect", 140, 252, 218, 303)],
+          "work": [("ellipse", 150, 35, 24, 18), ("rect", 78, 252, 151, 299)]}
+EYES = {"idle": [], "think": [(156.5, 90.5, 22.5, 24.5), (200, 78, 17.5, 23)],
+        "work": [(120, 131, 21, 18), (158, 136, 17, 17)]}
 
 
 def _array(img: QImage) -> np.ndarray:
@@ -57,12 +59,15 @@ def blacken(pose: str):
     eye_like = (L[..., 0] > 0.62) | (rgb[..., 2] - rgb[..., 0] > 0.06) | (L[..., 0] < 0.10)   # white, blue iris, pupil
     keep &= eye_like
     out = np.where(keep[..., None], rgb, out)
+    whites = keep & (L[..., 0] > 0.55) & (rgb[..., 2] - rgb[..., 0] < 0.06)   # the cream of the eyes turns cool white
+    cool = np.clip(0.06 + 0.97 * L * np.array([0.95, 0.99, 1.04]), 0, 1)
+    out = np.where(whites[..., None], cool, out)
     px = (np.concatenate([out, alpha], axis=2) * 255 + 0.5).astype(np.uint8)
     img = QImage(px.tobytes(), w, h, w * 4, QImage.Format_RGBA8888).copy()
     img.save(str(ASSETS / f"farol-{pose}-black.png"))
 
 
 if __name__ == "__main__":
-    for pose in ("idle", "think"):
+    for pose in ("idle", "think", "work"):
         blacken(pose)
         print("ok", pose)

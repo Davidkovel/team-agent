@@ -1,12 +1,13 @@
 """Bit, the widget's pet (17 Nov, Marco).
 
 «Um amiguinho... uma espécie de programador... não uma imagem com bordas feias... como se fosse um PC de um robô... tem
-de se ver o gajo a pensar quando tu estás a pensar, a andar.» After the ChatGPT pets (small crisp pixel robots with a
-screen for a face), but ours: a little programmer robot in the widget's black chrome, a monitor for a head with the red
-AMG line under the screen, an antenna with a LED, a small body, legs.
+de se ver o gajo a pensar quando tu estás a pensar, a andar.» Then: «tiraste as rodinhas... tinha de ser o mesmo robô
+[o Farol], só que a versão programador». So he is the Farol in pixel art, in the widget's black chrome: a round helmet
+with a visor and a light on top, a ribbed headlight for a face with big round eyes, ear cups like headphones, claw
+hands, and tracks with two turning wheels and the AMG plate. He rolls on them when he moves.
 
-He is drawn in code, cell by cell, into a tiny image (26 x 26 cells) scaled up without smoothing: sharp pixels at every
-size, no cut-out picture and no halo. The screen does the acting, following what the Claude of this computer is doing
+He is drawn in code, cell by cell, into a tiny image (32 x 32 cells) scaled up without smoothing: sharp pixels at every
+size, no cut-out picture and no halo. The headlight does the acting, following what the Claude of this computer is doing
 (the `action` of the working window, from the Escritório hooks):
   * «a pensar»: three dots that run, a hand on the chin, a little thought bubble;
   * editing: he types on his laptop and the screen is a code editor that scrolls;
@@ -31,8 +32,8 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from . import prefs
 
-W, H = 26, 26                            # the sprite, in cells
-CELLS = (2.0, 2.5, 3.0, 3.5, 4.0)        # «Tamanho» in the central: logical pixels per cell
+W, H = 32, 32                            # the sprite, in cells
+CELLS = (1.5, 2.0, 2.5, 3.0, 3.5)        # «Tamanho» in the central: logical pixels per cell
 HEADROOM = 4                             # cells above the sprite for a hop
 BW = 214                                 # the card
 GAP = 2
@@ -49,12 +50,17 @@ K = _c("#050506")                        # outline
 HEAD, HEAD_HI, HEAD_LO = _c("#34373e"), _c("#5d626d"), _c("#1d1f23")
 RIM = _c("#0b0c0e")
 BODY, BODY_HI, BODY_LO = _c("#3a3d45"), _c("#575c67"), _c("#25272c")
-HAND = _c("#6b707b")
+HAND, LIMB = _c("#9aa1ad"), _c("#5d626d")
 RED, RED_DK = _c("#ff3b30"), _c("#5a1612")
 AMBER, GREEN = _c("#ffb340"), _c("#34c759")
 SCR, SCR_LINE, SCR_GLARE = _c("#06121b"), _c("#0a1824"), _c("#183244")
 EYE, EYE_HI, EYE_DIM = _c("#8fdcff"), _c("#effaff"), _c("#2f6580")
 LID, LID_HI, BASE, BASE_LO = _c("#2a2d33"), _c("#4b505a"), _c("#71767f"), _c("#3b3e45")
+EAR, EAR_HI = _c("#2a2d33"), _c("#4f5560")
+PUPIL, GLOSS = _c("#0b2a3f"), _c("#a9b0bb")
+TREAD, TREAD_HI, TRACK_IN = _c("#16171a"), _c("#3a3d44"), _c("#0c0d0f")
+WHEEL, WHEEL_HI, HUB = _c("#40444c"), _c("#9aa1ad"), _c("#25272c")
+PLATE, PLATE_HI = _c("#5b606b"), _c("#8a909b")
 CODE = (_c("#8fdcff"), _c("#7ee2a8"), _c("#ff7a70"), _c("#cfd8e3"), _c("#c9a7ff"))
 BUBBLE = _c("#dfe6ee", 230)
 
@@ -116,9 +122,24 @@ def kind_of(action: str) -> str:
 
 
 # ---------------------------------------------------------------------------------------------- the sprite
+def _mirror(pts):
+    return [(W - 1 - x, y) for (x, y) in pts]
+
+
+# the arms, left side (the right one is the mirror): segments from the shoulder, then the claw
+ARM = {"down": [(9, 20), (8, 21), (8, 22)],
+       "up": [(9, 20), (8, 20), (7, 19), (6, 19), (5, 18), (4, 17), (3, 16), (3, 15)],
+       "wave2": [(9, 20), (8, 20), (7, 19), (6, 19), (5, 18), (4, 18), (3, 17), (2, 16)],
+       "chin": [(9, 20), (8, 20), (7, 19), (7, 18)]}
+CLAW_DOWN = [(7, 23), (8, 23), (9, 23), (7, 24), (9, 24)]                 # a «U» upside down
+CLAW_UP = {"up": [(2, 14), (3, 14), (4, 14), (2, 13), (4, 13)],
+           "wave2": [(1, 15), (2, 15), (3, 15), (1, 14), (3, 14)],
+           "chin": [(8, 17), (9, 17), (10, 17), (8, 16)]}
+
+
 def build(spec: tuple) -> QImage:
     """One frame of Bit, from a hashable description (so equal frames come from the cache).
-    spec = (arms, legs, head_dy, screen, led, laptop, fx, dissolve)"""
+    spec = (arms, tracks, head_dy, screen, led, laptop, fx, dissolve)"""
     arms, legs, hdy, screen, led, laptop, fx, dissolve = spec
     cells = {}
 
@@ -131,71 +152,84 @@ def build(spec: tuple) -> QImage:
         for p in pts:
             cells[p] = col
 
-    # antenna and LED
-    hy = 4 + hdy
-    put([(16, hy - 2), (16, hy - 1)], HEAD_LO)
-    cells[(16, hy - 3)] = led
-    # legs
-    if legs == "stand":
-        rect(10, 22, 2, 2, BODY_LO), rect(9, 24, 3, 1, HEAD_LO)
-        rect(14, 22, 2, 2, BODY_LO), rect(14, 24, 3, 1, HEAD_LO)
-    elif legs in ("walk1", "walk3"):
-        up = legs == "walk1"
-        lx, rx = (10, 14)
-        rect(lx, 22, 2, 1 if up else 2, BODY_LO), rect(lx - 1, 23 if up else 24, 3, 1, HEAD_LO)
-        rect(rx, 22, 2, 2 if up else 1, BODY_LO), rect(rx, 24 if up else 23, 3, 1, HEAD_LO)
-    elif legs == "dangle":
-        rect(10, 22, 2, 3, BODY_LO), rect(14, 22, 2, 3, BODY_LO)
-    # body
-    rect(8, 17, 10, 5, BODY)
-    for p in ((8, 17), (17, 17), (8, 21), (17, 21)):
-        cells.pop(p, None)
-    rect(9, 18, 8, 1, BODY_HI)
-    rect(9, 20, 8, 1, BODY_LO)
-    rect(10, 19, 6, 1, RED)                        # the AMG plate
-    rect(12, 16, 2, 1, HEAD_LO)                    # neck
-    # head: a small monitor, corners cut
-    hx = 5
-    rect(hx, hy, 16, 12, HEAD)
-    for p in ((hx, hy), (hx + 15, hy), (hx, hy + 11), (hx + 15, hy + 11)):
-        cells.pop(p, None)
-    rect(hx + 1, hy, 14, 1, HEAD_HI)
-    rect(hx, hy + 1, 1, 9, HEAD_HI)
-    rect(hx + 15, hy + 1, 1, 10, HEAD_LO)
-    rect(hx + 1, hy + 11, 14, 1, HEAD_LO)
-    rect(hx + 1, hy + 1, 14, 9, RIM)               # the bezel's dark ring
-    sx, sy = hx + 2, hy + 2
-    _screen(cells, sx, sy, screen)
-    rect(hx + 1, hy + 10, 14, 1, HEAD)             # the chin
-    rect(hx + 9, hy + 10, 4, 1, RED)               # the AMG line
-    cells[(hx + 2, hy + 10)] = led if led != RED_DK else HEAD_LO
-    # arms (after the head: a raised arm passes in front of it)
-    L = {"down": [(6, 18), (6, 19), (6, 20)], "chin": [(6, 18), (6, 19), (6, 20)],
-         "wave1": [(6, 18), (6, 19), (6, 20)], "wave2": [(6, 18), (6, 19), (6, 20)],
-         "up": [(7, 17), (6, 17), (5, 16), (4, 15), (3, 14), (3, 13)], "type1": [], "type2": []}
-    R = {"down": [(19, 18), (19, 19), (19, 20)], "chin": [(19, 19), (19, 18), (19, 17), (18, 16)],
-         "wave1": [(18, 17), (19, 17), (20, 16), (21, 15), (22, 14), (22, 13)],
-         "wave2": [(18, 17), (19, 17), (20, 16), (21, 15), (22, 15), (23, 14)],
-         "up": [(18, 17), (19, 17), (20, 16), (21, 15), (22, 14), (22, 13)], "type1": [], "type2": []}
-    LH = {"down": (6, 21), "chin": (6, 21), "wave1": (6, 21), "wave2": (6, 21), "up": (3, 12)}
-    RH = {"down": (19, 21), "chin": (17, 16), "wave1": (22, 12), "wave2": (24, 13), "up": (22, 12)}
-    put(L.get(arms, []), BODY)
-    put(R.get(arms, []), BODY)
-    if arms in LH:
-        cells[LH[arms]] = HAND
-        cells[RH[arms]] = HAND
-    # laptop in front (working)
+    # the tracks: a rubber band round two wheels, the AMG plate in the middle
+    ty = 25 if legs == "dangle" else 24
+    roll = {"roll1": 1, "roll2": 2, "roll3": 3}.get(legs, 0)
+    band = [(x, ty) for x in range(6, 26)] + [(x, ty + 5) for x in range(6, 26)] + \
+           [(5, ty + j) for j in range(1, 5)] + [(26, ty + j) for j in range(1, 5)]
+    for (x, y) in band:                            # the treads move round when he rolls
+        k = (x - roll) if y == ty else (x + roll) if y == ty + 5 else (y + (roll if x > 15 else -roll))
+        cells[(x, y)] = TREAD_HI if k % 3 == 0 else TREAD
+    rect(6, ty + 1, 20, 4, TRACK_IN)
+    for cx in (6, 22):                             # the wheels, the spokes turn
+        rect(cx, ty + 1, 4, 4, WHEEL)
+        for p in ((cx, ty + 1), (cx + 3, ty + 1), (cx, ty + 4), (cx + 3, ty + 4)):
+            cells[p] = TRACK_IN
+        spoke = (((cx + 1, ty + 2), (cx + 2, ty + 3)), ((cx + 2, ty + 2), (cx + 1, ty + 3)))[roll % 2]
+        put([(cx + 1, ty + 2), (cx + 2, ty + 2), (cx + 1, ty + 3), (cx + 2, ty + 3)], HUB)
+        put(spoke, WHEEL_HI)
+    rect(11, ty + 1, 10, 4, PLATE)                 # the plate
+    rect(11, ty + 1, 10, 1, PLATE_HI)
+    rect(13, ty + 2, 6, 1, RED)
+    rect(13, ty + 3, 6, 1, RED_DK)
+    # the body
+    rect(11, 20, 10, 4, BODY)
+    rect(11, 20, 10, 1, BODY_HI)
+    rect(11, 23, 10, 1, BODY_LO)
+    rect(14, 21, 4, 2, BODY_LO)                    # a small chest panel
+    cells[(15, 21)] = led if led != RED_DK else BODY_LO
+    rect(14, 19, 4, 1, HEAD_LO)                    # neck
+    # the head: a round helmet with a visor, a headlight for a face, ear cups
+    hy = 3 + hdy
+    for r, (a, b) in enumerate(((12, 19), (10, 21), (9, 22), (8, 23), (8, 23), (7, 24))):
+        rect(a, hy + r, b - a + 1, 1, HEAD)
+    rect(12, hy, 8, 1, HEAD_HI)
+    put([(10, hy + 1), (11, hy + 1), (9, hy + 2), (8, hy + 3), (8, hy + 4)], HEAD_HI)
+    put([(22, hy + 2), (23, hy + 3), (23, hy + 4), (23, hy + 5)], HEAD_LO)
+    put([(11, hy + 2), (10, hy + 3)], GLOSS)       # the shine on the chrome
+    rect(14, hy + 1, 4, 2, HEAD_HI)                # the badge on top, its light
+    put([(15, hy + 1), (16, hy + 1), (15, hy + 2), (16, hy + 2)], RIM)
+    cells[(15, hy + 1)] = led
+    cells[(16, hy + 2)] = led if led != RED_DK else RIM
+    rect(7, hy + 6, 18, 1, HEAD_LO)                # the visor's lip
+    rect(8, hy + 6, 16, 1, HEAD_HI)
+    rect(8, hy + 7, 16, 9, HEAD)                   # the face frame
+    rect(8, hy + 7, 1, 8, HEAD_HI)
+    rect(23, hy + 7, 1, 9, HEAD_LO)
+    put([(8, hy + 15), (23, hy + 15)], None)
+    rect(9, hy + 15, 14, 1, HEAD_LO)
+    for ex in (5, 24):                             # the ear cups
+        rect(ex, hy + 9, 3, 5, EAR)
+        cells.pop((ex if ex == 5 else ex + 2, hy + 9), None)
+        cells.pop((ex if ex == 5 else ex + 2, hy + 13), None)
+        rect(ex + (1 if ex == 5 else 0), hy + 10, 2, 3, EAR_HI if ex == 5 else HEAD_LO)
+    _screen(cells, 9, hy + 7, screen)
+    cells = {k: v for k, v in cells.items() if v is not None}
+    # the arms (after the head: a raised one passes in front of it)
+    if arms in ("type1", "type2"):
+        pass
+    else:
+        la = "wave2" if arms == "wave2" else ("up" if arms == "up" else "down")
+        ra = {"wave1": "up", "wave2": "wave2", "up": "up", "chin": "chin"}.get(arms, "down")
+        if arms == "wave2":
+            la = "down"
+        put(ARM[la], LIMB), put(_mirror(ARM[ra]), LIMB)
+        put([ARM[la][0], _mirror(ARM[ra])[0]], HEAD_LO)            # the shoulders
+        put(CLAW_UP.get(la, CLAW_DOWN), HAND)
+        put(_mirror(CLAW_UP.get(ra, CLAW_DOWN)), HAND)
+    # the laptop in front (working)
     if laptop:
-        rect(7, 18, 12, 5, LID)
-        cells.pop((7, 18), None), cells.pop((18, 18), None)
-        rect(8, 18, 10, 1, LID_HI)
-        put([(12, 20), (13, 20)], EYE if laptop == 2 else EYE_DIM)
-        rect(6, 23, 14, 1, BASE)
-        rect(6, 24, 14, 1, BASE_LO)
-        put([(9, 24), (16, 24)], BASE_LO)
-        hand_l, hand_r = ((8, 22), (17, 21)) if arms == "type1" else ((8, 21), (17, 22))
-        cells[hand_l] = HAND
-        cells[hand_r] = HAND
+        rect(10, 18, 12, 6, LID)
+        for p in ((10, 18), (21, 18)):
+            cells.pop(p, None)
+        rect(11, 18, 10, 1, LID_HI)
+        put([(15, 20), (16, 20), (15, 21), (16, 21)], EYE if laptop == 2 else EYE_DIM)
+        rect(8, 24, 16, 1, BASE)
+        rect(8, 25, 16, 1, BASE_LO)
+        put([(9, 20), (8, 21), (22, 20), (23, 21)], LIMB)            # the arms reach the keys
+        hl, hr = ((9, 23), (22, 22)) if arms == "type1" else ((9, 22), (22, 23))
+        put([(8, 22), (23, 22)], LIMB)
+        put([hl, hr], HAND)
     # the outline: every empty cell touching the robot
     solid = set(cells)
     for (x, y) in list(solid):
@@ -206,14 +240,14 @@ def build(spec: tuple) -> QImage:
     kind = fx[0] if fx else None
     if kind == "bubble":
         k = fx[1]
-        cells[(22, 3)] = BUBBLE
+        cells[(27, 3)] = BUBBLE
         if k >= 1:
-            rect(23, 0, 3, 2, BUBBLE)
+            rect(28, 0, 3, 2, BUBBLE)
     elif kind == "z":
         y0 = fx[1]
         for dx, dy in ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (3, 1), (2, 2), (1, 3), (0, 4), (1, 4), (2, 4), (3, 4), (4, 4)):
             if 0 <= y0 + dy < H:
-                cells[(21 + dx, y0 + dy)] = _c("#c8e4ff", 200)
+                cells[(26 + dx, y0 + dy)] = _c("#c8e4ff", 200)
     elif kind == "bits":
         for (bx, by, col) in fx[1]:
             if (bx, by) not in solid:
@@ -228,18 +262,21 @@ def build(spec: tuple) -> QImage:
     return img
 
 
+SW, SH = 14, 8                                    # the headlight glass
+_GLASS_CUT = {(0, 0), (SW - 1, 0), (0, SH - 1), (SW - 1, SH - 1)}
+
+
 def _screen(cells, sx, sy, screen):
-    """The face: 12 x 7 cells of an old monitor."""
+    """The face: a 14 x 8 headlight glass with ribs, where the eyes (and the work) show."""
     kind = screen[0]
-    for j in range(7):
-        for i in range(12):
-            cells[(sx + i, sy + j)] = SCR_LINE if j % 2 else SCR
-    cells[(sx + 10, sy)] = SCR_GLARE
-    cells[(sx + 11, sy)] = SCR_GLARE
-    cells[(sx + 11, sy + 1)] = SCR_GLARE
+    for j in range(SH):
+        for i in range(SW):
+            cells[(sx + i, sy + j)] = RIM if (i, j) in _GLASS_CUT else (SCR_LINE if i % 2 else SCR)
+    for p in ((11, 1), (12, 1), (12, 2)):
+        cells[(sx + p[0], sy + p[1])] = SCR_GLARE
 
     def px(i, j, col):
-        if 0 <= i < 12 and 0 <= j < 7:
+        if 0 <= i < SW and 0 <= j < SH and (i, j) not in _GLASS_CUT:
             cells[(sx + i, sy + j)] = col
 
     if kind == "off":
@@ -247,48 +284,54 @@ def _screen(cells, sx, sy, screen):
     if kind == "crt":                              # powering on/off: a line that opens into the picture
         p = screen[1]
         if p < 0.5:
-            w = max(1, round(12 * p * 2))
-            for i in range(6 - w // 2, 6 + (w + 1) // 2):
-                px(i, 3, EYE_HI)
+            w = max(1, round(SW * p * 2))
+            for i in range(7 - w // 2, 7 + (w + 1) // 2):
+                px(i, 4, EYE_HI)
         else:
-            h = max(1, round(7 * (p - 0.5) * 2))
-            for j in range(3 - h // 2, 3 + (h + 1) // 2):
-                for i in range(12):
-                    px(i, j, _c("#bfe9ff") if j == 3 else EYE_DIM)
+            h = max(1, round(SH * (p - 0.5) * 2))
+            for j in range(4 - h // 2, 4 + (h + 1) // 2):
+                for i in range(SW):
+                    px(i, j, _c("#bfe9ff") if j == 4 else EYE_DIM)
         return
     if kind == "eyes":
         _, dx, dy, shape, col = screen
-        for ex in (3, 7):
-            x = ex + dx
-            if shape == "open":
-                for j in range(3):
-                    px(x, 2 + dy + j, col), px(x + 1, 2 + dy + j, col)
-                px(x, 2 + dy, EYE_HI)
+        for ex in (2, 8):
+            x, y = ex + dx, 1 + dy
+            if shape == "open":                    # a big round eye: iris, pupil, a spark of light
+                for j in range(5):
+                    for i in range(4):
+                        if i in (0, 3) and j in (0, 4):
+                            continue
+                        px(x + i, y + j, col)
+                for p in ((1, 2), (2, 2), (1, 3), (2, 3)):
+                    px(x + p[0], y + p[1], PUPIL)
+                px(x + 1, y + 1, EYE_HI)
             elif shape == "blink":
-                px(x, 3 + dy, col), px(x + 1, 3 + dy, col)
+                for i in range(4):
+                    px(x + i, y + 3, col)
             elif shape == "squint":
-                for j in range(2):
-                    px(x, 3 + dy + j, col), px(x + 1, 3 + dy + j, col)
+                for i in range(4):
+                    px(x + i, y + 2, col), px(x + i, y + 3, col)
+                px(x + 1, y + 3, PUPIL), px(x + 2, y + 3, PUPIL)
             elif shape == "sleep":
-                px(x, 4, EYE_DIM), px(x + 1, 4, EYE_DIM)
+                px(ex, 4, EYE_DIM), px(ex + 1, 5, EYE_DIM), px(ex + 2, 5, EYE_DIM), px(ex + 3, 4, EYE_DIM)
             elif shape == "happy":
-                b = 2 if ex == 3 else 7
-                px(b, 3, col), px(b + 1, 2, col), px(b + 2, 3, col)
+                px(ex, 4, col), px(ex + 1, 3, col), px(ex + 2, 3, col), px(ex + 3, 4, col)
         if shape == "happy":
-            px(5, 5, col), px(6, 5, col)
-        if len(screen) > 5:                        # a scan line (reading)
-            pass
+            px(5, 6, col), px(6, 7, col), px(7, 7, col), px(8, 6, col)
         return
     if kind == "scan":
         _, dx, line = screen
-        for i in range(12):
+        for i in range(SW):
             px(i, line, _c("#13324a"))
-        for ex in (3, 7):
-            px(ex + dx, 3, EYE), px(ex + 1 + dx, 3, EYE), px(ex + dx, 4, EYE), px(ex + 1 + dx, 4, EYE)
+        for ex in (2, 8):
+            for i in range(4):
+                px(ex + dx + i, 3, EYE), px(ex + dx + i, 4, EYE)
+            px(ex + dx + 1, 4, PUPIL), px(ex + dx + 2, 4, PUPIL)
         return
     if kind == "dots":
         k = screen[1]
-        for n, x in enumerate((1, 5, 9)):
+        for n, x in enumerate((2, 6, 10)):
             col = EYE if n == k else EYE_DIM
             for i in range(2):
                 for j in range(2):
@@ -296,32 +339,32 @@ def _screen(cells, sx, sy, screen):
         return
     if kind == "code":
         off = screen[1]
-        for row in range(7):
+        for row in range(SH):
             r = random.Random((off + row) * 7919)
             if r.random() < 0.18:
                 continue
-            x = r.choice((0, 1, 1, 2, 3))
+            x = r.choice((1, 1, 2, 3, 4))
             for _ in range(r.choice((1, 2, 2, 3))):
                 ln = r.randint(1, 4)
                 col = r.choice(CODE)
                 for i in range(ln):
                     px(x + i, row, col)
                 x += ln + 1
-                if x >= 11:
+                if x >= SW - 2:
                     break
         if screen[2]:                              # the cursor on the last line
-            px(min(11, 1 + (off % 9)), 6, EYE_HI)
+            px(min(12, 2 + (off % 10)), 6, EYE_HI)
         return
     if kind == "term":
         n, cursor = screen[1], screen[2]
         for j, i in ((1, 1), (2, 2), (3, 3), (4, 2), (5, 1)):
-            px(i, j, GREEN)
+            px(i + 1, j, GREEN)
         for j in range(min(n, 3)):
             r = random.Random(j * 31 + screen[3])
-            for i in range(5, 5 + r.randint(3, 6)):
+            for i in range(6, 6 + r.randint(3, 6)):
                 px(i, 1 + j, _c("#9aa4b1"))
         if cursor:
-            for i in range(5, 8):
+            for i in range(6, 9):
                 px(i, 5, EYE_HI)
         return
     if kind == "glyph":
@@ -329,7 +372,7 @@ def _screen(cells, sx, sy, screen):
         for j, line in enumerate(g):
             for i, ch in enumerate(line):
                 if ch == "#":
-                    px(4 + i, j, col)
+                    px(5 + i, j, col)
 
 
 # ---------------------------------------------------------------------------------------------- the window
@@ -620,7 +663,7 @@ class Pet(QWidget):
         """Four times a second: is the mouse near? Then the eyes follow it."""
         if not self.isVisible() or self._enter:
             return
-        face = self.mapToGlobal(QPoint(round(self._robot_x + self.AW / 2), round(self._robot_y + self.AH - 17 * self.CELL)))
+        face = self.mapToGlobal(QPoint(round(self._robot_x + self.AW / 2), round(self._robot_y + self.AH - 18 * self.CELL)))
         d = QCursor.pos() - face
         near = None
         if math.hypot(d.x(), d.y()) < 360:
@@ -742,8 +785,8 @@ class Pet(QWidget):
                 arms = "wave1" if int(t * 6) % 2 else "wave2"
             screen = eyes
         elif look == "walk":
-            legs = ("walk1", "stand", "walk3", "stand")[int(t * 8) % 4]
-            hdy = 1 if legs == "stand" else 0
+            legs = ("roll1", "roll2", "roll3", "stand")[int(t * 8) % 4]
+            hdy = 1 if int(t * 4) % 2 else 0
             screen = ("eyes", self._face, 0, "blink" if blink else "open", EYE)
         elif look == "sleep":
             hdy = 1
@@ -757,13 +800,13 @@ class Pet(QWidget):
         elif look == "edit":                     # one 32-frame loop, so every frame is built once and kept
             f = int(t * 3) % 32
             arms = "type1" if f % 2 else "type2"
-            legs, laptop = "none", 2 if (f // 2) % 2 else 1
+            laptop = 2 if (f // 2) % 2 else 1
             led = RED if f % 2 else RED_DK
             screen = ("code", f // 2, (f // 2) % 2)
         elif look == "run":
             f = int(t * 3) % 40
             arms = "type1" if f % 2 else "type2"
-            legs, laptop = "none", 1
+            laptop = 1
             led = GREEN if f % 2 else RED_DK
             screen = ("term", (f // 2) % 5, (f // 2) % 2, f // 10)
         elif look == "read":
@@ -781,7 +824,7 @@ class Pet(QWidget):
             arms = "up"
             led = GREEN
             screen = ("eyes", 0, 0, "happy", EYE)
-        if self._press and self._moved:                                       # picked up: legs dangle, arms up
+        if self._press and self._moved:                                       # picked up: the tracks hang, arms up
             arms, legs, laptop, hdy = "up", "dangle", 0, 0
             screen = ("eyes", 0, -1, "open", EYE)
         h = now - self._hop_at
@@ -836,18 +879,18 @@ class Pet(QWidget):
         if spec[7] > 0.3:
             fy = self.AH - 1.2 * c
             k = max(0.4, 1 - hop / (5 * c))
-            sh = QRadialGradient(QPointF(self.AW / 2, fy), 6 * c)
+            sh = QRadialGradient(QPointF(self.AW / 2, fy), 11 * c)
             sh.setColorAt(0, QColor(0, 0, 0, round(90 * k * spec[7])))
             sh.setColorAt(1, QColor(0, 0, 0, 0))
             p.setPen(Qt.NoPen)
             p.setBrush(sh)
-            p.drawEllipse(QPointF(self.AW / 2, fy), 6.5 * c * k, 1.3 * c)
+            p.drawEllipse(QPointF(self.AW / 2, fy), 11 * c * k, 1.4 * c)
         p.setRenderHint(QPainter.SmoothPixmapTransform, False)
         p.setRenderHint(QPainter.Antialiasing, False)
         p.drawImage(QRectF(x0, y0, W * c, H * c), img)
         p.setRenderHint(QPainter.Antialiasing)
         if self._alerts and not self._enter:
-            self._paint_badge(p, x0 + 20.5 * c, y0 + 4 * c, now)
+            self._paint_badge(p, x0 + 24.5 * c, y0 + 4 * c, now)
         p.end()
 
     def _paint_badge(self, p: QPainter, x: float, y: float, now: float):

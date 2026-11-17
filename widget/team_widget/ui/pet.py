@@ -27,6 +27,7 @@ from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetricsF, QImage, QLinea
 from PySide6.QtWidgets import QApplication, QWidget
 
 from . import prefs
+from .claude_windows import working_windows
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
@@ -69,6 +70,29 @@ def _idle_seconds() -> float:
     except (OSError, AttributeError, ValueError):
         pass
     return 0.0
+
+
+def _click_through(widget, on: bool):
+    """Clicks go through him to what is behind (Marco: «não pode afetar o rato... tenho de poder tocar nas coisas que estão
+    atrás dele»); he only takes the mouse when you rest it on him for a moment."""
+    try:
+        if sys.platform == "darwin" and QApplication.platformName() == "cocoa":
+            objc = ctypes.cdll.LoadLibrary("/usr/lib/libobjc.A.dylib")
+            objc.sel_registerName.restype = ctypes.c_void_p
+            objc.sel_registerName.argtypes = [ctypes.c_char_p]
+            send = ctypes.cast(objc.objc_msgSend, ctypes.c_void_p).value
+            get = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(send)
+            put = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_bool)(send)
+            win = get(int(widget.winId()), objc.sel_registerName(b"window"))
+            if win:
+                put(win, objc.sel_registerName(b"setIgnoresMouseEvents:"), bool(on))
+        elif sys.platform == "win32" and QApplication.platformName() == "windows":
+            u = ctypes.windll.user32
+            hwnd, GWL_EXSTYLE, TRANSPARENT = int(widget.winId()), -20, 0x20
+            style = u.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            u.SetWindowLongW(hwnd, GWL_EXSTYLE, (style | TRANSPARENT) if on else (style & ~TRANSPARENT))
+    except (OSError, AttributeError, ValueError, TypeError):
+        pass
 
 
 def _plural(n: int, one: str, many: str) -> str:
@@ -118,12 +142,13 @@ def _qc(v: int) -> QColor:
 
 def build(spec: tuple) -> QImage:
     """One frame of the Farol, from a hashable description (equal frames come from the cache).
-    spec = (pose, eyes, holo, fx, tilt)
+    spec = (pose, eyes, holo, fx, roll)
+      roll = None, or 0..3: the treads running (he rolls across the screen)
       pose = idle (front) | think (hand on the chin) | work (the wrench, the boss look)
       eyes = (dx, dy, lid, mood) on the idle picture (dx, dy in -1..1, lid 0 open .. 1 shut, mood open|happy|sleep)
       holo = None | ("code", n) | ("term", n, cursor, seed) | ("read", k) | ("done",) | ("note", what, n)
       fx   = None | ("dots", k) | ("glyph", "?"|"!") | ("z", k) | ("sparks", k)"""
-    pose, eyes, holo, fx, tilt = spec
+    pose, eyes, holo, fx, roll = spec
     img = QImage(CW, CH, QImage.Format_ARGB32_Premultiplied)
     img.fill(0)
     p = QPainter(img)
@@ -131,11 +156,9 @@ def build(spec: tuple) -> QImage:
     p.setRenderHint(QPainter.SmoothPixmapTransform)
     p.translate(OX, 0)
     p.save()
-    if tilt:
-        p.translate(150, CH)
-        p.rotate(tilt)
-        p.translate(-150, -CH)
     p.drawImage(QPointF(3, TOP), _src(pose))
+    if roll is not None:
+        _treads(p, roll) if pose == "idle" else _wheels(p, pose, roll)
     if pose == "idle" and eyes:
         _eyes(p, *eyes)
     if holo:
@@ -145,6 +168,46 @@ def build(spec: tuple) -> QImage:
         _fx(p, fx)
     p.end()
     return img
+
+
+TRACKS = (QRectF(53, 287, 51, 73), QRectF(196, 287, 53, 73))   # the two tracks of the idle picture (canvas, before OX)
+
+
+def _treads(p: QPainter, phase: int):
+    """Rolling: the grooves of the tracks run down, so the tracks turn."""
+    for r in TRACKS:
+        path = QPainterPath()
+        path.addRoundedRect(r, 15, 15)
+        p.save()
+        p.setClipPath(path)
+        p.setPen(Qt.NoPen)
+        y = r.top() - 12 + phase * 3
+        while y < r.bottom() + 12:
+            p.setBrush(QColor(0, 0, 0, 150))
+            p.drawRect(QRectF(r.left(), y, r.width(), 3.2))
+            p.setBrush(QColor(170, 180, 195, 55))
+            p.drawRect(QRectF(r.left(), y - 1.4, r.width(), 1.4))
+            y += 12
+        p.restore()
+
+
+# the three wheels seen on the side of the tracks (canvas, before OX): the think picture faces right, the work one left
+WHEELS = {"think": ((53, 318), (73.7, 322), (94.7, 324)), "work": ((208, 323), (228, 318), (252, 313))}
+
+
+def _wheels(p: QPainter, pose: str, phase: int):
+    """Rolling sideways: the spokes of the wheels turn (the way he goes)."""
+    turn = 1 if pose == "think" else -1
+    for cx, cy in WHEELS[pose]:
+        rx, ry = 10.5, 21.0
+        p.setPen(QPen(QColor(230, 236, 245, 150), 2.2, Qt.SolidLine, Qt.RoundCap))
+        for k in range(3):
+            a = math.radians(turn * phase * 20 + k * 120)
+            p.drawLine(QPointF(cx + 0.25 * rx * math.cos(a), cy + 0.25 * ry * math.sin(a)),
+                       QPointF(cx + 0.85 * rx * math.cos(a), cy + 0.85 * ry * math.sin(a)))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(10, 11, 13, 220))
+        p.drawEllipse(QPointF(cx, cy), 2.6, 5)
 
 
 def _eyes(p: QPainter, dx: float, dy: float, lid: float, mood: str):
@@ -374,6 +437,101 @@ def _fx(p: QPainter, fx: tuple):
 
 
 # ---------------------------------------------------------------------------------------------- the window
+class _Base(QWidget):
+    """His place on the screen while he is out: the portal ring, quiet, the star glowing in it (Marco: «o principal tinha
+    de estar sempre aí... alguma coisa da Mercedes»). Painted once, clicks go through it."""
+
+    def __init__(self):
+        kind = Qt.Window | Qt.WindowDoesNotAcceptFocus if sys.platform == "darwin" else Qt.Tool
+        super().__init__(None, kind | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.NoDropShadowWindowHint
+                         | Qt.WindowTransparentForInput)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.c = 2.2
+
+    def place(self, pet_at: QPoint, aw: int, ah: int, c: float):
+        self.c = c
+        h = round(7 * c)
+        self.setFixedSize(aw, h)
+        self.move(pet_at.x(), pet_at.y() + ah - h)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        c, cx = self.c, self.width() / 2
+        cy = self.height() - 1.4 * c
+        rx, ry = 12 * c, 2.5 * c
+        hole = QRadialGradient(QPointF(cx, cy), rx)
+        hole.setColorAt(0, QColor(6, 30, 52, 190))
+        hole.setColorAt(0.85, QColor(10, 60, 100, 120))
+        hole.setColorAt(1, QColor(40, 170, 255, 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(hole)
+        p.drawEllipse(QPointF(cx, cy), rx, ry)
+        beam = QLinearGradient(0, cy - 5 * c, 0, cy)
+        beam.setColorAt(0, QColor(80, 200, 255, 0))
+        beam.setColorAt(1, QColor(80, 200, 255, 45))
+        p.setBrush(beam)
+        p.drawRect(QRectF(cx - rx * 0.7, cy - 5 * c, rx * 1.4, 5 * c))
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(80, 210, 255, 70), max(3.0, 1.2 * c)))
+        p.drawEllipse(QPointF(cx, cy), rx, ry)
+        p.setPen(QPen(QColor(150, 230, 255, 220), max(1.2, 0.4 * c)))
+        p.drawEllipse(QPointF(cx, cy), rx, ry)
+        # the star, lying in the ring
+        p.setPen(QPen(QColor(220, 240, 255, 210), max(1.0, 0.35 * c)))
+        p.drawEllipse(QPointF(cx, cy), 2.2 * ry, 0.8 * ry)
+        for ang in (-90, 30, 150):
+            r = math.radians(ang)
+            p.drawLine(QPointF(cx, cy), QPointF(cx + 2.1 * ry * math.cos(r), cy + 0.78 * ry * math.sin(r)))
+        p.end()
+
+
+class _Mark(QWidget):
+    """A Claude window that is working where the Farol is not: a small wrench in its corner (Marco: «não duplicar o
+    robô... pelo menos um simbolozinho da marreta, para destacar que ele estava lá a mexer»). Clicks go through it."""
+
+    def __init__(self):
+        kind = Qt.Window | Qt.WindowDoesNotAcceptFocus if sys.platform == "darwin" else Qt.Tool
+        super().__init__(None, kind | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.NoDropShadowWindowHint
+                         | Qt.WindowTransparentForInput)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setFixedSize(30, 30)
+
+    def place(self, win):
+        _, x, y, w, h = win
+        self.move(x + w - 30 - 76, y + 1)          # in the title bar, left of the size
+        if not self.isVisible():
+            self.show()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        glow = QRadialGradient(QPointF(15, 15), 15)
+        glow.setColorAt(0.55, QColor(60, 190, 255, 90))
+        glow.setColorAt(1, QColor(60, 190, 255, 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(glow)
+        p.drawEllipse(QPointF(15, 15), 15, 15)
+        p.setBrush(QColor("#0d0e11"))
+        p.setPen(QPen(QColor(120, 215, 255, 230), 1.4))
+        p.drawEllipse(QPointF(15, 15), 10.5, 10.5)
+        p.translate(15, 15)                          # the wrench, at 45 degrees
+        p.rotate(-45)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#e8edf3"))
+        p.drawRoundedRect(QRectF(-1.6, -2, 3.2, 8.5), 1.2, 1.2)
+        head = QPainterPath()
+        head.addEllipse(QPointF(0, -4.2), 3.8, 3.8)
+        cut = QPainterPath()
+        cut.addRect(QRectF(-1.5, -8.5, 3, 4.6))
+        p.drawPath(head.subtracted(cut))
+        p.end()
+
+
 class Pet(QWidget):
     def __init__(self, on_click, open_page=None):
         # On the Mac a plain window, like the star: a tool window (NSPanel) does not go over apps in full screen.
@@ -408,6 +566,12 @@ class Pet(QWidget):
         self._mouse = None
         self._walk, self._next_walk, self._face = None, now + random.uniform(20, 40), 1
         self._pose_now, self._pose_at, self._prev_spec, self._shown_spec = "idle", -9.0, None, None
+        # rolling about the screen: where to (x), where he is (float x), when the next trip is, clicks going through
+        self._roll, self._rx, self._next_roam, self._through = None, 0.0, now + random.uniform(30, 60), False
+        self._tp = None                         # a mini teleport through the portal: (to x, when it started)
+        self._base = _Base()                    # his place, shown while he is out
+        self._spots, self._marks, self._at_work, self._stay = [], [], False, False
+        self._grab, self._dwell = False, None     # he takes the mouse only after it rests on him a moment   # the Claude windows working; the wrench on the others
         self._busy = 0.0
         self._last_check, self._away = now, False
         self._press, self._moved, self._press_at = None, False, QPoint()
@@ -426,9 +590,12 @@ class Pet(QWidget):
         self._check_t = QTimer(self)
         self._check_t.timeout.connect(self._check)
         self._check_t.start(4000)
+        self._claude_t = QTimer(self)
+        self._claude_t.timeout.connect(self._look_for_claude)
+        self._claude_t.start(2000)
         self._mouse_t = QTimer(self)
         self._mouse_t.timeout.connect(self._watch_mouse)
-        self._mouse_t.start(250)
+        self._mouse_t.start(120)
         self._tick = QTimer(self)
         self._tick.setSingleShot(True)
         self._tick.timeout.connect(self._frame)
@@ -543,17 +710,28 @@ class Pet(QWidget):
         self._wake()
 
     def arrive(self):
-        """The central closed: he appears pixel by pixel and the screen powers on."""
+        """The central closed: he comes up out of the portal, at his place."""
         if not self._on:
             return
+        self._roll = self._tp = None
+        self._at = QPoint(self._home)
         self._enter = (time.monotonic(), +1)
         self._mode_at = time.monotonic()
         self._layout()
         self.show()
         self._wake()
 
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        self._base.hide()
+        for m in self._marks:
+            m.hide()
+        self._through = False
+
     def showEvent(self, e):
         super().showEvent(e)
+        self._grab, self._dwell = False, None
+        QTimer.singleShot(0, lambda: _click_through(self, True))
         if not self._on:
             QTimer.singleShot(0, self.hide)
             return
@@ -662,9 +840,26 @@ class Pet(QWidget):
         self._wake()
 
     def _watch_mouse(self):
-        """Four times a second: is the mouse near? Then the eyes follow it."""
+        """Four times a second: is the mouse near? Then the eyes follow it. And the clicks: they go through him, unless
+        the mouse rests on him for half a second; then he can be dragged or clicked, until the mouse leaves."""
         if not self.isVisible() or self._enter:
             return
+        now = time.monotonic()
+        over = self.frameGeometry().contains(QCursor.pos())
+        if over:
+            self._dwell = self._dwell or now
+            if not self._grab and now - self._dwell >= 0.45:
+                self._grab = True
+                _click_through(self, False)
+                self.enterEvent(None)
+                self.update()
+        elif self._press is None:
+            self._dwell = None
+            if self._grab:
+                self._grab = False
+                _click_through(self, True)
+                self.leaveEvent(None)
+                self.update()
         face = self.mapToGlobal(QPoint(round(self._robot_x + self.AW / 2), round(self._robot_y + self.AH - 21 * self.CELL)))
         d = QCursor.pos() - face
         near = None
@@ -675,6 +870,10 @@ class Pet(QWidget):
             self._wake()
 
     def _look(self, now: float) -> str:
+        if self._tp:
+            return "tp"
+        if self._roll is not None:
+            return "roll"
         if self._alerts:
             return "alert"
         if self.mode == "work":
@@ -721,6 +920,13 @@ class Pet(QWidget):
         if self._enter:
             u = now - self._enter[0]
             return up(min(1.0, u / 1.0)) if self._enter[1] > 0 else up(max(0.0, 1 - u / 0.9))
+        if self._tp:
+            u = now - self._tp[1]
+            if u < 0.9:
+                return up(1 - u / 0.9)
+            if u < 1.2:
+                return 0.0, 0.0
+            return up(min(1.0, (u - 1.2) / 1.0))
         name, k = self._play(now)
         if name == "portal":
             u = k * self.PLAYS["portal"][0]
@@ -736,11 +942,14 @@ class Pet(QWidget):
         t = now - self._t0
         dx = dy = tilt = 0.0
         name, k = self._play(now)
-        if name == "shuffle":                       # rolls forward and back on his tracks
+        if look == "roll":                          # leaning into the ride, a little bump on the way
+            tilt = 1.5 * self._face
+            dy = 0.15 if int(t * 8) % 2 else 0.0
+        elif name == "shuffle":                     # rolls forward and back on his tracks
             env = math.sin(math.pi * k)
             dx = 0.9 * math.sin(2 * math.pi * 2 * k) * env
             tilt = -2.5 * math.cos(2 * math.pi * 2 * k) * env
-        elif look in ("idle", "play", "alert", "wait") and self._busy < 0.85 and (t % 3.0) > 1.9:
+        if look in ("idle", "play", "alert", "wait") and self._busy < 0.85 and (t % 3.0) > 1.9:
             dy = 0.25                               # a breath
         d = now - self._pose_at
         if 0 <= d < 0.26:                           # a new pose: he dips a little and comes up in it (no photo swap)
@@ -750,8 +959,120 @@ class Pet(QWidget):
             tilt = 7 * math.sin(c * 22) * (1 - c / 0.9)
         return round(dx, 2), dy, round(tilt, 1)
 
+    def _go(self, x: float):
+        """A short ride on his line (sideways, the wheels turning), never off the screen nor across its middle."""
+        scr = QApplication.screenAt(self._home + QPoint(self.AW // 2, self.AH // 2)) or QApplication.primaryScreen()
+        g = scr.availableGeometry()
+        x = max(g.left() + 4, min(g.right() - self.AW - 4, x))
+        mid = g.center().x()
+        if self._home.x() + self.AW / 2 > mid:
+            x = max(x, mid + 20)
+        else:
+            x = min(x, mid - self.AW - 20)
+        if abs(x - self._at.x()) > 6:
+            self._roll, self._rx = float(x), float(self._at.x())
+            self._face = 1 if x > self._at.x() else -1
+
+    def _travel(self, to: QPoint):
+        """Go to a point: rolling when it is near on the same line, else a mini teleport through the blue portal."""
+        if abs(to.y() - self._at.y()) < 4 and abs(to.x() - self._at.x()) <= 170:
+            if abs(to.x() - self._at.x()) > 6:
+                self._roll, self._rx = float(to.x()), float(self._at.x())
+                self._face = 1 if to.x() > self._at.x() else -1
+        elif (to - self._at).manhattanLength() > 6:
+            self._tp = (QPoint(to), time.monotonic())
+
+    def _spot_on(self, win) -> QPoint:
+        """Where he works on a Claude window: standing on its top edge at the right, or inside its bottom right corner
+        when there is no room above it."""
+        _, x, y, w, h = win
+        scr = QApplication.screenAt(QPoint(x + w // 2, y + h // 2)) or QApplication.primaryScreen()
+        g = scr.availableGeometry()
+        sx = max(g.left() + 2, min(g.right() - self.AW - 2, x + w - self.AW - 40))
+        sy = y - self.AH + round(0.8 * self.CELL)
+        if sy < g.top() + 2:
+            sy = y + h - self.AH - 6
+        return QPoint(sx, sy)
+
+    def _look_for_claude(self):
+        """Every 2 s: the Claude windows working on this computer. He goes to the front one; the others get the wrench."""
+        if not self.isVisible() or not self._on:
+            return
+        wins = working_windows()
+        self._spots = wins
+        mine = wins[0] if wins else None
+        used = 0
+        for w in wins:
+            if w is mine and self._at_work:
+                continue
+            if used == len(self._marks):
+                self._marks.append(_Mark())
+            self._marks[used].place(w)
+            used += 1
+        for m in self._marks[used:]:
+            m.hide()
+
+    def _roam(self, now: float, dt: float):
+        """Where he goes: to the Claude window that is working (and works there), back home through the portal when it
+        is done or something is for you; free, a short ride sideways now and then (the wheels!)."""
+        home = self._home
+        if self._tp:
+            to, t0 = self._tp
+            if now - t0 >= 0.9 and self._at != to:     # down in the portal: come up over there
+                self.repaint()                           # nothing left of him here before the window jumps
+                self._at = QPoint(to)
+                self.move(self._at.x() - round(self._robot_x), self._at.y() - round(self._robot_y))
+            if now - t0 >= 2.2:
+                self._tp = None
+                self._next_roam = now + random.uniform(3, 7)
+        elif self._roll is None and not self._press and not self._enter and not self._hover:
+            back = self._alerts or self.mode == "wait" or now < self._done_until or now - self._mode_at > 300
+            target = None
+            if self.mode != "work":
+                self._stay = False                      # a new piece of work: he may go to its window again
+            if not back and self._busy < 0.85 and self.mode == "work" and self._spots and not self._stay:
+                target = self._spot_on(self._spots[0])
+            self._at_work = target is not None
+            if target is not None:
+                if (target - self._at).manhattanLength() > 30:
+                    self._travel(target)
+            elif self._stay and self.mode == "work":
+                pass                                    # you put him there while he works: he stays
+            elif back or self._busy >= 0.85 or self.mode == "work" or abs(self._at.y() - home.y()) > 3:
+                if (self._at - home).manhattanLength() > 3:
+                    self._travel(home)
+            elif now >= self._next_roam and self._busy < 0.7 and not (self._card and self._card[3] is None):
+                if abs(self._at.x() - home.x()) > 3:
+                    self._go(home.x())
+                else:
+                    self._go(home.x() + random.choice((-1, 1)) * random.uniform(50, 150))
+                if self._roll is None:
+                    self._next_roam = now + 5
+        if self._roll is not None:
+            if self._press:
+                self._roll = None
+            else:
+                self._rx += 70.0 * dt * self._face
+                if (self._face > 0 and self._rx >= self._roll) or (self._face < 0 and self._rx <= self._roll):
+                    self._rx, self._roll = self._roll, None
+                    self._glance = (0, 0)
+                    away = abs(self._rx - home.x()) > 3
+                    self._next_roam = now + (random.uniform(3, 7) if away else random.uniform(40, 90))
+                self._at = QPoint(round(self._rx), self._at.y())
+                self.move(self._at.x() - round(self._robot_x), self._at.y() - round(self._robot_y))
+        home = home.x()
+        through = abs(self._at.x() - home) > 3 or abs(self._at.y() - self._home.y()) > 3
+        if through != self._through:            # away from home the clicks go through him, and his place stays marked
+            self._through = through             # (he stays clickable and draggable: Marco wants to move him anywhere)
+            if through:
+                self._base.place(self._home, self.AW, self.AH, self.CELL)
+                self._base.show()
+            else:
+                self._base.hide()
+
     def _frame(self):
         now = time.monotonic()
+        dt = min(0.2, max(0.0, now - self._last))
         self._last = now
         if self._enter and now - self._enter[0] > (1.05 if self._enter[1] > 0 else 0.95):
             gone = self._enter[1] < 0
@@ -768,6 +1089,8 @@ class Pet(QWidget):
         if now >= self._next_glance:
             self._glance = random.choice(((0, 0), (0, 0), (-1, 0), (1, 0), (1, -1), (-1, 1), (0, 1)))
             self._next_glance = now + random.uniform(1.6, 4.0)
+        self._roam(now, dt)
+        look = self._look(now)
         # a trick now and then, when he is free and nobody is looking at him
         if (look == "idle" and not self._card and not self._hover and not self._press and not self._enter
                 and self._busy < 0.7 and now >= self._next_walk):
@@ -793,7 +1116,7 @@ class Pet(QWidget):
             self._prev_spec, self._pose_now, self._pose_at = self._shown_spec, spec[0], now
         fading = now - self._pose_at < 0.26
         name, _ = self._play(now)
-        moving = name in ("shuffle", "portal") or self._enter is not None
+        moving = name in ("shuffle", "portal") or self._enter is not None or look in ("roll", "tp")
         # paint only when the picture changes (a paint costs ~2 ms of the window server on the Mac)
         sig = (spec, self._motion(look, now), self._alerts and len(self._alerts))
         if sig != self._painted or moving or fading or hop < 0.7 or calling or self._press_down \
@@ -829,8 +1152,13 @@ class Pet(QWidget):
         if self._mouse and look in ("idle", "wait", "done", "alert"):
             gx, gy = self._mouse
         lid = 1.0 if blink else 0.3              # a patrão: eyes a little lowered, sure of himself
-        pose, eyes, holo, fx = "idle", (gx, gy, lid, "open"), None, None
-        if look == "idle":
+        pose, eyes, holo, fx, roll = "idle", (gx, gy, lid, "open"), None, None, None
+        if look == "roll":                       # on his way, seen from the side so the wheels turn
+            pose, eyes = ("think" if self._face > 0 else "work"), None
+            roll = int(t * 14) % 6
+        elif look == "tp":                       # going through the portal: plain, eyes on you
+            pass
+        elif look == "idle":
             if self._hover and now - self._hover_at < 2.5:
                 eyes = (gx, gy, 0.0, "happy")
         elif look == "play":
@@ -878,7 +1206,7 @@ class Pet(QWidget):
             fx = ("glyph", "!" if look == "alert" else "?")
         if self._press and self._moved:                                       # picked up: eyes wide, looking up
             pose, eyes, holo, fx = "idle", (0, -1, 0.0, "open"), None, None
-        return (pose, eyes, holo, fx, 0)
+        return (pose, eyes, holo, fx, roll)
 
     def _image(self, spec) -> QImage:
         dpr = self.devicePixelRatioF()
@@ -945,6 +1273,19 @@ class Pet(QWidget):
                 p.setBrush(Qt.NoBrush)
                 p.drawEllipse(QPointF(self.AW / 2, fy), (5 + 11 * u) * c, (1 + 2.6 * u) * c)
                 p.setPen(Qt.NoPen)
+        if look == "roll":                          # a little dust behind the tracks
+            t = now - self._t0
+            for i in range(3):
+                u = ((t * 2.2) + i / 3) % 1.0
+                bx = cx + x0 - self._face * (9 + 5 * u) * c
+                p.setBrush(QColor(150, 155, 165, round(90 * (1 - u))))
+                p.drawEllipse(QPointF(bx, fy - (0.6 + 1.6 * u) * c), (0.6 + 1.2 * u) * c, (0.5 + 0.9 * u) * c)
+        if self._grab and not portal:               # ready to be taken: a blue light under him
+            g = QRadialGradient(QPointF(cx + x0, fy), 12 * c)
+            g.setColorAt(0, QColor(80, 200, 255, 110))
+            g.setColorAt(1, QColor(80, 200, 255, 0))
+            p.setBrush(g)
+            p.drawEllipse(QPointF(cx + x0, fy), 12 * c, 2.4 * c)
         ry = self.AH - 1.4 * c                      # the ring's line on the floor
         if portal:
             ring, rise = portal
@@ -958,8 +1299,8 @@ class Pet(QWidget):
             p.rotate(tilt)
             p.translate(-(cx + x0), -self.AH)
         p.drawImage(QPointF(x0, y0), img)
-        p.setOpacity(1.0)
         p.restore()
+        p.setOpacity(1.0)
         if portal:
             p.restore()
             self._paint_ring(p, cx, ry, ring, rise, back=False)
@@ -1108,7 +1449,9 @@ class Pet(QWidget):
         self._press = None
         if self._moved:
             self._moved = False
+            self._roll = self._tp = None
             self._home = QPoint(self._at)
+            self._stay = self.mode == "work"
             prefs.save(bit_at=[self._at.x(), self._at.y()])
             self._layout()
             self._hop_at = time.monotonic()

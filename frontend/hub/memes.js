@@ -42,6 +42,9 @@
 
   async function open(v) {
     view = v;
+    if (holeFull && $("mc-hole")) $("mc-hole").remove();
+    holeFull = false; portal = "";
+    document.documentElement.classList.remove("mc-holefull");
     const [title, sub] = HEAD[v];
     page(`<div class="mc mc-${v}" id="mc">
       ${ui.head("Trading", t(title), t(sub), `<div class="mc-ctl" id="mc-ctl"></div>`)}
@@ -102,90 +105,223 @@
 
 
 
-  // 16 nov, Marco (5.ª volta): «os robôs não estão a mostrar nada... como os robôs em 3D que a gente já tem, os olhos também
-  // ajudam... confuso, muito simultâneo». So the top is one picture: the brain in the middle and the six agents as the chrome
-  // robots of the Escritório de Robôs (robots.js `bot`, drawn front-on here), three each side, each joined to the brain. Eyes
-  // green and the line lit while it works, white while it watches, shut with a «z» when it is off. One sentence each. The plan
-  // is one thin bar under it. Only a working robot moves (10 frames a second); the rest are drawn once.
-  const SIDE = { L: ["oraculo", "robin", "lucius"], R: ["arbitro", "batman", "gmgn"] };
-  const BAND = { oraculo: "#8fb4ff", robin: "#c9cdd3", lucius: "#5fcf8c", arbitro: "#e2b55c", batman: "#eceef1", gmgn: "#9aa1aa" };
+  // 16 nov, Marco (6.ª volta): «quero que seja um buraco negro... o pet do widget, o Farol, nesse buraco negro... quando
+  // maximizar tenho o buraco negro enorme e acesso a tudo: clicar na aba do Twitter, do Reddit, do Telegram e ver os calls
+  // todos... um buraco negro cheio de coisas, cheio de robôs». So the top of the page is a black hole (canvas: chrome and
+  // ice-blue, the colours of the Farol and of the AMG black) with the six agents as Farols (the widget's pet, its three poses
+  // from widget/team_widget/assets, copied to frontend/assets/farol; the eyes drawn on top as in ui/pet.py) around it, the
+  // influencers on an inner ring falling in, and a dock of portals (X, Telegram, Reddit, Calls, Moedas, Influencers,
+  // Relatórios) that open a glass drawer. «Maximizar» makes it the whole screen. Built once; a refresh only repaints the Farols
+  // and the counts, so an open drawer and the full screen stay. The hole turns and pulls particles in only while an agent works
+  // or while it is maximised; otherwise it is one still frame.
+  const FAROL_EYES = { idle: [[121, 102, 138, 117], [158, 101, 175, 117]], think: [[164, 89, 177, 100], [202, 77, 214, 89]],
+    work: [[115, 130, 127, 143], [151, 136, 163, 150]] };   // ui/pet.py EYES, in the 293 × 320 pose images
+  const ORBIT = { oraculo: -150, robin: -90, lucius: -30, arbitro: 30, batman: 90, gmgn: 150 };
   const JOB = { oraculo: "Lê o X, o Telegram e o Reddit", robin: "Vê as bolsas de memecoins", lucius: "Vê se as moedas são seguras",
-    arbitro: "Julga os calls dos influencers", batman: "Escreve relatórios com o Claude", gmgn: "Liga ao tracker do David e do Kovel" };
+    arbitro: "Julga os calls", batman: "Escreve relatórios com o Claude", gmgn: "Liga ao tracker do David e do Kovel" };
+  const PORTAL_OF = { oraculo: "redes", robin: "moedas", lucius: "perigo", arbitro: "calls", batman: "relatorios", gmgn: "gmgn" };
   const live = (a) => a.busy || (a.ok && a.at && Date.now() / 1000 - a.at < 150);
-  const look = (a) => state(a)[0] === "off" ? "off" : a.ok === false ? "bad" : live(a) ? "work" : "watch";
+  const look = (a) => state(a)[0] === "off" ? "off" : a.ok === false ? "bad" : a.busy ? "work" : live(a) ? "think" : "idle";
   const short = (s) => String(s || "").split(/[;,(]/)[0].trim();
+  let portal = "", holeFull = false;
 
-  function team() {
-    const work = B.agents.some((a) => a.busy);   // the sphere turns only while an agent is really at work (CPU)
-    const bot = (id, side) => { const a = B.agents.find((x) => x.id === id); if (!a) return ""; const st = state(a), lk = look(a);
-      return `<a class="mc-bot lk-${lk} ${side} ${a.busy ? "moving" : ""}" href="#/meme-agentes" title="${esc(a.note || "")}">
-        <canvas class="mc-bot-c" data-id="${id}" data-look="${lk}" data-move="${a.busy ? 1 : ""}" width="84" height="96" aria-hidden="true"></canvas>
-        <span class="mc-bot-t"><b>${esc(a.name)}</b><small>${esc(t(JOB[id] || a.dept))}</small>
-          <em>${esc(lk === "work" ? (a.busy ? t("A trabalhar agora…") : cap(short(a.note)) || t("Acabou agora")) : lk === "off" ? (id === "batman" ? t("Desligado") : t("Por ligar")) : lk === "bad" ? t("Teve um erro {h}", { h: ago(a.at) }) : t("Atento · {h}", { h: ago(a.at) }))}</em></span>
-        <i class="mc-wire"></i></a>`; };
+  function hole() {
+    if (!$("mc-hole")) {
+      $("mc-hole-w").innerHTML = `<section class="mc-hole" id="mc-hole">
+        <canvas class="mc-hole-c" id="mc-hole-c" aria-hidden="true"></canvas>
+        <div class="mc-hole-top"><span><b>${esc(t("O buraco negro"))}</b><small id="mc-hole-st"></small></span>
+          <button type="button" class="btn sm" data-act="full">${esc(t("Maximizar"))}</button></div>
+        <div class="mc-orbit" id="mc-orbit"></div>
+        <nav class="mc-dock" id="mc-dock"></nav>
+        <aside class="mc-drawer" id="mc-drawer" hidden></aside>
+      </section><div id="mc-planbar"></div>`;
+      $("mc-hole").addEventListener("click", holeClick);
+      holeSize();
+      if ("ResizeObserver" in window) new ResizeObserver(() => { holeSize(); drawHole(performance.now() / 1000); }).observe($("mc-hole"));
+    }
+    paintOrbit();
+    paintDock();
+    if (portal) paintDrawer();
+    paint($("mc-planbar"), planbar());
+    holeRun();
+  }
+
+  function planbar() {
     const p = (P || []).find((x) => /^Memecoins/i.test(x.title) && x.status !== "done");
     const cur = p ? p.steps.findIndex((s) => !s.done) : -1;
-    return `<section class="panel mc-team">
-        <div class="mc-col">${SIDE.L.map((id) => bot(id, "l")).join("")}</div>
-        <div class="mc-mid"><div class="mc-core">${typeof brainHtml === "function" ? brainHtml(work ? "work" : "on", 200) : ""}</div>
-          <b>${esc(t("O cérebro"))}</b><small>${esc(work ? t("a pensar agora") : t("a vigiar"))}</small></div>
-        <div class="mc-col">${SIDE.R.map((id) => bot(id, "r")).join("")}</div>
-      </section>
-      ${p && cur >= 0 ? `<a class="panel mc-planbar" href="#/escritorio"><span class="mc-sub">${esc(t("O plano"))}</span>
-        <b>${esc(t("Passo {n} de {m}", { n: cur + 1, m: p.steps.length }))}: ${esc(p.steps[cur].text.split(":")[0])}</b>
-        <span class="mc-planbar-p">${p.steps.map((s, i) => `<i class="${s.done ? "done" : i === cur ? "now" : ""}"></i>`).join("")}</span><span class="mc-more">${esc(t("Ver o plano"))} ›</span></a>` : ""}`;
+    return p && cur >= 0 ? `<a class="panel mc-planbar" href="#/escritorio"><span class="mc-sub">${esc(t("O plano"))}</span>
+      <b>${esc(t("Passo {n} de {m}", { n: cur + 1, m: p.steps.length }))}: ${esc(p.steps[cur].text.split(":")[0])}</b>
+      <span class="mc-planbar-p">${p.steps.map((s, i) => `<i class="${s.done ? "pb-done" : i === cur ? "pb-now" : ""}"></i>`).join("")}</span><span class="mc-more">${esc(t("Ver o plano"))} ›</span></a>` : "";
   }
 
-  // the robot, front-on: the chrome capsule and visor of robots.js
-  function drawBot(cv, time) {
-    const g = cv.getContext("2d"), W = cv.width, H = cv.height, lk = cv.dataset.look, id = cv.dataset.id, s = W * .9, px = W / 2;
-    const col = lk === "work" ? "#5fcf8c" : lk === "bad" ? "#ef6f5e" : lk === "watch" ? "#eceef1" : "#59606a";
-    const bob = lk === "work" ? Math.sin(time * 3) * 1.5 : 0;
+  function farol(a) {
+    const lk = look(a), pose = lk === "work" ? "work" : lk === "think" ? "think" : "idle";
+    const eyes = FAROL_EYES[pose].map(([x0, y0, x1, y1]) => `<i class="mc-eye" style="left:${(x0 / 2.93).toFixed(1)}%;top:${(y0 / 3.2).toFixed(1)}%;width:${((x1 - x0) / 2.93).toFixed(1)}%;height:${((y1 - y0) / 3.2).toFixed(1)}%"></i>`).join("");
+    const word = lk === "work" ? t("a trabalhar…") : lk === "off" ? (a.id === "batman" ? t("a dormir") : t("por ligar")) : lk === "bad" ? t("teve um erro") : cap(short(a.note)) || t("atento");
+    return `<span class="mc-farol"><img src="assets/farol/farol-${pose}.png" alt="" draggable="false">${eyes}</span><b>${esc(a.name)}</b><small>${esc(word)}</small>`;
+  }
+
+  function paintOrbit() {
+    const pets = B.agents.filter((a) => a.id in ORBIT).map((a) => {
+      const deg = ORBIT[a.id], x = 50 + 41 * Math.cos(deg * Math.PI / 180), y = 50 + 34 * Math.sin(deg * Math.PI / 180);
+      const k = 0.82 + 0.3 * ((y - 16) / 68);   // nearer (lower) is bigger
+      return `<button type="button" class="mc-pet lk-${look(a)} ${portal === PORTAL_OF[a.id] ? "on" : ""}" data-portal="${PORTAL_OF[a.id]}" title="${esc(t(JOB[a.id]))}${a.note ? " · " + esc(a.note) : ""}"
+        style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;--k:${k.toFixed(2)};z-index:${Math.round(y)}">${farol(a)}</button>`;
+    }).join("");
+    const infs = S.influencers.map((i, n, all) => {
+      const deg = -90 + (360 / Math.max(1, all.length)) * n + 18, x = 50 + 19 * Math.cos(deg * Math.PI / 180), y = 50 + 13 * Math.sin(deg * Math.PI / 180);
+      return `<button type="button" class="mc-star" data-portal="inf:${esc(i.platform)}/${esc(i.handle)}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" title="${esc(i.name || "@" + i.handle)}">${face(i)}</button>`;
+    }).join("");
+    paint($("mc-orbit"), infs + pets);
+    const st = $("mc-hole-st"), busy = B.agents.filter((a) => a.busy).map((a) => a.name);
+    if (st) st.textContent = busy.length ? t("{a} a trabalhar", { a: busy.join(", ") }) : t("{n} moedas · {p} publicações · {c} calls lá dentro", { n: S.n_tokens, p: S.posts.length, c: B.calls.length });
+  }
+
+  const DOCK = [["x", "X"], ["telegram", "Telegram"], ["reddit", "Reddit"], ["calls", "Calls"], ["moedas", "Moedas"], ["infs", "Influencers"], ["relatorios", "Relatórios"]];
+  const bySrc = (src) => S.posts.filter((p) => p.src.toLowerCase() === src);
+  function count(k) {
+    return { x: bySrc("x").length, telegram: bySrc("telegram").length, reddit: bySrc("reddit").length, calls: B.calls.length, moedas: S.n_tokens,
+      infs: S.influencers.length, relatorios: S.reports.length }[k];
+  }
+  function paintDock() {
+    paint($("mc-dock"), DOCK.map(([k, l]) => `<button type="button" class="${portal === k ? "on" : ""}" data-portal="${k}"><b>${esc(t(l))}</b><small>${count(k) ?? 0}</small></button>`).join(""));
+  }
+
+  function paintDrawer() {
+    const d = $("mc-drawer");
+    if (!portal) { d.hidden = true; d._html = ""; d.innerHTML = ""; return; }
+    d.hidden = false;
+    const head = (title, sub = "") => `<header><div><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</div><button type="button" class="btn sm quiet" data-portal="" aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>`;
+    const posts = (l, empty) => l.length ? `<div class="mc-dr-l">${l.sort((a, b) => b.t - a.t).slice(0, 40).map(post).join("")}</div>` : `<p class="mc-dim mc-dr-e">${esc(empty)}</p>`;
+    let html;
+    if (portal === "x") html = head("X (Twitter)", S.x.on ? t("contas dos influencers e do Tree News") : t("sem chave: só o que o Tree News passa")) + posts(bySrc("x"), t("Ainda nada do X."));
+    else if (portal === "telegram") html = head("Telegram", t("{n} canais", { n: S.cfg.telegram.length + S.influencers.filter((i) => i.platform === "telegram").length })) + posts(bySrc("telegram"), t("Ainda nada do Telegram."));
+    else if (portal === "reddit") html = head("Reddit", S.cfg.reddit.map((r) => "r/" + r).join(" · ")) + posts(bySrc("reddit"), t("Ainda nada do Reddit."));
+    else if (portal === "redes") html = head(t("Tudo o que o Oráculo leu"), t("X, Telegram e Reddit")) + posts([...S.posts], t("Ainda nada."));
+    else if (portal === "calls") html = head(t("Calls"), t("o resultado 24 h depois")) + (B.calls.length ? `<div class="mc-dr-l">${B.calls.slice(0, 40).map((x) => `<div class="mc-dr-call">${face(x)}<span><b>${esc(x.name)}</b><small>${esc(when(x.t))}</small></span>${mini(x)}</div>`).join("")}</div>` : `<p class="mc-dim mc-dr-e">${esc(t("Ainda sem calls."))}</p>`) + `<a class="mc-more mc-dr-more" href="#/meme-calls">${esc(t("Abrir a página dos calls"))} ›</a>`;
+    else if (portal === "moedas" || portal === "perigo") {
+      const l = S.tokens.filter((x) => (portal === "perigo") === (verdict(x)[0] === "Perigo")).slice(0, 30);
+      html = head(portal === "perigo" ? t("Moedas com perigo") : t("Moedas"), portal === "perigo" ? t("o Lucius pô-las de fora") : t("da mais forte para a mais fraca"))
+        + (l.length ? `<div class="mc-dr-l">${l.map((x) => `<button type="button" class="mc-dr-coin" data-key="${esc(x.key)}">${logo(x)}<span><b>$${esc(sym(x.symbol))}</b><small>${esc((x.why || [])[0] || (x.flags || [[0, ""]])[0][1] || x.name || "")}</small></span>${pill(x)}</button>`).join("")}</div>` : `<p class="mc-dim mc-dr-e">${esc(t("Nenhuma."))}</p>`);
+    }
+    else if (portal === "infs") html = head(t("Influencers"), t("quem acerta, do melhor para o pior")) + `<div class="mc-dr-l">${B.ranking.map((r) => `<button type="button" class="mc-dr-coin" data-portal="inf:${esc(r.platform)}/${esc(r.handle)}">${face(r)}<span><b>${esc(r.name || "@" + r.handle)}</b><small>${esc(PLAT[r.platform] || r.platform)} · ${esc(t("{n} calls", { n: r.calls }))}</small></span><span class="mc-v ${r.tone}">${esc(t(r.verdict))}</span></button>`).join("")}</div>`;
+    else if (portal === "relatorios") html = head(t("Relatórios do Batman")) + `<div class="mc-dr-pad">${reports()}</div>`;
+    else if (portal === "gmgn") html = head("Motor GMGN", "gmgn-tracker") + `<div class="mc-dr-pad">${gmgn()}</div>`;
+    else if (portal.startsWith("inf:")) {
+      const [pl, h] = portal.slice(4).split("/"), r = B.ranking.find((x) => x.platform === pl && x.handle === h) || { platform: pl, handle: h, days: [], calls: 0 };
+      const mine = S.posts.filter((p) => (p.platform || p.src.toLowerCase()) === pl && p.who.toLowerCase() === h.toLowerCase());
+      html = head(r.name || "@" + h, `${PLAT[pl] || pl} · ${r.verdict ? t(r.verdict) : ""}`)
+        + `<div class="mc-dr-pad">${r.judged ? `<p class="mc-dr-big">${usdSig(r.usd)}<small>${esc(t("100 $ em cada call · {u} subiram, {d} desceram", { u: r.up, d: r.down }))}</small></p>` : ""}
+           ${B.calls.filter((x) => x.platform === pl && x.who.toLowerCase() === h.toLowerCase()).slice(0, 10).map(mini).join("") || `<p class="mc-dim">${esc(t("Ainda sem calls."))}</p>`}</div>`
+        + (mine.length ? `<p class="mc-sub mc-dr-pad">${esc(t("O que publicou"))}</p>` + posts(mine, "") : "");
+    }
+    paint(d, `<div class="mc-dr-in">${html || ""}</div>`);
+  }
+
+  /* the black hole itself */
+  let holeRaf = 0, holeAt = 0, stars = null;
+  function holeSize() {
+    const c = $("mc-hole-c"); if (!c) return;
+    const r = c.getBoundingClientRect(), dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    c.width = Math.max(10, Math.round(r.width * dpr)); c.height = Math.max(10, Math.round(r.height * dpr));
+    stars = null;
+  }
+  function drawHole(time) {
+    const c = $("mc-hole-c"); if (!c) return;
+    const g = c.getContext("2d"), W = c.width, H = c.height, cx = W / 2, cy = H * 0.5, R = Math.min(W, H) * (holeFull ? 0.13 : 0.12);
+    if (!stars) {   // the starfield, once per size
+      stars = document.createElement("canvas"); stars.width = W; stars.height = H;
+      const s = stars.getContext("2d"); let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < (W * H) / 2600; i++) { s.fillStyle = `rgba(220,232,255,${0.15 + rnd() * 0.55})`; const z = rnd() < 0.08 ? 1.6 : 0.9; s.fillRect(rnd() * W, rnd() * H, z, z); }
+    }
     g.clearRect(0, 0, W, H);
-    g.fillStyle = "rgba(0,0,0,.5)"; g.beginPath(); g.ellipse(px, H - 6, s * .3, s * .07, 0, 0, 7); g.fill();
-    const by = H * .5 + bob;
-    const body = g.createLinearGradient(px - s * .3, 0, px + s * .3, 0);
-    body.addColorStop(0, "#8e959e"); body.addColorStop(.45, "#f4f6f8"); body.addColorStop(1, "#5c636c");
-    rr(g, px - s * .27, by, s * .54, s * .42, s * .14); g.fillStyle = body; g.fill();
-    g.fillStyle = BAND[id] || "#c9cdd3"; g.globalAlpha = lk === "off" ? .35 : .9; g.fillRect(px - s * .27, by + s * .2, s * .54, s * .05); g.globalAlpha = 1;
-    g.strokeStyle = "#b9bfc7"; g.lineWidth = s * .06; g.lineCap = "round";
-    const sw = lk === "work" ? Math.sin(time * 9) * s * .04 : 0;
-    g.beginPath(); g.moveTo(px - s * .26, by + s * .08); g.lineTo(px - s * .38, by + s * .3 + sw); g.moveTo(px + s * .26, by + s * .08); g.lineTo(px + s * .38, by + s * .3 - sw); g.stroke();
-    const hy = by - s * .44;
-    const head = g.createLinearGradient(px - s * .3, hy, px + s * .3, hy + s * .4);
-    head.addColorStop(0, "#ffffff"); head.addColorStop(.5, "#cfd4da"); head.addColorStop(1, "#6d747d");
-    rr(g, px - s * .32, hy, s * .64, s * .4, s * .15); g.fillStyle = head; g.fill();
-    rr(g, px - s * .25, hy + s * .1, s * .5, s * .18, s * .09); g.fillStyle = "#0b0d10"; g.fill();
-    const blink = lk !== "off" && Math.sin(time * 1.3 + id.length) > .985 ? .15 : 1;
-    g.shadowColor = col; g.shadowBlur = lk === "off" ? 0 : 10; g.fillStyle = col; g.globalAlpha = blink;
-    if (lk === "off") { g.fillRect(px - s * .16, hy + s * .19, s * .1, s * .02); g.fillRect(px + s * .06, hy + s * .19, s * .1, s * .02); }
-    else { g.beginPath(); g.arc(px - s * .1, hy + s * .19, s * .045, 0, 7); g.arc(px + s * .1, hy + s * .19, s * .045, 0, 7); g.fill(); }
-    g.globalAlpha = 1; g.shadowBlur = 0;
-    g.strokeStyle = "#9aa1aa"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(px, hy); g.lineTo(px, hy - s * .12); g.stroke();
-    const glow = lk === "work" ? .6 + .4 * Math.sin(time * 5) : 1;
-    g.beginPath(); g.arc(px, hy - s * .14, s * .045, 0, 7); g.fillStyle = col; g.globalAlpha = glow; g.shadowColor = col; g.shadowBlur = lk === "off" ? 0 : 8; g.fill();
-    g.shadowBlur = 0; g.globalAlpha = 1;
-    if (lk === "off") { g.fillStyle = "rgba(255,255,255,.45)"; g.font = `600 ${s * .16}px Inter, system-ui`; g.fillText("z", px + s * .3, hy - s * .02); }
-  }
-  function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
-  let botRaf = 0, botAt = 0;
-  function bots() {
-    const all = [...document.querySelectorAll("canvas.mc-bot-c")];
-    all.forEach((cv) => drawBot(cv, performance.now() / 1000));
-    cancelAnimationFrame(botRaf);
-    const loop = (now) => {
-      const moving = [...document.querySelectorAll('canvas.mc-bot-c[data-move="1"]')];
-      if (!moving.length || !$("mc")) return;
-      if (!document.hidden && now - botAt > 100) { botAt = now; moving.forEach((cv) => drawBot(cv, now / 1000)); }
-      botRaf = requestAnimationFrame(loop);
+    g.drawImage(stars, 0, 0);
+    const halo = g.createRadialGradient(cx, cy, R, cx, cy, R * 5);
+    halo.addColorStop(0, "rgba(127,212,255,.16)"); halo.addColorStop(0.4, "rgba(127,212,255,.04)"); halo.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = halo; g.fillRect(0, 0, W, H);
+    const tilt = 0.24, spin = time * 0.35;
+    const disk = (front) => {   // the accretion disk, ring by ring, brighter on the side coming towards us
+      for (let k = 0; k < 26; k++) {
+        const f = k / 25, r = R * (1.35 + f * 2.4), seg = 64;
+        for (let i = 0; i < seg; i++) {
+          const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1.15) / seg) * Math.PI * 2, mid = (a0 + a1) / 2;
+          if ((Math.sin(mid) > 0) !== front) continue;
+          const doppler = 0.55 + 0.45 * Math.cos(mid + 0.4), streak = 0.6 + 0.4 * Math.sin(mid * 3 + spin * (3 - f * 2) + k);
+          const al = (1 - f) ** 1.6 * doppler * streak * 0.55;
+          if (al < 0.01) continue;
+          g.strokeStyle = f < 0.25 ? `rgba(255,255,255,${al})` : `rgba(${Math.round(190 - f * 60)},${Math.round(225 - f * 40)},255,${al})`;
+          g.lineWidth = R * 0.07 * (1 - f * 0.5);
+          g.beginPath(); g.ellipse(cx, cy, r, r * tilt, 0, a0, a1); g.stroke();
+        }
+      }
     };
-    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) botRaf = requestAnimationFrame(loop);
+    g.globalCompositeOperation = "lighter";
+    disk(false);
+    // the lensed image of the far side of the disk, bent over the top of the hole
+    for (let k = 0; k < 10; k++) {
+      const r = R * (1.08 + k * 0.05), al = 0.22 * (1 - k / 10);
+      g.strokeStyle = `rgba(220,240,255,${al})`; g.lineWidth = R * 0.05;
+      g.beginPath(); g.ellipse(cx, cy, r, r * 0.92, 0, Math.PI * 1.02, Math.PI * 1.98); g.stroke();
+    }
+    g.globalCompositeOperation = "source-over";
+    g.fillStyle = "#000"; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();   // the event horizon
+    g.globalCompositeOperation = "lighter";
+    g.strokeStyle = "rgba(235,248,255,.85)"; g.lineWidth = Math.max(1, R * 0.025); g.shadowColor = "rgba(127,212,255,.9)"; g.shadowBlur = R * 0.25;
+    g.beginPath(); g.arc(cx, cy, R * 1.03, 0, Math.PI * 2); g.stroke();   // the photon ring
+    g.shadowBlur = 0;
+    disk(true);
+    // information falling in: from each working Farol, a spiral of sparks
+    const busy = B ? B.agents.filter((a) => a.busy && a.id in ORBIT) : [];
+    const src = (busy.length ? busy : holeFull ? B.agents.filter((a) => a.id in ORBIT && live(a)) : []).map((a) => ORBIT[a.id] * Math.PI / 180);
+    src.forEach((a0, n) => {
+      for (let i = 0; i < 14; i++) {
+        const f = ((time * 0.45 + i / 14 + n * 0.37) % 1), r = (1 - f) * Math.min(W * 0.41, H * 0.6) + f * R, a = a0 + f * 2.2;
+        g.fillStyle = `rgba(200,236,255,${0.85 * (1 - f) + 0.1})`;
+        g.beginPath(); g.arc(cx + r * Math.cos(a), cy + r * Math.sin(a) * 0.82, Math.max(1, R * 0.03 * (1 - f * 0.6)), 0, Math.PI * 2); g.fill();
+      }
+    });
+    g.globalCompositeOperation = "source-over";
   }
+  function holeRun() {
+    drawHole(performance.now() / 1000);
+    cancelAnimationFrame(holeRaf);
+    const loop = (now) => {
+      if (!$("mc-hole") || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const moving = holeFull || B.agents.some((a) => a.busy);
+      if (!moving) return;   // still: one frame is enough
+      if (!document.hidden && now - holeAt > 100) { holeAt = now; drawHole(now / 1000); }
+      holeRaf = requestAnimationFrame(loop);
+    };
+    holeRaf = requestAnimationFrame(loop);
+  }
+  // the hole's own clicks: it leaves the page for the whole screen (on <body>, out of the page's animated box), so the page's
+  // listener cannot see them then; the page's listener skips anything inside it
+  async function holeClick(e) {
+    const pt = e.target.closest("[data-portal]");
+    if (pt) { portal = portal === pt.dataset.portal ? "" : pt.dataset.portal; paintDock(); paintOrbit(); paintDrawer(); return; }
+    if (e.target.closest("[data-act=full]")) return setFull(!holeFull);
+    const k = e.target.closest("[data-key]");
+    if (k) return openToken(k.dataset.key);
+  }
+  function setFull(on) {
+    holeFull = on;
+    const h = $("mc-hole");
+    if (on) document.body.appendChild(h); else if ($("mc-hole-w")) $("mc-hole-w").prepend(h); else h.remove();
+    h.classList.toggle("full", on);
+    h.style.removeProperty("background");   // vidro.js may have made it see-through while it was the size of the screen
+    document.documentElement.classList.toggle("mc-holefull", on);
+    const b = $("mc-hole").querySelector("[data-act=full]"); if (b) b.textContent = on ? t("Sair") : t("Maximizar");
+    requestAnimationFrame(() => { holeSize(); holeRun(); });
+  }
+  window.addEventListener("hashchange", () => { if (holeFull && $("mc-hole")) setFull(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && holeFull && $("mc-hole")) { if (portal) { portal = ""; paintDock(); paintOrbit(); paintDrawer(); } else setFull(false); } });
 
   function quem() {
     const R = B.ranking.filter((r) => r.calls || true), lead = R.find((r) => r.judged >= 5 && r.usd > 0);
     const judged = R.reduce((a, r) => a + r.judged, 0);
-    paint($("mc-body"), `${team()}
+    if (!$("mc-hole-w")) $("mc-body").innerHTML = `<div id="mc-hole-w"></div><div id="mc-rest"></div>`;
+    hole();
+    paint($("mc-rest"), `
       ${lead ? `<section class="panel mc-lead-c">
           <span class="mc-lead-k">${esc(t("O melhor a seguir agora"))}</span>
           <div class="mc-lead-w">${face(lead, true)}<div><b>${esc(lead.name || "@" + lead.handle)}</b><small>${esc(PLAT[lead.platform] || lead.platform)}</small></div></div>
@@ -205,8 +341,6 @@
         ${R.map((r, n) => row(r, n)).join("")}
       </section>
       <p class="mc-foot">${esc(t("Como contamos: compra ao preço da hora do call, venda 24 horas depois, sem taxas. Ninguém comprou nada: é só para comparar quem acerta."))}</p>`);
-    if (typeof brainStart === "function") brainStart();
-    bots();
   }
 
   function row(r, n) {
@@ -417,6 +551,7 @@
   function bind() {
     const root = $("mc");
     root.addEventListener("click", async (e) => {
+      if (e.target.closest("#mc-hole")) return;   // the hole answers its own clicks (holeClick)
       const inf = e.target.closest("[data-inf]");
       if (inf) { openInf = openInf === inf.dataset.inf ? "" : inf.dataset.inf; return quem(); }
       const cw = e.target.closest("[data-cw]");

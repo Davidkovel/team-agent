@@ -312,50 +312,79 @@ html.is-phone .mc-rank-h > span:nth-child(3), html.is-phone .mc-rank-l > span:nt
 html.is-phone .mc-big > span { font-size: 18px; }
 html.is-phone .mc-rank-d { grid-template-columns: 1fr; padding: 4px 12px 14px; }
 
-/* the team (5.ª volta, 16 nov): the brain in the middle, three robots each side joined to it, the plan as one bar */
-.mc-team { display: grid; grid-template-columns: minmax(0, 1fr) 260px minmax(0, 1fr); align-items: center; gap: 0; padding: 18px 0; margin-bottom: 12px; overflow: hidden; }
-.mc-col { display: flex; flex-direction: column; gap: 10px; }
-.mc-bot { position: relative; display: flex; align-items: center; gap: 12px; padding: 8px 14px; margin: 0 18px; border-radius: 16px; color: inherit; text-decoration: none;
-  background: rgba(255, 255, 255, .02); border: 1px solid var(--line); transition: border-color .2s, background .2s; }
-.mc-bot:hover { border-color: rgba(255, 255, 255, .16); }
-.mc-bot.l { flex-direction: row-reverse; text-align: right; margin-right: 0; }
-.mc-bot.r { margin-left: 0; }
-.mc-bot-c { width: 64px; height: 73px; flex: none; }
-.mc-bot-t { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.mc-bot-t b { font: 650 15px var(--display); letter-spacing: -.015em; }
-.mc-bot-t small { color: var(--muted); font-size: 12px; }
-.mc-bot-t em { font-style: normal; color: var(--faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mc-bot.lk-work { border-color: rgba(95, 207, 140, .35); background: rgba(95, 207, 140, .04); }
-.mc-bot.lk-work em { color: #bfe9cf; }
-.mc-bot.lk-bad em { color: #f3ab9f; }
-.mc-bot.lk-off { opacity: .55; }
-/* the wire to the brain: from the robot's inner edge to the middle column */
-.mc-wire { position: absolute; top: 50%; height: 2px; width: 36px; background: rgba(255, 255, 255, .1); }
-.mc-bot.l .mc-wire { right: -37px; }
-.mc-bot.r .mc-wire { left: -37px; }
-.mc-bot.lk-work .mc-wire { background: linear-gradient(90deg, rgba(95, 207, 140, .15), rgba(95, 207, 140, .9), rgba(95, 207, 140, .15)); background-size: 200% 100%; }
-.mc-bot.moving .mc-wire { animation: mc-wire 1.2s linear infinite; }   /* runs only while the agent is at work */
-.mc-bot.lk-off .mc-wire { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .08) 0 4px, transparent 4px 8px); }
-@keyframes mc-wire { to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .mc-bot.moving .mc-wire { animation: none; } }
-.mc-mid { display: flex; flex-direction: column; align-items: center; text-align: center; }
-.mc-core { position: relative; width: 200px; height: 200px; }
-.mc-mid b { margin-top: 4px; font: 700 16px var(--display); }
-.mc-mid small { color: var(--faint); font-size: 12px; }
+/* the black hole (6.ª volta, 16 nov): the Farols around it, the influencers falling in, the portals, «Maximizar» */
+.mc-hole { position: relative; height: 520px; margin-bottom: 12px; border-radius: 18px; overflow: hidden; background: radial-gradient(ellipse at 50% 50%, #05070b 0%, #020203 70%);
+  border: 1px solid rgba(255, 255, 255, .07); box-shadow: inset 0 0 120px rgba(0, 0, 0, .9); }
+.mc-hole-c { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mc-hole-top { position: absolute; top: 14px; left: 18px; right: 14px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 120; pointer-events: none; }
+.mc-hole-top > * { pointer-events: auto; }
+.mc-hole-top b { display: block; font: 700 16px var(--display); letter-spacing: -.01em; }
+.mc-hole-top small { color: rgba(200, 225, 255, .6); font-size: 12px; }
+.mc-orbit { position: absolute; inset: 0 0 64px; }
+.mc-pet { position: absolute; transform: translate(-50%, -62%) scale(var(--k, 1)); display: flex; flex-direction: column; align-items: center; gap: 1px;
+  background: none; border: 0; padding: 0; color: var(--text); font: inherit; cursor: pointer; transition: transform .25s var(--ease), filter .25s; }
+.mc-pet:hover, .mc-pet.on { transform: translate(-50%, -62%) scale(calc(var(--k, 1) * 1.08)); }
+.mc-farol { position: relative; width: 92px; height: 100px; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .9)) drop-shadow(0 0 14px rgba(127, 212, 255, .08)); }
+.mc-farol img { width: 100%; height: 100%; object-fit: contain; user-select: none; }
+.mc-eye { position: absolute; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #e6f7ff 0, #7fd4ff 35%, #1663c7 100%); box-shadow: 0 0 8px 2px rgba(127, 212, 255, .75); }
+.mc-pet.lk-work .mc-eye { animation: mc-blink 3.4s infinite; }
+.mc-pet.lk-bad .mc-eye { background: radial-gradient(circle, #ffd0cc 0, #ff3b30 60%); box-shadow: 0 0 8px 2px rgba(255, 59, 48, .7); }
+.mc-pet.lk-off .mc-eye { background: #0b0c0e; box-shadow: none; transform: scaleY(.25); }
+.mc-pet.lk-off { filter: grayscale(.6) brightness(.6); }
+@keyframes mc-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@media (prefers-reduced-motion: reduce) { .mc-pet.lk-work .mc-eye { animation: none; } }
+.mc-pet b { font: 650 13px var(--display); text-shadow: 0 1px 6px #000; }
+.mc-pet small { max-width: 150px; color: rgba(210, 228, 245, .7); font-size: 11px; text-shadow: 0 1px 6px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-pet.lk-work small { color: #9fe0ff; }
+.mc-pet.on .mc-farol { filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .9)) drop-shadow(0 0 18px rgba(127, 212, 255, .45)); }
+.mc-star { position: absolute; transform: translate(-50%, -50%); background: none; border: 0; padding: 0; cursor: pointer; z-index: 40; }
+.mc-star .mc-face { width: 30px; height: 30px; font-size: 11px; box-shadow: 0 0 0 2px rgba(0, 0, 0, .8), 0 0 14px rgba(127, 212, 255, .35); }
+.mc-star:hover .mc-face { box-shadow: 0 0 0 2px #7fd4ff, 0 0 18px rgba(127, 212, 255, .6); }
+.mc-dock { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 130; display: flex; gap: 6px; padding: 6px; border-radius: 16px;
+  background: rgba(10, 12, 16, .72); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); max-width: calc(100% - 28px); overflow-x: auto; }
+.mc-dock button { display: flex; align-items: baseline; gap: 6px; padding: 8px 12px; border-radius: 11px; border: 0; background: none; color: var(--muted); font: 600 12.5px var(--ui); cursor: pointer; white-space: nowrap; }
+.mc-dock button small { color: var(--faint); font: 600 11px var(--display); }
+.mc-dock button:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
+.mc-dock button.on { color: #0b0c0e; background: linear-gradient(180deg, #f4f5f7, #c9cdd3); }
+.mc-dock button.on small { color: #3a3f46; }
+.mc-drawer { position: absolute; top: 56px; right: 12px; bottom: 74px; width: min(430px, calc(100% - 24px)); z-index: 140; border-radius: 16px; overflow: hidden;
+  background: rgba(10, 12, 16, .82); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
+.mc-drawer[hidden] { display: none; }
+.mc-dr-in { height: 100%; display: flex; flex-direction: column; }
+.mc-dr-in > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.mc-dr-in > header b { display: block; font: 700 16px var(--display); }
+.mc-dr-in > header small { color: var(--faint); font-size: 12px; }
+.mc-dr-l { overflow-y: auto; flex: 1; }
+.mc-dr-pad { padding: 12px 16px; overflow-y: auto; }
+.mc-dr-e { padding: 18px 16px; }
+.mc-dr-more { padding: 10px 16px; border-top: 1px solid var(--line); }
+.mc-dr-call, .mc-dr-coin { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 9px 16px;
+  border: 0; border-bottom: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mc-dr-call { grid-template-columns: auto minmax(0, .8fr) minmax(0, 1.2fr); cursor: default; }
+.mc-dr-call .mc-mini { border: 0; padding: 0; }
+.mc-dr-coin:hover { background: rgba(255, 255, 255, .04); }
+.mc-dr-coin img, .mc-dr-coin .mc-noimg { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+.mc-dr-coin b, .mc-dr-call b { display: block; font: 650 13.5px var(--display); }
+.mc-dr-coin small, .mc-dr-call small { display: block; color: var(--faint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-dr-big { margin: 0 0 10px; font: 700 30px var(--display); }
+.mc-dr-big small { display: block; color: var(--faint); font: 500 12px var(--ui); }
+/* maximised: the whole screen */
+.mc-hole.full { position: fixed; inset: 0; height: auto; z-index: 900; border-radius: 0; margin: 0; border: 0; background: #020203; }
+.mc-hole.full .mc-farol { width: 128px; height: 140px; }
+.mc-hole.full .mc-star .mc-face { width: 40px; height: 40px; }
+.mc-hole.full .mc-hole-top b { font-size: 22px; }
 .mc-planbar { display: flex; align-items: center; gap: 14px; padding: 12px 18px; margin-bottom: 18px; color: inherit; text-decoration: none; }
 .mc-planbar .mc-sub { margin: 0; }
 .mc-planbar b { flex: 1; min-width: 0; font: 600 13.5px var(--ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-planbar-p { display: flex; gap: 4px; }
 .mc-planbar-p i { width: 22px; height: 6px; border-radius: 3px; background: var(--surface-3); }
-.mc-planbar-p i.done { background: var(--ok); }
-.mc-planbar-p i.now { background: var(--text); }
-@media (max-width: 1180px) {
-  .mc-team { grid-template-columns: 1fr 1fr; padding: 16px; gap: 12px; }
-  .mc-mid { grid-column: 1 / -1; order: -1; }
-  .mc-bot, .mc-bot.l { margin: 0; flex-direction: row; text-align: left; }
-  .mc-wire { display: none; }
-}
-html.is-phone .mc-team { grid-template-columns: 1fr; }
+.mc-planbar-p i.pb-done { background: var(--ok); }
+.mc-planbar-p i.pb-now { background: var(--text); }
+html.is-phone .mc-hole { height: 560px; }
+html.is-phone .mc-farol { width: 62px; height: 68px; }
+html.is-phone .mc-pet small { display: none; }
+html.is-phone .mc-dock { left: 8px; right: 8px; transform: none; }
+html.is-phone .mc-drawer { top: 8px; right: 8px; left: 8px; width: auto; bottom: 70px; }
 html.is-phone .mc-planbar { flex-wrap: wrap; }
 html.is-phone .mc-planbar b { flex-basis: 100%; white-space: normal; }
 
@@ -395,3 +424,4 @@ html.is-phone .mc-bar .segx { overflow-x: auto; max-width: 100%; }
 html.is-phone .mc-cfg, html.is-phone .mc-g-f, html.is-phone .mc-md-g { grid-template-columns: 1fr 1fr; }
 html.is-phone .mc-md { padding: 16px; }
 html.is-phone .mc-md-parts { gap: 8px; }
+html.mc-holefull #modal { z-index: 1000; }   /* a coin opened from the maximised black hole comes over it */

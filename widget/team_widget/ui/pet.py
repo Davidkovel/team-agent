@@ -1,24 +1,16 @@
-"""Bit, the widget's pet (17 Nov, Marco).
+"""The Farol, the widget's pet, programmer version (17 Nov, Marco).
 
-«Um amiguinho... uma espécie de programador... não uma imagem com bordas feias... como se fosse um PC de um robô... tem
-de se ver o gajo a pensar quando tu estás a pensar, a andar.» Then: «tiraste as rodinhas... tinha de ser o mesmo robô
-[o Farol], só que a versão programador». So he is the Farol in pixel art, in the widget's black chrome: a round helmet
-with a visor and a light on top, a ribbed headlight for a face with big round eyes, ear cups like headphones, claw
-hands, and tracks with two turning wheels and the AMG plate. He rolls on them when he moves.
-
-He is drawn in code, cell by cell, into a tiny image (32 x 32 cells) scaled up without smoothing: sharp pixels at every
-size, no cut-out picture and no halo. The headlight does the acting, following what the Claude of this computer is doing
-(the `action` of the working window, from the Escritório hooks):
-  * «a pensar»: three dots that run, a hand on the chin, a little thought bubble;
-  * editing: he types on his laptop and the screen is a code editor that scrolls;
-  * a command: «>_» with the output coming;
-  * reading or searching: the eyes sweep left and right with a scan line;
-  * done: ^ ^ and both arms up, a hop; waiting for you: «?» and he waves; something for you: a red «!» and hops;
-  * free: blinks, looks around, follows the mouse, walks a few steps now and then, falls asleep after 5 minutes.
-He comes in and goes out by dissolving pixel by pixel, the screen powering on and off like an old monitor.
-
-Weight (Marco: «roubar o mínimo de CPU»): one 26x26 image built only when a cell changes (cached), a few frames a second
-only while something moves (typing 8/s, walking 12/s, still otherwise: the next blink). The process runs at nice 10."""
+The robot Marco drew (assets/farol-*.png) in black AMG chrome (farol-*-black.png, made by tools/farol_black.py: the star
+and the AMG plate stay silver). Marco: «não é para fazer pixel art... tons preto, MG... um ganda patrão, impor respeito,
+um petzinho cérebro super funcional». Drawn over the picture, in code:
+  * the eyes: a boss look (a black chrome lid slanting to the nose), they blink, follow the mouse, smile «^ ^», sleep;
+  * a hologram between his claws, what the Claude of this computer is doing: code while editing, a terminal «>_» for
+    commands, a magnifier while reading, a green tick when done;
+  * thinking: the hand-on-chin picture and a bubble of dots; «?» waiting for you;
+  * something for you (a task, a message): the hologram shows it with its count, a red glow, and every few seconds he
+    jumps and wiggles to call you until the mouse goes over him (the card says what it is) or you click.
+Free, he rolls a few steps now and then and falls asleep after 5 minutes. Each frame is built once and cached; he only
+repaints when the picture changes."""
 import ctypes
 import math
 import os
@@ -107,7 +99,7 @@ _SRC = {}
 
 def _src(pose: str) -> QImage:
     if pose not in _SRC:
-        _SRC[pose] = QImage(str(ASSETS / f"farol-{pose}.png")).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+        _SRC[pose] = QImage(str(ASSETS / f"farol-{pose}-black.png")).convertToFormat(QImage.Format_ARGB32_Premultiplied)
     return _SRC[pose]
 
 
@@ -115,7 +107,7 @@ def _src(pose: str) -> QImage:
 EYE_L, EYE_R = (122.5, 142.5), (180.5, 142.5)
 EYE_RX, EYE_RY = 21.5, 24.5
 IRIS = ((133.0, 142.0), (170.0, 142.0))
-GLASS = QColor("#ead7c4")
+GLASS = QColor("#25272b")                 # the black headlight glass around the eyes
 
 
 def _qc(v: int) -> QColor:
@@ -179,16 +171,22 @@ def _eyes(p: QPainter, dx: float, dy: float, lid: float, mood: str):
             p.drawEllipse(QPointF(x - 3.2, y - 7.5), 3.4, 3.4)
             p.setBrush(QColor(255, 255, 255, 150))
             p.drawEllipse(QPointF(x + 3.5, y + 6.5), 1.6, 1.6)
-        if mood == "happy":                        # the cheeks push up: a «^» of an eye
-            p.setBrush(GLASS)
-            p.drawEllipse(QPointF(cx, cy + EYE_RY * 0.95), EYE_RX * 1.6, EYE_RY * 1.0)
-        if mood == "sleep":                        # shut: only a soft curve where the eye was
+        if mood in ("sleep", "happy"):             # shut (a soft curve) or smiling (a glowing «^»)
             p.setBrush(GLASS)
             p.drawEllipse(QPointF(cx, cy), EYE_RX + 1, EYE_RY + 1)
             p.restore()
-            arc = QPainterPath(QPointF(cx - 14, cy + 2))
-            arc.quadTo(QPointF(cx, cy + 14), QPointF(cx + 14, cy + 2))
-            p.setPen(QPen(QColor("#3a312b"), 3.2, Qt.SolidLine, Qt.RoundCap))
+            if mood == "sleep":
+                arc = QPainterPath(QPointF(cx - 14, cy + 2))
+                arc.quadTo(QPointF(cx, cy + 14), QPointF(cx + 14, cy + 2))
+                pen = QPen(QColor("#aeb6c2"), 3.2, Qt.SolidLine, Qt.RoundCap)
+            else:
+                arc = QPainterPath(QPointF(cx - 15, cy + 6))
+                arc.quadTo(QPointF(cx, cy - 16), QPointF(cx + 15, cy + 6))
+                p.setPen(QPen(QColor(110, 210, 255, 90), 9, Qt.SolidLine, Qt.RoundCap))
+                p.setBrush(Qt.NoBrush)
+                p.drawPath(arc)
+                pen = QPen(QColor("#bfeaff"), 4.2, Qt.SolidLine, Qt.RoundCap)
+            p.setPen(pen)
             p.setBrush(Qt.NoBrush)
             p.drawPath(arc)
             p.setPen(Qt.NoPen)
@@ -198,15 +196,19 @@ def _eyes(p: QPainter, dx: float, dy: float, lid: float, mood: str):
             top = cy - EYE_RY
             h = 2 * EYE_RY * shut
             lg = QLinearGradient(0, top, 0, top + h)
-            lg.setColorAt(0, QColor("#e4d6c8"))
-            lg.setColorAt(1, QColor("#8e8177"))
+            lg.setColorAt(0, QColor("#6a6e77"))
+            lg.setColorAt(1, QColor("#18191d"))
             p.setBrush(lg)
-            p.drawRect(QRectF(cx - EYE_RX - 1, top - 1, 2 * EYE_RX + 2, h + 1))
-            p.setPen(QPen(QColor("#3f362f"), 1.6))
-            p.drawLine(QPointF(cx - EYE_RX, top + h), QPointF(cx + EYE_RX, top + h))
+            # the boss look: the lid slants down towards the nose (none when the eye is shut)
+            s = 0.0 if shut > 0.9 else 7.0 * (1 if cx < 150 else -1)
+            inner, outer = (cx + EYE_RX + 1, cx - EYE_RX - 1) if cx < 150 else (cx - EYE_RX - 1, cx + EYE_RX + 1)
+            edge_o, edge_i = QPointF(outer, top + h - abs(s) * 0.6), QPointF(inner, top + h + abs(s))
+            p.drawPolygon([QPointF(outer, top - 1), QPointF(inner, top - 1), edge_i, edge_o])
+            p.setPen(QPen(QColor("#050506"), 2.0))
+            p.drawLine(edge_o, edge_i)
             p.setPen(Qt.NoPen)
         p.restore()
-        p.setPen(QPen(QColor(70, 60, 52, 110), 1.2))           # a soft rim so the eye sits in the glass
+        p.setPen(QPen(QColor(0, 0, 0, 150), 1.4))           # a soft rim so the eye sits in the glass
         p.setBrush(Qt.NoBrush)
         p.drawEllipse(QPointF(cx, cy), EYE_RX, EYE_RY)
         p.setPen(Qt.NoPen)
@@ -219,7 +221,7 @@ def _holo(p: QPainter, holo: tuple):
     """The programmer's screen: a hologram he holds between his claws."""
     r = HOLO
     kind = holo[0]
-    if kind == "done":
+    if kind in ("done", "note"):
         r = QRectF(112, 246, 76, 50)
     g = QLinearGradient(0, r.top(), 0, r.bottom())
     g.setColorAt(0, QColor(70, 190, 255, 92))
@@ -276,6 +278,28 @@ def _holo(p: QPainter, holo: tuple):
         p.setBrush(Qt.NoBrush)
         p.drawEllipse(QPointF(mx, band + 4.5), 7, 7)
         p.drawLine(QPointF(mx + 5, band + 9.5), QPointF(mx + 10, band + 14.5))
+        p.setPen(Qt.NoPen)
+    elif kind == "note":                           # a message (an envelope) or a task (a list), and how many
+        what, n = holo[1], holo[2]
+        cx, cy = r.center().x() - 4, r.center().y() + 1
+        p.setPen(QPen(QColor(235, 248, 255, 240), 2.6, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.setBrush(Qt.NoBrush)
+        if what == "msg":
+            p.drawRoundedRect(QRectF(cx - 17, cy - 11, 34, 23), 3, 3)
+            p.drawPolyline([QPointF(cx - 16, cy - 9), QPointF(cx, cy + 3), QPointF(cx + 16, cy - 9)])
+        else:
+            for j in range(3):
+                p.drawLine(QPointF(cx - 7, cy - 9 + j * 9), QPointF(cx + 15, cy - 9 + j * 9))
+                p.drawPoint(QPointF(cx - 14, cy - 9 + j * 9))
+        p.setPen(QPen(QColor(0, 0, 0, 160), 1.5))
+        p.setBrush(QColor("#ff3b30"))
+        p.drawEllipse(QPointF(r.right() - 6, r.top() + 4), 11, 11)
+        f = QFont(UI)
+        f.setPixelSize(15)
+        f.setWeight(QFont.Black)
+        p.setFont(f)
+        p.setPen(QColor("white"))
+        p.drawText(QRectF(r.right() - 17, r.top() - 7, 22, 22), Qt.AlignCenter, str(min(n, 9)))
         p.setPen(Qt.NoPen)
     elif kind == "done":
         p.setPen(QPen(QColor("#5cf08f"), 5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
@@ -349,6 +373,7 @@ class Pet(QWidget):
         self._hover, self._hover_at = False, 0.0
         self._enter = (now, +1)
         self._hop_at, self._press_down = -9.0, False
+        self._call_at, self._seen, self._quiet_until = -9.0, 0, 0.0   # calling you: last call, alerts seen, hover pause
         self._badge_at = 0.0
         self._blink_at, self._next_blink = -9.0, now + random.uniform(2, 4)
         self._glance, self._next_glance = (0, 0), now + random.uniform(2.5, 5)
@@ -465,6 +490,8 @@ class Pet(QWidget):
         mine = [i for i in items or () if i.get("directed")]
         if not mine:
             return
+        if not self._alerts:
+            self._seen = 0
         self._alerts.extend(mine)
         last = mine[-1]
         kind = "MENSAGEM" if (last.get("href") or "").startswith("#/mensagens") else "TAREFA NOVA"
@@ -687,15 +714,22 @@ class Pet(QWidget):
                     self._glance = (0, 0)
                 self._at = QPoint(round(self._walk_x), self._at.y())
                 self.move(self._at)
+        # something for you that you have not seen yet: he calls you, a jump and a wiggle every few seconds, until the
+        # mouse goes over him (the card says what it is) or you click
+        if look in ("alert", "wait") and not self._enter and not self._press:
+            want = len(self._alerts) > self._seen if look == "alert" else now > self._quiet_until
+            if want and now - self._call_at > (3.2 if look == "alert" else 8.0):
+                self._call_at = self._hop_at = now
+        calling = now - self._call_at < 1.2
         hop = now - self._hop_at
         # paint only when the picture changes (a paint costs ~2 ms of the window server on the Mac)
         sig = (self._spec(look, now), look == "walk" and self._face, self._alerts and len(self._alerts))
-        if sig != self._painted or self._enter or hop < 0.7 or self._press_down or now - self._card_at < 0.3 \
+        if sig != self._painted or self._enter or hop < 0.7 or calling or self._press_down or now - self._card_at < 0.3 \
                 or now - self._badge_at < 0.5:
             self._painted = sig
             self.update()
         # the next frame: as late as it can be
-        if self._enter or hop < 0.7 or now - self._card_at < 0.3 or self._press_down or now - self._badge_at < 0.5:
+        if self._enter or hop < 0.7 or calling or now - self._card_at < 0.3 or self._press_down or now - self._badge_at < 0.5:
             ms = 33
         elif look == "walk":
             ms = 83
@@ -721,7 +755,7 @@ class Pet(QWidget):
         gx, gy = self._glance
         if self._mouse and look in ("idle", "wait", "done", "alert"):
             gx, gy = self._mouse
-        lid = 1.0 if blink else 0.0
+        lid = 1.0 if blink else 0.3              # a patrão: eyes a little lowered, sure of himself
         pose, eyes, holo, fx, tilt = "idle", (gx, gy, lid, "open"), None, None, 0
         if look == "idle":
             if self._hover and now - self._hover_at < 2.5:
@@ -737,11 +771,11 @@ class Pet(QWidget):
             fx = ("dots", int(t * 3.5) % 3)
         elif look == "edit":                     # he codes on his hologram (one 32-frame loop, built once)
             f = int(t * 3) % 32
-            eyes = (0, 0.9, max(lid, 0.22), "open")
+            eyes = (0, 0.9, max(lid, 0.4), "open")
             holo = ("code", f)
         elif look == "run":
             f = int(t * 3) % 40
-            eyes = (0, 0.9, max(lid, 0.22), "open")
+            eyes = (0, 0.9, max(lid, 0.4), "open")
             holo = ("term", (f // 2) % 5, (f // 2) % 2, f // 10)
         elif look == "read":
             k = int(t * 2.5) % 10
@@ -749,8 +783,17 @@ class Pet(QWidget):
             holo = ("read", k)
         elif look == "wait":
             fx = ("glyph", "?") if int(t / 0.8) % 2 else None
-        elif look == "alert":
+            eyes = (gx, gy, 0.0 if not blink else 1.0, "open")
+        elif look == "alert":                    # something for you: he shows it on his hologram and calls you
+            last = self._alerts[-1]
+            what = "msg" if (last.get("href") or "").startswith("#/mensagens") else "task"
+            holo = ("note", what, len(self._alerts))
             fx = ("glyph", "!") if int(t / 0.6) % 2 else None
+            eyes = (gx, gy, 0.0 if not blink else 1.0, "happy" if self._hover else "open")   # wide: he calls you
+        c = now - self._call_at
+        if look in ("alert", "wait") and 0 <= c < 0.9:                       # the call: a jump and a wiggle
+            tilt = round(7 * math.sin(c * 22) * (1 - c / 0.9))
+            fx = ("glyph", "!" if look == "alert" else "?")
         else:                                                                 # done
             eyes = (0, 0, 0.0, "happy")
             holo = ("done",)
@@ -805,6 +848,23 @@ class Pet(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(sh)
         p.drawEllipse(QPointF(self.AW / 2, fy), 11 * c * k, 1.3 * c)
+        unseen = (self._alerts and len(self._alerts) > self._seen) or (self.mode == "wait" and now > self._quiet_until)
+        if unseen and not self._enter:
+            col = QColor("#ff3b30") if self._alerts else QColor("#ffb340")
+            glow = QRadialGradient(QPointF(self.AW / 2, self.AH - 9 * c), 14 * c)
+            col.setAlpha(70)
+            glow.setColorAt(0, col)
+            col.setAlpha(0)
+            glow.setColorAt(1, col)
+            p.setBrush(glow)
+            p.drawEllipse(QPointF(self.AW / 2, self.AH - 9 * c), 14 * c, 12 * c)
+            u = now - self._call_at
+            if 0 <= u < 1.2:                         # a ring that runs out on the floor
+                col.setAlpha(round(220 * (1 - u / 1.2)))
+                p.setPen(QPen(col, 2.2))
+                p.setBrush(Qt.NoBrush)
+                p.drawEllipse(QPointF(self.AW / 2, fy), (5 + 11 * u) * c, (1 + 2.6 * u) * c)
+                p.setPen(Qt.NoPen)
         p.setOpacity(alpha)
         p.drawImage(QPointF(x0, y0), img)
         p.setOpacity(1.0)
@@ -878,6 +938,8 @@ class Pet(QWidget):
 
     # ------------------------------------------------------------ mouse
     def enterEvent(self, e):
+        self._seen = len(self._alerts)                 # seen: he stops calling (the «!» stays until you click)
+        self._quiet_until = time.monotonic() + 30
         if not self._card and not self._enter:
             self._hover = True
             self._hover_at = self._card_at = time.monotonic()

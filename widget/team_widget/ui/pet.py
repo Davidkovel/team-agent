@@ -9,8 +9,8 @@ um petzinho cérebro super funcional». Drawn over the picture, in code:
   * thinking: the hand-on-chin picture and a bubble of dots; «?» waiting for you;
   * something for you (a task, a message): the hologram shows it with its count, a red glow, and every few seconds he
     jumps and wiggles to call you until the mouse goes over him (the card says what it is) or you click.
-Free, he stays where you left him and lives: now and then he rolls back and forth on his tracks, looks around, ponders,
-gives himself a tune-up with the wrench, sinks into his blue portal and comes back (the GIF in Desktop/AMG/Robozin),
+Free, he stays where you left him, calm like the first Farol: he breathes, blinks, follows the mouse and now and then looks
+around (Marco did not like the cloud, the rolling about or the tricks). He comes and goes through the blue portal of
 or hops for joy; asleep after 5 minutes. He comes and goes through the portal; poses cross-fade with a little squash. Each frame is built once and cached; he only
 repaints when the picture changes."""
 import ctypes
@@ -694,8 +694,7 @@ class Pet(QWidget):
             self._tick.start(0)
 
     # ------------------------------------------------------------ his life, where you left him (never runs off)
-    PLAYS = {"shuffle": (2.6, 3), "look": (3.2, 2), "ponder": (3.6, 2), "tune": (3.2, 2), "portal": (2.3, 1),
-             "happy": (1.3, 1)}
+    PLAYS = {"look": (3.2, 1)}                 # 17 Nov, Marco: no rolling about, no pose tricks; calm, like the first Farol
 
     def _start_walk(self, now: float):
         names = [n for n, (_, w) in self.PLAYS.items() for _ in range(w)]
@@ -743,6 +742,9 @@ class Pet(QWidget):
             tilt = -2.5 * math.cos(2 * math.pi * 2 * k) * env
         elif look in ("idle", "play", "alert", "wait") and self._busy < 0.85 and (t % 3.0) > 1.9:
             dy = 0.25                               # a breath
+        d = now - self._pose_at
+        if 0 <= d < 0.26:                           # a new pose: he dips a little and comes up in it (no photo swap)
+            dy += 0.7 * math.sin(math.pi * d / 0.26)
         c = now - self._call_at
         if look in ("alert", "wait") and 0 <= c < 0.9:                       # the call: a jump and a wiggle
             tilt = 7 * math.sin(c * 22) * (1 - c / 0.9)
@@ -789,7 +791,7 @@ class Pet(QWidget):
         spec = self._spec(look, now)
         if spec[0] != self._pose_now:               # a new pose: a quick cross-fade with a little squash
             self._prev_spec, self._pose_now, self._pose_at = self._shown_spec, spec[0], now
-        fading = now - self._pose_at < 0.3
+        fading = now - self._pose_at < 0.26
         name, _ = self._play(now)
         moving = name in ("shuffle", "portal") or self._enter is not None
         # paint only when the picture changes (a paint costs ~2 ms of the window server on the Mac)
@@ -846,9 +848,8 @@ class Pet(QWidget):
         elif look == "sleep":
             eyes = (0, 0, 1.0, "sleep")
             fx = ("z", int(t * 4) % 12)
-        elif look == "think":                    # the thinking picture: hand on the chin, eyes up
+        elif look == "think":                    # the thinking picture: hand on the chin, eyes up (no cloud)
             pose, eyes = "think", None
-            fx = ("dots", int(t * 3.5) % 3)
         elif look == "edit":                     # the boss at work: the wrench, sparks, the code floating by
             f = int(t * 4) % 48
             pose, eyes = "work", None
@@ -911,6 +912,8 @@ class Pet(QWidget):
         spec = self._spec(look, now)
         self._shown_spec = spec
         img = self._image(spec)
+        if now - self._pose_at < 0.13 and self._prev_spec:   # still the old pose until the bottom of the dip
+            img = self._image(self._prev_spec)
         mdx, mdy, tilt = self._motion(look, now)
         x0 = mdx * c
         y0 = self.AH - H * c - hop + mdy * c
@@ -954,15 +957,6 @@ class Pet(QWidget):
             p.translate(cx + x0, self.AH)
             p.rotate(tilt)
             p.translate(-(cx + x0), -self.AH)
-        u = (now - self._pose_at) / 0.3
-        if u < 1 and self._prev_spec and self._prev_spec[0] != spec[0]:
-            s = 1 - 0.07 * math.sin(math.pi * u)    # a little squash as he changes pose
-            p.translate(cx + x0, self.AH)
-            p.scale(2 - s, s)
-            p.translate(-(cx + x0), -self.AH)
-            p.setOpacity(1 - u)
-            p.drawImage(QPointF(x0, y0), self._image(self._prev_spec))
-            p.setOpacity(u)
         p.drawImage(QPointF(x0, y0), img)
         p.setOpacity(1.0)
         p.restore()

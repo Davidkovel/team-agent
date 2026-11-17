@@ -619,7 +619,7 @@ nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada v
   widget MemeIntel do `desktop/` do gmgn-tracker (WPF, só Windows, em russo) refeito como **janela flutuante em qualquer página**
   (`frontend/hub/aovivo.js` + `.css`, sempre carregados: o botão ⚡ no fundo da barra lateral e «Ao vivo» no buraco negro abrem-na,
   arrasta-se pelo topo, muda de tamanho pelo canto, encolhe para uma pílula com sinais e alarmes; posição, tamanho, separador e
-  estado no `localStorage` `lv-win`; pede de 3 em 3 s aberta, 15 s em pílula, nada fechada) (`backend/app/memes_live.py`, `backend/app/memes_live.py`, `GET /api/memes/live` de 3 em 3 s, `POST/DELETE
+  estado no `localStorage` `lv-win`; pede de 3 em 3 s aberta, 15 s em pílula, nada fechada) (`backend/app/memes_live.py`, `GET /api/memes/live`, `POST/DELETE
   /api/memes/radar`). Os mesmos 4 separadores: **Sinais** (cada moeda nova vista na DexScreener aos 3, 10 e 30 min: ≥ 25 mil $,
   pool ≥ 8 mil $, compras ≥ 1,5× vendas e a subir), **Rugs** (contratos que a equipa cola, vistos de 20 em 20 s: queda ≥ 30% em
   5 min, pool a perder 30%, vendas ≥ 3× compras, −50% numa hora; barra vermelha em cima), **X ao vivo** (websocket do Tree News;

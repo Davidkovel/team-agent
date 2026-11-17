@@ -962,7 +962,7 @@ class Pet(QWidget):
         mine = wins[0] if wins else None
         used = 0
         for w in wins:
-            if w is mine and self._at_work:
+            if w is mine and not self._stay:            # the robot is there (or on his way): no star on it
                 continue
             if used == len(self._marks):
                 self._marks.append(_Mark())

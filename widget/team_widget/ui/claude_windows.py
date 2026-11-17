@@ -4,7 +4,8 @@ que o robôzinho ou o Claude estava a mexer»).
 Claude Code puts its state in the terminal's title: a spinning ◐ ◓ ◑ ◒ while it works, ✳ when it waits. So the windows
 whose title carries the spinner are the ones working, and the system tells where they are. No polling of anything else,
 one call every few seconds (about a millisecond). Mac: the window list of CoreGraphics; Windows: the top windows' titles.
-Returns [(title, x, y, w, h)] in screen points, front-most first. Without the right to read titles (macOS Screen
+Returns [(title, x, y, w, h)] in screen points, front-most first, only the ones you can see: a window hidden behind
+another (Chrome over the terminal) does not count, so the Farol never floats over something else. Without the right to read titles (macOS Screen
 Recording) the list is just empty, and the Farol stays home."""
 import ctypes
 import re
@@ -60,7 +61,7 @@ def _mac() -> list:
     arr = cg.CGWindowListCopyWindowInfo(1 | 16, 0)        # on screen only, no desktop elements; front-most first
     if not arr:
         return []
-    out = []
+    out, front = [], []
     try:
         for i in range(cf.CFArrayGetCount(arr)):
             d = cf.CFArrayGetValueAtIndex(arr, i)
@@ -70,23 +71,32 @@ def _mac() -> list:
                 cf.CFNumberGetValue(ref, 9, ctypes.byref(layer))
             if layer.value != 0:
                 continue
-            title = text(cf.CFDictionaryGetValue(d, keys["kCGWindowName"]))
-            if not title or not SPIN.search(title):
-                continue
             if text(cf.CFDictionaryGetValue(d, keys["kCGWindowOwnerName"])).lower().startswith("python"):
-                continue
+                continue                                   # the widget's own windows
             r = _Rect()
-            if cg.CGRectMakeWithDictionaryRepresentation(cf.CFDictionaryGetValue(d, keys["kCGWindowBounds"]), ctypes.byref(r)):
-                if r.w > 120 and r.h > 80:
-                    out.append((title, round(r.x), round(r.y), round(r.w), round(r.h)))
+            if not cg.CGRectMakeWithDictionaryRepresentation(cf.CFDictionaryGetValue(d, keys["kCGWindowBounds"]),
+                                                             ctypes.byref(r)) or r.w < 60 or r.h < 40:
+                continue
+            title = text(cf.CFDictionaryGetValue(d, keys["kCGWindowName"]))
+            box = (round(r.x), round(r.y), round(r.w), round(r.h))
+            if title and SPIN.search(title) and r.w > 120 and r.h > 80 and _seen(box, front):
+                out.append((title,) + box)
+            front.append(box)
     finally:
         cf.CFRelease(arr)
     return out
 
 
+def _seen(box, front) -> bool:
+    """Is the top right of this window (where the Farol stands) free of the windows in front of it?"""
+    x, y, w, h = box
+    px, py = x + w * 0.75, y + 12
+    return not any(fx <= px <= fx + fw and fy <= py <= fy + fh for fx, fy, fw, fh in front)
+
+
 def _win() -> list:
     u = ctypes.windll.user32
-    out = []
+    out, front = [], []
 
     class RECT(ctypes.Structure):
         _fields_ = [("l", ctypes.c_long), ("t", ctypes.c_long), ("r", ctypes.c_long), ("b", ctypes.c_long)]
@@ -94,15 +104,18 @@ def _win() -> list:
     @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
     def each(hwnd, _):
         if u.IsWindowVisible(hwnd) and not u.IsIconic(hwnd):
+            r = RECT()
+            u.GetWindowRect(hwnd, ctypes.byref(r))
+            box = (r.l, r.t, r.r - r.l, r.b - r.t)
+            if box[2] < 60 or box[3] < 40:
+                return True
             n = u.GetWindowTextLengthW(hwnd)
+            buf = ctypes.create_unicode_buffer(n + 1)
             if n:
-                buf = ctypes.create_unicode_buffer(n + 1)
                 u.GetWindowTextW(hwnd, buf, n + 1)
-                if SPIN.search(buf.value):
-                    r = RECT()
-                    u.GetWindowRect(hwnd, ctypes.byref(r))
-                    if r.r - r.l > 120 and r.b - r.t > 80:
-                        out.append((buf.value, r.l, r.t, r.r - r.l, r.b - r.t))
+            if n and SPIN.search(buf.value) and box[2] > 120 and box[3] > 80 and _seen(box, front):
+                out.append((buf.value,) + box)
+            front.append(box)
         return True
 
     u.EnumWindows(each, 0)

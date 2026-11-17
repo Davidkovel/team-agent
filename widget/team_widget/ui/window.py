@@ -2570,8 +2570,9 @@ class WidgetWindow(QWidget):
         self.orb.on_icon = self._gauge_clicked
         self.orb.on_drag = self._hide_spot
         from .pet import Pet   # 16 Nov: the big pixel robot over every window, like the ChatGPT pets
-        self.pet = Pet(self.expand, self._open_notice)   # 16 Nov, Marco: our own little AMG, not a copy of the ChatGPT pet
+        self.pet = Pet(self.expand, self._open_notice)   # 17 Nov, Marco: Bit, our little pixel programmer (ui/pet.py)
         self.pet.show()
+        self._add_farol_control()
         app = QApplication.instance()   # the gauges' lines show in a dark glass tooltip, like the card
         if app is not None and "QToolTip" not in app.styleSheet():
             app.setStyleSheet(app.styleSheet() + "QToolTip { background: #141518; color: #f2f3f5; border: 1px solid #34373c;"
@@ -2756,6 +2757,14 @@ class WidgetWindow(QWidget):
 
         col.addWidget(apps)
         col.addWidget(side)
+
+        # Farol, the pet (16 Nov, Marco: «uma cena para aumentar e diminuir o tamanho»): his size and on/off, per computer
+        farol = Platter("Bit", "", "")
+        self.farol_sub = farol.sub
+        farol.sub.setText("o teu robô programador no ecrã")
+        self._farol_box = farol.box
+        self._add_farol_control()
+        col.addWidget(farol)
 
         # the FundedNext account (the Hub's #/fundednext in a few numbers); only on a PC with the account
         self.fn = Platter("FundedNext", "", "04")
@@ -3250,6 +3259,13 @@ class WidgetWindow(QWidget):
         self._snap = self._snapshot(modules=False)
         self.panel.hide()
         self._start_morph(-1)
+
+    def _add_farol_control(self):
+        """The central's Farol line, once both the pet and the central exist."""
+        if getattr(self, "_farol_ctl", None) is None and hasattr(self, "pet") and hasattr(self, "_farol_box"):
+            from .pet import FarolControl
+            self._farol_ctl = FarolControl(self.pet)
+            self._farol_box.addWidget(self._farol_ctl)
 
     def _modules(self) -> list:
         lay = self.panel.layout()

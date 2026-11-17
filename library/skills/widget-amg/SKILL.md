@@ -27,8 +27,9 @@ vazio que apanhava o rato) e o módulo «No robô» (antes «Na estrela») só a
   - pronto: «^ ^» azuis e um visto.
 - **Vai para onde o Claude está a trabalhar.** O título do terminal com ◐◓◑◒ quer dizer Claude a trabalhar;
   `claude_windows.working_windows()` dá a posição dessas janelas. Ele vai pelo portal para a da frente e trabalha lá. Nas
-  outras janelas a trabalhar aparece uma **chave pequena** no canto (`_Mark`): **nunca dois robôs**. Em casa fica a
-  **base** (`_Base`: o anel com a estrela) enquanto ele está fora.
+  outras janelas a trabalhar aparece a **estrela da Mercedes** no canto (`_Mark`, `assets/mercedes-star.svg`), como o
+  widget era antes do robô: **nunca dois robôs**. Recusado: o anel azul a marcar a casa enquanto ele está fora («não
+  percebi aquela cena azul») e a chave como marca.
 - **Movimento:**
   - perto, **de lado**, com as rodas a girar: pose think para a direita, pose work para a esquerda, sem espelhar o «AMG»;
   - longe, **mini teletransporte** pelo portal azul do GIF (`Desktop/AMG/Robozin/download.gif`), nunca a atravessar o ecrã;

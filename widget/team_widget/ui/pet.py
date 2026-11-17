@@ -437,60 +437,12 @@ def _fx(p: QPainter, fx: tuple):
 
 
 # ---------------------------------------------------------------------------------------------- the window
-class _Base(QWidget):
-    """His place on the screen while he is out: the portal ring, quiet, the star glowing in it (Marco: «o principal tinha
-    de estar sempre aí... alguma coisa da Mercedes»). Painted once, clicks go through it."""
-
-    def __init__(self):
-        kind = Qt.Window | Qt.WindowDoesNotAcceptFocus if sys.platform == "darwin" else Qt.Tool
-        super().__init__(None, kind | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.NoDropShadowWindowHint
-                         | Qt.WindowTransparentForInput)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.c = 2.2
-
-    def place(self, pet_at: QPoint, aw: int, ah: int, c: float):
-        self.c = c
-        h = round(7 * c)
-        self.setFixedSize(aw, h)
-        self.move(pet_at.x(), pet_at.y() + ah - h)
-
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        c, cx = self.c, self.width() / 2
-        cy = self.height() - 1.4 * c
-        rx, ry = 12 * c, 2.5 * c
-        hole = QRadialGradient(QPointF(cx, cy), rx)
-        hole.setColorAt(0, QColor(6, 30, 52, 190))
-        hole.setColorAt(0.85, QColor(10, 60, 100, 120))
-        hole.setColorAt(1, QColor(40, 170, 255, 0))
-        p.setPen(Qt.NoPen)
-        p.setBrush(hole)
-        p.drawEllipse(QPointF(cx, cy), rx, ry)
-        beam = QLinearGradient(0, cy - 5 * c, 0, cy)
-        beam.setColorAt(0, QColor(80, 200, 255, 0))
-        beam.setColorAt(1, QColor(80, 200, 255, 45))
-        p.setBrush(beam)
-        p.drawRect(QRectF(cx - rx * 0.7, cy - 5 * c, rx * 1.4, 5 * c))
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(QColor(80, 210, 255, 70), max(3.0, 1.2 * c)))
-        p.drawEllipse(QPointF(cx, cy), rx, ry)
-        p.setPen(QPen(QColor(150, 230, 255, 220), max(1.2, 0.4 * c)))
-        p.drawEllipse(QPointF(cx, cy), rx, ry)
-        # the star, lying in the ring
-        p.setPen(QPen(QColor(220, 240, 255, 210), max(1.0, 0.35 * c)))
-        p.drawEllipse(QPointF(cx, cy), 2.2 * ry, 0.8 * ry)
-        for ang in (-90, 30, 150):
-            r = math.radians(ang)
-            p.drawLine(QPointF(cx, cy), QPointF(cx + 2.1 * ry * math.cos(r), cy + 0.78 * ry * math.sin(r)))
-        p.end()
-
-
 class _Mark(QWidget):
-    """A Claude window that is working where the Farol is not: a small wrench in its corner (Marco: «não duplicar o
-    robô... pelo menos um simbolozinho da marreta, para destacar que ele estava lá a mexer»). Clicks go through it."""
+    """A Claude window working where the Farol is not: the Mercedes star in its corner, like the widget before the robot
+    (Marco: «um símbolo da Mercedes a destacar onde está a mexer... sempre respeitada a regra do robô principal»: one
+    robot, the others get the star). Painted once; clicks go through it."""
+    S = 34
+    _pix = {}
 
     def __init__(self):
         kind = Qt.Window | Qt.WindowDoesNotAcceptFocus if sys.platform == "darwin" else Qt.Tool
@@ -499,36 +451,39 @@ class _Mark(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.setFixedSize(30, 30)
+        self.setFixedSize(self.S, self.S)
 
     def place(self, win):
         _, x, y, w, h = win
-        self.move(x + w - 30 - 76, y + 1)          # in the title bar, left of the size
+        self.move(x + w - self.S - 70, y - 4)       # on the title bar, at the right
         if not self.isVisible():
             self.show()
+
+    def _star(self, dpr: float):
+        if dpr not in self._pix:
+            from PySide6.QtSvg import QSvgRenderer
+            n = round(self.S * dpr)
+            img = QImage(n, n, QImage.Format_ARGB32_Premultiplied)
+            img.fill(0)
+            q = QPainter(img)
+            q.setRenderHint(QPainter.Antialiasing)
+            QSvgRenderer(str(ASSETS / "mercedes-star.svg")).render(q, QRectF(n * 0.12, n * 0.12, n * 0.76, n * 0.76))
+            q.end()
+            img.setDevicePixelRatio(dpr)
+            self._pix[dpr] = img
+        return self._pix[dpr]
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        glow = QRadialGradient(QPointF(15, 15), 15)
-        glow.setColorAt(0.55, QColor(60, 190, 255, 90))
-        glow.setColorAt(1, QColor(60, 190, 255, 0))
+        s = self.S
+        shade = QRadialGradient(QPointF(s / 2, s / 2 + 1), s / 2)
+        shade.setColorAt(0.5, QColor(0, 0, 0, 120))
+        shade.setColorAt(1, QColor(0, 0, 0, 0))
         p.setPen(Qt.NoPen)
-        p.setBrush(glow)
-        p.drawEllipse(QPointF(15, 15), 15, 15)
-        p.setBrush(QColor("#0d0e11"))
-        p.setPen(QPen(QColor(120, 215, 255, 230), 1.4))
-        p.drawEllipse(QPointF(15, 15), 10.5, 10.5)
-        p.translate(15, 15)                          # the wrench, at 45 degrees
-        p.rotate(-45)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor("#e8edf3"))
-        p.drawRoundedRect(QRectF(-1.6, -2, 3.2, 8.5), 1.2, 1.2)
-        head = QPainterPath()
-        head.addEllipse(QPointF(0, -4.2), 3.8, 3.8)
-        cut = QPainterPath()
-        cut.addRect(QRectF(-1.5, -8.5, 3, 4.6))
-        p.drawPath(head.subtracted(cut))
+        p.setBrush(shade)
+        p.drawEllipse(QPointF(s / 2, s / 2 + 1), s / 2, s / 2)
+        p.drawImage(QPointF(0, 0), self._star(self.devicePixelRatioF()))
         p.end()
 
 
@@ -569,7 +524,6 @@ class Pet(QWidget):
         # rolling about the screen: where to (x), where he is (float x), when the next trip is, clicks going through
         self._roll, self._rx, self._next_roam, self._through = None, 0.0, now + random.uniform(30, 60), False
         self._tp = None                         # a mini teleport through the portal: (to x, when it started)
-        self._base = _Base()                    # his place, shown while he is out
         self._spots, self._marks, self._at_work, self._stay = [], [], False, False
         self._grab, self._dwell, self._passing = False, None, False   # out on your windows: clicks go through him
         self._busy = 0.0
@@ -723,7 +677,6 @@ class Pet(QWidget):
 
     def hideEvent(self, e):
         super().hideEvent(e)
-        self._base.hide()
         for m in self._marks:
             m.hide()
         self._through = False
@@ -1001,7 +954,7 @@ class Pet(QWidget):
         return QPoint(sx, sy)
 
     def _look_for_claude(self):
-        """Every 2 s: the Claude windows working on this computer. He goes to the front one; the others get the wrench."""
+        """Every 2 s: the Claude windows working on this computer. He goes to the front one; the others get the star."""
         if not self.isVisible() or not self._on:
             return
         wins = working_windows()
@@ -1068,13 +1021,9 @@ class Pet(QWidget):
                 self.move(self._at.x() - round(self._robot_x), self._at.y() - round(self._robot_y))
         home = home.x()
         through = abs(self._at.x() - home) > 3 or abs(self._at.y() - self._home.y()) > 3
-        if through != self._through:            # away from home the clicks go through him, and his place stays marked
-            self._through = through             # (he stays clickable and draggable: Marco wants to move him anywhere)
-            if through:
-                self._base.place(self._home, self.AW, self.AH, self.CELL)
-                self._base.show()
-            else:
-                self._base.hide()
+        if through != self._through:            # away from home (on a Claude window) the clicks go through him
+            self._through = through
+
 
     def _frame(self):
         now = time.monotonic()

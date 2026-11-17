@@ -63,7 +63,7 @@ async def state(user: User = Depends(viewer)):
         r = st["runs"].get(k, {})
         agents.append({"id": k, **a, "at": r.get("at"), "ok": r.get("ok"), "n": r.get("n"), "note": r.get("note", ""), "busy": BRAIN.busy == k})
     return {"now": now, "cfg": _cfg_out(), "agents": agents, "tokens": [_slim(t) for t in toks[:80]],
-            "n_tokens": len(st["tokens"]), "posts": st["posts"][:80], "hours": hours,
+            "n_tokens": len(st["tokens"]), "posts": [_read_of(p) for p in st["posts"][:80]], "hours": hours,
             # a cashtag counts when it is a coin we follow or two accounts used it: one WatcherGuru post about $NVDA is no memecoin
             "tickers": sorted(({"t": k, "n": len(v)} for k, v in tick.items() if not NOT_MEME.search(k) and (k in known or len(v) >= 2)),
                               key=lambda x: -x["n"])[:20],
@@ -71,7 +71,36 @@ async def state(user: User = Depends(viewer)):
             "cg_trending": st.get("cg_trending", []), "gmgn": BRAIN.gmgn,
             "x": {"on": bool(BRAIN.cfg.get("x_key")), "tweets": st.get("x_used", {}).get("tweets", 0),
                   "usd": round(st.get("x_used", {}).get("tweets", 0) * 0.00015, 2), "since": st.get("x_used", {}).get("since")},
-            "claude": {"installed": council.claude_exe() is not None, "today": BRAIN.claude_today()}}
+            "claude": {"installed": council.claude_exe() is not None, "today": BRAIN.claude_today()},
+            "ler": _ler(st)}
+
+
+def _read_of(p: dict) -> dict:
+    """A post with what the Leitor read in it (text, picture, video) and what it heard, when it did."""
+    out = {k: v for k, v in p.items() if k not in ("full", "refs", "media")}
+    r, h = BRAIN.state.get("reads", {}).get(p["id"]), BRAIN.state.get("heard", {}).get(p["id"])
+    m = p.get("media") or {}
+    out["has"] = [k for k in ("video", "voice", "photos") if m.get(k)]
+    if r and not r.get("miss"):
+        out["read"] = {k: r.get(k) for k in ("tipo", "moedas", "conviccao", "entrada", "alvo", "stop", "resumo", "citacao")}
+    if h:
+        out["heard"] = {"text": h.get("text", ""), "dur": h.get("dur"), "note": h.get("note", "")}
+    if p.get("full"):
+        out["text"] = p["full"]
+    return out
+
+
+def _ler(st: dict) -> dict:
+    from ..memes_ouvir import available
+    reads = st.get("reads", {})
+    kinds: dict[str, int] = {}
+    for p in st["posts"]:
+        r = reads.get(p["id"])
+        if p.get("inf") and r and not r.get("miss"):
+            kinds[r["tipo"]] = kinds.get(r["tipo"], 0) + 1
+    return {"on": BRAIN.cfg.get("ler", True), "ears": available(), "today": BRAIN.reader.day_count(), "cap": BRAIN.cfg.get("ler_cap", 40),
+            "left": len(BRAIN.reader.queue()), "heard": sum(1 for h in st.get("heard", {}).values() if h.get("text")),
+            "kinds": kinds, "cost": st.get("ler_cost", 0)}
 
 
 READS = {"telegram": ("live", "Lido ao minuto"), "reddit": ("live", "Lido de 5 em 5 minutos")}
@@ -113,7 +142,8 @@ def _inf_posts(st: dict) -> list[dict]:
                 # «since we saw it», never «since he said it»
                 coins.append({**_slim(t), "p0": c["p0"], "late": c["t0"] - p["t"] > 900,
                               "since": round((t["price"] / c["p0"] - 1) * 100, 1) if c.get("p0") and t.get("price") else None})
-        out.append({**{k: p[k] for k in ("id", "src", "platform", "who", "text", "url", "t", "tickers")},
+        rp = _read_of(p)
+        out.append({**{k: rp.get(k) for k in ("id", "src", "platform", "who", "text", "url", "t", "tickers", "read", "heard", "has")},
                     "name": i.get("name") or i["handle"], "avatar": i.get("avatar"), "coins": coins})
         if len(out) >= 40:
             break
@@ -153,6 +183,8 @@ class Cfg(BaseModel):
     gmgn_key: str | None = None
     x_key: str | None = None
     x_every: int | None = None
+    ler: bool | None = None
+    ler_cap: int | None = None
 
 
 NAME = re.compile(r"^[A-Za-z0-9_]{3,40}$")

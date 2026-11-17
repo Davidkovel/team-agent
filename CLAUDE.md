@@ -614,6 +614,17 @@ nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada v
   buraco negro tem o seu próprio `click` (`holeClick`) e o da página ignora o que está dentro dele; o `vidro.js` salta o `.mc-hole`
   (punha-lhe o fundo transparente). Construído uma vez: as atualizações só repintam os Farois, a doca e o vidro aberto. Gira e
   puxa faíscas só com um agente a trabalhar ou maximizado (10 imagens/s, ~4% de um núcleo); parado, uma imagem só.
+- **O Leitor** (17 nov, Marco: «não pode só dizer o que está lá no Telegram... tens mesmo que ler o que está escrito, ouvir o que
+  eles dizem nos vídeos»), `backend/app/memes_ler.py` + `memes_ouvir.py`, 7.º Farol e portal «O que dizem» (o primeiro da doca):
+  cada publicação de um influencer é lida por inteiro (`full`, até 3000 car.), as imagens vão ao Claude (ferramenta Read numa
+  pasta só dele) e o vídeo/áudio do `t.me/s` (`tg_media`) é transcrito **neste PC** pelo faster-whisper (modelo `small`, ~460 MB
+  em `~/.team-agent/memes/whisper`, processo à parte com `nice`, 2 por volta, ≤ 15 min; o ficheiro é apagado logo). Instalar à
+  mão em cada PC que corre os agentes: `uv pip install --python <venv>/bin/python faster-whisper "av<16"` (o av 19 parte o
+  faster-whisper 1.2); sem ele o Leitor só lê texto e imagens. O Claude do PC (`council.ask_claude`, `ler_model` sonnet, ≤ 10
+  publicações por chamada, `ler_cap` 40 chamadas/dia, ≈ 0,05 $ cada) diz o tipo (compra, venda, aviso, resultado = mostra lucro
+  de um call antigo, notícia, conversa), moedas, certeza 0-5, entrada/alvo/stop, uma frase e a citação. As moedas que só o vídeo
+  ou a imagem diziam voltam ao post (`tickers`, `addrs`, `refs`) e o Alfred conta-as; **só `compra` (ou ainda não lido) entra no
+  ranking**: «olhem o lucro que fizemos» já não conta como call novo. Desliga-se em Agentes (`ler: false`).
 - **X a sério pelo twitterapi.io** (`x_page`/`x_accounts` no `memes.py`, `x_history` no `memes_calls.py`): com a chave (Memecoins ›
   Agentes › Regras, `x_key` só no `state.json` deste PC, nunca na base nem na página) o Oráculo lê cada influencer do X de
   `x_every` (15) em 15 min e o Alfred lê 30 dias para trás; `x_used` conta os tweets (≈ 0,15 $ por 1000). Testado só com uma

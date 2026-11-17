@@ -105,3 +105,31 @@ def test_x_tweets_through_twitterapi(tmp_path, monkeypatch):
     p = b.state["posts"][0]
     assert p["platform"] == "x" and p["tickers"] == ["HWAN"] and p["t"] == 1794855600
     assert b.state["influencers"][0]["name"] == "Dani" and b.state["x_used"]["tweets"] == 1
+
+
+def test_leitor_reads_video_coins_into_calls(tmp_path, monkeypatch):
+    """A Telegram block's media; the coins the Leitor heard become the post's; an old-profit post is no call."""
+    from app.memes_calls import board
+    from app.memes_ler import tg_media
+    block = ('<a class="tgme_widget_message_photo_wrap blured" style="width:1px;background-image:url(\'https://cdn.t/p1.jpg\')"></a>'
+             '<video src="https://cdn.t/v.mp4?token=a" class="tgme_widget_message_video js-message_video"></video>'
+             '<time class="message_video_duration js-message_video_duration">1:04</time>')
+    m = tg_media(block)
+    assert m == {"video": "https://cdn.t/v.mp4?token=a", "dur": 64, "photos": ["https://cdn.t/p1.jpg"]}
+    b = brain(tmp_path, monkeypatch)
+    b.state["influencers"].append({"platform": "telegram", "handle": "martynplaybook", "note": ""})
+    assert b._post("tg:martynplaybook/9", "Telegram", "martynplaybook", "", "u", time.time(), "telegram", m)
+    p = b.state["posts"][0]
+    assert p["media"]["video"] and b.reader.queue() == [p]
+    r = b.reader.apply(p, {"tipo": "resultado", "moedas": [{"symbol": "$mihau"}, {"symbol": "SOL"}, {"symbol": "NVDA"}], "conviccao": 9, "resumo": "mostra o lucro"})
+    assert r["tipo"] == "resultado" and r["conviccao"] == 5 and [c["symbol"] for c in r["moedas"]] == ["MIHAU"]
+    assert p["tickers"] == ["MIHAU"] and p["refs"] == "$MIHAU"
+    b.state["reads"][p["id"]] = r
+    b.judge.collect(b.state["posts"])
+    x = next(iter(b.state["calls"].values()))
+    assert x["ref"] == "MIHAU" and x["tipo"] == "resultado"
+    x.update(coin={"key": "k", "symbol": "MIHAU"}, r24=50.0)
+    assert board(b.state)["ranking"][0]["calls"] == 0   # showing an old profit is not a call
+    b.state["reads"][p["id"]]["tipo"] = "compra"
+    b.judge.collect(b.state["posts"])
+    assert board(b.state)["ranking"][0]["judged"] == 1

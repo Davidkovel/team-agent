@@ -58,16 +58,21 @@ class Judge:
     # ---------- 1. collect: the influencers' posts that name a coin ----------
     def collect(self, posts: list[dict]):
         infs = {(i["platform"], i["handle"].lower()) for i in self.b.state["influencers"]}
+        reads, heard = self.b.state.get("reads", {}), self.b.state.get("heard", {})
         for p in posts:
             if (p.get("platform"), p["who"].lower()) not in infs or _now() - p["t"] > DAYS * 86400:
                 continue
-            addrs, tickers = call_refs(p["text"])
+            # p["refs"]: the coins only the Leitor found (said in the video, shown in a picture)
+            addrs, tickers = call_refs(p["text"] + " " + p.get("refs", ""))
             refs = [("contrato", a) for a in addrs] or [("ticker", k) for k in tickers]
+            read = reads.get(p["id"]) or {}
             for how, ref in refs[:2]:
                 cid = f"{p['id']}|{ref}"
                 if cid not in self.calls:
                     self.calls[cid] = {"id": cid, "post": p["id"], "platform": p.get("platform"), "who": p["who"], "url": p["url"],
-                                       "text": p["text"][:300], "t": p["t"], "how": how, "ref": ref, "coin": None}
+                                       "text": (p["text"] or read.get("resumo") or "")[:300], "t": p["t"], "how": how, "ref": ref, "coin": None}
+                if read:
+                    self.calls[cid].update(tipo=read["tipo"], resumo=read.get("resumo", ""), heard=p["id"] in heard)
 
     async def history(self, c: httpx.AsyncClient):
         """Read each influencer channel backwards, a few pages a pass, until DAYS days are covered."""
@@ -246,7 +251,8 @@ def verdict(n: int, up: int, total: float) -> tuple[str, str]:
 def board(state: dict) -> dict:
     """The ranking of the influencers by their judged calls, each with its day by day, and the calls themselves."""
     infs = state["influencers"]
-    calls = [x for x in state.get("calls", {}).values() if x.get("coin")]
+    # a post that only shows an old profit, tells to sell or warns is no buy call (the Leitor read it): out of the ranking
+    calls = [x for x in state.get("calls", {}).values() if x.get("coin") and x.get("tipo") in (None, "compra")]
     # the same coin said again by the same person within 24 h is the same call (Dippy wrote $HWAN three times in 2 h)
     first: dict = {}
     for x in sorted(calls, key=lambda x: x["t"]):
@@ -280,7 +286,7 @@ def board(state: dict) -> dict:
     rows = []
     for x in sorted(calls, key=lambda x: -x["t"])[:120]:
         i = face.get((x.get("platform"), x["who"].lower()), {})
-        rows.append({k: x.get(k) for k in ("id", "who", "platform", "url", "text", "t", "how", "p0", "peak", "low", "now", "r1h", "r24", "done", "err")}
+        rows.append({k: x.get(k) for k in ("id", "who", "platform", "url", "text", "t", "how", "p0", "peak", "low", "now", "r1h", "r24", "done", "err", "tipo", "resumo", "heard")}
                     | {"coin": {k: x["coin"].get(k) for k in ("symbol", "name", "image", "url", "key", "chain")}, "name": i.get("name") or x["who"],
                        "avatar": i.get("avatar")})
     return {"ranking": out, "calls": rows, "waiting": sum(1 for x in state.get("calls", {}).values() if x.get("coin") is None)}

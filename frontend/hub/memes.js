@@ -85,6 +85,7 @@
   function state(a) {
     if (a.id === "batman" && !S.cfg.claude) return ["off", t("Desligado")];
     if (a.id === "gmgn" && !(S.gmgn && S.gmgn.ok)) return ["off", t("Por ligar")];
+    if (a.id === "leitor" && !S.ler.on) return ["off", t("Desligado")];
     if (a.busy) return ["busy", t("A trabalhar")];
     if (!a.at) return ["off", t("Ainda não correu")];
     return a.ok ? ["ok", ago(a.at)] : ["bad", t("Falhou {h}", { h: ago(a.at) })];
@@ -116,10 +117,10 @@
   // or while it is maximised; otherwise it is one still frame.
   const FAROL_EYES = { idle: [[121, 102, 138, 117], [158, 101, 175, 117]], think: [[164, 89, 177, 100], [202, 77, 214, 89]],
     work: [[115, 130, 127, 143], [151, 136, 163, 150]] };   // ui/pet.py EYES, in the 293 × 320 pose images
-  const ORBIT = { oraculo: -150, robin: -90, lucius: -30, arbitro: 30, batman: 90, gmgn: 150 };
-  const JOB = { oraculo: "Lê o X, o Telegram e o Reddit", robin: "Vê as bolsas de memecoins", lucius: "Vê se as moedas são seguras",
+  const ORBIT = { oraculo: -154, leitor: -103, robin: -51, lucius: 0, arbitro: 51, batman: 103, gmgn: 154 };
+  const JOB = { oraculo: "Apanha o X, o Telegram e o Reddit", leitor: "Lê, vê e ouve o que os influencers dizem", robin: "Vê as bolsas de memecoins", lucius: "Vê se as moedas são seguras",
     arbitro: "Julga os calls", batman: "Escreve relatórios com o Claude", gmgn: "Liga ao tracker do David e do Kovel" };
-  const PORTAL_OF = { oraculo: "redes", robin: "moedas", lucius: "perigo", arbitro: "calls", batman: "relatorios", gmgn: "gmgn" };
+  const PORTAL_OF = { oraculo: "redes", leitor: "leitura", robin: "moedas", lucius: "perigo", arbitro: "calls", batman: "relatorios", gmgn: "gmgn" };
   const live = (a) => a.busy || (a.ok && a.at && Date.now() / 1000 - a.at < 150);
   const look = (a) => state(a)[0] === "off" ? "off" : a.ok === false ? "bad" : a.busy ? "work" : live(a) ? "think" : "idle";
   const short = (s) => String(s || "").split(/[;,(]/)[0].trim();
@@ -177,10 +178,10 @@
     if (st) st.textContent = busy.length ? t("{a} a trabalhar", { a: busy.join(", ") }) : t("{n} moedas · {p} publicações · {c} calls lá dentro", { n: S.n_tokens, p: S.posts.length, c: B.calls.length });
   }
 
-  const DOCK = [["x", "X"], ["telegram", "Telegram"], ["reddit", "Reddit"], ["calls", "Calls"], ["moedas", "Moedas"], ["infs", "Influencers"], ["relatorios", "Relatórios"]];
+  const DOCK = [["leitura", "O que dizem"], ["x", "X"], ["telegram", "Telegram"], ["reddit", "Reddit"], ["calls", "Calls"], ["moedas", "Moedas"], ["infs", "Influencers"], ["relatorios", "Relatórios"]];
   const bySrc = (src) => S.posts.filter((p) => p.src.toLowerCase() === src);
   function count(k) {
-    return { x: bySrc("x").length, telegram: bySrc("telegram").length, reddit: bySrc("reddit").length, calls: B.calls.length, moedas: S.n_tokens,
+    return { leitura: S.inf_posts.filter((p) => p.read).length, x: bySrc("x").length, telegram: bySrc("telegram").length, reddit: bySrc("reddit").length, calls: B.calls.length, moedas: S.n_tokens,
       infs: S.influencers.length, relatorios: S.reports.length }[k];
   }
   function paintDock() {
@@ -197,6 +198,13 @@
     if (portal === "x") html = head("X (Twitter)", S.x.on ? t("contas dos influencers e do Tree News") : t("sem chave: só o que o Tree News passa")) + posts(bySrc("x"), t("Ainda nada do X."));
     else if (portal === "telegram") html = head("Telegram", t("{n} canais", { n: S.cfg.telegram.length + S.influencers.filter((i) => i.platform === "telegram").length })) + posts(bySrc("telegram"), t("Ainda nada do Telegram."));
     else if (portal === "reddit") html = head("Reddit", S.cfg.reddit.map((r) => "r/" + r).join(" · ")) + posts(bySrc("reddit"), t("Ainda nada do Reddit."));
+    else if (portal === "leitura") {
+      const L = S.ler, l = S.inf_posts.filter((p) => p.read && SAYF[sayf][1](p.read.tipo));
+      html = head(t("O que os influencers dizem"), L.ears ? t("lido, visto nas imagens e ouvido nos vídeos pelo Leitor") : t("lido e visto nas imagens pelo Leitor"))
+        + `<div class="mc-dr-pad mc-sayf">${Object.entries(SAYF).map(([k, [lb]]) => `<button type="button" class="${k === sayf ? "on" : ""}" data-sayf="${k}">${esc(t(lb))}</button>`).join("")}</div>`
+        + (l.length ? `<div class="mc-dr-l">${l.slice(0, 40).map(said).join("")}</div>`
+          : `<p class="mc-dim mc-dr-e">${esc(!L.on ? t("O Leitor está desligado (Agentes).") : L.left ? t("O Leitor está a ler {n} publicações.", { n: L.left }) : t("Nada deste tipo nas últimas 48 horas."))}</p>`);
+    }
     else if (portal === "redes") html = head(t("Tudo o que o Oráculo leu"), t("X, Telegram e Reddit")) + posts([...S.posts], t("Ainda nada."));
     else if (portal === "calls") html = head(t("Calls"), t("o resultado 24 h depois")) + (B.calls.length ? `<div class="mc-dr-l">${B.calls.slice(0, 40).map((x) => `<div class="mc-dr-call">${face(x)}<span><b>${esc(x.name)}</b><small>${esc(when(x.t))}</small></span>${mini(x)}</div>`).join("")}</div>` : `<p class="mc-dim mc-dr-e">${esc(t("Ainda sem calls."))}</p>`) + `<a class="mc-more mc-dr-more" href="#/meme-calls">${esc(t("Abrir a página dos calls"))} ›</a>`;
     else if (portal === "moedas" || portal === "perigo") {
@@ -213,7 +221,7 @@
       html = head(r.name || "@" + h, `${PLAT[pl] || pl} · ${r.verdict ? t(r.verdict) : ""}`)
         + `<div class="mc-dr-pad">${r.judged ? `<p class="mc-dr-big">${usdSig(r.usd)}<small>${esc(t("100 $ em cada call · {u} subiram, {d} desceram", { u: r.up, d: r.down }))}</small></p>` : ""}
            ${B.calls.filter((x) => x.platform === pl && x.who.toLowerCase() === h.toLowerCase()).slice(0, 10).map(mini).join("") || `<p class="mc-dim">${esc(t("Ainda sem calls."))}</p>`}</div>`
-        + (mine.length ? `<p class="mc-sub mc-dr-pad">${esc(t("O que publicou"))}</p>` + posts(mine, "") : "");
+        + (mine.length ? `<p class="mc-sub mc-dr-pad">${esc(t("O que publicou"))}</p>` + `<div class="mc-dr-l">${mine.sort((a, b) => b.t - a.t).slice(0, 30).map((p) => p.read ? said({ ...p, name: r.name || p.who, avatar: r.avatar }) : post(p)).join("")}</div>` : "");
     }
     paint(d, `<div class="mc-dr-in">${html || ""}</div>`);
   }
@@ -299,6 +307,8 @@
   async function holeClick(e) {
     const pt = e.target.closest("[data-portal]");
     if (pt) { portal = portal === pt.dataset.portal ? "" : pt.dataset.portal; paintDock(); paintOrbit(); paintDrawer(); return; }
+    const sf = e.target.closest("[data-sayf]");
+    if (sf) { sayf = sf.dataset.sayf; paintDrawer(); return; }
     if (e.target.closest("[data-act=full]")) return setFull(!holeFull);
     const k = e.target.closest("[data-key]");
     if (k) return openToken(k.dataset.key);
@@ -422,10 +432,36 @@
       <p class="mc-foot">${esc(t("Na pool = quanto dinheiro há para comprar e vender. Tamanho = quanto vale a moeda toda. Quando o tamanho é muitas vezes maior do que a pool, um vendedor grande derruba o preço."))}</p>`);
   }
 
+  // 17 nov, Marco: «tens mesmo que ler o que está escrito, ouvir o que eles dizem nos vídeos... super organizado». What the
+  // Leitor (backend/app/memes_ler.py) read in each influencer post: the kind in one coloured word, one plain sentence, the
+  // coins, how sure he sounds, entry/target/stop when he said them, his strongest line, and what he said in the video.
+  const TIPO = { compra: ["Manda comprar", "ok"], venda: ["Manda vender", "bad"], aviso: ["Avisa de perigo", "bad"],
+    resultado: ["Mostra lucro antigo", "warn"], noticia: ["Notícia", ""], conversa: ["Conversa", "mute"] };
+  const SAYF = { tudo: ["Tudo", (k) => k !== "conversa"], compra: ["Mandam comprar", (k) => k === "compra"],
+    perigo: ["Avisos e vendas", (k) => k === "aviso" || k === "venda"], resultado: ["Mostram lucro", (k) => k === "resultado"], conversa: ["Conversa", (k) => k === "conversa"] };
+  let sayf = "tudo";
+  const tipo = (k) => { const v = TIPO[k] || TIPO.conversa; return `<span class="mc-v ${v[1]} mc-tipo">${esc(t(v[0]))}</span>`; };
+  const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  function said(p) {
+    const r = p.read, h = p.heard, has = p.has || [];
+    const plan = [["Entrada", r.entrada], ["Alvo", r.alvo], ["Stop", r.stop]].filter((x) => x[1]);
+    return `<article class="mc-said">
+      <header>${face(p)}<span><b>${esc(p.name || "@" + p.who)}</b><small>${esc(PLAT[p.platform] || p.src)} · ${esc(ago(p.t))}${has.includes("video") ? " · " + esc(t("vídeo")) : has.includes("voice") ? " · " + esc(t("áudio")) : ""}${has.includes("photos") ? " · " + esc(t("imagem")) : ""}</small></span>${tipo(r.tipo)}</header>
+      <p class="mc-said-r">${esc(r.resumo || t("Sem nada para dizer."))}</p>
+      ${(r.moedas || []).length || r.conviccao ? `<div class="mc-said-m">${(r.moedas || []).map((c) => `<span class="mc-sdc">${c.symbol ? "$" + esc(c.symbol) : esc(c.address.slice(0, 4) + "…" + c.address.slice(-4))}</span>`).join("")}
+        ${r.conviccao ? `<span class="mc-conv" title="${esc(t("Quão convencido parece, de 0 a 5"))}">${esc(t("Certeza"))} ${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= r.conviccao ? "on" : ""}"></i>`).join("")}</span>` : ""}</div>` : ""}
+      ${plan.length ? `<div class="mc-said-p">${plan.map(([k, v]) => `<span><small>${esc(t(k))}</small>${esc(v)}</span>`).join("")}</div>` : ""}
+      ${r.citacao ? `<blockquote>«${esc(r.citacao)}»</blockquote>` : ""}
+      ${h && h.text ? `<details class="mc-said-h"><summary>${esc(t("O que disse no vídeo"))}${h.dur ? " · " + mmss(h.dur) : ""}</summary><p>${esc(h.text)}</p></details>` : h && h.note ? `<p class="mc-dim mc-said-n">${esc(h.note)}</p>` : ""}
+      <a class="mc-more" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(t("Abrir a publicação"))} ›</a>
+    </article>`;
+  }
+
   // the posts that named a coin, inside the coin's window
   const post = (p) => `<a class="mc-post ${p.inf ? "is-inf" : ""}" href="${esc(p.url)}" target="_blank" rel="noopener">
     <header><span class="mc-src">${esc(p.src)}</span><b>@${esc(p.who)}</b>${p.inf ? ui.tag(t("Influencer"), "ok") : ""}<time>${esc(ago(p.t))}</time></header>
-    <p>${esc(p.text)}</p>${p.tickers.length ? `<div class="mc-tags">${p.tickers.map((k) => `<span>$${esc(k)}</span>`).join("")}</div>` : ""}</a>`;
+    ${p.read ? `<div class="mc-post-r">${tipo(p.read.tipo)}<span>${esc(p.read.resumo)}</span></div>` : ""}
+    ${p.text ? `<p>${esc(p.text)}</p>` : ""}${p.tickers.length ? `<div class="mc-tags">${p.tickers.map((k) => `<span>$${esc(k)}</span>`).join("")}</div>` : ""}</a>`;
 
   /* ---------------------------------------------------------------- Agentes */
   function agentes() {
@@ -437,6 +473,8 @@
           ? `<div class="mc-ag-act"><button type="button" class="btn sm ${cl ? "" : "primary"}" data-act="claude">${esc(cl ? t("Desligar") : t("Ligar o Batman"))}</button>
              ${cl ? `<button type="button" class="btn sm quiet" data-act="run" data-agent="batman">${esc(t("Escrever relatório agora"))}</button>` : ""}
              <small>${esc(S.claude.installed ? t("{n} de {c} relatórios hoje · usa o Claude deste PC", { n: S.claude.today, c: S.cfg.cap }) : t("O Claude Code não está instalado neste PC"))}</small></div>`
+          : a.id === "leitor" ? `<div class="mc-ag-act"><button type="button" class="btn sm ${S.ler.on ? "" : "primary"}" data-act="ler">${esc(S.ler.on ? t("Desligar") : t("Ligar o Leitor"))}</button>
+             <small>${esc(t("{n} de {c} leituras hoje · usa o Claude deste PC", { n: S.ler.today, c: S.ler.cap }))} · ${esc(S.ler.ears ? t("{n} vídeos ouvidos", { n: S.ler.heard }) : t("sem ouvidos neste PC (falta o faster-whisper)"))}</small></div>`
           : a.id === "gmgn" && !(S.gmgn && S.gmgn.ok) ? `<div class="mc-ag-act"><small>${esc(t("Por ligar: ver «Motor GMGN» mais abaixo."))}</small></div>` : "";
         return `<article class="panel mc-ag ${a.busy ? "is-busy" : ""}">
           <header><span class="mc-mono">${esc(a.code)}</span><div><b>${esc(t(a.dept))}</b><small>${esc(a.name)}</small></div><span class="st ${st[0]}"><i></i>${esc(st[1])}</span></header>
@@ -580,6 +618,7 @@
           await load(true);
         }
         if (b.dataset.act === "toggle") { S.cfg = (await api("/api/memes/cfg", { method: "POST", body: { on: !S.cfg.on } })).cfg; paintCtl(); }
+        if (b.dataset.act === "ler") { S.cfg = (await api("/api/memes/cfg", { method: "POST", body: { ler: !S.ler.on } })).cfg; S.ler.on = S.cfg.ler; agentes(); }
         if (b.dataset.act === "claude") { S.cfg = (await api("/api/memes/cfg", { method: "POST", body: { claude: !S.cfg.claude } })).cfg; agentes(); }
         if (b.dataset.act === "run") {
           const r = await api("/api/memes/run", { method: "POST", body: { agent: b.dataset.agent } });

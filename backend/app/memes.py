@@ -34,6 +34,7 @@ import httpx
 
 from . import gmgn_link
 from .memes_calls import Judge
+from .memes_ler import Reader, tg_media
 
 log = logging.getLogger("memes")
 DIR = Path.home() / ".team-agent" / "memes"
@@ -57,12 +58,14 @@ DEFAULT = {
     "telegram": ["pumpfunalerts", "dexscreener_trending", "solanatrending", "memecoins", "solanadailynews", "WatcherGuru", "whale_alert_io"],
     "reddit": ["memecoins", "SolanaMemeCoins", "CryptoMoonShots", "solana", "CryptoCurrency"],
     "gmgn_db": "", "gmgn_url": "", "gmgn_key": "",
-    "x_key": "", "x_every": 15,   # twitterapi.io: the key stays on this PC (state.json), never in the database nor the page
+    "x_key": "", "x_every": 15,
+    "ler": True, "ler_cap": 40, "ler_model": "sonnet",   # the Leitor: the Claude of this PC reads each influencer post   # twitterapi.io: the key stays on this PC (state.json), never in the database nor the page
 }
 AGENTS = {
     "robin": {"name": "Robin", "dept": "Mercado DEX", "code": "DEX", "does": "Lê a DexScreener, a GeckoTerminal e a CoinGecko: as moedas que estão a subir, com preço, volume, liquidez e compras/vendas.", "every": 180},
     "oraculo": {"name": "Oráculo", "dept": "Redes sociais", "code": "SOC", "does": "Ouve o X (pelo Tree News), os canais públicos do Telegram e o Reddit, e conta quem fala de cada moeda. Os influencers da equipa pesam três vezes.", "every": 300},
     "lucius": {"name": "Lucius", "dept": "Segurança", "code": "SEG", "does": "Passa cada candidata pelo RugCheck e pelas regras do Hub: liquidez fina, moeda de horas, vendas muito acima das compras.", "every": 180},
+    "leitor": {"name": "Leitor", "dept": "Lê e ouve", "code": "LER", "does": "Lê cada publicação dos influencers por inteiro, vê as imagens e ouve os vídeos (transcritos neste PC), e diz o que cada uma diz: manda comprar, vender, avisa de perigo ou só mostra lucro antigo.", "every": 300},
     "arbitro": {"name": "Alfred", "dept": "Árbitro dos calls", "code": "ARB", "does": "Pega em cada call dos nossos influencers, vê o preço da moeda na hora do call e 24 horas depois, e diz se subiu ou desceu.", "every": 300},
     "batman": {"name": "Batman", "dept": "Analista", "code": "ANL", "does": "Com o Claude ligado, lê as melhores candidatas e o que se diz delas, procura na web o que os influencers disseram e escreve um relatório com veredicto.", "every": 0},
     "gmgn": {"name": "Motor GMGN", "dept": "Sinais e paper trading", "code": "GMG", "does": "O gmgn-tracker: apanha todas as moedas novas da pump.fun, faz paper trading por estratégia e aprende quais ganham.", "every": 300},
@@ -98,6 +101,7 @@ class Brain:
         self.lock = asyncio.Lock()
         self._load()
         self.judge = Judge(self)
+        self.reader = Reader(self)
 
     # ---------- state ----------
     def _load(self):
@@ -276,8 +280,12 @@ class Brain:
         who = (who or "").lower().lstrip("@")
         return next((i for i in self.state["influencers"] if i["handle"].lower().lstrip("@") == who and i["platform"] in (platform, "any")), None)
 
-    def _post(self, pid: str, src: str, who: str, text: str, url: str, ts: float, platform: str) -> bool:
+    def _post(self, pid: str, src: str, who: str, text: str, url: str, ts: float, platform: str, media: dict | None = None) -> bool:
         seen = self.state["seen_posts"]
+        if pid in seen and media:   # posts seen before the Leitor existed get their video and photos
+            old = next((p for p in self.state["posts"] if p["id"] == pid and p.get("inf") and "media" not in p), None)
+            if old:
+                old["media"] = media
         if pid in seen or _now() - ts > 48 * 3600:   # an old post says nothing about now
             return False
         seen.append(pid)
@@ -287,8 +295,11 @@ class Brain:
         inf = self._influencer(platform, who)
         if not tickers and not addrs and not inf:
             return False
-        self.state["posts"].insert(0, {"id": pid, "src": src, "platform": platform, "who": who, "text": text[:400], "url": url,
-                                       "t": ts, "tickers": tickers[:8], "addrs": addrs[:4], "inf": bool(inf)})
+        p = {"id": pid, "src": src, "platform": platform, "who": who, "text": text[:400], "url": url,
+             "t": ts, "tickers": tickers[:8], "addrs": addrs[:4], "inf": bool(inf)}
+        if inf:   # the Leitor reads the whole of it, and sees and hears its media
+            p.update({"full": text[:3000]} if len(text) > 400 else {}, **({"media": media} if media else {}))
+        self.state["posts"].insert(0, p)
         del self.state["posts"][600:]
         return True
 
@@ -317,10 +328,11 @@ class Brain:
                 for block in r.text.split('class="tgme_widget_message_wrap')[1:]:
                     pid, body, when = (re.search(r'data-post="([^"]+)"', block), re.search(r'tgme_widget_message_text[^>]*>(.*?)</div>', block, re.S),
                                        re.search(r'datetime="([^"]+)"', block))
-                    if not (pid and body and when):
+                    media = tg_media(block)
+                    if not (pid and when and (body or (media and self._influencer("telegram", ch)))):   # a video alone counts for an influencer
                         continue
-                    text = html.unescape(TAG.sub(" ", body.group(1).replace("<br/>", "\n"))).strip()
-                    n += self._post("tg:" + pid.group(1), "Telegram", ch, text, f"https://t.me/{pid.group(1)}", _utc(when.group(1)), "telegram")
+                    text = html.unescape(TAG.sub(" ", body.group(1).replace("<br/>", "\n"))).strip() if body else ""
+                    n += self._post("tg:" + pid.group(1), "Telegram", ch, text, f"https://t.me/{pid.group(1)}", _utc(when.group(1)), "telegram", media)
             except (httpx.HTTPError, ValueError) as e:
                 errs.append(f"t.me/{ch}: {type(e).__name__}")
             await asyncio.sleep(0.4)
@@ -550,7 +562,10 @@ class Brain:
                  f"mcap {t.get('mcap')} | liq {t.get('liq')} | 1h {t.get('ch1')}% 24h {t.get('ch24')}% | compras/vendas 1h {t.get('buys1')}/{t.get('sells1')} | "
                  f"idade {round(t['age_h'], 1) if t.get('age_h') is not None else '?'} h | menções 6h {t.get('n6')} | alertas: {'; '.join(f[1] for f in t.get('flags') or []) or 'nenhum'} | x: {t.get('twitter') or '-'}"
                  for t in top]
-        posts = [f"- [{p['src']} @{p['who']}{' INFLUENCER' if p['inf'] else ''}] {p['text'][:220]}" for p in self.state["posts"][:40]]
+        reads = self.state.get("reads", {})
+        posts = [f"- [{p['src']} @{p['who']}{' INFLUENCER' if p['inf'] else ''}] {p['text'][:220]}"
+                 + (f" || O Leitor leu: {reads[p['id']]['tipo']}, {reads[p['id']]['resumo']}" if p["id"] in reads and reads[p["id"]].get("resumo") else "")
+                 for p in self.state["posts"][:40]]
         infs = ", ".join(f"{i['platform']}:@{i['handle']}" for i in self.state["influencers"]) or "nenhum"
         system = ("És o Batman, o analista de memecoins da AMG. Escreves em português de Portugal, curto e direto, para quem não é "
                   "especialista. Nunca prometes lucro: memecoins são de altíssimo risco e quase todas vão a zero. Só vigiamos, não compramos.")
@@ -583,7 +598,7 @@ class Brain:
     async def tick(self, force: str = ""):
         async with self.lock:
             async with httpx.AsyncClient(headers=UA, timeout=20, follow_redirects=True) as c:
-                for name, fn in (("oraculo", self.oraculo), ("robin", self.robin), ("lucius", self.lucius), ("arbitro", self.judge.run), ("gmgn", self.gmgn_pass)):
+                for name, fn in (("oraculo", self.oraculo), ("leitor", self.reader.run), ("robin", self.robin), ("lucius", self.lucius), ("arbitro", self.judge.run), ("gmgn", self.gmgn_pass)):
                     if force in (name, "all") or (self.cfg["on"] and self.due(name)):
                         self.busy = name
                         try:

@@ -1,6 +1,6 @@
 ---
 name: widget-amg
-description: Como mexer no widget do Agente AMG (o botão no ambiente de trabalho e a central de comando, Qt/PySide6 em widget/team_widget) sem o piorar. Usar sempre que o pedido fala do widget, do relógio, da estrela, da central de comando, das pílulas/ícones ao lado do relógio, dos tokens ou das câmaras no widget.
+description: Como mexer no widget do Agente AMG (o botão no ambiente de trabalho e a central de comando, Qt/PySide6 em widget/team_widget) sem o piorar. Usar sempre que o pedido fala do widget, do Farol (o pet, o robô no ecrã), do relógio, da estrela, da central de comando, das pílulas/ícones ao lado do relógio, dos tokens ou das câmaras no widget.
 ---
 
 # Widget AMG: o que o Marco gosta, o que já correu mal e como testar
@@ -14,6 +14,34 @@ vêm do Hub em `GET /api/local/live` (`backend/app/routers/local.py`).
 de menus, `mac/build.sh` + `main.swift`) também. Com o Farol ligado ele é o botão: o `StarOrb` fica escondido (era um sítio
 vazio que apanhava o rato) e o módulo «No robô» (antes «Na estrela») só aparece com o Farol desligado (`_orb_wanted`,
 `_farol_changed`). Onde este texto diz «estrela», leia-se o botão em repouso.
+
+## O Farol, o pet (`ui/pet.py`, `ui/claude_windows.py`), decidido a 17 nov depois de muitas voltas
+
+- **É o desenho do Marco** (`assets/farol-{idle,think,work}.png`) em **cromado preto AMG**: `farol-*-black.png`, feitas por
+  `widget/tools/farol_black.py`. A estrela e a placa AMG ficam em prata. Recusado: pixel art, a versão escura com manchas,
+  e cara de bonequinho. Tem de ser **um patrão**: pálpebra de cromado preto descida e inclinada; só arregala os olhos a chamar.
+- **Mostra o que o Claude faz:**
+  - a pensar: pose da mão no queixo, **sem nuvem nem balão** (recusado);
+  - a trabalhar: pose da chave com faíscas e um holograma pequeno com o código ou o terminal;
+  - a ler: holograma com uma lupa;
+  - pronto: «^ ^» azuis e um visto.
+- **Vai para onde o Claude está a trabalhar.** O título do terminal com ◐◓◑◒ quer dizer Claude a trabalhar;
+  `claude_windows.working_windows()` dá a posição dessas janelas. Ele vai pelo portal para a da frente e trabalha lá. Nas
+  outras janelas a trabalhar aparece uma **chave pequena** no canto (`_Mark`): **nunca dois robôs**. Em casa fica a
+  **base** (`_Base`: o anel com a estrela) enquanto ele está fora.
+- **Movimento:**
+  - perto, **de lado**, com as rodas a girar: pose think para a direita, pose work para a esquerda, sem espelhar o «AMG»;
+  - longe, **mini teletransporte** pelo portal azul do GIF (`Desktop/AMG/Robozin/download.gif`), nunca a atravessar o ecrã;
+  - entra e sai pelo portal;
+  - livre, só uma voltinha curta de vez em quando.
+  - Recusado: rolar para a frente e para trás, brincadeiras que trocam de pose, e trocas de pose em fade («parece trocar
+    de foto»). Uma pose nova entra com um pequeno mergulho.
+- **O rato:**
+  - os cliques passam sempre através dele (`setIgnoresMouseEvents`);
+  - com o rato meio segundo em cima, acende uma luz azul e então arrasta-se ou clica-se;
+  - largado, ali passa a ser a casa dele; largado durante o trabalho, fica lá até o Claude acabar.
+- **Avisos:** uma tarefa ou mensagem para a pessoa aparece no holograma com o número e um brilho vermelho. Ele volta para
+  casa e salta e abana-se a cada 3 s até o rato lhe passar por cima.
 
 ## O visual que fica (decidido a 23 out, depois de várias voltas)
 

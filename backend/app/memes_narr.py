@@ -31,6 +31,8 @@ import unicodedata
 from collections import deque
 
 import httpx
+import sys
+from pathlib import Path
 
 log = logging.getLogger("memes.narr")
 DEX_SEARCH = "https://api.dexscreener.com/latest/dex/search?q="
@@ -55,6 +57,16 @@ GTA = {
     "x_query": '(GTA6 OR "GTA 6" OR "GTA VI" OR Leonida OR "Vice City") (memecoin OR "pump.fun" OR pumpfun OR CA OR solana OR $GTA OR ape) -is:retweet',
 }
 DEFAULT = [GTA]
+
+# 18 Nov, 14h, Marco: «vai haver uma moeda do Dacity... só há pessoas a falar disso... ainda não apareceu em nenhuma stream
+# aquele avião... estamos à espera que apareça numa live para a coin sair... mete-te em cima disso». The hunt: words the team is
+# waiting for. The moment one shows anywhere it is an alert (bell, widget, phone): a pump.fun coin born with it, a coin with it
+# starting to move, a post, a live's title, or **written on the screen of a live** (the frame YouTube shows of each live,
+# read by the Mac's own text recognition, tools/ocr_mac.swift: free, nothing of the Claude spent).
+HUNT = ["dacity"]
+OCR = Path.home() / ".team-agent" / "memes" / "ocr"
+OCR_SRC = Path(__file__).resolve().parent / "tools" / "ocr_mac.swift"
+FAST = re.compile(r"speedrun|100\s?%|walkthrough|parte?\s?\d|part\s?\d|miss[aã]o|mission|story|hist[oó]ria", re.I)
 
 
 def norm(s: str | None) -> str:
@@ -148,6 +160,28 @@ class Narratives:
         self.live = live
         self.state: dict[str, dict] = {}
         self._twitch = {"token": "", "exp": 0.0, "game": {}}
+        self.events: deque = deque(maxlen=150)   # what the hunt found, newest first
+        self.screens: dict[str, dict] = {}      # live id -> what was read on its screen
+        self._hunt_at = self._ocr_at = 0.0
+        self._said: dict[str, float] = {}
+        self._outbox: list[tuple] = []
+
+    @property
+    def hunt(self) -> list[str]:
+        return self.live.b.state.setdefault("hunt", list(HUNT))
+
+    def _found(self, kind: str, term: str, text: str, url: str = "", coin: dict | None = None, alert: str | None = "high", key: str = ""):
+        """One sign of a hunted word. Each (kind, key) once in 10 min; the alert goes on the next pass (memes.send)."""
+        k = f"{kind}:{key or url or text[:60]}"
+        if time.time() - self._said.get(k, 0) < 600:
+            return
+        self._said[k] = time.time()
+        ev = {"t": time.time(), "kind": kind, "term": term, "text": text[:300], "url": url, "coin": coin}
+        self.events.appendleft(ev)
+        if alert:
+            title = {"launch": "nasceu uma moeda", "move": "está a mexer", "post": "falam disso", "title": "numa live",
+                     "screen": "APARECEU NO ECRÃ de uma live"}[kind]
+            self._outbox.append((alert, f"Caça {term.upper()}: {title}", text[:240]))
 
     @property
     def defs(self) -> list[dict]:
@@ -160,6 +194,10 @@ class Narratives:
     # ---------- what the other agents see pass ----------
     def on_post(self, src: str, who: str, text: str, url: str, ts: float, pid: str = "", name: str = ""):
         """Any post read anywhere (Tree News, the Oráculo's Telegram/Reddit/X, the X search): kept when it talks of a theme."""
+        low = (text or "").lower()
+        for term in self.hunt:
+            if term.lower() in low and time.time() - ts < 3 * 3600:
+                self._found("post", term, f"{src} @{who}: {text}", url, alert="medium", key=pid or url)
         for n in self.defs:
             if not text_hit(n, text):
                 continue
@@ -177,6 +215,11 @@ class Narratives:
                                   "tickers": cash[:6], "addrs": cas[:3]})
 
     def on_launch(self, l: dict):
+        nm = norm(l["symbol"]) + " " + norm(l["name"])
+        for term in self.hunt:
+            if norm(term) in nm:
+                self._found("launch", term, f"Nasceu ${l['symbol']} ({l['name']}) na pump.fun: o criador meteu {l.get('dev_sol') or 0} SOL",
+                            f"https://gmgn.ai/sol/token/{l['mint']}", {"address": l["mint"], "symbol": l["symbol"]}, key=l["mint"])
         for n in self.defs:
             w = coin_hit(n, l["symbol"], l["name"])
             if w:
@@ -186,12 +229,26 @@ class Narratives:
     # ---------- one pass ----------
     async def run(self, c: httpx.AsyncClient):
         now = time.time()
+        if self.hunt:
+            if now - self._hunt_at >= 20:
+                self._hunt_at = now
+                await self._hunt_coins(c)
+            if now - self._ocr_at >= 90:
+                self._ocr_at = now
+                await self._screens(c)
+        if self._outbox:
+            from .memes import send
+            out, self._outbox = self._outbox[:3], self._outbox[3:]
+            try:
+                await send(out)
+            except Exception:  # noqa: BLE001
+                log.exception("hunt send")
         for n in self.defs:
             s = self.of(n["id"])
             if now - s["at"] >= 45:
                 s["at"] = now
                 await self._coins(c, n, s)
-            if now - s["lives_at"] >= 300:
+            if now - s["lives_at"] >= (60 if self.hunt else 300):   # hunting: the lives every minute
                 s["lives_at"] = now
                 await self._lives(c, n, s)
             key = self.live.b.cfg.get("x_key")
@@ -234,6 +291,90 @@ class Narratives:
         # coins that fell out of the search for a day go
         for a in [a for a, d in s["coins"].items() if time.time() - d["at"] > 86400]:
             s["coins"].pop(a)
+
+    async def _hunt_coins(self, c: httpx.AsyncClient):
+        """Every 20 s: the coins carrying a hunted word. A new one is news; one whose last 5 min woke up is the moment."""
+        seen = self.live.b.state.setdefault("hunt_seen", {})
+        for term in self.hunt:
+            try:
+                pairs = ((await c.get(DEX_SEARCH + term, timeout=12)).json() or {}).get("pairs") or []
+            except (httpx.HTTPError, ValueError):
+                continue
+            for p in pairs:
+                b = p.get("baseToken") or {}
+                if norm(term) not in norm(b.get("symbol")) + " " + norm(b.get("name")) or not b.get("address"):
+                    continue
+                a, vol, ch = b["address"], p.get("volume") or {}, p.get("priceChange") or {}
+                coin = {"address": a, "symbol": b.get("symbol"), "name": b.get("name"), "mcap": p.get("marketCap"), "url": p.get("url")}
+                if a not in seen:
+                    first = not seen.get("_ready_" + term)
+                    seen[a] = time.time()
+                    if not first:
+                        self._found("launch", term, f"Nova moeda com {term.upper()}: ${b.get('symbol')} ({b.get('name')}), vale {p.get('marketCap') or 0:,.0f} $".replace(",", " "),
+                                    p.get("url") or "", coin, key=a)
+                if (vol.get("m5") or 0) >= 3000 and (ch.get("m5") or 0) >= 20:
+                    self._found("move", term, f"${b.get('symbol')} ({b.get('name')}) +{ch['m5']:.0f}% em 5 min, {vol['m5']:,.0f} $ negociados, vale {p.get('marketCap') or 0:,.0f} $".replace(",", " "),
+                                p.get("url") or "", coin, key=a)
+            seen["_ready_" + term] = True   # the first search only learns what exists already
+            await asyncio.sleep(0.3)
+
+    async def _screens(self, c: httpx.AsyncClient):
+        """The frame of each of the busiest lives (YouTube refreshes it every few minutes), read by the Mac's OCR."""
+        if sys.platform != "darwin":
+            return
+        if not OCR.exists():
+            try:
+                OCR.parent.mkdir(parents=True, exist_ok=True)
+                p = await asyncio.create_subprocess_exec("swiftc", "-O", "-o", str(OCR), str(OCR_SRC),
+                                                         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                await asyncio.wait_for(p.wait(), 300)
+            except (OSError, asyncio.TimeoutError):
+                return
+            if not OCR.exists():
+                return
+        lives = [v for st in self.state.values() for v in st["lives"] if v.get("site") == "YouTube"]
+        # the most watched, and the ones going through the story (they reach the plane first)
+        lives = sorted(lives, key=lambda v: -(v["viewers"] * (3 if FAST.search(v["title"]) else 1)))[:10]
+        d = OCR.parent / "frames"
+        d.mkdir(exist_ok=True)
+        files = {}
+        for v in lives:
+            try:
+                r = await c.get(f"https://i.ytimg.com/vi/{v['id']}/maxresdefault_live.jpg", params={"t": int(time.time())}, timeout=15)
+                if r.status_code != 200:
+                    r = await c.get(f"https://i.ytimg.com/vi/{v['id']}/hqdefault_live.jpg", params={"t": int(time.time())}, timeout=15)
+                if r.status_code == 200:
+                    f = d / f"{v['id']}.jpg"
+                    f.write_bytes(r.content)
+                    files[str(f)] = v
+            except httpx.HTTPError:
+                continue
+        if not files:
+            return
+        try:
+            p = await asyncio.create_subprocess_exec(str(OCR), *files, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            out, _ = await asyncio.wait_for(p.communicate(), 120)
+        except (OSError, asyncio.TimeoutError):
+            return
+        for line in out.decode("utf-8", "replace").splitlines():
+            try:
+                j = json.loads(line)
+            except ValueError:
+                continue
+            v = files.get(j.get("path"))
+            if not v:
+                continue
+            text = j.get("text") or ""
+            self.screens[v["id"]] = {"id": v["id"], "channel": v["channel"], "viewers": v["viewers"], "url": v["url"], "text": text[:300], "t": time.time()}
+            low = text.lower()
+            for term in self.hunt:
+                if term.lower() in low:
+                    self._found("screen", term, f"Apareceu «{term.upper()}» no ecrã da live de {v['channel']} ({v['viewers']:,} a ver): {text[:160]}".replace(",", " "),
+                                v["url"], key=v["id"])
+        for v in [v for st in self.state.values() for v in st["lives"]]:
+            for term in self.hunt:
+                if term.lower() in v["title"].lower():
+                    self._found("title", term, f"Live com {term.upper()} no título: {v['channel']} — {v['title']}", v["url"], key=v["id"])
 
     async def _lives(self, c: httpx.AsyncClient, n: dict, s: dict):
         got: dict[str, dict] = {}
@@ -354,5 +495,7 @@ class Narratives:
             vol1 = sum(d["vol1"] or 0 for d in s["coins"].values())
             out.append({"id": n["id"], "name": n["name"], "note": n.get("note", ""), "coins": coins, "launches": launches, "feed": feed,
                         "lives": s["lives"][:20], "vol1": vol1, "n_coins": len(s["coins"]),
-                        "viewers": sum(v["viewers"] for v in s["lives"]), "at": s["at"], "lives_at": s["lives_at"]})
+                        "viewers": sum(v["viewers"] for v in s["lives"]), "at": s["at"], "lives_at": s["lives_at"],
+                        "hunt": {"terms": self.hunt, "events": list(self.events)[:40], "ocr_at": self._ocr_at, "hunt_at": self._hunt_at,
+                                 "screens": sorted(self.screens.values(), key=lambda x: -x["viewers"])[:10]}})
         return out

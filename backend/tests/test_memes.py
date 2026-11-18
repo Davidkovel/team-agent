@@ -181,3 +181,16 @@ def test_narrative_gta(tmp_path, monkeypatch):
     assert {"A explodir", "Nova"} <= {t[0] for t in c["tags"]} and c["calls"] == 1 and c["first"]["who"] == "solearlytrending"
     b.live.on_pump({"txType": "create", "mint": "G" * 43, "symbol": "GTA6", "name": "Grand Theft Auto VI", "marketCapSol": 30, "solAmount": 1})
     assert nr.view()[0]["launches"][0]["symbol"] == "GTA6"
+
+
+def test_hunt_dacity(tmp_path, monkeypatch):
+    """The hunt (memes_narr.py): a pump.fun coin born with the word and a post saying it are alerts, once each."""
+    b = brain(tmp_path, monkeypatch)
+    nr = b.live.narr
+    assert nr.hunt == ["dacity"]
+    b.live.on_pump({"txType": "create", "mint": "D" * 43, "symbol": "DACITY", "name": "Dacity Airlines", "marketCapSol": 30, "solAmount": 2})
+    b._post("tg:a/1", "Telegram", "gta6news", "The Dacity plane is in the game!", "u", time.time(), "telegram")
+    b._post("tg:a/1", "Telegram", "gta6news", "The Dacity plane is in the game!", "u", time.time(), "telegram")
+    kinds = [e["kind"] for e in nr.events]
+    assert kinds.count("launch") == 1 and kinds.count("post") == 1 and len(nr._outbox) == 2
+    assert nr.view()[0]["hunt"]["terms"] == ["dacity"]

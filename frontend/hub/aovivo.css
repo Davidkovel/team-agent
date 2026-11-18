@@ -131,3 +131,21 @@ html.lv-solo .lv-win { left: 0 !important; top: 0 !important; width: 100vw !impo
   border-radius: 0; border: 0; resize: none; box-shadow: none; animation: none; }
 html.lv-solo .lv-h { cursor: default; }
 .lv-solo-page { min-height: 40vh; }
+
+/* 🎯 the hunt (memes_narr.py: Dacity) */
+.lv-hunt-add { margin-top: 7px; }
+.lv-terms { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 4px 2px; }
+.lv-term { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 11px; border-radius: 999px; background: rgba(255, 59, 48, .14);
+  border: 1px solid rgba(255, 59, 48, .45); color: #ffb4ae; font-size: 12px; font-weight: 800; letter-spacing: .06em; animation: lv-hunt 2s ease-in-out infinite; }
+.lv-term button { border: 0; background: rgba(255, 255, 255, .1); color: #fff; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; line-height: 1; }
+@keyframes lv-hunt { 50% { box-shadow: 0 0 0 5px rgba(255, 59, 48, 0); } 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, .35); } }
+@media (prefers-reduced-motion: reduce) { .lv-term { animation: none; } }
+.lv-hunt-st { margin: 4px 6px 6px; color: var(--faint, #7c838c); font-size: 11px; }
+.lv-ev { display: flex; align-items: flex-start; gap: 8px; padding: 8px 6px; border-radius: 10px; color: inherit; text-decoration: none; }
+.lv-ev:hover { background: rgba(255, 255, 255, .04); }
+.lv-ev .lv-m b { white-space: normal; font-weight: 500; font-size: 12px; line-height: 1.4; }
+.lv-ev.screen { background: rgba(255, 59, 48, .1); }
+.lv-scr { display: grid; gap: 1px; padding: 6px; border-radius: 9px; color: inherit; text-decoration: none; font-size: 11.5px; }
+.lv-scr:hover { background: rgba(255, 255, 255, .04); }
+.lv-scr small { color: var(--faint, #7c838c); }
+.lv-scr span { color: var(--muted, #aab1bb); font-family: var(--mono, monospace); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

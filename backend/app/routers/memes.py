@@ -322,3 +322,24 @@ async def radar_del(mint: str, user: User = Depends(viewer)):
     BRAIN.live.radar_del(mint)
     BRAIN.save()
     return {"ok": True}
+
+
+class Hunt(BaseModel):
+    term: str
+    on: bool = True
+
+
+@router.post("/hunt")
+async def hunt(body: Hunt, user: User = Depends(viewer)):
+    """The words the brain hunts (memes_narr.py: a coin born or moving, a post, a live's title or screen): on or off."""
+    term = re.sub(r"[^\w .'-]", "", body.term or "").strip().lower()[:30]
+    if len(term) < 3:
+        raise HTTPException(400, "Escreve pelo menos 3 letras")
+    terms = BRAIN.live.narr.hunt
+    if body.on and term not in terms:
+        terms.append(term)
+        del terms[:-8]
+    elif not body.on and term in terms:
+        terms.remove(term)
+    BRAIN.save()
+    return {"terms": terms}

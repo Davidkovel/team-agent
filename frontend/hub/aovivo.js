@@ -25,12 +25,13 @@
   const sym = (v) => String(v || "?").replace(/^\$+/, "");
   const TABS = [["narr", "GTA 6"], ["trend", "Tendências"], ["x", "X ao vivo"], ["sinais", "Sinais"], ["rugs", "Rugs"], ["novas", "Novas"]];
   const TSUB = [["words", "O que ganha"], ["coins", "Contratos"], ["chans", "Canais"]];
-  const NSUB = [["coins", "Moedas"], ["new", "Novas"], ["calls", "Calls e posts"], ["lives", "Lives"]];
+  const NSUB = [["hunt", "🎯 Caça"], ["coins", "Moedas"], ["new", "Novas"], ["calls", "Calls e posts"], ["lives", "Lives"]];
   const phone = () => document.documentElement.classList.contains("is-phone");
 
   let st = { state: "closed", tab: "narr", nsub: "coins", tsub: "words", x: null, y: null, w: 420, h: 620, watched: true, coins: false };
   try { st = { ...st, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch (e) { /* private window */ }
-  if (!st.v18) { st.tab = "narr"; st.v18 = 1; }   // 18 Nov: the narrative tab comes first, once
+  if (!st.v18) { st.tab = "narr"; st.v18 = 1; }
+  if (!st.v18b) { st.nsub = "hunt"; st.v18b = 1; }   // 18 Nov, 14h: the Dacity hunt first   // 18 Nov: the narrative tab comes first, once
   if (SOLO) st.state = "open";
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* private window */ } };
   let LV = null, timer = 0, q = "", seenBad = Number(st.seenBad || 0);
@@ -138,7 +139,8 @@
 
   function tools() {
     const el = document.getElementById("lv-tools");
-    if (st.tab === "narr") el.innerHTML = `<div class="lv-chips lv-nsub">${NSUB.map(([k, l]) => `<button type="button" data-lv-nsub="${k}" class="${k === st.nsub ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`;
+    if (st.tab === "narr") el.innerHTML = `<div class="lv-chips lv-nsub">${NSUB.map(([k, l]) => `<button type="button" data-lv-nsub="${k}" class="${k === st.nsub ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`
+      + (st.nsub === "hunt" ? `<form class="lv-add lv-hunt-add" id="lv-hunt-add"><input name="term" placeholder="${esc(t("Palavra a caçar (ex.: dacity)"))}" autocomplete="off"><button class="btn sm primary">${esc(t("Caçar"))}</button></form>` : "");
     else if (st.tab === "trend") el.innerHTML = `<div class="lv-chips lv-nsub">${TSUB.map(([k, l]) => `<button type="button" data-lv-tsub="${k}" class="${k === (st.tsub || "words") ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`;
     else if (st.tab === "rugs") el.innerHTML = `<form class="lv-add" id="lv-add"><input name="mint" placeholder="${esc(t("Cola o contrato de uma moeda"))}" autocomplete="off" spellcheck="false"><button class="btn sm primary">${esc(t("Vigiar"))}</button></form>`;
     else if (st.tab === "x") el.innerHTML = `<div class="lv-chips"><button type="button" data-lv-opt="watched" class="${st.watched ? "on" : ""}">${esc(t("Só quem seguimos"))}</button><button type="button" data-lv-opt="coins" class="${st.coins ? "on" : ""}">${esc(t("Só com moedas"))}</button></div>`;
@@ -159,6 +161,17 @@
     const N = (LV.narr || [])[0];
     if (!N) return empty(t("A ler a narrativa…"));
     const head = `<div class="lv-nhead"><b>${esc(N.name)}</b><span>${esc(t("{n} moedas · {v} na última hora · {w} a ver lives", { n: N.n_coins, v: usdK(N.vol1), w: loc(N.viewers || 0, 0) }))}</span></div>`;
+    if (st.nsub === "hunt") {
+      const H = N.hunt || { terms: [], events: [], screens: [] };
+      const KIND = { launch: ["Nasceu", "ok"], move: ["A mexer", "ok"], post: ["Falam disso", "info"], title: ["Live", "warn"], screen: ["NO ECRÃ", "bad"] };
+      const terms = H.terms.length ? H.terms.map((w) => `<span class="lv-term">🎯 ${esc(w.toUpperCase())}<button type="button" data-lv-unhunt="${esc(w)}" aria-label="${esc(t("Parar de caçar"))}">×</button></span>`).join("") : `<span class="lv-e">${esc(t("Nada a caçar: escreve uma palavra em cima."))}</span>`;
+      const status = `<p class="lv-hunt-st">${esc(t("Moedas de 20 em 20 s · lives de minuto a minuto · ecrã de {n} lives lido {a}", { n: H.screens.length, a: H.ocr_at ? ago(H.ocr_at) : t("a começar") }))}</p>`;
+      const evs = H.events.length ? H.events.map((e) => { const [w, tone] = KIND[e.kind] || [e.kind, ""]; return `<a class="lv-ev ${e.kind}" href="${esc(e.url || "#")}" target="_blank" rel="noopener">
+          <span class="lv-tag ${tone}">${esc(t(w))}</span><span class="lv-m"><b>${esc(e.text)}</b><small>${esc(ago(e.t))}</small></span>${e.coin && e.coin.address ? acts(e.coin.address) : ""}</a>`; }).join("")
+        : empty(t("Ainda nenhum sinal. Avisa-te no segundo em que nascer uma moeda, uma começar a mexer, alguém falar disso, ou aparecer no título ou no ECRÃ de uma live."));
+      const scr = H.screens.length ? `<p class="lv-sub">${esc(t("O que se lê agora no ecrã das lives"))}</p>` + H.screens.map((x) => `<a class="lv-scr" href="${esc(x.url)}" target="_blank" rel="noopener"><b>${esc(x.channel)}</b><small>${esc(loc(x.viewers, 0))} ${esc(t("a ver"))} · ${esc(ago(x.t))}</small><span>${esc(x.text || t("(sem texto no ecrã)"))}</span></a>`).join("") : "";
+      return `<div class="lv-terms">${terms}</div>${status}${evs}${scr}`;
+    }
     if (st.nsub === "new") return head + (N.launches.length ? N.launches.map((x) => `<div class="lv-row sm">${img(x)}<span class="lv-m"><b>$${esc(sym(x.symbol))}${x.migrated ? ` <span class="lv-tag ok">${esc(t("Migrou"))}</span>` : ""}</b>
         <small>${esc(x.name)} · ${esc(t("há {s}", { s: since(Date.now() / 1000 - x.t) }))}${x.dev_sol ? " · " + esc(t("criador {n} SOL", { n: loc(x.dev_sol, 2) })) : ""}</small></span>
         <span class="lv-n"><b>${usd(x.mcap)}</b><small>${pct(x.ch5)}</small></span>${acts(x.mint)}</div>`).join("")
@@ -249,10 +262,19 @@
     if (op) { st[op.dataset.lvOpt] = !st[op.dataset.lvOpt]; save(); tools(); paintBody(); return; }
     const cp = e.target.closest("[data-lv-copy]");
     if (cp) { try { await navigator.clipboard.writeText(cp.dataset.lvCopy); cp.textContent = t("Copiado"); setTimeout(() => { cp.textContent = t("Copiar"); }, 1400); } catch (err) { prompt(t("Contrato"), cp.dataset.lvCopy); } return; }
+    const uh = e.target.closest("[data-lv-unhunt]");
+    if (uh) { e.preventDefault(); await api("/api/memes/hunt", { method: "POST", body: { term: uh.dataset.lvUnhunt, on: false } }).catch(() => {}); poll(); return; }
     const dl = e.target.closest("[data-lv-del]");
     if (dl) { await api(`/api/memes/radar/${encodeURIComponent(dl.dataset.lvDel)}`, { method: "DELETE" }).catch(() => {}); LV.radar = LV.radar.filter((r) => r.mint !== dl.dataset.lvDel); paintBody(); }
   }
   async function submit(e) {
+    if (e.target.id === "lv-hunt-add") {
+      e.preventDefault();
+      const f = e.target, v = f.term.value.trim();
+      if (!v) return;
+      try { await api("/api/memes/hunt", { method: "POST", body: { term: v, on: true } }); f.term.value = ""; poll(); } catch (err) { f.term.value = ""; f.term.placeholder = err.message; }
+      return;
+    }
     if (e.target.id !== "lv-add") return;
     e.preventDefault();
     const f = e.target, v = f.mint.value.trim();

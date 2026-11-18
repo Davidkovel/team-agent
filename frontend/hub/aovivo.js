@@ -278,7 +278,11 @@
     const cp = e.target.closest("[data-lv-copy]");
     if (cp) { try { await navigator.clipboard.writeText(cp.dataset.lvCopy); cp.textContent = t("Copiado"); setTimeout(() => { cp.textContent = t("Copiar"); }, 1400); } catch (err) { prompt(t("Contrato"), cp.dataset.lvCopy); } return; }
     const uh = e.target.closest("[data-lv-unhunt]");
-    if (uh) { e.preventDefault(); await api("/api/memes/hunt", { method: "POST", body: { term: uh.dataset.lvUnhunt, on: false } }).catch(() => {}); poll(); return; }
+    if (uh) {   // 18 Nov: the Dacity hunt was switched off by a stray click and the coin fired unseen: ask first
+      e.preventDefault();
+      if (!confirm(t("Parar de caçar «{w}»? Deixas de receber avisos dela.", { w: uh.dataset.lvUnhunt.toUpperCase() }))) return;
+      await api("/api/memes/hunt", { method: "POST", body: { term: uh.dataset.lvUnhunt, on: false } }).catch(() => {}); poll(); return;
+    }
     const dl = e.target.closest("[data-lv-del]");
     if (dl) { await api(`/api/memes/radar/${encodeURIComponent(dl.dataset.lvDel)}`, { method: "DELETE" }).catch(() => {}); LV.radar = LV.radar.filter((r) => r.mint !== dl.dataset.lvDel); paintBody(); }
   }

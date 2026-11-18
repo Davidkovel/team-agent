@@ -341,6 +341,8 @@ async def hunt(body: Hunt, user: User = Depends(viewer)):
         del terms[:-8]
     elif not body.on and term in terms:
         terms.remove(term)
+        from ..memes_brain import remember
+        remember(BRAIN, "hunt", f"🎯 {user.username} parou de caçar «{term.upper()}»", None, "warn")   # it shows in the memory
     BRAIN.save()
     return {"terms": terms}
 

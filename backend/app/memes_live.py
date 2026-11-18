@@ -255,6 +255,13 @@ class Live:
                     await self.narr.run(c)
                 except Exception:  # noqa: BLE001
                     log.exception("live narratives")
+                if time.time() - getattr(self, "_watch_at", 0) >= 30:   # the buy / don't-buy alerts (memes_brain.watch)
+                    self._watch_at = time.time()
+                    try:
+                        from .memes_brain import watch
+                        await watch(self.b)
+                    except Exception:  # noqa: BLE001
+                        log.exception("brain watch")
                 try:
                     await self.trends.run(c)
                 except Exception:  # noqa: BLE001

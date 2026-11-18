@@ -351,4 +351,6 @@ async def brain_view(user: User = Depends(viewer)):
     from ..memes_brain import build
     if not BRAIN.live.started:
         BRAIN.live_task = asyncio.create_task(BRAIN.live.run())
-    return build(BRAIN)
+    out = build(BRAIN)
+    out.pop("_all", None)
+    return out

@@ -268,7 +268,7 @@ class Narratives:
             for p in pairs:
                 b = p.get("baseToken") or {}
                 w = coin_hit(n, b.get("symbol"), b.get("name"))
-                if not w or not b.get("address"):
+                if not w or not b.get("address") or p.get("chainId") != "solana":   # 18 Nov, Marco: «nós queremos só SOL»
                     continue
                 liq = (p.get("liquidity") or {}).get("usd") or 0
                 if b["address"] in found and (found[b["address"]]["liq"] or 0) >= liq:
@@ -289,7 +289,7 @@ class Narratives:
             d["peak"] = max(old.get("peak") or 0, d["mcap"] or 0)
             s["coins"][a] = d
         # coins that fell out of the search for a day go
-        for a in [a for a, d in s["coins"].items() if time.time() - d["at"] > 86400]:
+        for a in [a for a, d in s["coins"].items() if time.time() - d["at"] > 86400 or d.get("chain") != "solana"]:
             s["coins"].pop(a)
 
     async def _hunt_coins(self, c: httpx.AsyncClient):
@@ -302,7 +302,7 @@ class Narratives:
                 continue
             for p in pairs:
                 b = p.get("baseToken") or {}
-                if norm(term) not in norm(b.get("symbol")) + " " + norm(b.get("name")) or not b.get("address"):
+                if norm(term) not in norm(b.get("symbol")) + " " + norm(b.get("name")) or not b.get("address") or p.get("chainId") != "solana":
                     continue
                 a, vol, ch = b["address"], p.get("volume") or {}, p.get("priceChange") or {}
                 coin = {"address": a, "symbol": b.get("symbol"), "name": b.get("name"), "mcap": p.get("marketCap"), "url": p.get("url")}

@@ -194,3 +194,12 @@ def test_hunt_dacity(tmp_path, monkeypatch):
     kinds = [e["kind"] for e in nr.events]
     assert kinds.count("launch") == 1 and kinds.count("post") == 1 and len(nr._outbox) == 2
     assert nr.view()[0]["hunt"]["terms"] == ["dacity"]
+
+
+def test_brain_buy_and_no_buy():
+    """memes_brain: strict words, only SOL."""
+    from app.memes_brain import BUY, NO, WAIT, _verdict
+    good = {"liq": 60_000, "vol1": 120_000, "ch1": 40, "mcap": 600_000, "b1": 500, "s1": 300, "age_h": 3}
+    assert _verdict(good)[0] == BUY
+    assert _verdict({**good, "liq": 9_000})[0] == NO and _verdict({**good, "ch1": -50})[0] == NO
+    assert _verdict({**good, "s1": 600})[0] == WAIT and _verdict({**good, "age_h": 0.1})[0] == WAIT and _verdict({**good, "ch1": 900})[0] == WAIT

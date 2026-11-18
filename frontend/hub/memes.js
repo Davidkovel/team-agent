@@ -379,9 +379,11 @@
       : `<p class="mc-dim mc-br-e">${esc(t("Ainda nada."))}</p>`;
     return `<section class="mc-br">
       <div class="mc-br-k">
-        <span><b class="ok">${c.ok}</b>${esc(t("vale a pena olhar"))}</span><span><b class="warn">${c.warn}</b>${esc(t("arriscadas"))}</span>
-        <span><b class="bad">${c.bad}</b>${esc(t("a evitar"))}</span><span><b>${c.said}</b>${esc(t("coisas ditas em 48 h"))}</span>
-        <small>${esc(t("Tudo o que os agentes viram, junto. Atualiza sozinho. Não é conselho: é o que os dados dizem."))}</small></div>
+        <span><b class="ok">${c.ok}</b>${esc(t("sinal de compra"))}</span><span><b class="warn">${c.warn}</b>${esc(t("esperar"))}</span>
+        <span><b class="bad">${c.bad}</b>${esc(t("não comprar"))}</span><span><b>${c.said}</b>${esc(t("coisas ditas em 48 h"))}</span>
+        <small>${esc(t("Só Solana. Tudo o que os agentes viram, junto, e um aviso no telemóvel quando uma passa a sinal de compra ou deixa de o ser. Não é conselho."))}</small></div>
+      ${(BR.signals || []).length ? `<div class="mc-br-sig">${BR.signals.slice(0, 8).map((x) => `<a class="${x.kind}" href="${esc(x.url || `https://gmgn.ai/sol/token/${x.address}`)}" target="_blank" rel="noopener">
+          <b>${x.kind === "buy" ? "🟢 " + esc(t("COMPRA")) : "🔴 " + esc(t("NÃO COMPRAR / SAI"))}</b><span>$${esc(sym(x.symbol))} · ${usd(x.mcap)}</span><small>${esc(ago(x.t))}</small></a>`).join("")}</div>` : ""}
       <div class="mc-br-g">
         <div class="panel mc-br-col"><h3>${esc(t("Vale a pena agora"))}<small>${esc(t("cada moeda com o veredicto e o porquê"))}</small></h3><div class="mc-br-l">${picks}</div></div>
         <div class="panel mc-br-col"><h3>${esc(t("O que se diz agora"))}<small>${esc(t("influencers, calls, GTA 6 e a caça, numa linha"))}</small></h3><div class="mc-br-l">${said}</div></div>

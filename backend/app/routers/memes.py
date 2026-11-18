@@ -354,3 +354,13 @@ async def brain_view(user: User = Depends(viewer)):
     out = build(BRAIN)
     out.pop("_all", None)
     return out
+
+
+
+@router.get("/cerebro")
+async def cerebro(user: User = Depends(viewer)):
+    """The page Cérebro: the advice, the coins talked about and born, the memory, and every coin with what it lacks."""
+    from ..memes_brain import page
+    if not BRAIN.live.started:
+        BRAIN.live_task = asyncio.create_task(BRAIN.live.run())
+    return page(BRAIN)

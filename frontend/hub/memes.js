@@ -30,10 +30,11 @@
   const pill = (x) => { const v = verdict(x); return `<span class="mc-v ${v[1]}"><b>${x.score}</b>${esc(t(v[0]))}</span>`; };
   const logo = (x) => (x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<i class="mc-noimg">${esc(sym(x.symbol)[0])}</i>`);
 
-  const VIEWS = { memes: "quem", "meme-calls": "calls", "meme-moedas": "moedas", "meme-agentes": "agentes" };
+  const VIEWS = { "meme-cerebro": "cerebro", memes: "quem", "meme-calls": "calls", "meme-moedas": "moedas", "meme-agentes": "agentes" };
   for (const [id, v] of Object.entries(VIEWS)) HUB_VIEWS[id] = () => open(v);
 
   const HEAD = {
+    cerebro: ["Cérebro", "O que fazer agora, as moedas faladas e criadas, e tudo o que os agentes viram e decidiram. Atualiza sozinho."],
     quem: ["Quem acerta", "Para cada call de um influencer, vemos se a moeda subiu ou desceu nas 24 horas seguintes."],
     calls: ["Calls", "Cada moeda que os nossos influencers mandaram, e o que aconteceu a seguir."],
     moedas: ["Moedas", "As moedas que os agentes estão a seguir, da mais forte para a mais fraca."],
@@ -54,10 +55,17 @@
     bind();
     await load(true).catch((e) => paint($("mc-body"), ui.error(e.message)));
     clearInterval(timer);
-    timer = setInterval(() => { if (!$("mc")) { clearInterval(timer); return; } if (!document.hidden) load().catch(() => {}); }, 20000);
+    timer = setInterval(() => { if (!$("mc")) { clearInterval(timer); return; } if (!document.hidden) load().catch(() => {}); }, view === "cerebro" ? 5000 : 20000);
   }
 
+  let CB = null;
   async function load(first) {
+    if (view === "cerebro") {   // its own, light and fast: one call, every 5 s
+      [S, CB] = await Promise.all([S && !first ? Promise.resolve(S) : api("/api/memes/state"), api("/api/memes/cerebro")]);
+      paintCtl();
+      cerebro();
+      return;
+    }
     [S, B, P, BR] = await Promise.all([api("/api/memes/state"), view === "quem" || view === "calls" ? api("/api/memes/board") : Promise.resolve(B),
       view === "quem" ? api("/api/plans").catch(() => []) : Promise.resolve(P), view === "quem" ? api("/api/memes/brain").catch(() => BR) : Promise.resolve(BR)]);
     if (view === "quem") NL = await api("/api/memes/live").catch(() => NL);
@@ -429,6 +437,47 @@
       </div></section>`;
   }
 
+  /* ---------------------------------------------------------------- Cérebro */
+  // 18 nov, Marco: «super confuso... tem que estar sempre a unir as informações... nem consigo ver onde está a memória desse
+  // cérebro... sempre aconselhar e ver as coins criadas e faladas sempre atualizadas». One page, four things, read top to
+  // bottom: the advice (one sentence), the figures, the coins talked about / born / followed, and the memory (memes_brain.py).
+  function cerebro() {
+    const c = CB; if (!c) return;
+    const a = c.advice;
+    const lnk = (x) => esc(x.url || (x.address ? `https://gmgn.ai/sol/token/${x.address}` : "#"));
+    const KM = { follow: ["Começou a seguir", "info"], verdict: ["Mudou", ""], talk: ["Falado", "info"], hunt: ["🎯 Caça", "bad"], advice: ["Conselho", "warn"] };
+    paint($("mc-body"), `
+      <section class="panel cb-adv ${a.tone}">
+        <span class="cb-live"><i></i>${esc(t("ao vivo · {a}", { a: ago(c.at) }))}</span>
+        <h2>${esc(a.head)}</h2><p>${esc(a.text)}</p>
+        <div class="cb-adv-b">${a.coin && a.coin.address ? `<a class="btn ${a.tone === "ok" ? "primary" : ""}" href="${lnk(a.coin)}" target="_blank" rel="noopener">${esc(t("Ver ${s} no GMGN", { s: sym(a.coin.symbol) }))}</a>` : ""}
+          <button type="button" class="btn quiet" data-act="cb-aovivo">${esc(t("Abrir o Ao vivo"))}</button></div>
+      </section>
+      <div class="cb-k">
+        <span><b class="ok">${c.counts.ok}</b>${esc(t("sinais de compra"))}</span><span><b>${c.following}</b>${esc(t("moedas a seguir"))}</span>
+        <span><b>${c.talked.length}</b>${esc(t("faladas (6 h)"))}</span><span><b>${c.created.length}</b>${esc(t("criadas (3 h)"))}</span>
+        <span><b>${(c.memory || []).length}</b>${esc(t("coisas na memória"))}</span></div>
+      <div class="cb-g">
+        <section class="panel cb-col"><h3>${esc(t("Moedas faladas"))}<small>${esc(t("últimas 6 h · por nº de pessoas"))}</small></h3>
+          ${c.talked.map((x) => `<a class="cb-row" href="${lnk(x)}" target="_blank" rel="noopener"><b>$${esc(x.symbol)}</b>
+            <span>${esc(t("{p} pessoas · {n}×", { p: x.people, n: x.n }))}</span>${x.mcap ? `<em>${usd(x.mcap)} ${pct(x.ch1)}</em>` : "<em class='mc-dim'>—</em>"}
+            <small>${esc(t("1.º @{w} · {s} · última {a}", { w: x.who_first, s: x.sources.join(", "), a: ago(x.last) }))}</small></a>`).join("") || `<p class="mc-dim cb-e">${esc(t("Ninguém a falar de moedas nas últimas 6 h."))}</p>`}</section>
+        <section class="panel cb-col"><h3>${esc(t("Moedas criadas"))}<small>${esc(t("últimas 3 h · as que interessam"))}</small></h3>
+          ${c.created.map((x) => `<a class="cb-row" href="${lnk(x)}" target="_blank" rel="noopener"><b>$${esc(sym(x.symbol))}</b>
+            <span>${esc(x.name || "")}</span><em>${usd(x.mcap)} ${x.ch1 != null ? pct(x.ch1) : ""}</em>
+            <small>${esc(x.why)} · ${esc(t("nasceu {a}", { a: ago(x.t) }))}${x.vol1 ? " · " + esc(t("{v} numa hora", { v: usd(x.vol1) })) : ""}</small></a>`).join("") || `<p class="mc-dim cb-e">${esc(t("Nenhuma moeda nova que interesse nas últimas 3 h."))}</p>`}</section>
+        <section class="panel cb-col cb-mem"><h3>${esc(t("Memória do cérebro"))}<small>${esc(t("tudo o que viu e decidiu, guardado"))}</small></h3>
+          ${(c.memory || []).map((m) => { const k = KM[m.kind] || [m.kind, ""]; return `<a class="cb-m ${m.tone || ""}" href="${m.coin ? lnk(m.coin) : "#"}" target="_blank" rel="noopener">
+            <time>${esc(new Date(m.t * 1000).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }))}</time><span><em>${esc(t(k[0]))}</em>${esc(m.text)}</span></a>`; }).join("") || `<p class="mc-dim cb-e">${esc(t("A começar: a memória enche-se a cada 30 segundos."))}</p>`}</section>
+      </div>
+      <section class="panel cb-all"><h3>${esc(t("Todas as moedas que o cérebro segue"))}<small>${esc(t("e o que falta a cada uma para ser um sinal de compra"))}</small></h3>
+        ${c.picks.map((p) => `<a class="cb-p ${p.tone}" href="${lnk(p)}" target="_blank" rel="noopener"><i></i><b>$${esc(sym(p.symbol))}</b><span class="mc-v ${p.tone} mc-tipo">${esc(t(p.verdict))}</span>
+          <em>${usd(p.mcap)} ${pct(p.ch1)}</em><small>${esc(p.why.join(" · "))}</small>
+          ${p.missing && p.missing.length ? `<span class="cb-miss">${p.missing.slice(0, 4).map((m) => `<u>${esc(t("falta"))}: ${esc(m)}</u>`).join("")}</span>` : `<span class="cb-miss ok"><u>${esc(t("cumpre todas as regras"))}</u></span>`}</a>`).join("") || `<p class="mc-dim cb-e">${esc(t("Nenhuma moeda de Solana com dinheiro a mexer."))}</p>`}
+      </section>
+      <p class="mc-foot">${esc(t("Só Solana. Sinal de compra = pool ≥ 30 k$, ≥ 50 k$ numa hora, a subir até +400%, mais compras do que vendas, valor ≤ 20× a pool, mais de 20 min de vida. Não é conselho financeiro: memecoins podem ir a zero."))}</p>`);
+  }
+
   function row(r, n) {
     const k = `${r.platform}/${r.handle}`, open = openInf === k;
     return `<div class="mc-rank-r ${open ? "open" : ""}">
@@ -693,6 +742,7 @@
           msg(v ? t("Chave guardada. O Oráculo lê o X na próxima volta (até 5 minutos).") : t("Chave tirada."));
           await load(true);
         }
+        if (b.dataset.act === "cb-aovivo") { window.aoVivo && window.aoVivo.open(); return; }
         if (b.dataset.act === "toggle") { S.cfg = (await api("/api/memes/cfg", { method: "POST", body: { on: !S.cfg.on } })).cfg; paintCtl(); }
         if (b.dataset.act === "ler") { S.cfg = (await api("/api/memes/cfg", { method: "POST", body: { ler: !S.ler.on } })).cfg; S.ler.on = S.cfg.ler; agentes(); }
         if (b.dataset.act === "claude") { S.cfg = (await api("/api/memes/cfg", { method: "POST", body: { claude: !S.cfg.claude } })).cfg; agentes(); }

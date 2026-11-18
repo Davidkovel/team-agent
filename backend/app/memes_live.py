@@ -260,8 +260,9 @@ class Live:
                 if time.time() - getattr(self, "_watch_at", 0) >= 30:   # the buy / don't-buy alerts (memes_brain.watch)
                     self._watch_at = time.time()
                     try:
-                        from .memes_brain import watch
+                        from .memes_brain import think, watch
                         await watch(self.b)
+                        await think(self.b)   # the memory of the brain (18 Nov)
                     except Exception:  # noqa: BLE001
                         log.exception("brain watch")
                 try:

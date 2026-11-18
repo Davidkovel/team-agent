@@ -183,3 +183,179 @@ async def watch(brain):
             await send(out[:3])
         except Exception:  # noqa: BLE001
             pass
+
+
+# ---------------------------------------------------------------- the advice, what is talked about, what is born, the memory
+# 18 Nov, Marco: «super confuso... tem que estar sempre a unir as informações... nem consigo ver onde está a memória desse
+# cérebro a guardar e a ver cada detalhe... sempre aconselhar e ver as coins criadas e faladas sempre atualizadas». So the
+# page Cérebro (#/meme-cerebro) shows four things, from here: one sentence of advice, the coins most talked about, the coins
+# just born that matter, and the memory: every thing the brain noticed or decided, in order, kept (state["memory"]).
+
+def missing(c: dict) -> list[str]:
+    """What a coin still lacks to be a «Sinal de compra», in words (empty = it is one)."""
+    liq, vol1, ch1, mcap = c.get("liq") or 0, c.get("vol1") or 0, c.get("ch1") or 0, c.get("mcap") or 0
+    b1, s1, age = c.get("b1"), c.get("s1"), c.get("age_h")
+    k = lambda v: f"{v / 1e3:.0f} k$"  # noqa: E731
+    out = []
+    if liq < 30_000:
+        out.append(f"pool {k(liq)} (precisa de 30 k$)")
+    if vol1 < 50_000:
+        out.append(f"{k(vol1)} numa hora (precisa de 50 k$)")
+    if ch1 < 5:
+        out.append(f"{ch1:+.0f}% numa hora (precisa de estar a subir)")
+    if ch1 > 400:
+        out.append(f"+{ch1:.0f}% numa hora: já é topo de foguete")
+    if liq and mcap > liq * 20:
+        out.append("vale mais de 20 vezes a pool")
+    if b1 is not None and b1 < 1.2 * max(1, s1 or 0):
+        out.append(f"{b1} compras contra {s1} vendas")
+    if age is not None and age < 0.33:
+        out.append("nasceu há menos de 20 min")
+    if c.get("danger"):
+        out.insert(0, "tem um alerta de perigo")
+    return out
+
+
+def advice(allp: list[dict]) -> dict:
+    buys = [p for p in allp if p["tone"] == "ok"]
+    if buys:
+        b = buys[0]
+        return {"tone": "ok", "head": f"🟢 Sinal de compra: ${b.get('symbol')}" + (f" (e mais {len(buys) - 1})" if len(buys) > 1 else ""),
+                "text": f"{why_buy(b)}. Vale {(b.get('mcap') or 0):,.0f} $. Entra com pouco, e sai se aparecer o aviso vermelho.".replace(",", " "),
+                "coin": {k: b.get(k) for k in ("symbol", "address", "url", "mcap")}}
+    near = sorted((p for p in allp if p["tone"] == "warn"), key=lambda p: (len(missing(p)), -(p.get("vol1") or 0)))
+    if near:
+        n = near[0]
+        return {"tone": "warn", "head": "Não compres nada agora",
+                "text": f"Nenhuma moeda passa nas regras. A mais perto é ${n.get('symbol')}: falta " + "; ".join(missing(n)[:3]) + ".",
+                "coin": {k: n.get(k) for k in ("symbol", "address", "url", "mcap")}}
+    return {"tone": "bad", "head": "Não compres nada agora", "text": "Não há moedas de Solana com dinheiro a sério a mexer.", "coin": None}
+
+
+def talked(brain, hours: float = 6) -> list[dict]:
+    """The coins most talked about in the last hours, from every source (Oráculo, narratives, X launches)."""
+    now = time.time()
+    seen: dict[str, dict] = {}
+
+    def add(sym, addr, who, src, t, url=""):
+        sym = (sym or "").upper().lstrip("$")
+        if not sym or now - t > hours * 3600:
+            return
+        x = seen.setdefault(sym, {"symbol": sym, "address": addr, "n": 0, "people": set(), "sources": set(), "first": t, "last": t, "url": url, "who_first": who})
+        x["n"] += 1
+        x["people"].add(who.lower())
+        x["sources"].add(src)
+        x["address"] = x["address"] or addr
+        if t < x["first"]:
+            x["first"], x["who_first"] = t, who
+        x["last"] = max(x["last"], t)
+    for p in brain.state.get("posts", []):
+        for k in p.get("tickers") or []:
+            add(k, None, p["who"], p["src"], p["t"], p["url"])
+    for n in brain.live.narr.view():
+        for f in n["feed"]:
+            for c in f.get("coins") or []:
+                add(c.get("symbol"), c.get("address"), f["who"], f["src"], f["t"], f["url"])
+            for k in f.get("tickers") or []:
+                add(k, None, f["who"], f["src"], f["t"], f["url"])
+    from .memes import MAJORS, NOT_MEME
+    info = {}
+    for t in brain.state.get("tokens", {}).values():
+        k = (t.get("symbol") or "").upper()
+        if k and t.get("chain") == "solana" and (k not in info or (t.get("liq") or 0) > (info[k].get("liq") or 0)):
+            info[k] = t
+    for n in brain.live.narr.view():
+        for c in n["coins"]:
+            k = c["symbol"].upper()
+            if k not in info or (c.get("liq") or 0) > (info[k].get("liq") or 0):
+                info[k] = c
+    out = []
+    for x in seen.values():
+        if x["symbol"] in MAJORS or NOT_MEME.search(x["symbol"]):
+            continue
+        i = info.get(x["symbol"], {})
+        out.append({"symbol": x["symbol"], "address": x["address"] or i.get("address"), "n": x["n"], "people": len(x["people"]),
+                    "sources": sorted(x["sources"]), "first": x["first"], "last": x["last"], "who_first": x["who_first"], "url": i.get("url") or x["url"],
+                    "mcap": i.get("mcap"), "ch1": i.get("ch1"), "liq": i.get("liq")})
+    out.sort(key=lambda x: (-x["people"], -x["n"], -x["last"]))
+    return out[:20]
+
+
+def created(brain, hours: float = 3) -> list[dict]:
+    """Coins born in the last hours that matter: the narratives' and the hunt's new ones, and the pump.fun signals."""
+    now = time.time()
+    out: dict[str, dict] = {}
+    for n in brain.live.narr.view():
+        for c in n["coins"]:
+            if c.get("age_h") is not None and c["age_h"] <= hours:
+                out[c["address"]] = {"symbol": c["symbol"], "name": c["name"], "address": c["address"], "t": now - c["age_h"] * 3600, "why": n["name"],
+                                     "mcap": c.get("mcap"), "ch1": c.get("ch1"), "vol1": c.get("vol1"), "liq": c.get("liq"), "url": c.get("url")}
+        for l in n["launches"]:
+            if now - l["t"] <= hours * 3600 and l["mint"] not in out:
+                out[l["mint"]] = {"symbol": l["symbol"], "name": l["name"], "address": l["mint"], "t": l["t"], "why": f"{n['name']} · pump.fun",
+                                  "mcap": l.get("mcap"), "ch1": None, "vol1": None, "liq": None, "url": f"https://gmgn.ai/sol/token/{l['mint']}"}
+    for s in brain.live.view().get("signals", []):
+        out.setdefault(s["mint"], {"symbol": s["symbol"], "name": s["name"], "address": s["mint"], "t": s["t"], "why": f"pump.fun · {s['word']}",
+                                   "mcap": s.get("mcap"), "ch1": None, "vol1": None, "liq": s.get("liq"), "url": s.get("url")})
+    return sorted(out.values(), key=lambda x: -x["t"])[:20]
+
+
+def remember(brain, kind: str, text: str, coin: dict | None = None, tone: str = ""):
+    mem = brain.state.setdefault("memory", [])
+    if mem and mem[0]["text"] == text:
+        return
+    mem.insert(0, {"t": time.time(), "kind": kind, "text": text[:300], "coin": coin, "tone": tone})
+    del mem[500:]
+
+
+async def think(brain):
+    """Every half minute: what changed goes to the memory (a coin starting to be followed or talked about, a verdict
+    changing, a hunt sign, a new piece of advice)."""
+    st = brain.state
+    b = build(brain)
+    allp = b["_all"]
+    known = st.setdefault("mem_known", {})
+    for p in allp:
+        a = p["address"]
+        if a not in known:
+            known[a] = p["tone"]
+            if st.get("mem_ready"):
+                remember(brain, "follow", f"Comecei a seguir ${p.get('symbol')}: {why_buy(p)}", {"symbol": p.get("symbol"), "address": a, "url": p.get("url")}, p["tone"])
+        elif known[a] != p["tone"]:
+            remember(brain, "verdict", f"${p.get('symbol')} passou de «{_word(known[a])}» a «{p['verdict']}»: {why_buy(p) if p['tone'] != 'warn' else '; '.join(missing(p)[:2])}",
+                     {"symbol": p.get("symbol"), "address": a, "url": p.get("url")}, p["tone"])
+            known[a] = p["tone"]
+    talkedk = st.setdefault("mem_talked", {})
+    for x in talked(brain):
+        if x["symbol"] not in talkedk:
+            talkedk[x["symbol"]] = time.time()
+            if st.get("mem_ready"):
+                remember(brain, "talk", f"${x['symbol']} começou a ser falado (1.º @{x['who_first']}, {x['people']} pessoas em {', '.join(x['sources'])})",
+                         {"symbol": x["symbol"], "address": x.get("address"), "url": x.get("url")}, "info")
+    seen_ev = st.setdefault("mem_events", [])
+    for e in reversed(brain.live.narr.view()[0]["hunt"]["events"] if brain.live.narr.view() else []):
+        k = f"{e['kind']}:{e['t']:.0f}"
+        if k not in seen_ev:
+            seen_ev.append(k)
+            remember(brain, "hunt", f"🎯 {e['text']}", e.get("coin"), "bad" if e["kind"] == "screen" else "warn")
+    del seen_ev[:-300]
+    adv = advice(allp)
+    if st.get("mem_advice") != adv["head"] + adv["text"][:40]:
+        st["mem_advice"] = adv["head"] + adv["text"][:40]
+        remember(brain, "advice", f"Conselho: {adv['head']}. {adv['text']}", adv.get("coin"), adv["tone"])
+    st["mem_ready"] = True
+    for k in [k for k, v in talkedk.items() if time.time() - v > 86400]:
+        talkedk.pop(k)
+
+
+def _word(tone: str) -> str:
+    return {"ok": BUY, "warn": WAIT, "bad": NO}.get(tone, tone)
+
+
+def page(brain) -> dict:
+    b = build(brain)
+    allp = b.pop("_all")
+    for p in b["picks"]:
+        p["missing"] = missing(p)
+    return {**b, "advice": advice(allp), "talked": talked(brain), "created": created(brain), "memory": brain.state.get("memory", [])[:120],
+            "at": time.time(), "following": len(allp)}

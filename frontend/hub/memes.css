@@ -556,3 +556,47 @@ html.is-phone .mc-br-g { grid-template-columns: 1fr; }
 .mc-hole.full.info .mc-pet { --k: 1 !important; }
 .mc-hole.info .mc-hole-top { right: 14px; }
 .mc-hole:not(.full) .mc-hi-eye:nth-child(n+5) { display: none; }
+
+/* Cérebro (#/meme-cerebro, memes_brain.page): the advice, the figures, talked / born / memory, every coin with what it lacks */
+.cb-adv { position: relative; padding: 22px 24px; margin-bottom: 12px; border-left: 4px solid var(--warn); }
+.cb-adv.ok { border-left-color: var(--ok); background: linear-gradient(90deg, rgba(95, 207, 140, .1), transparent 60%); }
+.cb-adv.bad { border-left-color: var(--bad); }
+.cb-adv h2 { margin: 0 0 6px; font: 700 26px var(--display); letter-spacing: -.02em; }
+.cb-adv p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.5; max-width: 900px; }
+.cb-adv-b { display: flex; gap: 8px; margin-top: 14px; }
+.cb-live { position: absolute; right: 18px; top: 16px; display: inline-flex; align-items: center; gap: 6px; color: var(--faint); font-size: 11.5px; }
+.cb-live i { width: 7px; height: 7px; border-radius: 50%; background: #4dff9a; box-shadow: 0 0 0 3px rgba(77, 255, 154, .15); animation: lv-pulse 2.4s ease-in-out infinite; }
+.cb-k { display: flex; flex-wrap: wrap; gap: 22px; margin: 4px 2px 12px; }
+.cb-k span { display: inline-flex; align-items: baseline; gap: 6px; color: var(--muted); font-size: 12.5px; }
+.cb-k b { font: 700 22px var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+.cb-k b.ok { color: var(--ok); }
+.cb-g { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 12px; margin-bottom: 12px; }
+.cb-col, .cb-all { padding: 14px 10px 8px; min-width: 0; }
+.cb-col h3, .cb-all h3 { display: flex; align-items: baseline; gap: 8px; margin: 0 6px 8px; font-size: 14px; }
+.cb-col h3 small, .cb-all h3 small { color: var(--faint); font-weight: 400; font-size: 11px; }
+.cb-col { max-height: 520px; overflow-y: auto; }
+.cb-e { padding: 12px 8px; }
+.cb-row { display: grid; grid-template-columns: auto 1fr auto; column-gap: 8px; align-items: baseline; padding: 8px 6px; border-radius: 10px; color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+.cb-row:hover { background: rgba(255, 255, 255, .03); }
+.cb-row b { font-size: 13.5px; }
+.cb-row span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-row em { font-style: normal; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cb-row small { grid-column: 1 / -1; color: var(--faint); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-m { display: grid; grid-template-columns: 42px 1fr; gap: 6px; padding: 7px 6px; border-radius: 9px; color: inherit; text-decoration: none; font-size: 12px; line-height: 1.4; }
+.cb-m:hover { background: rgba(255, 255, 255, .03); }
+.cb-m time { color: var(--faint); font-variant-numeric: tabular-nums; font-size: 11px; padding-top: 1px; }
+.cb-m em { font-style: normal; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 1px 5px; margin-right: 6px; border-radius: 4px; background: rgba(255, 255, 255, .08); color: var(--muted); }
+.cb-m.ok em { background: rgba(95, 207, 140, .16); color: #9fe6bb; } .cb-m.bad em { background: rgba(239, 111, 94, .16); color: #f3ab9f; }
+.cb-m.warn em { background: rgba(226, 181, 92, .16); color: #ecd3a0; } .cb-m.info em { background: rgba(127, 212, 255, .14); color: #bfe6ff; }
+.cb-m span { color: var(--muted); }
+.cb-p { display: grid; grid-template-columns: 10px auto auto 1fr; column-gap: 9px; row-gap: 3px; align-items: center; padding: 10px 8px; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.cb-p:hover { background: rgba(255, 255, 255, .025); }
+.cb-p i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.cb-p.ok i { background: var(--ok); box-shadow: 0 0 8px var(--ok); } .cb-p.bad i { background: var(--bad); }
+.cb-p em { font-style: normal; justify-self: end; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.cb-p small { grid-column: 2 / -1; color: var(--muted); font-size: 11.5px; }
+.cb-miss { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 5px; }
+.cb-miss u { text-decoration: none; font-size: 10.5px; padding: 1px 7px; border-radius: 999px; background: rgba(226, 181, 92, .1); color: #ecd3a0; }
+.cb-miss.ok u { background: rgba(95, 207, 140, .14); color: #9fe6bb; }
+html.is-phone .cb-g { grid-template-columns: 1fr; }
+@keyframes lv-pulse { 50% { box-shadow: 0 0 0 6px rgba(77, 255, 154, 0); } }

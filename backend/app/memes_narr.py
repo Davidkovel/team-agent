@@ -335,6 +335,8 @@ class Narratives:
         lives = [v for st in self.state.values() for v in st["lives"] if v.get("site") == "YouTube"]
         # the most watched, and the ones going through the story (they reach the plane first)
         lives = sorted(lives, key=lambda v: -(v["viewers"] * (3 if FAST.search(v["title"]) else 1)))[:10]
+        for k in [k for k in self.screens if k not in {v["id"] for v in lives}]:
+            self.screens.pop(k)
         d = OCR.parent / "frames"
         d.mkdir(exist_ok=True)
         files = {}
@@ -365,8 +367,11 @@ class Narratives:
             if not v:
                 continue
             text = j.get("text") or ""
-            self.screens[v["id"]] = {"id": v["id"], "channel": v["channel"], "viewers": v["viewers"], "url": v["url"], "text": text[:300], "t": time.time()}
             low = text.lower()
+            hit = next((term for term in self.hunt if term.lower() in low), None)
+            self.screens[v["id"]] = {"id": v["id"], "channel": v["channel"], "viewers": v["viewers"], "url": v["url"], "text": text[:300], "t": time.time(),
+                                     "title": v["title"][:100], "frame": f"https://i.ytimg.com/vi/{v['id']}/hqdefault_live.jpg?t={int(time.time())}",
+                                     "hit": hit, "fast": bool(FAST.search(v["title"]))}
             for term in self.hunt:
                 if term.lower() in low:
                     self._found("screen", term, f"Apareceu «{term.upper()}» no ecrã da live de {v['channel']} ({v['viewers']:,} a ver): {text[:160]}".replace(",", " "),
@@ -496,6 +501,6 @@ class Narratives:
             out.append({"id": n["id"], "name": n["name"], "note": n.get("note", ""), "coins": coins, "launches": launches, "feed": feed,
                         "lives": s["lives"][:20], "vol1": vol1, "n_coins": len(s["coins"]),
                         "viewers": sum(v["viewers"] for v in s["lives"]), "at": s["at"], "lives_at": s["lives_at"],
-                        "hunt": {"terms": self.hunt, "events": list(self.events)[:40], "ocr_at": self._ocr_at, "hunt_at": self._hunt_at,
+                        "hunt": {"terms": self.hunt, "events": list(self.events)[:40], "ocr_at": self._ocr_at, "hunt_at": self._hunt_at, "lives_at": s["lives_at"],
                                  "screens": sorted(self.screens.values(), key=lambda x: -x["viewers"])[:10]}})
         return out

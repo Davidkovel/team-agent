@@ -136,7 +136,9 @@ class Live:
                     for m in first:
                         await w.send(m)
                     self.src[key]["on"], wait = True, 2
-                    async for raw in w:
+                    idle = 90 if key == "pump" else 900   # a socket gone quiet is reconnected (pump.fun never sleeps 90 s)
+                    while True:
+                        raw = await asyncio.wait_for(w.recv(), idle)
                         self.src[key]["at"] = _now()
                         try:
                             on_msg(json.loads(raw))

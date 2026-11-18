@@ -165,12 +165,24 @@
       const H = N.hunt || { terms: [], events: [], screens: [] };
       const KIND = { launch: ["Nasceu", "ok"], move: ["A mexer", "ok"], post: ["Falam disso", "info"], title: ["Live", "warn"], screen: ["NO ECRÃ", "bad"] };
       const terms = H.terms.length ? H.terms.map((w) => `<span class="lv-term">🎯 ${esc(w.toUpperCase())}<button type="button" data-lv-unhunt="${esc(w)}" aria-label="${esc(t("Parar de caçar"))}">×</button></span>`).join("") : `<span class="lv-e">${esc(t("Nada a caçar: escreve uma palavra em cima."))}</span>`;
-      const status = `<p class="lv-hunt-st">${esc(t("Moedas de 20 em 20 s · lives de minuto a minuto · ecrã de {n} lives lido {a}", { n: H.screens.length, a: H.ocr_at ? ago(H.ocr_at) : t("a começar") }))}</p>`;
+      // 18 Nov, Marco: «devia estar tudo visível... ter controlo com os olhos para estarmos a par da cena toda... não peço para
+      // rodares as lives, apenas identificar». What each agent is doing this second, and the wall of the lives being read.
+      const fresh = (ts, sec) => ts && Date.now() / 1000 - ts < sec;
+      const doing = [
+        [fresh(H.ocr_at, 150), t("A ler o ecrã de {n} lives", { n: H.screens.length }), H.ocr_at],
+        [fresh(H.hunt_at, 45), t("À procura de {w} na DexScreener", { w: H.terms.map((x) => x.toUpperCase()).join(", ") || "—" }), H.hunt_at],
+        [fresh(H.lives_at, 150), t("{n} lives do GTA 6 no YouTube · {v} pessoas a ver", { n: N.lives.length, v: loc(N.viewers || 0, 0) }), H.lives_at],
+        [LV.src.pump.on, t("pump.fun ao segundo · {n} moedas novas/min", { n: loc(LV.per_min, 1) }), LV.src.pump.at],
+        [LV.src.tree.on, t("X em tempo real (Tree News)") + (LV.lag != null ? ` · ${loc(LV.lag, 1)} s` : ""), LV.src.tree.at],
+      ];
+      const status = `<div class="lv-doing">${doing.map(([on, txt, at]) => `<span class="${on ? "on" : ""}"><i></i>${esc(txt)}<small>${at ? esc(ago(at)) : ""}</small></span>`).join("")}</div>`;
       const evs = H.events.length ? H.events.map((e) => { const [w, tone] = KIND[e.kind] || [e.kind, ""]; return `<a class="lv-ev ${e.kind}" href="${esc(e.url || "#")}" target="_blank" rel="noopener">
           <span class="lv-tag ${tone}">${esc(t(w))}</span><span class="lv-m"><b>${esc(e.text)}</b><small>${esc(ago(e.t))}</small></span>${e.coin && e.coin.address ? acts(e.coin.address) : ""}</a>`; }).join("")
-        : empty(t("Ainda nenhum sinal. Avisa-te no segundo em que nascer uma moeda, uma começar a mexer, alguém falar disso, ou aparecer no título ou no ECRÃ de uma live."));
-      const scr = H.screens.length ? `<p class="lv-sub">${esc(t("O que se lê agora no ecrã das lives"))}</p>` + H.screens.map((x) => `<a class="lv-scr" href="${esc(x.url)}" target="_blank" rel="noopener"><b>${esc(x.channel)}</b><small>${esc(loc(x.viewers, 0))} ${esc(t("a ver"))} · ${esc(ago(x.t))}</small><span>${esc(x.text || t("(sem texto no ecrã)"))}</span></a>`).join("") : "";
-      return `<div class="lv-terms">${terms}</div>${status}${evs}${scr}`;
+        : `<p class="lv-e lv-e-s">${esc(t("Ainda nenhum sinal: avisa-te no segundo em que aparecer."))}</p>`;
+      const scr = H.screens.length ? `<p class="lv-sub">${esc(t("👁 O que o cérebro está a ver agora"))}</p><div class="lv-wall">` + H.screens.map((x) => `<a class="lv-frame ${x.hit ? "hit" : ""}" href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(x.title || "")}">
+          <span class="lv-fimg"><img src="${esc(x.frame)}" alt="" loading="lazy" referrerpolicy="no-referrer"><em><i></i>${esc(x.viewers >= 1000 ? loc(x.viewers / 1000, x.viewers < 10000 ? 1 : 0) + " mil" : String(x.viewers))}</em>${x.hit ? `<strong>🎯 ${esc(x.hit.toUpperCase())}</strong>` : x.fast ? `<u>${esc(t("história"))}</u>` : ""}</span>
+          <b>${esc(x.channel)}</b><small>${esc(t("lido {a}", { a: ago(x.t) }))}: ${esc(x.text ? "«" + x.text.replace(/ \| /g, " · ").slice(0, 90) + "»" : t("nada escrito no ecrã"))}</small></a>`).join("") + `</div>` : "";
+      return `<div class="lv-terms">${terms}</div>${status}<p class="lv-sub">${esc(t("Sinais encontrados"))}</p>${evs}${scr}`;
     }
     if (st.nsub === "new") return head + (N.launches.length ? N.launches.map((x) => `<div class="lv-row sm">${img(x)}<span class="lv-m"><b>$${esc(sym(x.symbol))}${x.migrated ? ` <span class="lv-tag ok">${esc(t("Migrou"))}</span>` : ""}</b>
         <small>${esc(x.name)} · ${esc(t("há {s}", { s: since(Date.now() / 1000 - x.t) }))}${x.dev_sol ? " · " + esc(t("criador {n} SOL", { n: loc(x.dev_sol, 2) })) : ""}</small></span>

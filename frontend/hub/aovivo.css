@@ -149,3 +149,24 @@ html.lv-solo .lv-h { cursor: default; }
 .lv-scr:hover { background: rgba(255, 255, 255, .04); }
 .lv-scr small { color: var(--faint, #7c838c); }
 .lv-scr span { color: var(--muted, #aab1bb); font-family: var(--mono, monospace); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 👁 what the brain is doing and seeing (18 Nov) */
+.lv-doing { display: grid; gap: 3px; margin: 6px 4px 4px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .06); }
+.lv-doing span { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--faint, #7c838c); }
+.lv-doing span.on { color: var(--text, #eef1f4); }
+.lv-doing i { width: 6px; height: 6px; border-radius: 50%; background: #555b63; flex: none; }
+.lv-doing span.on i { background: #4dff9a; box-shadow: 0 0 0 3px rgba(77, 255, 154, .15); }
+.lv-doing small { margin-left: auto; color: var(--faint, #7c838c); font-size: 10.5px; white-space: nowrap; }
+.lv-e-s { padding: 8px 10px; text-align: left; }
+.lv-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 2px 4px 6px; }
+.lv-frame { display: grid; gap: 2px; color: inherit; text-decoration: none; min-width: 0; }
+.lv-fimg { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: #111; border: 1px solid rgba(255, 255, 255, .08); }
+.lv-fimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lv-fimg em { position: absolute; left: 5px; top: 5px; display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; background: rgba(0, 0, 0, .75);
+  color: #fff; font: 700 10px var(--ui, inherit); font-style: normal; }
+.lv-fimg em i { width: 6px; height: 6px; border-radius: 50%; background: #ff3b30; }
+.lv-fimg u { position: absolute; right: 5px; top: 5px; padding: 1px 6px; border-radius: 5px; background: rgba(127, 212, 255, .85); color: #04121c; font: 700 9.5px var(--ui, inherit); text-decoration: none; }
+.lv-fimg strong { position: absolute; inset: auto 0 0 0; padding: 4px; background: rgba(255, 59, 48, .9); color: #fff; font-size: 11px; text-align: center; letter-spacing: .06em; }
+.lv-frame.hit .lv-fimg { border: 2px solid #ff3b30; box-shadow: 0 0 0 3px rgba(255, 59, 48, .25); }
+.lv-frame b { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-frame small { color: var(--faint, #7c838c); font-size: 10px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

@@ -64,6 +64,22 @@ DEFAULT = [GTA]
 # starting to move, a post, a live's title, or **written on the screen of a live** (the frame YouTube shows of each live,
 # read by the Mac's own text recognition, tools/ocr_mac.swift: free, nothing of the Claude spent).
 HUNT = ["dacity"]
+DEX_TOKENS = "https://api.dexscreener.com/latest/dex/tokens/"
+MILESTONES = (250_000, 1_000_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000)
+
+
+def variants(term: str) -> list[str]:
+    """A hunted word as the coins really write it. 18 Nov: the Dacity coin that fired was $DCTY «DacityCoin», and a
+    search for «dacity» never returned it: so its ticker without vowels too (DCTY), and «<word> coin»."""
+    w = norm(term)
+    skel = w[:1] + "".join(c for c in w[1:] if c not in "aeiou")
+    return list(dict.fromkeys([term, w, skel, f"{term} coin", f"{w}coin"]))
+
+
+def is_hunted(term: str, symbol: str | None, name: str | None) -> bool:
+    w, s, n = norm(term), norm(symbol), norm(name)
+    skel = w[:1] + "".join(c for c in w[1:] if c not in "aeiou")
+    return w in s or w in n or s == skel or s == skel + "coin"
 OCR = Path.home() / ".team-agent" / "memes" / "ocr"
 OCR_SRC = Path(__file__).resolve().parent / "tools" / "ocr_mac.swift"
 FAST = re.compile(r"speedrun|100\s?%|walkthrough|parte?\s?\d|part\s?\d|miss[aã]o|mission|story|hist[oó]ria", re.I)
@@ -179,7 +195,7 @@ class Narratives:
         ev = {"t": time.time(), "kind": kind, "term": term, "text": text[:300], "url": url, "coin": coin}
         self.events.appendleft(ev)
         if alert:
-            title = {"launch": "nasceu uma moeda", "move": "está a mexer", "post": "falam disso", "title": "numa live",
+            title = {"launch": "nasceu uma moeda", "move": "está a mexer", "fire": "🚀 A DISPARAR", "post": "falam disso", "title": "numa live",
                      "screen": "APARECEU NO ECRÃ de uma live"}[kind]
             self._outbox.append((alert, f"Caça {term.upper()}: {title}", text[:240]))
 
@@ -283,7 +299,14 @@ class Narratives:
                     "b1": (tx.get("h1") or {}).get("buys", 0), "s1": (tx.get("h1") or {}).get("sells", 0),
                     "created": (p.get("pairCreatedAt") or 0) / 1000 or None, "at": time.time()}
             await asyncio.sleep(0.2)
+        marks = self.live.b.state.setdefault("narr_marks", {})
         for a, d in found.items():
+            top = max([m for m in MILESTONES if (d["mcap"] or 0) >= m], default=0)
+            if top >= 1_000_000 and top > marks.get(a, 0) and a in marks and (d["vol1"] or 0) >= 100_000:
+                k = lambda v: f"{v / 1e6:.1f} M$".replace(".", ",") if v >= 1e6 else f"{v / 1e3:.0f} k$"  # noqa: E731
+                self._found("fire", n["name"], f"🚀 {n['name']}: ${d['symbol']} ({d['name']}) passou {k(top)}, {d['ch1'] or 0:+.0f}% numa hora, "
+                            f"{k(d['vol1'] or 0)} negociados", d.get("url") or "", {"address": a, "symbol": d["symbol"], "url": d.get("url")}, key=f"{a}:{top}")
+            marks[a] = max(top, marks.get(a, 0))
             old = s["coins"].get(a) or {}
             d["seen"] = old.get("seen") or time.time()
             d["peak"] = max(old.get("peak") or 0, d["mcap"] or 0)
@@ -293,30 +316,72 @@ class Narratives:
             s["coins"].pop(a)
 
     async def _hunt_coins(self, c: httpx.AsyncClient):
-        """Every 20 s: the coins carrying a hunted word. A new one is news; one whose last 5 min woke up is the moment."""
-        seen = self.live.b.state.setdefault("hunt_seen", {})
+        """Every 20 s. 1) Search DexScreener for each variant of each hunted word, and for every $TICKER said in the last
+        3 h that looks like one (DCTY); 2) every coin found is then followed by its contract (not by the search, which
+        missed the one that fired); 3) alerts: a new one, one waking up (+20 % in 5 min), and one firing (passing 250 k$,
+        1 M$, 5 M$, 10 M$... of value, or +50 % in an hour with 200 k$ traded)."""
+        st = self.live.b.state
+        seen = st.setdefault("hunt_seen", {})
+        watch = st.setdefault("hunt_watch", {})   # address -> term
+        said = {k for p in st.get("posts", []) if time.time() - p["t"] < 3 * 3600 for k in p.get("tickers") or []}
+        for n in self.defs:
+            said |= {k for f in self.of(n["id"])["feed"] if time.time() - f["t"] < 3 * 3600 for k in f.get("tickers") or []}
         for term in self.hunt:
+            queries = variants(term) + [k for k in said if is_hunted(term, k, "")]
+            for q in dict.fromkeys(queries):
+                try:
+                    pairs = ((await c.get(DEX_SEARCH + q, timeout=12)).json() or {}).get("pairs") or []
+                except (httpx.HTTPError, ValueError):
+                    continue
+                for p in pairs:
+                    b = p.get("baseToken") or {}
+                    if p.get("chainId") == "solana" and b.get("address") and is_hunted(term, b.get("symbol"), b.get("name")):
+                        watch.setdefault(b["address"], term)
+                await asyncio.sleep(0.25)
+        # follow every hunted coin by its contract, its deepest pool
+        addrs = list(watch)[-120:]
+        best: dict[str, dict] = {}
+        for i in range(0, len(addrs), 30):
             try:
-                pairs = ((await c.get(DEX_SEARCH + term, timeout=12)).json() or {}).get("pairs") or []
+                pairs = ((await c.get(DEX_TOKENS + ",".join(addrs[i:i + 30]), timeout=15)).json() or {}).get("pairs") or []
             except (httpx.HTTPError, ValueError):
                 continue
             for p in pairs:
-                b = p.get("baseToken") or {}
-                if norm(term) not in norm(b.get("symbol")) + " " + norm(b.get("name")) or not b.get("address") or p.get("chainId") != "solana":
-                    continue
-                a, vol, ch = b["address"], p.get("volume") or {}, p.get("priceChange") or {}
-                coin = {"address": a, "symbol": b.get("symbol"), "name": b.get("name"), "mcap": p.get("marketCap"), "url": p.get("url")}
-                if a not in seen:
-                    first = not seen.get("_ready_" + term)
-                    seen[a] = time.time()
-                    if not first:
-                        self._found("launch", term, f"Nova moeda com {term.upper()}: ${b.get('symbol')} ({b.get('name')}), vale {p.get('marketCap') or 0:,.0f} $".replace(",", " "),
-                                    p.get("url") or "", coin, key=a)
-                if (vol.get("m5") or 0) >= 3000 and (ch.get("m5") or 0) >= 20:
-                    self._found("move", term, f"${b.get('symbol')} ({b.get('name')}) +{ch['m5']:.0f}% em 5 min, {vol['m5']:,.0f} $ negociados, vale {p.get('marketCap') or 0:,.0f} $".replace(",", " "),
-                                p.get("url") or "", coin, key=a)
-            seen["_ready_" + term] = True   # the first search only learns what exists already
-            await asyncio.sleep(0.3)
+                a = (p.get("baseToken") or {}).get("address")
+                if a in watch and (a not in best or ((p.get("liquidity") or {}).get("usd") or 0) > ((best[a].get("liquidity") or {}).get("usd") or 0)):
+                    best[a] = p
+        first_pass = not st.get("hunt_ready2")
+        marks = st.setdefault("hunt_marks", {})
+        for a, p in best.items():
+            term, b = watch[a], p.get("baseToken") or {}
+            vol, ch, mc = p.get("volume") or {}, p.get("priceChange") or {}, p.get("marketCap") or p.get("fdv") or 0
+            coin = {"address": a, "symbol": b.get("symbol"), "name": b.get("name"), "mcap": mc, "url": p.get("url")}
+            k = lambda v: f"{v / 1e6:.1f} M$".replace(".", ",") if v >= 1e6 else f"{v / 1e3:.0f} k$"  # noqa: E731
+            if a not in seen:
+                seen[a] = time.time()
+                if not first_pass:
+                    self._found("launch", term, f"Nova moeda de {term.upper()}: ${b.get('symbol')} ({b.get('name')}), vale {k(mc)}", p.get("url") or "", coin, key=a)
+            top = max([m for m in MILESTONES if mc >= m], default=0)
+            if top > marks.get(a, 0):
+                if not first_pass and marks.get(a) is not None:
+                    self._found("fire", term, f"🚀 ${b.get('symbol')} ({b.get('name')}) A DISPARAR: passou {k(top)}, vale {k(mc)}, "
+                                f"{ch.get('h1') or 0:+.0f}% numa hora, {k(vol.get('h1') or 0)} negociados, pool {k((p.get('liquidity') or {}).get('usd') or 0)}",
+                                p.get("url") or "", coin, key=f"{a}:{top}")
+                marks[a] = top
+            elif a not in marks:
+                marks[a] = top
+            if (vol.get("m5") or 0) >= 3000 and (ch.get("m5") or 0) >= 20:
+                self._found("move", term, f"${b.get('symbol')} ({b.get('name')}) +{ch['m5']:.0f}% em 5 min, {k(vol['m5'])} negociados, vale {k(mc)}",
+                            p.get("url") or "", coin, key=a)
+            if (ch.get("h1") or 0) >= 50 and (vol.get("h1") or 0) >= 200_000:
+                self._found("fire", term, f"🚀 ${b.get('symbol')} a disparar: {ch['h1']:+.0f}% numa hora, {k(vol['h1'])} negociados, vale {k(mc)}",
+                            p.get("url") or "", coin, key=f"{a}:h1")
+        st["hunt_ready2"] = True
+        st["hunt_top"] = sorted(({"address": a, "symbol": (p.get("baseToken") or {}).get("symbol"), "name": (p.get("baseToken") or {}).get("name"),
+                                  "mcap": p.get("marketCap") or p.get("fdv"), "ch1": (p.get("priceChange") or {}).get("h1"),
+                                  "ch5": (p.get("priceChange") or {}).get("m5"), "vol1": (p.get("volume") or {}).get("h1"),
+                                  "liq": (p.get("liquidity") or {}).get("usd"), "url": p.get("url"), "term": watch[a]} for a, p in best.items()),
+                                key=lambda x: -(x["mcap"] or 0))[:12]
 
     async def _screens(self, c: httpx.AsyncClient):
         """The frame of each of the busiest lives (YouTube refreshes it every few minutes), read by the Mac's OCR."""
@@ -501,6 +566,6 @@ class Narratives:
             out.append({"id": n["id"], "name": n["name"], "note": n.get("note", ""), "coins": coins, "launches": launches, "feed": feed,
                         "lives": s["lives"][:20], "vol1": vol1, "n_coins": len(s["coins"]),
                         "viewers": sum(v["viewers"] for v in s["lives"]), "at": s["at"], "lives_at": s["lives_at"],
-                        "hunt": {"terms": self.hunt, "events": list(self.events)[:40], "ocr_at": self._ocr_at, "hunt_at": self._hunt_at, "lives_at": s["lives_at"],
+                        "hunt": {"top": self.live.b.state.get("hunt_top", []), "terms": self.hunt, "events": list(self.events)[:40], "ocr_at": self._ocr_at, "hunt_at": self._hunt_at, "lives_at": s["lives_at"],
                                  "screens": sorted(self.screens.values(), key=lambda x: -x["viewers"])[:10]}})
         return out

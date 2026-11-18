@@ -197,7 +197,7 @@
   // (their frames). The Farols close in around the hole to make room. Under 900 px of hole there is no room: back to before.
   const infoOn = () => { const h = $("mc-hole"); return !!h && h.clientWidth >= 760 && !document.documentElement.classList.contains("is-phone"); };
   const KSHORT = { compra: ["COMPRA", "ok"], venda: ["VENDE", "bad"], aviso: ["AVISO", "bad"], resultado: ["LUCRO", "warn"], noticia: ["NOTÍCIA", ""],
-    call: ["CALL", "ok"], narr: ["GTA 6", "warn"], hunt: ["🎯", "bad"], launch: ["LANÇADA", "info"] };
+    call: ["CALL", "ok"], narr: ["GTA 6", "warn"], hunt: ["🎯", "bad"], launch: ["LANÇADA", "info"], fire: ["🚀", "bad"] };
   function paintInfo() {
     const h = $("mc-hole"); if (!h) return;
     const on = infoOn();

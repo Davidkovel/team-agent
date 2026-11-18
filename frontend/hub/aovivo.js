@@ -163,7 +163,7 @@
     const head = `<div class="lv-nhead"><b>${esc(N.name)}</b><span>${esc(t("{n} moedas · {v} na última hora · {w} a ver lives", { n: N.n_coins, v: usdK(N.vol1), w: loc(N.viewers || 0, 0) }))}</span></div>`;
     if (st.nsub === "hunt") {
       const H = N.hunt || { terms: [], events: [], screens: [] };
-      const KIND = { launch: ["Nasceu", "ok"], move: ["A mexer", "ok"], post: ["Falam disso", "info"], title: ["Live", "warn"], screen: ["NO ECRÃ", "bad"] };
+      const KIND = { launch: ["Nasceu", "ok"], move: ["A mexer", "ok"], post: ["Falam disso", "info"], title: ["Live", "warn"], screen: ["NO ECRÃ", "bad"], fire: ["🚀 A DISPARAR", "bad"] };
       const terms = H.terms.length ? H.terms.map((w) => `<span class="lv-term">🎯 ${esc(w.toUpperCase())}<button type="button" data-lv-unhunt="${esc(w)}" aria-label="${esc(t("Parar de caçar"))}">×</button></span>`).join("") : `<span class="lv-e">${esc(t("Nada a caçar: escreve uma palavra em cima."))}</span>`;
       // 18 Nov, Marco: «devia estar tudo visível... ter controlo com os olhos para estarmos a par da cena toda... não peço para
       // rodares as lives, apenas identificar». What each agent is doing this second, and the wall of the lives being read.
@@ -182,7 +182,10 @@
       const scr = H.screens.length ? `<p class="lv-sub">${esc(t("👁 O que o cérebro está a ver agora"))}</p><div class="lv-wall">` + H.screens.map((x) => `<a class="lv-frame ${x.hit ? "hit" : ""}" href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(x.title || "")}">
           <span class="lv-fimg"><img src="${esc(x.frame)}" alt="" loading="lazy" referrerpolicy="no-referrer"><em><i></i>${esc(x.viewers >= 1000 ? loc(x.viewers / 1000, x.viewers < 10000 ? 1 : 0) + " mil" : String(x.viewers))}</em>${x.hit ? `<strong>🎯 ${esc(x.hit.toUpperCase())}</strong>` : x.fast ? `<u>${esc(t("história"))}</u>` : ""}</span>
           <b>${esc(x.channel)}</b><small>${esc(t("lido {a}", { a: ago(x.t) }))}: ${esc(x.text ? "«" + x.text.replace(/ \| /g, " · ").slice(0, 90) + "»" : t("nada escrito no ecrã"))}</small></a>`).join("") + `</div>` : "";
-      return `<div class="lv-terms">${terms}</div>${status}<p class="lv-sub">${esc(t("Sinais encontrados"))}</p>${evs}${scr}`;
+      const top = (H.top || []).length ? `<p class="lv-sub">${esc(t("As moedas da caça, seguidas pelo contrato"))}</p>` + H.top.map((x) => `<div class="lv-row sm"><span class="lv-m"><b>$${esc(sym(x.symbol))} <small>${esc(x.name || "")}</small></b>
+          <small>${esc(t("pool {l} · {v} numa hora", { l: usdK(x.liq), v: usdK(x.vol1) }))} · 5 min ${x.ch5 != null ? (x.ch5 > 0 ? "+" : "") + loc(x.ch5, 0) + "%" : "—"}</small></span>
+          <span class="lv-n"><b>${usd(x.mcap)}</b><small>${pct(x.ch1)} 1h</small></span>${acts(x.address)}</div>`).join("") : "";
+      return `<div class="lv-terms">${terms}</div>${status}${top}<p class="lv-sub">${esc(t("Sinais encontrados"))}</p>${evs}${scr}`;
     }
     if (st.nsub === "new") return head + (N.launches.length ? N.launches.map((x) => `<div class="lv-row sm">${img(x)}<span class="lv-m"><b>$${esc(sym(x.symbol))}${x.migrated ? ` <span class="lv-tag ok">${esc(t("Migrou"))}</span>` : ""}</b>
         <small>${esc(x.name)} · ${esc(t("há {s}", { s: since(Date.now() / 1000 - x.t) }))}${x.dev_sol ? " · " + esc(t("criador {n} SOL", { n: loc(x.dev_sol, 2) })) : ""}</small></span>

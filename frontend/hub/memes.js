@@ -7,7 +7,7 @@
 // (Resumo, Moedas, Redes sociais, Agentes, the NAV entry's pages), the Resumo says in one sentence what is going on, every
 // coin gets a verdict in words (Forte, A ganhar força, Fraca, Ignorar, Perigo) and every term is explained in plain words.
 (function () {
-  let S = null, B = null, P = [], BR = null, timer = 0, view = "quem", filter = "todas";
+  let S = null, B = null, P = [], BR = null, NL = null, timer = 0, view = "quem", filter = "todas";
   const loc = (v, d = 0) => Number(v).toLocaleString("pt-PT", { minimumFractionDigits: d, maximumFractionDigits: d });
   const usd = (v) => (v == null ? "—" : v >= 1e9 ? `${loc(v / 1e9, 1)} mil M$` : v >= 1e6 ? `${loc(v / 1e6, 1)} M$` : v >= 1e3 ? `${loc(v / 1e3, 0)} mil $` : `${loc(v, 0)} $`);
   const price = (v) => (v == null ? "—" : v >= 1 ? `${loc(v, 2)} $` : v > 0 ? `${Number(v).toPrecision(3)} $` : "0 $");
@@ -60,6 +60,7 @@
   async function load(first) {
     [S, B, P, BR] = await Promise.all([api("/api/memes/state"), view === "quem" || view === "calls" ? api("/api/memes/board") : Promise.resolve(B),
       view === "quem" ? api("/api/plans").catch(() => []) : Promise.resolve(P), view === "quem" ? api("/api/memes/brain").catch(() => BR) : Promise.resolve(BR)]);
+    if (view === "quem") NL = await api("/api/memes/live").catch(() => NL);
     paintCtl();
     const typing = $("mc-body").querySelector("input:focus, textarea:focus, select:focus, details[open]");
     if (first || !typing) ({ quem, calls: callsView, moedas, agentes })[view]();
@@ -133,15 +134,18 @@
         <div class="mc-hole-top"><span><b>${esc(t("O buraco negro"))}</b><small id="mc-hole-st"></small></span>
           <span class="mc-hole-btns"><button type="button" class="btn sm" data-act="aovivo">${icon("bolt")}${esc(t("Ao vivo"))}</button><button type="button" class="btn sm" data-act="full">${esc(t("Maximizar"))}</button></span></div>
         <div class="mc-orbit" id="mc-orbit"></div>
+        <aside class="mc-hi mc-hi-l" id="mc-hi-l"></aside><aside class="mc-hi mc-hi-r" id="mc-hi-r"></aside>
+        <div class="mc-hi-hunt" id="mc-hi-hunt"></div><div class="mc-hi-eyes" id="mc-hi-eyes"></div>
         <nav class="mc-dock" id="mc-dock"></nav>
         <aside class="mc-drawer" id="mc-drawer" hidden></aside>
       </section><div id="mc-planbar"></div>`;
       $("mc-hole").addEventListener("click", holeClick);
       holeSize();
-      if ("ResizeObserver" in window) new ResizeObserver(() => { holeSize(); drawHole(performance.now() / 1000); }).observe($("mc-hole"));
+      if ("ResizeObserver" in window) new ResizeObserver(() => { holeSize(); drawHole(performance.now() / 1000); if (B) { paintOrbit(); paintInfo(); } }).observe($("mc-hole"));
     }
     paintOrbit();
     paintDock();
+    paintInfo();
     if (portal) paintDrawer();
     paint($("mc-planbar"), planbar());
     holeRun();
@@ -164,18 +168,53 @@
 
   function paintOrbit() {
     const pets = B.agents.filter((a) => a.id in ORBIT).map((a) => {
-      const deg = ORBIT[a.id], x = 50 + 41 * Math.cos(deg * Math.PI / 180), y = 50 + 34 * Math.sin(deg * Math.PI / 180);
+      const rx = infoOn() ? 19 : 41, ry = infoOn() ? 31 : 34;
+      const deg = ORBIT[a.id], x = 50 + rx * Math.cos(deg * Math.PI / 180), y = 50 + ry * Math.sin(deg * Math.PI / 180);
       const k = 0.82 + 0.3 * ((y - 16) / 68);   // nearer (lower) is bigger
       return `<button type="button" class="mc-pet lk-${look(a)} ${portal === PORTAL_OF[a.id] ? "on" : ""}" data-portal="${PORTAL_OF[a.id]}" title="${esc(t(JOB[a.id]))}${a.note ? " · " + esc(a.note) : ""}"
         style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;--k:${k.toFixed(2)};z-index:${Math.round(y)}">${farol(a)}</button>`;
     }).join("");
     const infs = S.influencers.map((i, n, all) => {
-      const deg = -90 + (360 / Math.max(1, all.length)) * n + 18, x = 50 + 19 * Math.cos(deg * Math.PI / 180), y = 50 + 13 * Math.sin(deg * Math.PI / 180);
+      const deg = -90 + (360 / Math.max(1, all.length)) * n + 18, x = 50 + (infoOn() ? 9 : 19) * Math.cos(deg * Math.PI / 180), y = 50 + 13 * Math.sin(deg * Math.PI / 180);
       return `<button type="button" class="mc-star" data-portal="inf:${esc(i.platform)}/${esc(i.handle)}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" title="${esc(i.name || "@" + i.handle)}">${face(i)}</button>`;
     }).join("");
     paint($("mc-orbit"), infs + pets);
     const st = $("mc-hole-st"), busy = B.agents.filter((a) => a.busy).map((a) => a.name);
     if (st) st.textContent = busy.length ? t("{a} a trabalhar", { a: busy.join(", ") }) : t("{n} moedas · {p} publicações · {c} calls lá dentro", { n: S.n_tokens, p: S.posts.length, c: B.calls.length });
+  }
+
+  // 18 nov, Marco: «queria que essa bola fosse uma fonte de informação: só precisava de olhar para lá e tivesse TUDO ali
+  // exposto». Inside the hole, always on: left, what is worth it (memes_brain.py picks and the buy / don't-buy signals); right,
+  // what is being said; on top, the hunt (🎯 DACITY) with what the agents do this second; at the foot, the lives being read
+  // (their frames). The Farols close in around the hole to make room. Under 900 px of hole there is no room: back to before.
+  const infoOn = () => { const h = $("mc-hole"); return !!h && h.clientWidth >= 760 && !document.documentElement.classList.contains("is-phone"); };
+  const KSHORT = { compra: ["COMPRA", "ok"], venda: ["VENDE", "bad"], aviso: ["AVISO", "bad"], resultado: ["LUCRO", "warn"], noticia: ["NOTÍCIA", ""],
+    call: ["CALL", "ok"], narr: ["GTA 6", "warn"], hunt: ["🎯", "bad"], launch: ["LANÇADA", "info"] };
+  function paintInfo() {
+    const h = $("mc-hole"); if (!h) return;
+    const on = infoOn();
+    h.classList.toggle("info", on);
+    if (!on) { ["mc-hi-l", "mc-hi-r", "mc-hi-hunt", "mc-hi-eyes"].forEach((id) => paint($(id), "")); return; }
+    const N = NL && (NL.narr || [])[0], H = N && N.hunt;
+    const c = BR ? BR.counts : { ok: 0, warn: 0, bad: 0 };
+    const sigs = BR ? (BR.signals || []).slice(0, 3) : [];
+    paint($("mc-hi-l"), `<h4>${esc(t("Vale a pena agora"))}<span><b class="ok">${c.ok}</b> ${esc(t("compra"))} · <b class="warn">${c.warn}</b> ${esc(t("esperar"))} · <b class="bad">${c.bad}</b> ${esc(t("não"))}</span></h4>
+      ${sigs.map((x) => `<a class="mc-hi-sig ${x.kind}" href="${esc(x.url || `https://gmgn.ai/sol/token/${x.address}`)}" target="_blank" rel="noopener">${x.kind === "buy" ? "🟢 " + esc(t("COMPRA")) : "🔴 " + esc(t("SAI"))} $${esc(sym(x.symbol))}<small>${esc(ago(x.t))}</small></a>`).join("")}
+      ${(BR ? BR.picks : []).slice(0, 7).map((p) => `<a class="mc-hi-p ${p.tone}" href="${esc(p.url || `https://gmgn.ai/sol/token/${p.address}`)}" target="_blank" rel="noopener">
+        <i></i><b>$${esc(sym(p.symbol))}</b><span>${usd(p.mcap)}</span>${pct(p.ch1)}<small>${esc(p.why[0] || "")}</small></a>`).join("") || `<p class="mc-hi-e">${esc(t("Nada com sinais suficientes agora."))}</p>`}`);
+    paint($("mc-hi-r"), `<h4>${esc(t("O que se diz agora"))}<span>${esc(t("{n} em 48 h", { n: c.said || 0 }))}</span></h4>
+      ${(BR ? BR.stream : []).slice(0, 8).map((x) => { const k = KSHORT[x.kind] || [x.kind, ""]; return `<a class="mc-hi-s" href="${esc(x.url || "#")}" target="_blank" rel="noopener">
+        <header><em class="${k[1]}">${esc(k[0])}</em><b>@${esc(x.who)}</b><small>${esc(ago(x.t))}</small></header><span>${esc(x.text)}</span>
+        ${x.coins && x.coins.length ? `<u>${x.coins.map((cn) => "$" + esc(sym(cn.symbol || "?"))).join(" ")}</u>` : ""}</a>`; }).join("") || `<p class="mc-hi-e">${esc(t("Ainda nada."))}</p>`}`);
+    const fresh = (ts, sec) => ts && Date.now() / 1000 - ts < sec;
+    const last = H && H.events[0];
+    paint($("mc-hi-hunt"), H ? `<div class="mc-hi-terms">${H.terms.map((w) => `<b>🎯 ${esc(w.toUpperCase())}</b>`).join("") || `<b>${esc(t("Sem caça"))}</b>`}
+        <span class="${fresh(H.ocr_at, 150) ? "on" : ""}"><i></i>${esc(t("ecrã de {n} lives", { n: H.screens.length }))}</span>
+        <span class="${fresh(H.hunt_at, 45) ? "on" : ""}"><i></i>${esc(t("DexScreener de 20 em 20 s"))}</span>
+        <span class="${NL.src.pump.on ? "on" : ""}"><i></i>pump.fun</span><span class="${NL.src.tree.on ? "on" : ""}"><i></i>X</span></div>
+      ${last ? `<a class="mc-hi-last ${last.kind}" href="${esc(last.url || "#")}" target="_blank" rel="noopener">${esc(last.text)}<small>${esc(ago(last.t))}</small></a>` : `<p class="mc-hi-wait">${esc(t("À espera do primeiro sinal…"))}</p>`}` : "");
+    paint($("mc-hi-eyes"), H && H.screens.length ? H.screens.slice(0, 6).map((x) => `<a class="mc-hi-eye ${x.hit ? "hit" : ""}" href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(x.channel + ": " + (x.text || ""))}">
+        <img src="${esc(x.frame)}" alt="" loading="lazy" referrerpolicy="no-referrer"><em><i></i>${esc(x.viewers >= 1000 ? loc(x.viewers / 1000, 0) + "k" : String(x.viewers))}</em><b>${esc(x.channel)}</b></a>`).join("") : "");
   }
 
   const DOCK = [["leitura", "O que dizem"], ["x", "X"], ["telegram", "Telegram"], ["reddit", "Reddit"], ["calls", "Calls"], ["moedas", "Moedas"], ["infs", "Influencers"], ["relatorios", "Relatórios"]];

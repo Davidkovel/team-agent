@@ -458,6 +458,7 @@ class _Mark(QWidget):
         self.move(x + w - self.S - 70, y - 4)       # on the title bar, at the right
         if not self.isVisible():
             self.show()
+        self.raise_()                               # over the central too, when it is open
 
     def _star(self, dpr: float):
         if dpr not in self._pix:
@@ -677,8 +678,7 @@ class Pet(QWidget):
 
     def hideEvent(self, e):
         super().hideEvent(e)
-        for m in self._marks:
-            m.hide()
+        QTimer.singleShot(0, self._look_for_claude)   # he is away: the stars take over at once
         self._through = False
 
     def showEvent(self, e):
@@ -954,15 +954,20 @@ class Pet(QWidget):
         return QPoint(sx, sy)
 
     def _look_for_claude(self):
-        """Every 2 s: the Claude windows working on this computer. He goes to the front one; the others get the star."""
-        if not self.isVisible() or not self._on:
+        """Every 2 s: the Claude windows working on this computer. He goes to the front one; the others get the star. With
+        the central open he is away, so every window working gets the star (Marco: «tem de estar sempre a identificar
+        onde é que o Claude está a mexer»)."""
+        if not self._on:
+            for m in self._marks:
+                m.hide()
             return
         wins = working_windows()
         self._spots = wins
-        mine = wins[0] if wins else None
+        there = self.isVisible() and not self._enter and self._at_work
+        mine = wins[0] if wins and there else None
         used = 0
         for w in wins:
-            if w is mine and not self._stay:            # the robot is there (or on his way): no star on it
+            if w is mine:                               # the robot is there (or on his way): no star on it
                 continue
             if used == len(self._marks):
                 self._marks.append(_Mark())

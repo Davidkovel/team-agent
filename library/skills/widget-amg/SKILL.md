@@ -30,6 +30,8 @@ vazio que apanhava o rato) e o módulo «No robô» (antes «Na estrela») só a
   outras janelas a trabalhar aparece a **estrela da Mercedes** no canto (`_Mark`, `assets/mercedes-star.svg`), como o
   widget era antes do robô: **nunca dois robôs**. Recusado: o anel azul a marcar a casa enquanto ele está fora («não
   percebi aquela cena azul») e a chave como marca.
+  Com a central aberta (ele escondido) **todas** as janelas a trabalhar ficam com a estrela: tem de se ver sempre onde o
+  Claude está a mexer. Só contam janelas à vista (uma tapada por outra não leva nem robô nem estrela).
 - **Movimento:**
   - perto, **de lado**, com as rodas a girar: pose think para a direita, pose work para a esquerda, sem espelhar o «AMG»;
   - longe, **mini teletransporte** pelo portal azul do GIF (`Desktop/AMG/Robozin/download.gif`), nunca a atravessar o ecrã;

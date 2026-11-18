@@ -21,7 +21,9 @@ vazio que apanhava o rato) e o módulo «No robô» (antes «Na estrela») só a
   `widget/tools/farol_black.py`. A estrela e a placa AMG ficam em prata. Recusado: pixel art, a versão escura com manchas,
   e cara de bonequinho. Tem de ser **um patrão**: pálpebra de cromado preto descida e inclinada; só arregala os olhos a chamar.
 - **Mostra o que o Claude faz:**
-  - a pensar: pose da mão no queixo, **sem nuvem nem balão** (recusado);
+  - **olha sempre para a janela onde está a trabalhar** (recusado: trabalhar à esquerda e olhar para a direita);
+  - a pensar: numa janela, de frente com os olhos no trabalho e três pontos no holograma; em casa, a pose da mão no
+    queixo. **Sem nuvem nem balão** (recusado);
   - a trabalhar: pose da chave com faíscas e um holograma pequeno com o código ou o terminal;
   - a ler: holograma com uma lupa;
   - pronto: «^ ^» azuis e um visto.

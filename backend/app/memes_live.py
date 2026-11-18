@@ -119,6 +119,8 @@ class Live:
         self.started = False
         from .memes_narr import Narratives
         self.narr = Narratives(self)   # 18 Nov: the themes the market trades (GTA 6), memes_narr.py
+        from .memes_trends import Trends
+        self.trends = Trends(self)     # 18 Nov: the words that win and the contracts of every channel, memes_trends.py
 
     @property
     def radar(self) -> list[dict]:
@@ -178,6 +180,7 @@ class Live:
         if isinstance(e.get("body"), str) and len(e["body"]) > len(text):
             text = e["body"].strip()
         pid = u.group(2) if u else str(e.get("_id") or url)
+        self.trends.on_post("X", handle, text, url, ((int(pid) >> 22) + 1288834974657) / 1000 if pid.isdigit() and int(pid) > 1 << 40 else _now(), "x:" + pid)
         self.narr.on_post("X", handle, text, url, ((int(pid) >> 22) + 1288834974657) / 1000 if pid.isdigit() and int(pid) > 1 << 40 else _now(),
                           "x:" + pid, (t.group(1) if t else handle).strip())
         if pid in self.posts:
@@ -252,6 +255,10 @@ class Live:
                     await self.narr.run(c)
                 except Exception:  # noqa: BLE001
                     log.exception("live narratives")
+                try:
+                    await self.trends.run(c)
+                except Exception:  # noqa: BLE001
+                    log.exception("live trends")
                 await asyncio.sleep(10)
 
     async def check(self, c: httpx.AsyncClient):
@@ -364,7 +371,7 @@ class Live:
                 "launches": rows, "per_min": round(sum(1 for l in self.launches.values() if now - l["t"] < 600) / 10, 1),
                 "signals": sigs[:30], "posts": posts,
                 "radar": [{**{k: r.get(k) for k in ("mint", "symbol", "image", "url", "added")}, **(r.get("last") or {})} for r in self.radar],
-                "alerts": list(self.alerts)[:60], "narr": self.narr.view()}
+                "alerts": list(self.alerts)[:60], "narr": self.narr.view(), "trends": self.trends.view()}
 
     async def run(self):
         if self.started:

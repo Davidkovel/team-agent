@@ -293,7 +293,8 @@ class Brain:
         return next((i for i in self.state["influencers"] if i["handle"].lower().lstrip("@") == who and i["platform"] in (platform, "any")), None)
 
     def _post(self, pid: str, src: str, who: str, text: str, url: str, ts: float, platform: str, media: dict | None = None) -> bool:
-        self.live.narr.on_post(src, who, text, url, ts, pid)   # the narratives (GTA 6) read every post, with or without a coin
+        self.live.narr.on_post(src, who, text, url, ts, pid)
+        self.live.trends.on_post(src, who, text, url, ts, pid)   # the Tendências count every contract of every channel   # the narratives (GTA 6) read every post, with or without a coin
         seen = self.state["seen_posts"]
         if pid in seen and media:   # posts seen before the Leitor existed get their video and photos
             old = next((p for p in self.state["posts"] if p["id"] == pid and p.get("inf") and "media" not in p), None)

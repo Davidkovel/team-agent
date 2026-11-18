@@ -23,11 +23,12 @@
   const ago = (ts) => { const s = Date.now() / 1000 - ts; return s < 60 ? t("agora mesmo") : s < 3600 ? t("há {n} min", { n: Math.round(s / 60) }) : t("há {n} h", { n: Math.round(s / 3600) }); };
   const since = (s) => (s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`);
   const sym = (v) => String(v || "?").replace(/^\$+/, "");
-  const TABS = [["narr", "GTA 6"], ["x", "X ao vivo"], ["sinais", "Sinais"], ["rugs", "Rugs"], ["novas", "Novas"]];
+  const TABS = [["narr", "GTA 6"], ["trend", "Tendências"], ["x", "X ao vivo"], ["sinais", "Sinais"], ["rugs", "Rugs"], ["novas", "Novas"]];
+  const TSUB = [["words", "O que ganha"], ["coins", "Contratos"], ["chans", "Canais"]];
   const NSUB = [["coins", "Moedas"], ["new", "Novas"], ["calls", "Calls e posts"], ["lives", "Lives"]];
   const phone = () => document.documentElement.classList.contains("is-phone");
 
-  let st = { state: "closed", tab: "narr", nsub: "coins", x: null, y: null, w: 420, h: 620, watched: true, coins: false };
+  let st = { state: "closed", tab: "narr", nsub: "coins", tsub: "words", x: null, y: null, w: 420, h: 620, watched: true, coins: false };
   try { st = { ...st, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch (e) { /* private window */ }
   if (!st.v18) { st.tab = "narr"; st.v18 = 1; }   // 18 Nov: the narrative tab comes first, once
   if (SOLO) st.state = "open";
@@ -125,18 +126,20 @@
       tr.on ? (LV.lag != null ? t("X a {s} s", { s: loc(LV.lag, 1) }) : t("X ligado")) : t("X a ligar")].filter(Boolean).join(" · ")));
     const N = (LV.narr || [])[0];
     const hot = N ? N.coins.filter((c) => c.tags.some((x) => x[0] === "A explodir")).length : 0;
-    const n = { narr: hot, sinais: LV.signals.length, rugs: fresh, x: LV.posts.filter((p) => p.coins.length).length, novas: LV.launches.length };
+    const TR = LV.trends;
+    const n = { trend: TR ? TR.coins.filter((c) => c.channels > 1).length : 0, narr: hot, sinais: LV.signals.length, rugs: fresh, x: LV.posts.filter((p) => p.coins.length).length, novas: LV.launches.length };
     paint(document.getElementById("lv-tabs"), TABS.map(([k, l]) => `<button type="button" data-lv-tab="${k}" class="${k === st.tab ? "on" : ""} ${k === "rugs" && fresh ? "alarm" : ""} ${k === "narr" ? "narr" : ""}" ${k === "narr" && hot ? `title="${esc(t("{n} a explodir", { n: hot }))}"` : ""}>${esc(k === "narr" && N ? N.name : t(l))}${n[k] ? `<small>${n[k]}</small>` : ""}</button>`).join(""));
     const last = bad[0], dz = document.getElementById("lv-danger");
     dz.hidden = !last || st.tab === "rugs" || Date.now() / 1000 - last.t > 1800;
     if (last) paint(dz, `${icon("alert")}<span><b>$${esc(sym(last.symbol))}</b> ${esc(last.text)}</span>`);
     paintBody();
   }
-  const paintBody = () => LV && paint(document.getElementById("lv-body"), ({ narr, sinais, rugs, x: xfeed, novas })[st.tab]());
+  const paintBody = () => LV && paint(document.getElementById("lv-body"), ({ narr, trend, sinais, rugs, x: xfeed, novas })[st.tab]());
 
   function tools() {
     const el = document.getElementById("lv-tools");
     if (st.tab === "narr") el.innerHTML = `<div class="lv-chips lv-nsub">${NSUB.map(([k, l]) => `<button type="button" data-lv-nsub="${k}" class="${k === st.nsub ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`;
+    else if (st.tab === "trend") el.innerHTML = `<div class="lv-chips lv-nsub">${TSUB.map(([k, l]) => `<button type="button" data-lv-tsub="${k}" class="${k === (st.tsub || "words") ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`;
     else if (st.tab === "rugs") el.innerHTML = `<form class="lv-add" id="lv-add"><input name="mint" placeholder="${esc(t("Cola o contrato de uma moeda"))}" autocomplete="off" spellcheck="false"><button class="btn sm primary">${esc(t("Vigiar"))}</button></form>`;
     else if (st.tab === "x") el.innerHTML = `<div class="lv-chips"><button type="button" data-lv-opt="watched" class="${st.watched ? "on" : ""}">${esc(t("Só quem seguimos"))}</button><button type="button" data-lv-opt="coins" class="${st.coins ? "on" : ""}">${esc(t("Só com moedas"))}</button></div>`;
     else if (st.tab === "novas") el.innerHTML = `<input class="lv-q" name="lvq" value="${esc(q)}" placeholder="${esc(t("Procurar nome ou contrato"))}" autocomplete="off">`;
@@ -174,6 +177,26 @@
         <small>${esc(c.name)}${c.chain !== "solana" ? " · " + esc(c.chain) : ""}${c.age_h != null ? " · " + esc(ageTxt(c.age_h)) : ""} · ${esc(t("pool {v}", { v: usdK(c.liq) }))} · ${esc(t("{v} numa hora", { v: usdK(c.vol1) }))}${c.calls ? " · " + esc(t("{n} calls", { n: c.calls })) : ""}${c.first ? " · " + esc(t("1.º: @{w}", { w: c.first.who })) + (c.first.x ? ` (${loc(c.first.x, 1)}x)` : "") : ""}</small></span>
         <span class="lv-n"><b>${usd(c.mcap)}</b><small>${pct(c.ch1)} 1h</small></span>${acts(c.address, c.url)}</div>`).join("")
       : empty(t("A procurar as moedas do GTA na DexScreener…")));
+  }
+
+  // Tendências (memes_trends.py): the words of the pump.fun launches that reach money, the contracts every channel posts, the channels
+  const xTxt = (x) => (x == null ? "" : `<span class="${x >= 1 ? "lv-up" : "lv-dn"}">${loc(x, x < 10 ? 1 : 0)}x</span>`);
+  function trend() {
+    const T = LV.trends;
+    if (!T) return empty(t("A contar…"));
+    const sub = st.tsub || "words";
+    if (sub === "coins") return `<p class="lv-sub">${esc(t("Contratos postados nos canais e no X nas últimas 24 h, os que mais canais repetem primeiro"))}</p>` + (T.coins.length ? T.coins.map((c) => `<div class="lv-row">${img(c)}<span class="lv-m"><b>${c.symbol ? "$" + esc(sym(c.symbol)) : esc(c.address.slice(0, 6) + "…")} <span class="lv-tag ${c.channels > 1 ? "ok" : "info"}">${esc(t("{n} canais", { n: c.channels }))}</span></b>
+        <small>${c.first ? esc(t("1.º: {w}", { w: c.first.who })) + " · " + esc(ago(c.first.t)) + (c.first.mc ? " · " + esc(t("valia {v}", { v: usd(c.first.mc) })) + " → " + xTxt(c.first.x) + (c.first.x_peak ? " · " + esc(t("máx.")) + " " + xTxt(c.first.x_peak) : "") : "") : ""}${c.who.length > 1 ? " · " + esc(c.who.slice(1, 4).join(", ")) : ""}</small></span>
+        <span class="lv-n"><b>${usd(c.mcap)}</b><small>${pct(c.ch1)} 1h</small></span>${acts(c.address, c.url)}</div>`).join("")
+      : empty(t("Ainda nenhum contrato: os canais do Telegram leem-se ao minuto e o X chega em tempo real.")));
+    if (sub === "chans") return `<p class="lv-sub">${esc(t("Quem posta mais contratos (24 h) e quantos fizeram 2x desde o post"))}</p>` + (T.channels.length ? T.channels.map((s) => `<div class="lv-row sm"><i class="lv-img">${esc(SRC[s.src] || s.src.slice(0, 2))}</i><span class="lv-m"><b>${esc(s.who)}</b>
+        <small>${esc(t("{n} contratos", { n: s.calls }))}${s.first ? " · " + esc(t("{n} vezes o primeiro", { n: s.first })) : ""}${s.judged ? " · " + esc(t("{a} de {b} fizeram 2x", { a: s.x2, b: s.judged })) : ""}</small></span>
+        <span class="lv-n"><b>${s.med ? xTxt(s.med) : "—"}</b><small>${esc(t("mediana do máx."))}</small></span></div>`).join("")
+      : empty(t("Ainda nenhum canal postou um contrato.")));
+    const rows = (l) => l.length ? l.map((w) => `<div class="lv-row sm"><i class="lv-img">${esc(w.word[0].toUpperCase())}</i><span class="lv-m"><b>${esc(w.word)} ${w.win ? `<span class="lv-tag ok">${esc(t("{n} ganharam", { n: w.win }))}</span>` : ""}</b>
+        <small>${esc(t("{n} moedas novas", { n: w.n }))} · ${esc(t("{r}% chegaram a {v}", { r: w.rate, v: usd(T.win) }))}${w.best ? " · " + esc(t("melhor ${s} {v}", { s: sym(w.best.symbol), v: usd(w.best.peak) })) : ""}</small></span>
+        ${w.best ? acts(w.best.mint, w.best.url) : ""}</div>`).join("") : empty(t("A juntar moedas novas da pump.fun…"));
+    return `<p class="lv-sub">${esc(t("Palavras dos nomes das moedas novas: primeiro as que mais vezes chegaram a dinheiro"))}</p><p class="lv-sub">${esc(t("Última hora"))}</p>${rows(T.w1.slice(0, 10))}<p class="lv-sub">${esc(t("Últimas 6 horas · {n} moedas novas", { n: loc(T.launches6) }))}</p>${rows(T.w6.slice(0, 15))}`;
   }
 
   function sinais() {
@@ -216,6 +239,8 @@
       if (v === "close" && SOLO) return window.close();
       return set(v === "mini" ? "mini" : v === "close" ? "closed" : "open");
     }
+    const ts = e.target.closest("[data-lv-tsub]");
+    if (ts) { st.tsub = ts.dataset.lvTsub; save(); tools(); paintBody(); document.getElementById("lv-body").scrollTop = 0; return; }
     const ns = e.target.closest("[data-lv-nsub]");
     if (ns) { st.nsub = ns.dataset.lvNsub; save(); tools(); paintBody(); document.getElementById("lv-body").scrollTop = 0; return; }
     const tb = e.target.closest("[data-lv-tab]");

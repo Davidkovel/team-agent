@@ -7,19 +7,30 @@
 // bottom of the side bar (and «Ao vivo» in the black hole) opens a glass window that is dragged by its top, resized by its
 // corner, stays open from page to page, and shrinks to a small pill (live dot, signals, alarms). Where it was, its size, tab
 // and state are kept on this browser. It asks the Hub every 3 s while open, every 15 s as a pill, never when closed.
+//
+// 18 Nov (GTA 6 comes out on the 19th, the GTA coins exploding), Marco: «mete tudo para o widget... um widget que a gente
+// consegue também remover para estar no Google a utilizá-lo... uma nova janela em que eu consiga mexer». So: the first tab is
+// the narrative (backend/app/memes_narr.py: the GTA coins, the new launches, the calls and posts, the lives), and ⧉ takes the
+// window out of the Hub into a window of its own, over everything (the widget's own window, else Chrome's picture-in-picture,
+// else a small browser window), on the page #/aovivo with ?lv=1: the window alone, the size of that window.
 (function () {
-  const KEY = "lv-win";
+  const SOLO = /[?&]lv=1(&|$)/.test(location.search);
+  if (SOLO) document.documentElement.classList.add("lv-solo");
+  const KEY = SOLO ? "lv-solo" : "lv-win";
   const loc = (v, d = 0) => Number(v).toLocaleString("pt-PT", { minimumFractionDigits: d, maximumFractionDigits: d });
   const usd = (v) => (!v ? "—" : v >= 1e9 ? `${loc(v / 1e9, 1)} mil M$` : v >= 1e6 ? `${loc(v / 1e6, 1)} M$` : v >= 1e3 ? `${loc(v / 1e3, 0)} mil $` : `${loc(v, 0)} $`);
   const pct = (v) => (v == null ? "" : `<span class="${v > 0 ? "lv-up" : v < 0 ? "lv-dn" : ""}">${v > 0 ? "+" : ""}${loc(v, Math.abs(v) < 10 ? 1 : 0)}%</span>`);
   const ago = (ts) => { const s = Date.now() / 1000 - ts; return s < 60 ? t("agora mesmo") : s < 3600 ? t("há {n} min", { n: Math.round(s / 60) }) : t("há {n} h", { n: Math.round(s / 3600) }); };
   const since = (s) => (s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`);
   const sym = (v) => String(v || "?").replace(/^\$+/, "");
-  const TABS = [["x", "X ao vivo"], ["sinais", "Sinais"], ["rugs", "Rugs"], ["novas", "Novas"]];
+  const TABS = [["narr", "GTA 6"], ["x", "X ao vivo"], ["sinais", "Sinais"], ["rugs", "Rugs"], ["novas", "Novas"]];
+  const NSUB = [["coins", "Moedas"], ["new", "Novas"], ["calls", "Calls e posts"], ["lives", "Lives"]];
   const phone = () => document.documentElement.classList.contains("is-phone");
 
-  let st = { state: "closed", tab: "x", x: null, y: null, w: 400, h: 560, watched: true, coins: false };
+  let st = { state: "closed", tab: "narr", nsub: "coins", x: null, y: null, w: 420, h: 620, watched: true, coins: false };
   try { st = { ...st, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch (e) { /* private window */ }
+  if (!st.v18) { st.tab = "narr"; st.v18 = 1; }   // 18 Nov: the narrative tab comes first, once
+  if (SOLO) st.state = "open";
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* private window */ } };
   let LV = null, timer = 0, q = "", seenBad = Number(st.seenBad || 0);
 
@@ -30,7 +41,8 @@
     w.className = "lv-win"; w.id = "lv-win"; w.hidden = true;
     w.setAttribute("aria-label", t("Ao vivo"));
     w.innerHTML = `<header class="lv-h" id="lv-drag"><span class="lv-dot" id="lv-dot"></span><b>${esc(t("Ao vivo"))}</b><small id="lv-st">${esc(t("a ligar…"))}</small>
-        <button type="button" class="lv-hb" data-lv="mini" title="${esc(t("Encolher"))}" aria-label="${esc(t("Encolher"))}"><i class="lv-min"></i></button>
+        ${SOLO ? "" : `<button type="button" class="lv-hb" data-lv="solo" title="${esc(t("Abrir numa janela própria, por cima de tudo (Google, outras apps)"))}" aria-label="${esc(t("Janela própria"))}">${icon("pip")}</button>
+        <button type="button" class="lv-hb" data-lv="mini" title="${esc(t("Encolher"))}" aria-label="${esc(t("Encolher"))}"><i class="lv-min"></i></button>`}
         <button type="button" class="lv-hb" data-lv="close" title="${esc(t("Fechar"))}" aria-label="${esc(t("Fechar"))}">${icon("x")}</button></header>
       <nav class="lv-tabs" id="lv-tabs"></nav>
       <button type="button" class="lv-danger" id="lv-danger" data-lv-tab="rugs" hidden></button>
@@ -55,7 +67,7 @@
 
   function place() {
     const w = document.getElementById("lv-win");
-    if (!w || phone()) return;
+    if (!w || phone() || SOLO) return;
     const W = Math.min(st.w || 400, innerWidth - 16), H = Math.min(st.h || 560, innerHeight - 16);
     const x = st.x == null ? innerWidth - W - 24 : Math.max(8, Math.min(st.x, innerWidth - W - 8));
     const y = st.y == null ? innerHeight - H - 24 : Math.max(8, Math.min(st.y, innerHeight - 60));
@@ -65,7 +77,7 @@
   function drag(w) {
     const h = w.querySelector("#lv-drag");
     h.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0 || e.target.closest("button") || phone()) return;
+      if (e.button !== 0 || e.target.closest("button") || phone() || SOLO) return;
       const r = w.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
       h.setPointerCapture(e.pointerId);
       w.classList.add("moving");
@@ -111,27 +123,58 @@
     document.getElementById("lv-dot").className = `lv-dot ${on ? "on" : pp.on || tr.on ? "half" : ""}`;
     paint(document.getElementById("lv-st"), esc([LV.sol ? `SOL ${loc(LV.sol, 2)} $` : "", pp.on ? t("{n} novas/min", { n: loc(LV.per_min, 1) }) : t("pump.fun a ligar"),
       tr.on ? (LV.lag != null ? t("X a {s} s", { s: loc(LV.lag, 1) }) : t("X ligado")) : t("X a ligar")].filter(Boolean).join(" · ")));
-    const n = { sinais: LV.signals.length, rugs: fresh, x: LV.posts.filter((p) => p.coins.length).length, novas: LV.launches.length };
-    paint(document.getElementById("lv-tabs"), TABS.map(([k, l]) => `<button type="button" data-lv-tab="${k}" class="${k === st.tab ? "on" : ""} ${k === "rugs" && fresh ? "alarm" : ""}">${esc(t(l))}${n[k] ? `<small>${n[k]}</small>` : ""}</button>`).join(""));
+    const N = (LV.narr || [])[0];
+    const hot = N ? N.coins.filter((c) => c.tags.some((x) => x[0] === "A explodir")).length : 0;
+    const n = { narr: hot, sinais: LV.signals.length, rugs: fresh, x: LV.posts.filter((p) => p.coins.length).length, novas: LV.launches.length };
+    paint(document.getElementById("lv-tabs"), TABS.map(([k, l]) => `<button type="button" data-lv-tab="${k}" class="${k === st.tab ? "on" : ""} ${k === "rugs" && fresh ? "alarm" : ""} ${k === "narr" ? "narr" : ""}" ${k === "narr" && hot ? `title="${esc(t("{n} a explodir", { n: hot }))}"` : ""}>${esc(k === "narr" && N ? N.name : t(l))}${n[k] ? `<small>${n[k]}</small>` : ""}</button>`).join(""));
     const last = bad[0], dz = document.getElementById("lv-danger");
     dz.hidden = !last || st.tab === "rugs" || Date.now() / 1000 - last.t > 1800;
     if (last) paint(dz, `${icon("alert")}<span><b>$${esc(sym(last.symbol))}</b> ${esc(last.text)}</span>`);
     paintBody();
   }
-  const paintBody = () => LV && paint(document.getElementById("lv-body"), ({ sinais, rugs, x: xfeed, novas })[st.tab]());
+  const paintBody = () => LV && paint(document.getElementById("lv-body"), ({ narr, sinais, rugs, x: xfeed, novas })[st.tab]());
 
   function tools() {
     const el = document.getElementById("lv-tools");
-    if (st.tab === "rugs") el.innerHTML = `<form class="lv-add" id="lv-add"><input name="mint" placeholder="${esc(t("Cola o contrato de uma moeda"))}" autocomplete="off" spellcheck="false"><button class="btn sm primary">${esc(t("Vigiar"))}</button></form>`;
+    if (st.tab === "narr") el.innerHTML = `<div class="lv-chips lv-nsub">${NSUB.map(([k, l]) => `<button type="button" data-lv-nsub="${k}" class="${k === st.nsub ? "on" : ""}">${esc(t(l))}</button>`).join("")}</div>`;
+    else if (st.tab === "rugs") el.innerHTML = `<form class="lv-add" id="lv-add"><input name="mint" placeholder="${esc(t("Cola o contrato de uma moeda"))}" autocomplete="off" spellcheck="false"><button class="btn sm primary">${esc(t("Vigiar"))}</button></form>`;
     else if (st.tab === "x") el.innerHTML = `<div class="lv-chips"><button type="button" data-lv-opt="watched" class="${st.watched ? "on" : ""}">${esc(t("Só quem seguimos"))}</button><button type="button" data-lv-opt="coins" class="${st.coins ? "on" : ""}">${esc(t("Só com moedas"))}</button></div>`;
     else if (st.tab === "novas") el.innerHTML = `<input class="lv-q" name="lvq" value="${esc(q)}" placeholder="${esc(t("Procurar nome ou contrato"))}" autocomplete="off">`;
     else el.innerHTML = "";
   }
 
   const img = (c) => (c.image ? `<img class="lv-img" src="${esc(c.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<i class="lv-img">${esc(sym(c.symbol)[0] || "?")}</i>`);
-  const acts = (m) => `<span class="lv-acts"><button type="button" data-lv-copy="${esc(m)}" title="${esc(t("Copiar o contrato"))}">${esc(t("Copiar"))}</button><a href="https://gmgn.ai/sol/token/${esc(m)}" target="_blank" rel="noopener">GMGN</a></span>`;
+  const acts = (m, dex) => `<span class="lv-acts"><button type="button" data-lv-copy="${esc(m)}" title="${esc(t("Copiar o contrato"))}">${esc(t("Copiar"))}</button>${/^0x/.test(m) ? (dex ? `<a href="${esc(dex)}" target="_blank" rel="noopener">Dex</a>` : "") : `<a href="https://gmgn.ai/sol/token/${esc(m)}" target="_blank" rel="noopener">GMGN</a>`}</span>`;
   const empty = (s) => `<p class="lv-e">${esc(s)}</p>`;
   const word = (s) => `<span class="lv-tag ${s.tone}">${esc(t(s.word))}</span>`;
+
+  // the narrative (GTA 6): its coins by the money of the last hour, the new launches, the calls and posts, the lives
+  const usdK = (v) => (!v ? "—" : v >= 1e6 ? `${loc(v / 1e6, 1)} M$` : v >= 1e3 ? `${loc(v / 1e3, 0)} k$` : `${loc(v, 0)} $`);
+  const ageTxt = (h) => (h == null ? "" : h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} d`);
+  const SRC = { X: "X", Telegram: "TG", Reddit: "RD" };
+  function narr() {
+    const N = (LV.narr || [])[0];
+    if (!N) return empty(t("A ler a narrativa…"));
+    const head = `<div class="lv-nhead"><b>${esc(N.name)}</b><span>${esc(t("{n} moedas · {v} na última hora · {w} a ver lives", { n: N.n_coins, v: usdK(N.vol1), w: loc(N.viewers || 0, 0) }))}</span></div>`;
+    if (st.nsub === "new") return head + (N.launches.length ? N.launches.map((x) => `<div class="lv-row sm">${img(x)}<span class="lv-m"><b>$${esc(sym(x.symbol))}${x.migrated ? ` <span class="lv-tag ok">${esc(t("Migrou"))}</span>` : ""}</b>
+        <small>${esc(x.name)} · ${esc(t("há {s}", { s: since(Date.now() / 1000 - x.t) }))}${x.dev_sol ? " · " + esc(t("criador {n} SOL", { n: loc(x.dev_sol, 2) })) : ""}</small></span>
+        <span class="lv-n"><b>${usd(x.mcap)}</b><small>${pct(x.ch5)}</small></span>${acts(x.mint)}</div>`).join("")
+      : empty(t("Ainda nenhuma moeda nova com o nome do GTA desde que o Hub arrancou: cada uma aparece aqui no segundo em que nasce na pump.fun.")));
+    if (st.nsub === "calls") return head + (N.feed.length ? N.feed.map((p) => `<article class="lv-post ${p.coins && p.coins.length ? "has" : ""}">
+        <header><span class="lv-src">${esc(SRC[p.src] || p.src)}</span><b>${esc(p.name || p.who)}</b><small>@${esc(p.who)}</small><time>${esc(ago(p.t))}</time></header>
+        <a class="lv-txt" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.text)}</a>
+        ${(p.coins || []).map((c) => `<div class="lv-coin"><span class="lv-m"><b>$${esc(sym(c.symbol))} <em>${esc(t("call"))}</em></b><small>${esc(t("valia {v} quando falou", { v: usd(c.mcap_then) }))}</small></span>${acts(c.address)}</div>`).join("")}
+      </article>`).join("") : empty(t("À espera de posts sobre o GTA no X, no Telegram e no Reddit.")));
+    if (st.nsub === "lives") return head + (N.lives.length ? N.lives.map((v) => `<a class="lv-live" href="${esc(v.url)}" target="_blank" rel="noopener">
+        ${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<i></i>`}
+        <span class="lv-m"><b>${esc(v.title)}</b><small>${esc(v.channel)} · ${esc(v.site)}</small></span>
+        <span class="lv-viewers"><i></i>${esc(v.viewers >= 1000 ? loc(v.viewers / 1000, v.viewers < 10000 ? 1 : 0) + " mil" : String(v.viewers))}</span></a>`).join("")
+      : empty(t("A procurar lives do GTA 6 no YouTube (de 5 em 5 minutos).")));
+    return head + (N.coins.length ? N.coins.map((c) => `<div class="lv-row">${img(c)}<span class="lv-m"><b>$${esc(sym(c.symbol))} ${c.tags.map(([w, tone]) => `<span class="lv-tag ${tone}">${esc(t(w))}</span>`).join("")}</b>
+        <small>${esc(c.name)}${c.chain !== "solana" ? " · " + esc(c.chain) : ""}${c.age_h != null ? " · " + esc(ageTxt(c.age_h)) : ""} · ${esc(t("pool {v}", { v: usdK(c.liq) }))} · ${esc(t("{v} numa hora", { v: usdK(c.vol1) }))}${c.calls ? " · " + esc(t("{n} calls", { n: c.calls })) : ""}${c.first ? " · " + esc(t("1.º: @{w}", { w: c.first.who })) + (c.first.x ? ` (${loc(c.first.x, 1)}x)` : "") : ""}</small></span>
+        <span class="lv-n"><b>${usd(c.mcap)}</b><small>${pct(c.ch1)} 1h</small></span>${acts(c.address, c.url)}</div>`).join("")
+      : empty(t("A procurar as moedas do GTA na DexScreener…")));
+  }
 
   function sinais() {
     return LV.signals.length ? LV.signals.map((s) => `<div class="lv-row">${img(s)}<span class="lv-m"><b>$${esc(sym(s.symbol))} ${word(s)}</b>
@@ -167,7 +210,14 @@
   /* ---------- clicks ---------- */
   async function click(e) {
     const a = e.target.closest("[data-lv]");
-    if (a) { const v = a.dataset.lv; return set(v === "mini" ? "mini" : v === "close" ? "closed" : "open"); }
+    if (a) {
+      const v = a.dataset.lv;
+      if (v === "solo") return openSolo();
+      if (v === "close" && SOLO) return window.close();
+      return set(v === "mini" ? "mini" : v === "close" ? "closed" : "open");
+    }
+    const ns = e.target.closest("[data-lv-nsub]");
+    if (ns) { st.nsub = ns.dataset.lvNsub; save(); tools(); paintBody(); document.getElementById("lv-body").scrollTop = 0; return; }
     const tb = e.target.closest("[data-lv-tab]");
     if (tb) { st.tab = tb.dataset.lvTab; save(); tools(); paint_(); document.getElementById("lv-body").scrollTop = 0; return; }
     const op = e.target.closest("[data-lv-opt]");
@@ -186,8 +236,27 @@
     catch (err) { f.mint.value = ""; f.mint.placeholder = err.message; }
   }
 
+  /* ---------- ⧉: a window of its own, over everything ---------- */
+  async function openSolo() {
+    const url = `${location.origin}/?mini=1&lv=1#login=${encodeURIComponent((typeof token !== "undefined" && token) || "")}&to=/aovivo`;
+    set("closed");
+    // the widget's big window (widget/team_widget/ui/expand.py): a window of the widget's own, always on top
+    if (typeof amgNative !== "undefined" && amgNative && amgNative.openAoVivo) { amgNative.openAoVivo(url); return; }
+    if (window.documentPictureInPicture) {   // Chrome / Edge: a window that stays over every app, even over Google
+      try {
+        const pip = await documentPictureInPicture.requestWindow({ width: 430, height: 700 });
+        pip.document.title = "Ao vivo · Memecoins";
+        pip.document.body.style.cssText = "margin:0;background:#07080a;overflow:hidden";
+        pip.document.body.innerHTML = `<iframe src="${esc(url)}" style="border:0;width:100vw;height:100vh;display:block" allow="clipboard-write"></iframe>`;
+        return;
+      } catch (e) { /* refused: a small window instead */ }
+    }
+    window.open(url, "amg-aovivo", "popup,width=430,height=700");
+  }
+  if (typeof HUB_VIEWS !== "undefined") (HUB_VIEWS.aovivo = async () => { page(`<div class="lv-solo-page"></div>`); set("open"); });
+
   /* ---------- the button in the side bar; the rest of the Hub opens it with window.aoVivo.open() ---------- */
-  window.aoVivo = { open: () => set("open"), toggle: () => set(st.state === "open" ? "closed" : "open") };
+  window.aoVivo = { open: () => set("open"), toggle: () => set(st.state === "open" ? "closed" : "open"), solo: openSolo };
   function boot() {
     const tools_ = document.querySelector(".side-tools");
     if (tools_ && !document.getElementById("lv-open")) {

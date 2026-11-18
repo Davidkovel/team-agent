@@ -1078,10 +1078,12 @@ APP_GLYPHS = {   # the Hub's pages as iOS icons (24-unit strokes, like the Hub's
     "radar": '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l5.5-5.5"/><circle cx="12" cy="12" r=".6"/>',
     "fundednext": '<path d="M12 3l7.5 2.8v5.7c0 4.4-3.2 7.8-7.5 9-4.3-1.2-7.5-4.6-7.5-9V5.8z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/>',
     "memes": '<path d="M13 2.8L5 13.2h6l-1 8 8-10.4h-6z"/>',   # 17 Nov: Memecoins (the black hole, Quem acerta, Ao vivo)
+    # 18 Nov: Ao vivo, the memecoins' window of its own (GTA 6, pump.fun, X): the bolt in a live ring
+    "aovivo": '<circle cx="12" cy="12" r="9"/><path d="M13 5.8L7.6 13h4.1l-.8 5.2 5.5-7.4h-4.2z"/>',
 }
 APPS = (("hub", "Hub", "#/home"), ("escritorio", "Escritório", "#/escritorio"), ("tarefas", "Tarefas", "#/tarefas"),
         ("mensagens", "Mensagens", "#/mensagens"), ("radar", "Radar", "#/radar"), ("empresa", "Empresa", "#/empresa"), ("skills", "Skills", "#/skills"),
-        ("trading", "Trading", "#/trading"), ("memes", "Memecoins", "#/memes"), ("fundednext", "FundedNext", "#/fundednext"))
+        ("trading", "Trading", "#/trading"), ("aovivo", "Ao vivo", "#/aovivo"), ("fundednext", "FundedNext", "#/fundednext"))
 _app_icons: dict[tuple, QPixmap] = {}
 
 
@@ -2486,6 +2488,7 @@ class WidgetWindow(QWidget):
     inbox_news = Signal(object)  # the notifications not read yet, for the mini history (same thread)
     cave_ready = Signal(str)     # the cave's address with a sign-in, for the cameras' mini window
     messages_ready = Signal(str)  # the same for the Messages app (3 Nov)
+    aovivo_ready = Signal(str)    # the same for Ao vivo, the memecoins' window (18 Nov)
 
     def __init__(self, store: StateStore, client: AgentClient):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.on_top() else Qt.Widget)
@@ -2494,6 +2497,7 @@ class WidgetWindow(QWidget):
         self.hub_ready.connect(self._hub_opened)
         self.cave_ready.connect(self._cave_opened)
         self.messages_ready.connect(self._messages_opened)
+        self.aovivo_ready.connect(self._aovivo_opened)
         self.punched.connect(self._punched)
         self.notices = Notices(self._open_notice)  # the black card that says a task was sent
         self.news.connect(self.notices.push)
@@ -3369,6 +3373,22 @@ class WidgetWindow(QWidget):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def _open_aovivo(self):
+        """Ao vivo (frontend/hub/aovivo.js with ?lv=1) in its own window over everything, signed in like the Messages app."""
+        who = self._identity(self._team or [])
+
+        def work():
+            error = hub.ready()
+            url = hub.hub_url()
+            session = None if error else (self.client.hub_session() or (hub.session(url, who) if who else None))
+            self.aovivo_ready.emit(f"{url}/?mini=1&lv=1#login={session or ''}&to=/aovivo")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _aovivo_opened(self, url: str):
+        from .expand import open_aovivo   # the web engine is heavy: only when it is first opened
+        open_aovivo(url)
+
     def _messages_opened(self, url: str):
         from .mini import MiniWindow
         if getattr(self, "_msg_app", None) is None:
@@ -3575,6 +3595,8 @@ class WidgetWindow(QWidget):
 
     def _open_notice(self, href):
         """A card was clicked: the Hub opens on that task ("#/tarefas/3"); a message opens the Messages app on its conversation."""
+        if href == "#/aovivo":   # 18 Nov: the memecoins' live window, on its own, over everything
+            return self._open_aovivo()
         if href and href.startswith("#/mensagens"):
             parts = href.split("/")
             return self._open_messages(parts[2] if len(parts) > 2 else "")

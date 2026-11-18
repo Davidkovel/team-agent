@@ -284,6 +284,9 @@ def menu_bar_star_toggles():
                 said = bytes(peer.readAll()).decode("utf-8", "replace")
                 if said.startswith("open "):
                     page = said[5:].strip()
+            if page == "aovivo":   # 18 nov: o Ao vivo das memecoins na sua própria janela, por cima de tudo
+                window._open_aovivo()
+                return
             if page:
                 entry.open_page(window, page)
                 return

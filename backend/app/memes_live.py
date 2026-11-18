@@ -45,7 +45,7 @@ WATCH = {"elonmusk", "realdonaldtrump", "cz_binance", "cz", "cb_doge", "a1lon9",
          "rapidresponse47", "melaniatrump", "doge", "america", "whitehouse", "trumpdailyposts", "gettrumpmemes", "trumpwarroom",
          "watcherguru", "unusual_whales", "marionawfal", "dexerto", "autismcapital", "afpost", "tmz", "degeneratenews",
          "treenewsfeed", "tier10k", "theunipcs", "ga__ke", "0xsunnft", "cupseyy", "traderpow", "haze0x", "eth_cedric",
-         "solporttom", "dingalingts", "mrbeast", "kabosumama", "knowyourmeme", "solana"}
+         "solporttom", "dingalingts", "mrbeast", "kabosumama", "knowyourmeme", "solana", "rockstargames"}
 STOP = set("""the and for you are was this that with have has had not but all just they their them what when will would there
 been from your about into more than then its it's our out who can could should one two new now get got like very much many
 some any his her she him how why where which also only over after before make made being here today tomorrow yes yeah lol
@@ -117,6 +117,8 @@ class Live:
         self.sol_usd = 0.0
         self._sol_at = 0.0
         self.started = False
+        from .memes_narr import Narratives
+        self.narr = Narratives(self)   # 18 Nov: the themes the market trades (GTA 6), memes_narr.py
 
     @property
     def radar(self) -> list[dict]:
@@ -155,6 +157,7 @@ class Live:
                 self.launches.popitem(last=False)
             self.src["pump"]["n"] += 1
             self.on_launch(l)
+            self.narr.on_launch(l)
         elif tx == "migrate" or (m.get("pool") and tx is None and m.get("mint")):
             l = self.launches.get(m.get("mint"))
             if l:
@@ -175,6 +178,8 @@ class Live:
         if isinstance(e.get("body"), str) and len(e["body"]) > len(text):
             text = e["body"].strip()
         pid = u.group(2) if u else str(e.get("_id") or url)
+        self.narr.on_post("X", handle, text, url, ((int(pid) >> 22) + 1288834974657) / 1000 if pid.isdigit() and int(pid) > 1 << 40 else _now(),
+                          "x:" + pid, (t.group(1) if t else handle).strip())
         if pid in self.posts:
             return
         tid = int(u.group(2)) if u else 0
@@ -243,6 +248,10 @@ class Live:
                     await self.check(c)
                 except Exception:  # noqa: BLE001
                     log.exception("live check")
+                try:
+                    await self.narr.run(c)
+                except Exception:  # noqa: BLE001
+                    log.exception("live narratives")
                 await asyncio.sleep(10)
 
     async def check(self, c: httpx.AsyncClient):
@@ -355,7 +364,7 @@ class Live:
                 "launches": rows, "per_min": round(sum(1 for l in self.launches.values() if now - l["t"] < 600) / 10, 1),
                 "signals": sigs[:30], "posts": posts,
                 "radar": [{**{k: r.get(k) for k in ("mint", "symbol", "image", "url", "added")}, **(r.get("last") or {})} for r in self.radar],
-                "alerts": list(self.alerts)[:60]}
+                "alerts": list(self.alerts)[:60], "narr": self.narr.view()}
 
     async def run(self):
         if self.started:

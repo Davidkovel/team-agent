@@ -641,6 +641,23 @@ nada.** Por PC, como a Sala de Trading: `~/.team-agent/memes/state.json`, nada v
   o nome do autor nunca conta, 12 seguidas/3 mostradas, a melhor com ★; as contas da lista do GMGN X Tracker e os influencers
   do X aparecem sempre) e **Novas** (websocket da PumpPortal). O stream de trades da PumpPortal pede chave paga: os preços vêm da
   DexScreener. Tudo em memória, só a lista do radar fica no `state.json`; arranca com o loop dos memes ou ao abrir a página.
+- **Narrativas: GTA 6** (18 nov; o GTA 6 sai a 19 nov e as moedas GTA explodiam: Leonida +706 % numa hora, 58 M$ por semana nas
+  moedas GTA da Solana), `backend/app/memes_narr.py` (testes em `tests/test_memes.py`, com um pedaço verdadeiro do YouTube em
+  `tests/data/yt_live.html`): o 1.º separador do Ao vivo, com quatro vistas. **Moedas**: pesquisa da DexScreener de 45 em 45 s pelos
+  `search` do tema; uma moeda conta só se o nome/ticker for do tema (`coin_hit`: palavra forte lá dentro, palavra fraca como nome
+  inteiro: «Lucia», «Wasted»), com A explodir / Nova / Forte / Perigo, calls e o 1.º a dar o call. **Novas**: cada lançamento da
+  pump.fun com nome do tema. **Calls e posts**: tudo o que se lê (Tree News, o Oráculo no Telegram/Reddit/X: `_post` chama
+  `live.narr.on_post` antes de filtrar, e com a chave do twitterapi.io uma pesquisa do X de 3 em 3 min) que fala do tema
+  (`text_hit`); um $TICKER/contrato de uma moeda do tema é um call. **Lives**: a página de resultados do YouTube só com diretos
+  (de 5 em 5 min; o YouTube manda `videoRenderer` ou `lockupViewModel` conforme o browser, `yt_lives` lê os dois) e, com
+  `twitch_id`/`twitch_secret` na cfg dos memes, a API oficial da Twitch. TikTok não tem forma grátis. Moeda do tema com ≥ 50 k$
+  numa hora, ≥ +100 % e pool ≥ 25 k$ vai uma vez para o sino/widget/telemóvel. Canais do Telegram juntados a 18 nov (`TG_1118`,
+  verificados nesse dia: os «canais de calls» das listas da net estavam quase todos mortos ou privados).
+- **⧉ Ao vivo numa janela própria** (18 nov, Marco: «remover desse widget para estar no Google a utilizá-lo»): `#/aovivo` (página
+  escondida da entrada Memecoins) com `?mini=1&lv=1` é só a janela, do tamanho da janela (`html.lv-solo`, estado em `lv-solo`). O ⧉
+  abre-a: dentro do widget, `amgNative.openAoVivo` → `expand.open_aovivo` (uma `MiniWindow` «aovivo», sempre por cima); no Chrome,
+  picture-in-picture (por cima de todas as apps); senão uma janela popup. No widget há o atalho «Ao vivo» (no lugar de Memecoins,
+  `_open_aovivo`, sessão como a das Mensagens) e no Mac o menu do Farol na barra tem «Ao vivo · Memecoins» (`open aovivo` no socket).
 - **O Leitor** (17 nov, Marco: «não pode só dizer o que está lá no Telegram... tens mesmo que ler o que está escrito, ouvir o que
   eles dizem nos vídeos»), `backend/app/memes_ler.py` + `memes_ouvir.py`, 7.º Farol e portal «O que dizem» (o primeiro da doca):
   cada publicação de um influencer é lida por inteiro (`full`, até 3000 car.), as imagens vão ao Claude (ferramenta Read numa

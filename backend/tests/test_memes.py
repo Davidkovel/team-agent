@@ -152,3 +152,31 @@ def test_live_launch_under_a_post(tmp_path, monkeypatch):
     lv.radar.append(r)
     lv._radar(r, {"price": 1, "mcap": 1, "liq": 10000, "ch5": -40, "ch1": -10, "b5": 2, "s5": 20, "at": 0, "symbol": "R", "image": None, "url": ""})
     assert {a["level"] for a in lv.alerts} == {"bad", "warn"}
+
+
+def test_narrative_gta(tmp_path, monkeypatch):
+    """Narrativas (memes_narr.py): which coins are GTA coins, which posts talk of it, a call, and the YouTube lives."""
+    from pathlib import Path
+
+    from app.memes_narr import GTA, coin_hit, text_hit, yt_lives
+    assert coin_hit(GTA, "Leonida", "The State of Leonida") == "leonida"
+    assert coin_hit(GTA, "GTA6", "GTA VI") and coin_hit(GTA, "LUCIA", "Lucia") == "lucia"
+    assert coin_hit(GTA, "PIZZA", "Lucia Pizza") is None and coin_hit(GTA, "CAT", "cat") is None
+    assert text_hit(GTA, "GTA 6 is out tomorrow, aping $LEONIDA") and text_hit(GTA, "vice city vibes") and not text_hit(GTA, "a gtag")
+    lives = yt_lives((Path(__file__).parent / "data" / "yt_live.html").read_text())
+    assert len(lives) == 2 and all(v["viewers"] > 1000 and v["url"].startswith("https://www.youtube.com/watch") for v in lives)
+    b = brain(tmp_path, monkeypatch)
+    nr = b.live.narr
+    s = nr.of("gta")
+    s["coins"]["LeoAddr"] = {"address": "LeoAddr", "chain": "solana", "symbol": "Leonida", "name": "GTA6", "why": "leonida", "image": None, "url": "",
+                             "mcap": 36000, "liq": 26000, "vol5": 1, "vol1": 750000, "vol24": 750000, "ch5": 1, "ch1": 706, "ch24": 706,
+                             "b1": 900, "s1": 300, "peak": 36000, "created": time.time() - 1800, "at": time.time()}
+    b._post("tg:x/1", "Telegram", "solearlytrending", "🔥 $LEONIDA trending #1, GTA 6 tomorrow", "u", time.time(), "telegram")
+    b._post("tg:x/2", "Telegram", "solearlytrending", "$BONK up", "u2", time.time(), "telegram")   # no GTA: not in the feed
+    nr._calls(s)
+    v = nr.view()[0]
+    assert v["name"] == "GTA 6" and len(v["feed"]) == 1 and v["feed"][0]["coins"][0]["symbol"] == "Leonida"
+    c = v["coins"][0]
+    assert {"A explodir", "Nova"} <= {t[0] for t in c["tags"]} and c["calls"] == 1 and c["first"]["who"] == "solearlytrending"
+    b.live.on_pump({"txType": "create", "mint": "G" * 43, "symbol": "GTA6", "name": "Grand Theft Auto VI", "marketCapSol": 30, "solAmount": 1})
+    assert nr.view()[0]["launches"][0]["symbol"] == "GTA6"

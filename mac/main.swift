@@ -212,7 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     /// Pede ao widget que já corre para aparecer. Falso quando não há widget a correr.
-    func pokeWidget() -> Bool {
+    func pokeWidget(_ what: String = "show") -> Bool {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return false }
         defer { close(fd) }
@@ -229,7 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             }
         }
         guard ok else { return false }
-        let msg = Array("show".utf8)
+        let msg = Array(what.utf8)
         return write(fd, msg, msg.count) == msg.count
     }
 
@@ -263,6 +263,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self.startWidget() }
     }
 
+    /// 18 nov: o «Ao vivo» das memecoins numa janela própria, por cima de tudo (o widget abre-a: widget_mac.py, "open aovivo").
+    @objc func showAoVivo() {
+        if !pokeWidget("open aovivo") {
+            startWidget()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) { _ = self.pokeWidget("open aovivo") }
+        }
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
 
     // MARK: o Farol na barra de menus
@@ -283,6 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         if ev?.type == .rightMouseUp || ev?.modifierFlags.contains(.control) == true {
             let m = NSMenu()
             m.addItem(withTitle: "Mostrar o widget", action: #selector(showWidget), keyEquivalent: "")
+            m.addItem(withTitle: "Ao vivo · Memecoins (GTA 6)", action: #selector(showAoVivo), keyEquivalent: "")
             m.addItem(withTitle: "Abrir o Hub numa janela grande", action: #selector(showWindow), keyEquivalent: "")
             m.addItem(withTitle: "Reiniciar o widget", action: #selector(restartWidget), keyEquivalent: "")
             m.addItem(.separator())

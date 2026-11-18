@@ -85,6 +85,7 @@ class Bridge(QObject):
     cave in its mini window (mini.py)."""
     play = Signal(str)
     mini = Signal(str)
+    aovivo = Signal(str)   # 18 Nov: the Ao vivo of the memecoins in a window of its own (frontend/hub/aovivo.js ⧉)
 
     @Slot(str)
     def playVideos(self, payload: str):
@@ -93,6 +94,10 @@ class Bridge(QObject):
     @Slot(str)
     def openMini(self, url: str):
         self.mini.emit(url)
+
+    @Slot(str)
+    def openAoVivo(self, url: str):
+        self.aovivo.emit(url)
 
 
 def _outside_url(url: QUrl) -> QUrl:
@@ -209,6 +214,7 @@ class HubExpander(QWidget):
         self._bridge = Bridge(self)
         self._bridge.play.connect(self._play_videos)
         self._bridge.mini.connect(self._open_mini)
+        self._bridge.aovivo.connect(open_aovivo)
         self._mini = None   # the cave's mini window, made the first time it is asked for
         self._channel = QWebChannel(page)
         self._channel.registerObject("amg", self._bridge)
@@ -437,3 +443,17 @@ if __name__ == "__main__":  # python -m team_widget.ui.expand [url]: grows, wait
     QTimer.singleShot(3000, x.collapse)
     QTimer.singleShot(8000, app.quit)
     app.exec()
+
+
+_aovivo = None
+
+
+def open_aovivo(url: str):
+    """Ao vivo (memecoins: GTA 6, pump.fun, X) in a small window of its own, always on top: over Chrome, over anything
+    (18 Nov, Marco: «remover desse widget para a gente estar no Google a utilizá-lo... uma nova janela em que eu consiga
+    mexer»). One for the whole widget; its place and size are kept (mini.py)."""
+    global _aovivo
+    from .mini import MiniWindow
+    if _aovivo is None:
+        _aovivo = MiniWindow("aovivo", "Ao vivo · Memecoins", (430, 700), (340, 380))
+    _aovivo.open(url)

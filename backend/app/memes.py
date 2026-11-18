@@ -56,12 +56,16 @@ NOT_MEME = re.compile(r"usd|dollar|euro\b|\b(inc|corp|tokenized|xstock|treasury|
 DEFAULT = {
     "on": True, "claude": False, "model": "sonnet", "cap": 8, "every_min": 90, "alert_score": 78, "alerts": True,
     "min_liq": 15000,
-    "telegram": ["pumpfunalerts", "dexscreener_trending", "solanatrending", "memecoins", "solanadailynews", "WatcherGuru", "whale_alert_io"],
+    "telegram": ["pumpfunalerts", "dexscreener_trending", "solanatrending", "memecoins", "solanadailynews", "WatcherGuru", "whale_alert_io",
+                 "solearlytrending", "pumpfun", "GTA6News_TG", "gta6news", "rockstargames"],
     "reddit": ["memecoins", "SolanaMemeCoins", "CryptoMoonShots", "solana", "CryptoCurrency"],
     "gmgn_db": "", "gmgn_url": "", "gmgn_key": "",
     "x_key": "", "x_every": 15,
     "ler": True, "ler_cap": 40, "ler_model": "sonnet",   # the Leitor: the Claude of this PC reads each influencer post   # twitterapi.io: the key stays on this PC (state.json), never in the database nor the page
 }
+# 18 Nov (GTA 6): public channels checked that day: Solana Early Trending (the trending coins), the official pump.fun,
+# and three GTA news channels (what Rockstar says makes the coins move)
+TG_1118 = ["solearlytrending", "pumpfun", "GTA6News_TG", "gta6news", "rockstargames"]
 AGENTS = {
     "robin": {"name": "Robin", "dept": "Mercado DEX", "code": "DEX", "does": "Lê a DexScreener, a GeckoTerminal e a CoinGecko: as moedas que estão a subir, com preço, volume, liquidez e compras/vendas.", "every": 180},
     "oraculo": {"name": "Oráculo", "dept": "Redes sociais", "code": "SOC", "does": "Ouve o X (pelo Tree News), os canais públicos do Telegram e o Reddit, e conta quem fala de cada moeda. Os influencers da equipa pesam três vezes.", "every": 300},
@@ -111,6 +115,12 @@ class Brain:
             got = json.loads(FILE.read_text("utf-8"))
             self.state.update(got)
             self.state["cfg"] = {**DEFAULT, **got.get("cfg", {})}
+            # 18 Nov: the channels that matter for the GTA 6 narrative join a list saved before they existed (once)
+            if not self.state.get("tg_1118"):
+                for ch in TG_1118:
+                    if ch not in self.state["cfg"]["telegram"]:
+                        self.state["cfg"]["telegram"].append(ch)
+                self.state["tg_1118"] = True
         except (OSError, ValueError):
             pass
 
@@ -283,6 +293,7 @@ class Brain:
         return next((i for i in self.state["influencers"] if i["handle"].lower().lstrip("@") == who and i["platform"] in (platform, "any")), None)
 
     def _post(self, pid: str, src: str, who: str, text: str, url: str, ts: float, platform: str, media: dict | None = None) -> bool:
+        self.live.narr.on_post(src, who, text, url, ts, pid)   # the narratives (GTA 6) read every post, with or without a coin
         seen = self.state["seen_posts"]
         if pid in seen and media:   # posts seen before the Leitor existed get their video and photos
             old = next((p for p in self.state["posts"] if p["id"] == pid and p.get("inf") and "media" not in p), None)

@@ -302,6 +302,15 @@ def _holo(p: QPainter, holo: tuple, at=None):
     p.drawLine(QPointF(r.left() + 8, r.top() + 1.5), QPointF(r.right() - 8, r.top() + 1.5))
     p.setPen(Qt.NoPen)
     x0, y0 = r.left() + 10, r.top() + 9
+    if kind == "think":                            # thinking: three dots, one bright in turn
+        k = holo[1]
+        for i in range(3):
+            on = i == k
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(240, 250, 255, 250) if on else QColor(120, 200, 255, 230))
+            p.drawEllipse(QPointF(r.center().x() + (i - 1) * 30, r.center().y() - (4 if on else 0)), 9 if on else 7,
+                          9 if on else 7)
+        return
     if kind == "code":
         n = holo[1]
         cols = (QColor("#9be3ff"), QColor("#8ff0b4"), QColor("#ff8f86"), QColor("#e6edf5"), QColor("#d3b6ff"))
@@ -953,6 +962,15 @@ class Pet(QWidget):
             sy = y + h - self.AH - 6
         return QPoint(sx, sy)
 
+    def _toward_work(self):
+        """Where his eyes go while he works on a Claude window: towards the middle of it (-1..1, -1..1), else (None, None)."""
+        if not self._at_work or not self._spots:
+            return None, None
+        _, x, y, w, h = self._spots[0]
+        cx, cy = self._at.x() + self.AW / 2, self._at.y() + self.AH * 0.45
+        dx, dy = x + w / 2 - cx, y + h / 2 - cy
+        return round(max(-1.0, min(1.0, dx / 160)), 1), round(max(-0.6, min(1.0, dy / 160)), 1)
+
     def _look_for_claude(self):
         """Every 2 s: the Claude windows working on this computer. He goes to the front one; the others get the star. With
         the central open he is away, so every window working gets the star (Marco: «tem de estar sempre a identificar
@@ -1136,19 +1154,28 @@ class Pet(QWidget):
         elif look == "sleep":
             eyes = (0, 0, 1.0, "sleep")
             fx = ("z", int(t * 4) % 12)
-        elif look == "think":                    # the thinking picture: hand on the chin, eyes up (no cloud)
-            pose, eyes = "think", None
-        elif look == "edit":                     # the boss at work: the wrench, sparks, the code floating by
-            f = int(t * 4) % 48
-            pose, eyes = "work", None
-            holo, fx = ("code", f // 3), ("sparks", f % 6)
-        elif look == "run":
+        elif look == "think":                    # eyes on the work, three dots pulsing on his hologram (no cloud)
+            wx, wy = self._toward_work()
+            if wx is None:
+                pose, eyes = "think", None       # at home: the hand-on-chin picture
+            else:
+                eyes, holo = (wx, wy, max(lid, 0.35), "open"), ("think", int(t * 3.5) % 3)
+        elif look in ("edit", "run"):            # the boss at work: the wrench, sparks, the code floating by
             f = int(t * 4) % 60
-            pose, eyes = "work", None
-            holo, fx = ("term", (f // 3) % 5, (f // 3) % 2, f // 15), ("sparks", f % 6)
+            if look == "edit":
+                h = ("code", (f % 48) // 3)
+            else:
+                h = ("term", (f // 3) % 5, (f // 3) % 2, f // 15)
+            wx, wy = self._toward_work()
+            if wx is not None and wx > 0:        # the work is on his right: facing it, the code on his chest
+                eyes, holo = (wx, wy, max(lid, 0.4), "open"), h
+            else:                                # the wrench picture looks left and down: at the work
+                pose, eyes, holo, fx = "work", None, h, ("sparks", f % 6)
         elif look == "read":
             k = int(t * 2.5) % 10
-            eyes = ((-1, -0.3, 0.3, 1, 0.3, -0.3)[int(t * 2) % 6], 0.9, lid, "open")
+            wx, wy = self._toward_work()
+            sweep = (-0.6, -0.2, 0.2, 0.6, 0.2, -0.2)[int(t * 2) % 6]
+            eyes = ((sweep if wx is None else max(-1, min(1, wx + sweep * 0.5))), 0.9 if wy is None else wy, lid, "open")
             holo = ("read", k)
         elif look == "wait":
             fx = ("glyph", "?") if int(t / 0.8) % 2 else None

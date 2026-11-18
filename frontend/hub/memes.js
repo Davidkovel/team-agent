@@ -7,7 +7,7 @@
 // (Resumo, Moedas, Redes sociais, Agentes, the NAV entry's pages), the Resumo says in one sentence what is going on, every
 // coin gets a verdict in words (Forte, A ganhar força, Fraca, Ignorar, Perigo) and every term is explained in plain words.
 (function () {
-  let S = null, B = null, P = [], timer = 0, view = "quem", filter = "todas";
+  let S = null, B = null, P = [], BR = null, timer = 0, view = "quem", filter = "todas";
   const loc = (v, d = 0) => Number(v).toLocaleString("pt-PT", { minimumFractionDigits: d, maximumFractionDigits: d });
   const usd = (v) => (v == null ? "—" : v >= 1e9 ? `${loc(v / 1e9, 1)} mil M$` : v >= 1e6 ? `${loc(v / 1e6, 1)} M$` : v >= 1e3 ? `${loc(v / 1e3, 0)} mil $` : `${loc(v, 0)} $`);
   const price = (v) => (v == null ? "—" : v >= 1 ? `${loc(v, 2)} $` : v > 0 ? `${Number(v).toPrecision(3)} $` : "0 $");
@@ -58,8 +58,8 @@
   }
 
   async function load(first) {
-    [S, B, P] = await Promise.all([api("/api/memes/state"), view === "quem" || view === "calls" ? api("/api/memes/board") : Promise.resolve(B),
-      view === "quem" ? api("/api/plans").catch(() => []) : Promise.resolve(P)]);
+    [S, B, P, BR] = await Promise.all([api("/api/memes/state"), view === "quem" || view === "calls" ? api("/api/memes/board") : Promise.resolve(B),
+      view === "quem" ? api("/api/plans").catch(() => []) : Promise.resolve(P), view === "quem" ? api("/api/memes/brain").catch(() => BR) : Promise.resolve(BR)]);
     paintCtl();
     const typing = $("mc-body").querySelector("input:focus, textarea:focus, select:focus, details[open]");
     if (first || !typing) ({ quem, calls: callsView, moedas, agentes })[view]();
@@ -330,8 +330,9 @@
   function quem() {
     const R = B.ranking.filter((r) => r.calls || true), lead = R.find((r) => r.judged >= 5 && r.usd > 0);
     const judged = R.reduce((a, r) => a + r.judged, 0);
-    if (!$("mc-hole-w")) $("mc-body").innerHTML = `<div id="mc-hole-w"></div><div id="mc-rest"></div>`;
+    if (!$("mc-hole-w")) $("mc-body").innerHTML = `<div id="mc-hole-w"></div><div id="mc-brain"></div><div id="mc-rest"></div>`;
     hole();
+    paint($("mc-brain"), brainBoard());
     paint($("mc-rest"), `
       ${lead ? `<section class="panel mc-lead-c">
           <span class="mc-lead-k">${esc(t("O melhor a seguir agora"))}</span>
@@ -352,6 +353,39 @@
         ${R.map((r, n) => row(r, n)).join("")}
       </section>
       <p class="mc-foot">${esc(t("Como contamos: compra ao preço da hora do call, venda 24 horas depois, sem taxas. Ninguém comprou nada: é só para comparar quem acerta."))}</p>`);
+  }
+
+  // 18 nov, Marco: «está super confuso... tenho que clicar nos robôs para ver as publicações... o cérebro tem que ter as
+  // informações todas... vais unindo e vais meter as tokens, vale a pena... super empresarial». Under the hole, always open:
+  // «Vale a pena agora» (every agent's coins joined by contract, a verdict and the reasons: backend/app/memes_brain.py) and
+  // «O que se diz agora» (one timeline: influencers as the Leitor read them, the GTA posts and calls, the hunt, the X launches).
+  const KINDS = { compra: ["Manda comprar", "ok"], venda: ["Manda vender", "bad"], aviso: ["Aviso", "bad"], resultado: ["Lucro antigo", "warn"],
+    noticia: ["Notícia", ""], call: ["Call", "ok"], narr: ["GTA 6", "warn"], hunt: ["🎯 Caça", "bad"], launch: ["Moeda lançada", "info"] };
+  const coinChip = (c) => `<a class="mc-br-cc" href="https://gmgn.ai/sol/token/${esc(c.address || "")}" target="_blank" rel="noopener">$${esc(sym(c.symbol || "?"))}</a>`;
+  function brainBoard() {
+    if (!BR) return "";
+    const c = BR.counts;
+    const picks = BR.picks.length ? BR.picks.map((p) => `<a class="mc-br-p ${p.tone}" href="${esc(p.url || `https://gmgn.ai/sol/token/${p.address}`)}" target="_blank" rel="noopener">
+        ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<i class="mc-noimg">${esc(sym(p.symbol)[0] || "?")}</i>`}
+        <span class="mc-br-m"><b>$${esc(sym(p.symbol))} <span class="mc-v ${p.tone} mc-tipo">${esc(t(p.verdict))}</span></b>
+          <small>${esc(p.why.join(" · "))}</small>
+          <span class="mc-br-src">${p.sources.map((x) => `<em>${esc(x)}</em>`).join("")}</span></span>
+        <span class="mc-br-n"><b>${usd(p.mcap)}</b>${pct(p.ch1)}<small>${esc(t("pool {v}", { v: usd(p.liq) }))}</small></span></a>`).join("")
+      : `<p class="mc-dim mc-br-e">${esc(t("Ainda nenhuma moeda com sinais suficientes."))}</p>`;
+    const said = BR.stream.length ? BR.stream.slice(0, 30).map((x) => { const k = KINDS[x.kind] || [x.kind, ""]; return `<div class="mc-br-s ${x.kind}">
+        <header><span class="mc-v ${k[1]} mc-tipo">${esc(t(k[0]))}</span><b>@${esc(x.who)}</b><small>${esc(x.src)} · ${esc(ago(x.t))}</small></header>
+        <a href="${esc(x.url || "#")}" target="_blank" rel="noopener">${esc(x.text)}</a>
+        ${x.coins && x.coins.length ? `<div class="mc-br-cs">${x.coins.map(coinChip).join("")}</div>` : ""}</div>`; }).join("")
+      : `<p class="mc-dim mc-br-e">${esc(t("Ainda nada."))}</p>`;
+    return `<section class="mc-br">
+      <div class="mc-br-k">
+        <span><b class="ok">${c.ok}</b>${esc(t("vale a pena olhar"))}</span><span><b class="warn">${c.warn}</b>${esc(t("arriscadas"))}</span>
+        <span><b class="bad">${c.bad}</b>${esc(t("a evitar"))}</span><span><b>${c.said}</b>${esc(t("coisas ditas em 48 h"))}</span>
+        <small>${esc(t("Tudo o que os agentes viram, junto. Atualiza sozinho. Não é conselho: é o que os dados dizem."))}</small></div>
+      <div class="mc-br-g">
+        <div class="panel mc-br-col"><h3>${esc(t("Vale a pena agora"))}<small>${esc(t("cada moeda com o veredicto e o porquê"))}</small></h3><div class="mc-br-l">${picks}</div></div>
+        <div class="panel mc-br-col"><h3>${esc(t("O que se diz agora"))}<small>${esc(t("influencers, calls, GTA 6 e a caça, numa linha"))}</small></h3><div class="mc-br-l">${said}</div></div>
+      </div></section>`;
   }
 
   function row(r, n) {

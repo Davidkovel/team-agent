@@ -343,3 +343,12 @@ async def hunt(body: Hunt, user: User = Depends(viewer)):
         terms.remove(term)
     BRAIN.save()
     return {"terms": terms}
+
+
+@router.get("/brain")
+async def brain_view(user: User = Depends(viewer)):
+    """O cérebro unido: «Vale a pena agora» and «O que se diz agora», joined from every agent (memes_brain.py)."""
+    from ..memes_brain import build
+    if not BRAIN.live.started:
+        BRAIN.live_task = asyncio.create_task(BRAIN.live.run())
+    return build(BRAIN)

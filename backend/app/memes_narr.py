@@ -42,13 +42,14 @@ GTA = {
     "id": "gta", "name": "GTA 6", "since": "2026-11-18",
     "note": "O GTA 6 sai a 19 de novembro de 2026: as moedas com o nome do jogo, das personagens e de Leonida estão a mexer.",
     # inside a coin's name or ticker (normalised): enough on its own
-    "strong": ["gta", "grandtheft", "vicecity", "leonida", "rockstar", "vercetti", "dacity", "cyberleek", "grovestreet", "gtavi"],
+    "strong": ["gta", "grandtheft", "vicecity", "leonida", "rockstar", "vercetti", "dacity", "cyberleek", "grovestreet", "gtavi",
+               "tomas"],   # 18 Nov, 12h: «Tomás», Lucia's son, dozens of coins in 2 hours (Tomás Lucia's Baby, Baby Tomas Wanted...)
     # only as the coin's whole name or ticker (a coin called just «Lucia» in this week is a GTA coin; «Lucia Pizza» is not)
     "weak": ["lucia", "jason", "wasted", "busted", "tommy", "trevor", "franklin", "niko", "lamar", "cj", "fivestars", "wantedlevel"],
     # in a post: the theme is being talked about
     "text": r"\bgta\s?(?:6|vi|six)?\b|\bgta6\b|grand\s+theft\s+auto|vice\s?city|\bleonida\b|rockstar\s?games|\bvercetti\b|\bdacity\b|"
-            r"\bcyberleek\b|\$(?:lucia|jason|wasted|leonida|gta\w*|vice\w*|rockstar)\b",
-    "search": ["gta", "gta6", "gta vi", "leonida", "vice city", "rockstar", "lucia", "wasted", "vercetti", "grand theft", "dacity"],
+            r"\bcyberleek\b|\$(?:lucia|jason|wasted|leonida|gta\w*|vice\w*|rockstar|tomas)\b|lucia'?s\s+(?:baby|son)|baby\s+tom[aá]s",
+    "search": ["gta", "gta6", "gta vi", "leonida", "vice city", "rockstar", "lucia", "wasted", "vercetti", "grand theft", "dacity", "tomas", "baby tomas"],
     "yt": ["GTA 6", "GTA 6 memecoin"],
     "twitch_game": "Grand Theft Auto VI",
     "x_query": '(GTA6 OR "GTA 6" OR "GTA VI" OR Leonida OR "Vice City") (memecoin OR "pump.fun" OR pumpfun OR CA OR solana OR $GTA OR ape) -is:retweet',

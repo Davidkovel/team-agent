@@ -161,6 +161,7 @@ def test_narrative_gta(tmp_path, monkeypatch):
     from app.memes_narr import GTA, coin_hit, text_hit, yt_lives
     assert coin_hit(GTA, "Leonida", "The State of Leonida") == "leonida"
     assert coin_hit(GTA, "GTA6", "GTA VI") and coin_hit(GTA, "LUCIA", "Lucia") == "lucia"
+    assert coin_hit(GTA, "TOMAS", "Tomás Lucia’s Baby") and text_hit(GTA, "Lucia's son Tomas just launched")
     assert coin_hit(GTA, "PIZZA", "Lucia Pizza") is None and coin_hit(GTA, "CAT", "cat") is None
     assert text_hit(GTA, "GTA 6 is out tomorrow, aping $LEONIDA") and text_hit(GTA, "vice city vibes") and not text_hit(GTA, "a gtag")
     lives = yt_lives((Path(__file__).parent / "data" / "yt_live.html").read_text())

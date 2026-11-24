@@ -313,6 +313,21 @@ a 1.ª entrada de 01 · Comando e o 1.º atalho da central do widget (no lugar d
   Terminal com o prompt do cérebro (pasta: o team-agent se fala do widget/Hub, senão a casa), e ela aparece na bola pelos
   hooks; **ChatGPT** corre o Codex que vem no ChatGPT.app (`codex exec --sandbox read-only`: só lê) e a resposta aparece em
   «ChatGPT neste PC»; **Os dois**; **Escritório** = tarefa para o agente (`POST /api/tasks`).
+- **A conversa** (24 nov, 2.ª volta: «um chat em que ele fica a falar com a gente... aparecer para o Kovel e o David, tudo ao
+  vivo»): tabela `brain_messages` (versão 28, vai por sync), `GET/POST /api/cerebro/chat`. Quem responde é o Hub do PC de quem
+  escreveu (`_answer`: `claude -p` Sonnet sem ferramentas, `council.ask_claude`, com as janelas da equipa no contexto), por isso
+  cada pergunta tem uma resposta só; a resposta acaba com `[ação: claude|chatgpt|escritorio|nenhuma]` e a página mostra os botões.
+- **Microfone grátis**: `POST /api/cerebro/voice` (o áudio do browser) → `app/cerebro_ouvir.py`, faster-whisper `small` neste PC
+  (~3 s por frase). Respostas em voz alta pelo `speechSynthesis` do browser (pt-PT); «Mãos livres» ouve, manda numa pausa de
+  1,4 s, lê a resposta e volta a ouvir. No Mac o microfone só funciona no Chrome: a janela do widget (QWebEngine) corre num
+  python sem `NSMicrophoneUsageDescription` e o macOS matava-o, por isso só o Windows dá autorização lá (`HubPage._permission`).
+- **Janela flutuante** (`?mini=1&cb=1`, `html.cb-solo`): a bola pequena, quem trabalha agora e a conversa, sempre por cima. O
+  atalho «Cérebro» da central do widget abre-a (`open_cerebro` no `expand.py`, `MiniWindow("cerebro")`); no Hub, o botão
+  «Janela flutuante» (widget, senão picture-in-picture do Chrome, senão popup).
+- **Desenho** (2.ª volta, Marco: «parece Android, para putos... não quero clicar para ver os nomes»): cada IA é o seu ícone de
+  app com o nome sempre escrito (`AI` no `cerebro.js`; Gemini e Grok no anel «por ligar»), as IAs num arco em cima e os sócios
+  com a foto do GitHub num arco em baixo, as janelas em pílulas com o nome. Partículas do disco em 8 lotes de brilho (uma cor
+  por partícula gastava 4x): ~6% de um núcleo a 60 fps no Chrome sem GPU.
 - **ChatGPT neste PC**: as conversas do ChatGPT/Codex do último dia, lidas de `~/.codex` (nunca saem do PC; as «Guardian
   review» do próprio Codex ficam de fora).
 

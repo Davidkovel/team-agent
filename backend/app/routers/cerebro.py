@@ -20,19 +20,28 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+import asyncio
+import logging
+import sys
+import tempfile
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import codex_watch, crew
 from ..db import get_db
-from ..models import User
+from ..db import SessionLocal
+from ..models import BrainMessage, User
+from ..realtime import rt
+from ..services import iso
 from ..security import current_user
 from .auth import ip_map
 from .local import only_local
 from . import office as office_router
 
 router = APIRouter(prefix="/api")
+log = logging.getLogger("team.cerebro")
 
 REPO = Path(__file__).resolve().parents[3]
 PROMPTS = Path.home() / ".team-agent" / "cerebro"
@@ -187,3 +196,126 @@ async def cerebro_send(body: dict = Body(...), user: User = Depends(current_user
     if not (out.get("claude") or out.get("chatgpt")):
         raise HTTPException(422, "Destino desconhecido")
     return out
+
+
+# ---------- the conversation (24 Nov, Marco: «um chat em que ele fica a falar com a gente... ao vivo para todos») ----------
+
+BRAIN_MODEL = "sonnet"   # quick enough to talk; the work itself goes to the window or the AI the plan picks
+SYSTEM = """És o Cérebro da Empresa AMG: o centro de comando dos sócios Marco, Kovel e David (agentes de IA, sites, vídeo,
+trading, Etsy, clientes). Falas como um chefe de gabinete calmo e direto, em português de Portugal (se te escreverem noutra
+língua, respondes nessa). Respostas curtas, faladas: 1 a 4 frases, sem listas compridas, sem markdown pesado, porque podem
+ser lidas em voz alta. Sabes o que cada IA da equipa está a fazer agora (vem no contexto) e usas isso. Quando o pedido é
+trabalho para fazer, diz em uma frase o que vais pôr a fazer e com que IA, e acaba com uma linha só com
+[ação: claude] (uma janela do Claude Code faz), [ação: chatgpt] (o ChatGPT responde), [ação: escritorio] (tarefa para o
+agente do escritório) ou [ação: nenhuma]. Nunca inventes números nem estados que não estão no contexto."""
+ACTION = re.compile(r"\[a[cç][aã]o:\s*(claude|chatgpt|escritorio|escritório|nenhuma)\]\s*$", re.I)
+
+
+def msg_out(m: BrainMessage) -> dict:
+    try:
+        plan_ = json.loads(m.plan) if m.plan else None
+    except ValueError:
+        plan_ = None
+    return {"id": m.id, "role": m.role, "text": m.text, "status": m.status, "via": m.via, "reply_to": m.reply_to,
+            "user": m.user.username, "name": m.user.display_name, "plan": plan_, "at": iso(m.created_at)}
+
+
+def _context(office: dict) -> str:
+    rows = []
+    for s in office["sessions"][:14]:
+        if s["state"] == "ended":
+            continue
+        rows.append(f"- {s['name']} · {s['project']} · {s['state']} · meta: {s['topic'] or s['title']} · agora: {s['action']}"
+                    + (f" · IAs: {', '.join(s['links'])}" if s.get("links") else ""))
+    gpt = [f"- ChatGPT: {j['prompt'][:120]} → {j['state']}" for j in codex_watch.jobs()[:3]]
+    return "Janelas do Claude da equipa agora:\n" + ("\n".join(rows) or "- nenhuma") + ("\n" + "\n".join(gpt) if gpt else "")
+
+
+async def _answer(question_id: int, brain_id: int, user_id: int):
+    """The brain answers one question, in the background: the person's message is already on every screen."""
+    try:
+        async with SessionLocal() as db:
+            user = await db.get(User, user_id)
+            office = await office_router.office(user=user, db=db)
+            history = (await db.execute(select(BrainMessage).where(BrainMessage.status != "thinking")
+                                        .order_by(BrainMessage.id.desc()).limit(12))).scalars().all()
+            q = await db.get(BrainMessage, question_id)
+            await db.commit()
+        talk = "\n".join(f"{'Cérebro' if m.role == 'brain' else m.user.display_name}: {m.text}" for m in reversed(history)
+                         if m.id != question_id)
+        prompt = (f"{_context(office)}\n\nConversa até aqui:\n{talk or '(nada)'}\n\n"
+                  f"Agora {user.display_name} diz: {q.text}")
+        text, _ = await council_ask(SYSTEM, prompt)
+        hit = ACTION.search(text)
+        action = (hit.group(1).lower().replace("ó", "o") if hit else "nenhuma")
+        text = ACTION.sub("", text).strip()
+        status = "ok"
+    except Exception as e:   # the brain says it could not, never stays «a pensar» forever
+        log.warning("cerebro: %s", e)
+        text, action, status = f"Não consegui responder: {str(e)[:200]}", "nenhuma", "failed"
+    async with SessionLocal() as db:
+        m = await db.get(BrainMessage, brain_id)
+        if m:
+            m.text, m.status = text, status
+            p = json.loads(m.plan or "{}")
+            p["action"] = action
+            m.plan = json.dumps(p, ensure_ascii=False)
+            await db.commit()
+    await rt.publish("cerebro", user_id, "team")
+
+
+async def council_ask(system: str, prompt: str) -> tuple[str, float]:
+    from ..tradingroom.council import ask_claude
+    return await ask_claude(system, prompt, BRAIN_MODEL, PROMPTS / "brain", timeout=150)
+
+
+@router.get("/cerebro/chat")
+async def chat_list(after: int = 0, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    q = select(BrainMessage).order_by(BrainMessage.id.desc()).limit(80)
+    rows = (await db.execute(q)).scalars().all()
+    return {"messages": [msg_out(m) for m in reversed(rows)], "me": user.username}
+
+
+@router.post("/cerebro/chat")
+async def chat_send(body: dict = Body(...), user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    text = str(body.get("text") or "").strip()[:4000]
+    if len(text) < 2:
+        raise HTTPException(422, "Escreve ou diz alguma coisa")
+    p = plan(text)
+    p["prompt"] = brain_prompt(text, p)
+    q = BrainMessage(user_id=user.id, role="user", text=text, via="voz" if body.get("via") == "voz" else "texto")
+    db.add(q)
+    await db.flush()
+    a = BrainMessage(user_id=user.id, role="brain", text="", status="thinking", reply_to=q.id,
+                     plan=json.dumps({k: p[k] for k in ("kind", "label", "department", "model", "engines", "skills", "crew", "prompt")}, ensure_ascii=False))
+    db.add(a)
+    await db.commit()
+    asyncio.create_task(_answer(q.id, a.id, user.id))
+    await rt.publish("cerebro", user.id, "team")
+    return {"question": q.id, "answer": a.id}
+
+
+@router.post("/cerebro/voice")
+async def chat_voice(request: Request, user: User = Depends(current_user)):
+    """What was said into the microphone, as text: transcribed on this PC by faster-whisper (free, nothing leaves the PC)."""
+    data = await request.body()
+    if len(data) < 800:
+        raise HTTPException(422, "Não ouvi nada")
+    if len(data) > 25_000_000:
+        raise HTTPException(413, "Áudio demasiado longo")
+    suffix = ".mp4" if "mp4" in (request.headers.get("content-type") or "") else ".webm"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+        f.write(data)
+        path = f.name
+    try:
+        proc = await asyncio.create_subprocess_exec(sys.executable, "-m", "app.cerebro_ouvir", path, cwd=str(Path(__file__).resolve().parents[2]),
+                                                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=180)
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "A transcrição demorou demasiado")
+    finally:
+        Path(path).unlink(missing_ok=True)
+    try:
+        return json.loads(out.decode("utf-8", "replace").strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        raise HTTPException(500, "Não deu para transcrever: " + err.decode("utf-8", "replace")[-200:])

@@ -26,7 +26,7 @@
     const els = roots ? roots.flatMap((r) => [r, ...r.querySelectorAll("*")]).filter((el) => el.matches(ALL)) : document.querySelectorAll(ALL);
     for (const el of els) {
       if (seen.get(el) === el.className) continue;
-      if (SKIP.has(el.tagName.toUpperCase()) || el.classList.contains("vidro") || el.closest("svg") || el.closest(".mc-hole") || el.closest(".cb-orb")) continue;   // the memecoins black hole has its own glass
+      if (SKIP.has(el.tagName.toUpperCase()) || el.classList.contains("vidro") || el.closest("svg") || el.closest(".mc-hole") || el.closest(".cb")) continue;   // the memecoins black hole has its own glass
       const r0 = el.getBoundingClientRect();
       if (!r0.width) continue;                         // ainda escondido: vê-se quando aparecer
       seen.set(el, el.className);

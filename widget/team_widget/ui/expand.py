@@ -9,6 +9,7 @@ double-click the bar or use the middle button to switch between full screen and 
     expander.collapsed.connect(widget.show_panel)
     expander.expand(widget.frameGeometry(), url)   # then hide the widget
 """
+import sys
 import os
 
 # GPU raster and zero-copy for the embedded Hub: Chromium blocks many laptop GPUs by default and falls back to
@@ -86,6 +87,7 @@ class Bridge(QObject):
     play = Signal(str)
     mini = Signal(str)
     aovivo = Signal(str)   # 18 Nov: the Ao vivo of the memecoins in a window of its own (frontend/hub/aovivo.js ⧉)
+    cerebro = Signal(str)  # 24 Nov: the Cérebro small, over everything, while you work (frontend/hub/cerebro.js ⧉)
 
     @Slot(str)
     def playVideos(self, payload: str):
@@ -98,6 +100,10 @@ class Bridge(QObject):
     @Slot(str)
     def openAoVivo(self, url: str):
         self.aovivo.emit(url)
+
+    @Slot(str)
+    def openCerebro(self, url: str):
+        self.cerebro.emit(url)
 
 
 def _outside_url(url: QUrl) -> QUrl:
@@ -133,6 +139,25 @@ class HubPage(QWebEnginePage):
     the Hub's own page); every other site goes to the browser."""
 
     hub_host = ""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The Cérebro's microphone (24 Nov): the Hub's own page may hear, nothing else. Not on the Mac: there the widget runs
+        # under a python with no microphone description in any Info.plist, and macOS kills a process that asks without one
+        # (the Cérebro says to open it in Chrome for the microphone).
+        if sys.platform != "darwin" and hasattr(self, "permissionRequested"):
+            self.permissionRequested.connect(self._permission)
+
+    def _permission(self, permission):
+        try:
+            from PySide6.QtWebEngineCore import QWebEnginePermission
+            host = permission.origin().host()
+            if permission.permissionType() == QWebEnginePermission.PermissionType.MediaAudioCapture and host in (self.hub_host, "127.0.0.1", "localhost"):
+                permission.grant()
+            else:
+                permission.deny()
+        except Exception:
+            pass
 
     def acceptNavigationRequest(self, url, nav_type, is_main_frame):
         if not is_main_frame or url.scheme() in ("data", "blob", "about", "qrc", "file"):
@@ -215,6 +240,7 @@ class HubExpander(QWidget):
         self._bridge.play.connect(self._play_videos)
         self._bridge.mini.connect(self._open_mini)
         self._bridge.aovivo.connect(open_aovivo)
+        self._bridge.cerebro.connect(open_cerebro)
         self._mini = None   # the cave's mini window, made the first time it is asked for
         self._channel = QWebChannel(page)
         self._channel.registerObject("amg", self._bridge)
@@ -457,3 +483,16 @@ def open_aovivo(url: str):
     if _aovivo is None:
         _aovivo = MiniWindow("aovivo", "Ao vivo · Memecoins", (430, 700), (340, 380))
     _aovivo.open(url)
+
+
+_cerebro = None
+
+
+def open_cerebro(url: str):
+    """The Cérebro small (24 Nov, Marco: «enquanto estou a trabalhar noutras merdas... num spotzinho qualquer, sempre lá»):
+    the black hole, who works now and the conversation, in a window of its own, always on top. Its place and size are kept."""
+    global _cerebro
+    from .mini import MiniWindow
+    if _cerebro is None:
+        _cerebro = MiniWindow("cerebro", "Cérebro AMG", (380, 640), (320, 420))
+    _cerebro.open(url)

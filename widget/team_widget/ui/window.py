@@ -2491,6 +2491,7 @@ class WidgetWindow(QWidget):
     cave_ready = Signal(str)     # the cave's address with a sign-in, for the cameras' mini window
     messages_ready = Signal(str)  # the same for the Messages app (3 Nov)
     aovivo_ready = Signal(str)    # the same for Ao vivo, the memecoins' window (18 Nov)
+    cerebro_ready = Signal(str)   # and for the Cérebro's small window (24 Nov)
 
     def __init__(self, store: StateStore, client: AgentClient):
         super().__init__(None, Qt.Window | Qt.FramelessWindowHint | (Qt.WindowStaysOnTopHint if prefs.on_top() else Qt.Widget)
@@ -2500,6 +2501,7 @@ class WidgetWindow(QWidget):
         self.cave_ready.connect(self._cave_opened)
         self.messages_ready.connect(self._messages_opened)
         self.aovivo_ready.connect(self._aovivo_opened)
+        self.cerebro_ready.connect(self._cerebro_opened)
         self.punched.connect(self._punched)
         self.notices = Notices(self._open_notice)  # the black card that says a task was sent
         self.news.connect(self.notices.push)
@@ -3387,6 +3389,22 @@ class WidgetWindow(QWidget):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def _open_cerebro(self):
+        """The Cérebro (frontend/hub/cerebro.js with ?mini=1) small, in its own window over everything."""
+        who = self._identity(self._team or [])
+
+        def work():
+            error = hub.ready()
+            url = hub.hub_url()
+            session = None if error else (self.client.hub_session() or (hub.session(url, who) if who else None))
+            self.cerebro_ready.emit(f"{url}/?mini=1&cb=1#login={session or ''}&to=/cerebro")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _cerebro_opened(self, url: str):
+        from .expand import open_cerebro
+        open_cerebro(url)
+
     def _aovivo_opened(self, url: str):
         from .expand import open_aovivo   # the web engine is heavy: only when it is first opened
         open_aovivo(url)
@@ -3599,6 +3617,8 @@ class WidgetWindow(QWidget):
         """A card was clicked: the Hub opens on that task ("#/tarefas/3"); a message opens the Messages app on its conversation."""
         if href == "#/aovivo":   # 18 Nov: the memecoins' live window, on its own, over everything
             return self._open_aovivo()
+        if href == "#/cerebro":   # 24 Nov: the Cérebro small, over everything (it has «Abrir em grande»)
+            return self._open_cerebro()
         if href and href.startswith("#/mensagens"):
             parts = href.split("/")
             return self._open_messages(parts[2] if len(parts) > 2 else "")

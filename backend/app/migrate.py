@@ -39,7 +39,8 @@ log = logging.getLogger("team.backend")
 # 25: affiliate_products, the products of the recommendations page (Afiliados).
 # 26: mail_threads, mail_messages, mail_optouts and mail_settings, for E-mails (app/mail.py).
 # 27: claude_sessions.steps and claude_sessions.links, the trail of steps and the AIs a window reached (Cérebro).
-SCHEMA_VERSION = 27
+# 28: brain_messages, the Cérebro's conversation with the team (routers/cerebro.py).
+SCHEMA_VERSION = 28
 
 
 def current_version(conn) -> int:

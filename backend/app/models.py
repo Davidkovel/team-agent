@@ -251,6 +251,25 @@ class Notification(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class BrainMessage(Base):
+    """The Cérebro's conversation (24 Nov, Marco: «quando eu estou a falar com ele, tem de aparecer para o Kovel e o David...
+    tudo ao vivo»): one thread for the whole team, travels to every PC by sync. A person's message is answered by the Hub
+    of that person's own PC (routers/cerebro.py), so it is answered once; the answer is a row with role "brain"."""
+    __tablename__ = "brain_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)   # who wrote it, or whose question the brain answers
+    role: Mapped[str] = mapped_column(String(10), default="user")   # user | brain
+    text: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(10), default="ok")   # ok | thinking | failed
+    via: Mapped[str] = mapped_column(String(10), default="texto")   # texto | voz
+    reply_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    plan: Mapped[str | None] = mapped_column(Text, nullable=True)   # JSON: what the brain would do with it (cerebro.plan)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+    user: Mapped[User] = relationship(lazy="joined")
+
+
 class Message(Base):
     """Mensagens (21 Oct, Marco: «mandar como se fossem mensagens lá no widget»): one person to another, or to the whole team
     (to_user_id None). Travels to every PC by sync like any row; only the people in the conversation are shown it."""

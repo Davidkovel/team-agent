@@ -33,3 +33,10 @@ def test_trail_is_short_and_links_are_unique():
     steps = office.trail_of(row)
     assert len(steps) == office.TRAIL and steps[-1]["text"] == f"passo {office.TRAIL + 4}"
     assert row.links.split(",") == ["Higgsfield", "Canva"] or row.links.split(",") == ["Canva", "Higgsfield"]
+
+
+def test_the_brain_action_line_is_read_and_taken_out():
+    text = "Vou pôr uma janela do Claude a fazer o reel.\n[ação: claude]"
+    hit = cerebro.ACTION.search(text)
+    assert hit and hit.group(1) == "claude"
+    assert cerebro.ACTION.sub("", text).strip() == "Vou pôr uma janela do Claude a fazer o reel."

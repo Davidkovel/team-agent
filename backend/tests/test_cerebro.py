@@ -40,3 +40,17 @@ def test_the_brain_action_line_is_read_and_taken_out():
     hit = cerebro.ACTION.search(text)
     assert hit and hit.group(1) == "claude"
     assert cerebro.ACTION.sub("", text).strip() == "Vou pôr uma janela do Claude a fazer o reel."
+
+
+def test_the_brain_buttons_are_read_from_its_answer():
+    text = ("Tens duas tarefas bloqueadas, a #12 é a pior.\n[abrir: tarefas]\n"
+            "[plano: Lançar os anúncios Etsy | ligar os anúncios; ver os cliques; ajustar o preço]\n"
+            "[nota: Desconto Etsy | 15% em toda a loja até 20 dez]\n[ação: nenhuma] [abrir: nada-disto]")
+    clean, tags = cerebro.read_tags(text)
+    assert clean == "Tens duas tarefas bloqueadas, a #12 é a pior."
+    assert tags["open"] == {"page": "tarefas", "label": "Tarefas"}
+    assert tags["new_plan"] == {"title": "Lançar os anúncios Etsy", "steps": ["ligar os anúncios", "ver os cliques", "ajustar o preço"]}
+    assert tags["note"]["title"] == "Desconto Etsy" and tags["action"] == "nenhuma"
+    clean, tags = cerebro.read_tags("Vou pôr o Claude nisso. [ação: claude]")
+    assert clean == "Vou pôr o Claude nisso." and tags == {"action": "claude"}
+    assert cerebro.read_tags("[plano: Sem passos |]")[1] == {"action": "nenhuma"}

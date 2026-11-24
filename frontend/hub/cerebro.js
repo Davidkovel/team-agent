@@ -8,6 +8,10 @@
 // Canva...); a line with sparks runs from a window to each AI it is talking to now. Under it the conversation with the
 // brain: one thread for the whole team (it travels by sync), text or the microphone (Whisper on this PC, free), answers
 // read aloud if wanted, «Conversa» for hands-free. Right: Agora (every window in full), ChatGPT, O fio.
+// United with the rest of the Hub (24 Nov, David: «tem que ser muito esperto e unido com o resto das coisas do widget»): a
+// line on top with the company's state (tarefas, bloqueadas, aprovações, planos, avisos), each a door to its page; the brain
+// reads all of it and the Memória before answering, and its answer can end in buttons: open a page, make a shared plan with
+// its steps, keep a note in the Memória, send to Claude/ChatGPT/Escritório. Nothing runs by itself: a button is a click.
 // ?mini=1&cb=1 is the small window that stays over everything (the widget's shortcut, Chrome's picture-in-picture).
 (function () {
   const MINI = /[?&]cb=1(&|$)/.test(location.search);
@@ -39,7 +43,7 @@
 
   const STATE = { working: ["A trabalhar", "ok"], waiting: ["À tua espera", "warn"], idle: ["Livre", "idle"], ended: ["Fechada", "idle"], stalled: ["Parada", "bad"] };
   const st = { data: null, chat: [], me: "", tab: "agora", open: null, plan: null, sending: false, timer: 0, chatTimer: 0, raf: 0,
-    L: null, sig: "", voice: localStorage.getItem("cb-voz") === "1", talk: false, spoken: new Set(), rec: null, t0: performance.now() };
+    L: null, sig: "", done: (() => { try { return JSON.parse(localStorage.getItem("cb-done") || "{}"); } catch (e) { return {}; } })(), voice: localStorage.getItem("cb-voz") === "1", talk: false, spoken: new Set(), rec: null, t0: performance.now() };
   const ago = (s) => { const d = Date.now() / 1000 - s; return d < 45 ? t("agora") : d < 3600 ? `${Math.max(1, Math.round(d / 60))} min` : d < 86400 ? `${Math.round(d / 3600)} h` : `${Math.round(d / 86400)} d`; };
   const isoS = (iso) => (iso ? Date.parse(iso) / 1000 : 0);
   const working = (s) => s.state === "working";
@@ -52,6 +56,12 @@
   const svgPip = () => `<svg class="cb-ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><rect x="12" y="11" width="7" height="6" rx="1.5"/></svg>`;
 
   /* ---------- page ---------- */
+  // The questions asked most, one click (each one sends; «Planeia…» only writes the start so the person finishes it)
+  const QUICK = [["Ponto de situação: o que se passa na empresa agora?", "Ponto de situação"],
+    ["O que é que precisa de mim agora? O mais urgente primeiro.", "O que precisa de mim?"],
+    ["O que devo fazer a seguir, por ordem?", "O que faço a seguir?"],
+    ["Como estão os planos partilhados? Quais estão parados?", "Planos"],
+    ["Planeia comigo: ", "Planear…"]];
   function chatBlock() {
     return `<div class="cb-chat">
       <header class="cb-chat-h"><b>${esc(t("Conversa"))}</b><small>${esc(t("a equipa vê ao vivo"))}</small>
@@ -59,6 +69,7 @@
         <button type="button" class="cb-tog" id="cb-talk" title="${esc(t("Mãos livres: falas, ele responde em voz e volta a ouvir"))}">${svgWave()}<span>${esc(t("Mãos livres"))}</span></button></header>
       <div class="cb-thread" id="cb-thread"></div>
       <div class="cb-hint" id="cb-plan"></div>
+      <div class="cb-quick" id="cb-quick">${QUICK.map(([q, l], i) => `<button type="button" class="cb-chip" data-quick="${i}">${esc(t(l))}</button>`).join("")}</div>
       <form class="cb-compose" id="cb-form" autocomplete="off">
         <button type="button" class="cb-mic" id="cb-mic" title="${esc(t("Falar (Ctrl+M)"))}">${svgMic()}</button>
         <div class="cb-field"><textarea id="cb-q" rows="1" placeholder="${esc(t("Fala com o Cérebro"))}"></textarea>
@@ -74,6 +85,7 @@
     return `<div id="cb" class="cb">
       ${ui.head("", t("Cérebro"), t("Todas as IAs da empresa, ao vivo. Fala com ele: escolhe a melhor IA e põe-na a trabalhar."),
         `<span class="cb-count" id="cb-count"></span><button type="button" class="btn sm" id="cb-pip" title="${esc(t("Uma janela pequena, por cima de tudo, enquanto trabalhas"))}">${svgPip()}${esc(t("Janela flutuante"))}</button>`)}
+      <nav class="cb-pulse" id="cb-pulse" aria-label="${esc(t("A empresa agora"))}"></nav>
       <div class="cb-grid">
         <section class="cb-left">
           <div class="cb-stage" id="cb-stage"><canvas id="cb-cv"></canvas><div class="cb-layer" id="cb-layer"></div><div class="cb-core" id="cb-core"></div></div>
@@ -217,6 +229,25 @@
     paint($("cb-core"), `<b>${busy || ""}</b><small>${busy ? esc(t(busy === 1 ? "IA a trabalhar" : "IAs a trabalhar")) : esc(t("à escuta"))}</small>`);
   }
 
+  // The company now, in one line: each figure is real (GET /api/cerebro → pulse) and opens its page.
+  function paintPulse() {
+    const el = $("cb-pulse"), d = st.data;
+    if (!el || !d || !d.pulse) return;
+    const p = d.pulse, wins = live();
+    const busy = wins.filter(working).length, wait = wins.filter((s) => s.state === "waiting").length;
+    const cell = (n, label, href, tone = "") => `<a class="cb-pv ${n && tone ? tone : ""}" href="${href}"><b>${Number(n).toLocaleString("pt-PT")}</b><span>${esc(t(label))}</span></a>`;
+    paint(el, [
+      cell(busy, busy === 1 ? "janela a trabalhar" : "janelas a trabalhar", "#/escritorio", "ok"),
+      cell(wait, "à espera de resposta", "#/escritorio", "warn"),
+      cell(p.tasks, p.tasks === 1 ? "tarefa aberta" : "tarefas abertas", "#/tarefas"),
+      cell(p.mine, p.mine === 1 ? "é tua" : "são tuas", "#/tarefas"),
+      cell(p.blocked + p.late, p.blocked + p.late === 1 ? "bloqueada ou atrasada" : "bloqueadas ou atrasadas", "#/tarefas", "bad"),
+      cell(p.approvals, p.approvals === 1 ? "aprovação" : "aprovações", "#/aprovacoes", "warn"),
+      cell(p.plans, p.plans === 1 ? "plano aberto" : "planos abertos", "#/escritorio"),
+      cell(p.unread, p.unread === 1 ? "aviso por ler" : "avisos por ler", "#/avisos", "warn"),
+    ].join(""));
+  }
+
   /* ---------- the stage: the black hole ---------- */
   let bg = null, disk = [], dpr = 1, lastT = 0;
   function prepare(w, h) {
@@ -332,11 +363,12 @@
     const first = !sameAs(prev, m), last = !sameAs(m, next);
     if (m.role === "brain") {
       const p = m.plan || {};
-      const acts = m.user === st.me && m.status === "ok" && p.action && p.action !== "nenhuma" ? actions(m, p) : "";
+      const acts = m.user === st.me && m.status === "ok" ? actions(m, p) : "";
+      const mem = m.status === "ok" && (p.notes || []).length ? `<small class="cb-mem">${esc(t("Da Memória"))}: ${p.notes.map((x) => esc(x.title)).join(" · ")}</small>` : "";
       return `<div class="cb-msg brain ${first ? "first" : ""}">${last ? `<span class="cb-av hole"></span>` : `<span class="cb-av"></span>`}
         <div class="cb-col">${first ? `<small class="cb-who">${esc(t("Cérebro"))}${p.label ? `<em>${esc(p.label)}</em>` : ""}</small>` : ""}
           <div class="cb-bub ${m.status}">${m.status === "thinking" ? `<span class="cb-typing"><i></i><i></i><i></i></span>` : esc(m.text)}</div>
-          ${m.status === "ok" ? `<div class="cb-under">${p.engines ? aiRow(p.engines.map((e) => e.name)) : ""}<button type="button" class="cb-say" data-say="${m.id}" title="${esc(t("Ouvir"))}">${svgSpeaker()}</button></div>` : ""}${acts}</div></div>`;
+          ${m.status === "ok" ? `<div class="cb-under">${p.engines ? aiRow(p.engines.map((e) => e.name)) : ""}<button type="button" class="cb-say" data-say="${m.id}" title="${esc(t("Ouvir"))}">${svgSpeaker()}</button></div>` : ""}${mem}${acts}</div></div>`;
     }
     const mine = m.user === st.me;
     return `<div class="cb-msg ${mine ? "me" : "them"} ${first ? "first" : ""}">${mine ? "" : last ? face(m.name, "av") : `<span class="cb-av"></span>`}
@@ -344,18 +376,32 @@
         <div class="cb-bub">${m.via === "voz" ? `<span class="cb-vz">${svgMic()}</span>` : ""}${esc(m.text)}</div>
         ${last ? `<small class="cb-time">${esc(ago(isoS(m.at)))}</small>` : ""}</div></div>`;
   }
+  // The buttons under an answer (only for the person who asked): what the brain proposes, lit; the other ways, quiet.
   function actions(m, p) {
+    const done = st.done[m.id] || {};
+    const btn = (k, label, main) => done[k] ? `<span class="cb-act ok">${esc(done[k])}</span>`
+      : `<button type="button" class="cb-act ${main ? "main" : ""}" data-act="${k}" data-q="${m.reply_to}" data-m="${m.id}">${esc(t(label))}</button>`;
+    const out = [];
+    if (p.new_plan) out.push(`<div class="cb-card"><small>${esc(t("Plano proposto"))}</small><b>${esc(p.new_plan.title)}</b>
+      <ol>${p.new_plan.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>${btn("plan", "Criar plano partilhado", true)}</div>`);
+    if (p.note) out.push(`<div class="cb-card"><small>${esc(t("Para a Memória"))}</small><b>${esc(p.note.title)}</b><p>${esc(p.note.content)}</p>${btn("note", "Guardar na Memória", !p.new_plan)}</div>`);
+    const work = p.action && p.action !== "nenhuma";
     const main = { claude: ["claude", "Abrir no Claude Code"], chatgpt: ["chatgpt", "Perguntar ao ChatGPT"], escritorio: ["office", "Mandar para o Escritório"] }[p.action];
-    const rest = [["claude", "Claude Code"], ["chatgpt", "ChatGPT"], ["both", "Os dois"], ["office", "Escritório"]].filter(([k]) => !main || k !== main[0]);
-    return `<div class="cb-acts">${main ? `<button type="button" class="cb-act main" data-act="${main[0]}" data-q="${m.reply_to}">${esc(t(main[1]))}</button>` : ""}
-      ${rest.map(([k, l]) => `<button type="button" class="cb-act" data-act="${k}" data-q="${m.reply_to}">${esc(t(l))}</button>`).join("")}</div>`;
+    const row = [];
+    if (p.open) row.push(`<a class="cb-act ${work || p.new_plan || p.note ? "" : "main"}" href="#/${esc(p.open.page)}">${esc(t("Abrir"))} ${esc(t(p.open.label))}</a>`);
+    if (work) {
+      if (main) row.push(btn(main[0], main[1], !p.new_plan && !p.note));
+      for (const [k, l] of [["claude", "Claude Code"], ["chatgpt", "ChatGPT"], ["both", "Os dois"], ["office", "Escritório"]]) if (!main || k !== main[0]) row.push(btn(k, l, false));
+    }
+    if (row.length) out.push(`<div class="cb-acts">${row.join("")}</div>`);
+    return out.join("");
   }
   function paintChat() {
     const box = $("cb-thread");
     if (!box) return;
     const near = box.scrollHeight - box.scrollTop - box.clientHeight < 90;
     paint(box, st.chat.length ? st.chat.map(bubble).join("") : `<div class="cb-hello"><span class="cb-av hole big"></span><b>${esc(t("Olá. Sou o Cérebro da AMG."))}</b>
-      <p>${esc(t("Diz-me o que queres fazer e eu escolho a melhor IA para isso. Podes escrever ou carregar no microfone."))}</p></div>`);
+      <p>${esc(t("Sei o que cada IA está a fazer, as tarefas, os planos, as aprovações e a Memória da equipa. Pergunta-me o ponto de situação ou diz o que queres fazer: escolho a melhor IA e preparo o resto."))}</p></div>`);
     if (near || st.stick) { box.scrollTop = box.scrollHeight; st.stick = false; }
     for (const m of st.chat) {   // read aloud: the brain's answers to my own questions, once, when the voice is on
       if (m.role !== "brain" || m.status !== "ok" || m.user !== st.me || st.spoken.has(m.id)) continue;
@@ -377,7 +423,7 @@
     text = (text || "").trim();
     if (text.length < 2 || st.sending) return;
     st.sending = true;
-    $("cb-q").value = ""; grow(); st.plan = null; paintPlan();
+    $("cb-q").value = ""; grow(); st.plan = null; paintPlan(); paintQuick();
     const at = new Date().toISOString();
     st.chat = [...st.chat, { id: -1, role: "user", user: st.me, name: "", text, via, at, status: "ok" }, { id: -2, role: "brain", user: st.me, text: "", status: "thinking", plan: null, at }];
     st.stick = true; paintChat();
@@ -385,15 +431,31 @@
     catch (e) { st.chat = st.chat.filter((m) => m.id > 0); paintChat(); note(e.message || t("Não deu para enviar")); }
     finally { st.sending = false; st.chatSig = ""; loadChat(); }
   }
-  async function act(kind, qid) {
+  async function act(kind, qid, mid) {
     const q = st.chat.find((m) => m.id === Number(qid));
-    const a = st.chat.find((m) => m.reply_to === Number(qid) && m.role === "brain");
+    const a = st.chat.find((m) => m.id === Number(mid)) || st.chat.find((m) => m.reply_to === Number(qid) && m.role === "brain");
     if (!q) return;
+    const mark = (label) => {   // a button done stays done, also after the page opens again (a plan is never made twice)
+      if (!a) return;
+      st.done[a.id] = { ...(st.done[a.id] || {}), [kind]: label };
+      try { localStorage.setItem("cb-done", JSON.stringify(Object.fromEntries(Object.entries(st.done).slice(-60)))); } catch (e) { /* only a convenience */ }
+      paintChat();
+    };
     try {
+      if (kind === "plan" && a && a.plan && a.plan.new_plan) {
+        const np = a.plan.new_plan;
+        const r = await api("/api/plans", { method: "POST", body: { title: np.title, goal: q.text, steps: np.steps } });
+        mark(`${t("Plano")} #${r.id} ${t("criado")}`); note(t("Está no Escritório, em Missões > Planos. Qualquer sócio o continua."));
+        return;
+      }
+      if (kind === "note" && a && a.plan && a.plan.note) {
+        await api("/api/memory", { method: "POST", body: { scope: "team", category: "Cérebro", title: a.plan.note.title, content: a.plan.note.content } });
+        mark(t("Guardado na Memória")); return;
+      }
       if (kind === "office") {
         const p = (a && a.plan) || {};
         await api("/api/tasks", { method: "POST", body: { title: q.text.split(/[.!?\n]/)[0].slice(0, 120), description: p.prompt || q.text, assignee: st.me, for_ai: true, crew: p.crew || "" } });
-        note(t("Foi para o Escritório."));
+        note(t("Foi para o Escritório.")); mark(t("No Escritório"));
       } else {
         const r = await api("/api/cerebro/send", { method: "POST", body: { prompt: q.text, to: kind } });
         note([r.claude && (r.claude.ok ? t("Abriu uma janela do Claude Code") : r.claude.error), r.chatgpt && (r.chatgpt.ok ? t("O ChatGPT está a pensar") : r.chatgpt.error)].filter(Boolean).join(". "));
@@ -423,6 +485,7 @@
     const p = st.plan;
     paint(el, !p || !p.kind ? "" : `<span class="cb-route">${esc(p.label)}, ${esc(t("vai para"))} ${esc(p.department)} ${esc(t("com"))}</span>${aiRow(p.engines.map((e) => e.name))}`);
   }
+  function paintQuick() { const el = $("cb-quick"), q = $("cb-q"); if (el && q) el.hidden = q.value.trim().length > 0 || !!st.rec; }
   function grow() { const q = $("cb-q"); if (!q) return; q.style.height = "auto"; q.style.height = `${Math.min(150, q.scrollHeight)}px`; }
 
   /* ---------- the voice: microphone → Whisper on this PC (free), answers read aloud ---------- */
@@ -519,7 +582,7 @@
     if (!$("cb")) return;
     try { st.data = await api("/api/cerebro"); }
     catch (e) { if (!st.data && !MINI) paint($("cb-list"), ui.error(e.message)); return; }
-    layout(); paintCore(); paintRight();
+    layout(); paintCore(); paintRight(); paintPulse();
   }
 
   HUB_VIEWS.cerebro = async function () {
@@ -531,7 +594,14 @@
       const seg = e.target.closest("[data-tab]");
       if (seg) { st.tab = seg.dataset.tab; paintRight(); return; }
       const a = e.target.closest("[data-act]");
-      if (a) { act(a.dataset.act, a.dataset.q); return; }
+      if (a) { a.disabled = true; act(a.dataset.act, a.dataset.q, a.dataset.m).finally(() => { a.disabled = false; }); return; }
+      const qk = e.target.closest("[data-quick]");
+      if (qk) {
+        const [q] = QUICK[Number(qk.dataset.quick)];
+        if (q.endsWith(": ")) { const box = $("cb-q"); box.value = q; grow(); box.focus(); box.setSelectionRange(q.length, q.length); paintQuick(); }
+        else sendChat(q);
+        return;
+      }
       const s = e.target.closest("[data-say]");
       if (s) { const m = st.chat.find((x) => x.id === Number(s.dataset.say)); if (m) say(m.text); return; }
       if (e.target.closest("#cb-pip")) { openPip(); return; }
@@ -545,7 +615,7 @@
       }
     });
     $("cb-form").addEventListener("submit", (e) => { e.preventDefault(); sendChat($("cb-q").value); });
-    $("cb-q").addEventListener("input", () => { grow(); askPlan(); });
+    $("cb-q").addEventListener("input", () => { grow(); askPlan(); paintQuick(); });
     $("cb-q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendChat($("cb-q").value); } });
     $("cb-mic").addEventListener("click", () => (st.rec ? stopRec() : startRec()));
     $("cb-voz").addEventListener("click", () => { st.voice = !st.voice; localStorage.setItem("cb-voz", st.voice ? "1" : "0"); if (!st.voice && window.speechSynthesis) speechSynthesis.cancel(); paintToggles(); });

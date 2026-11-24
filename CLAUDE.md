@@ -330,6 +330,21 @@ a 1.ª entrada de 01 · Comando e o 1.º atalho da central do widget (no lugar d
   por partícula gastava 4x): ~6% de um núcleo a 60 fps no Chrome sem GPU.
 - **ChatGPT neste PC**: as conversas do ChatGPT/Codex do último dia, lidas de `~/.codex` (nunca saem do PC; as «Guardian
   review» do próprio Codex ficam de fora).
+- **Unido ao Hub** (24 nov, David: «muito esperto e unido com o resto das coisas do widget... como uma empresa multimilionária»):
+  - Por cima da bola, a linha `cb-pulse`: janelas a trabalhar, à espera, tarefas abertas, as tuas, bloqueadas ou atrasadas,
+    aprovações, planos abertos e avisos por ler. Os números são reais (`GET /api/cerebro` → `pulse`, de `company()`) e cada
+    um abre a sua página.
+  - Antes de responder, o Cérebro lê o estado da empresa (`_context`): a hora, as janelas, as tarefas (as piores primeiro),
+    as aprovações, os planos com o próximo passo e os 6 avisos por ler mais recentes (sem repetidos). Lê também as 4 notas da
+    Memória que falam do que foi perguntado (`recall`: palavras da pergunta no título contam 3, no texto 1). A página mostra
+    «Da Memória: …». Relê as últimas 16 mensagens.
+  - A resposta pode acabar em linhas que viram botões (`read_tags`): `[abrir: <página>]` (só as de `PAGES`), `[plano: Título |
+    passo; passo]` dá «Criar plano partilhado» (`POST /api/plans`), `[nota: Título | texto]` dá «Guardar na Memória»
+    (`POST /api/memory`, scope team, categoria Cérebro), e `[ação: …]` como antes.
+  - Os botões só aparecem a quem perguntou. Um botão feito fica verde e assim fica, também depois de a página reabrir
+    (`localStorage` `cb-done`), para nunca criar o mesmo plano duas vezes. Nada corre sozinho: só o clique faz.
+  - Por baixo da conversa há perguntas de um clique (`QUICK`): Ponto de situação, O que precisa de mim?, O que faço a
+    seguir?, Planos. «Planear…» só escreve o começo da frase.
 
 ### Mensagens (21 out, pedido do Marco)
 

@@ -25,20 +25,24 @@ import logging
 import sys
 import tempfile
 
+import unicodedata
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import codex_watch, crew
 from ..db import get_db
 from ..db import SessionLocal
-from ..models import BrainMessage, User
+from ..models import Approval, BrainMessage, Memory, Notification, Plan, Task, User
 from ..realtime import rt
 from ..services import iso
-from ..security import current_user
+from ..security import current_user, sees_all
 from .auth import ip_map
 from .local import only_local
 from . import office as office_router
+from .work import OPEN_STATUSES, TASK_STAGE, aware, visible_tasks
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger("team.cerebro")
@@ -157,9 +161,11 @@ async def _owner_login() -> str:
 async def cerebro(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     office = await office_router.office(user=user, db=db)
     people = [{"user": u.username, "name": u.display_name} for u in (await db.execute(select(User).order_by(User.id))).scalars()]
+    state = await company(db, user)
     await db.commit()   # nothing more from the database: let the lock go before reading files
     here = user.username.lower() == await _owner_login()
     return {"now": round(time.time()), "people": people, "sessions": office["sessions"], "film": office["film"],
+            "pulse": {**{k: len(state[k]) for k in ("tasks", "mine", "blocked", "late", "approvals", "plans")}, "unread": state["unread"]},
             "chatgpt": codex_watch.threads() if here else [], "asks": codex_watch.jobs() if here else [],
             "chatgpt_ready": bool(codex_watch.cli()) if here else False, "here": here}
 
@@ -201,14 +207,63 @@ async def cerebro_send(body: dict = Body(...), user: User = Depends(current_user
 # ---------- the conversation (24 Nov, Marco: «um chat em que ele fica a falar com a gente... ao vivo para todos») ----------
 
 BRAIN_MODEL = "sonnet"   # quick enough to talk; the work itself goes to the window or the AI the plan picks
-SYSTEM = """És o Cérebro da Empresa AMG: o centro de comando dos sócios Marco, Kovel e David (agentes de IA, sites, vídeo,
-trading, Etsy, clientes). Falas como um chefe de gabinete calmo e direto, em português de Portugal (se te escreverem noutra
-língua, respondes nessa). Respostas curtas, faladas: 1 a 4 frases, sem listas compridas, sem markdown pesado, porque podem
-ser lidas em voz alta. Sabes o que cada IA da equipa está a fazer agora (vem no contexto) e usas isso. Quando o pedido é
-trabalho para fazer, diz em uma frase o que vais pôr a fazer e com que IA, e acaba com uma linha só com
-[ação: claude] (uma janela do Claude Code faz), [ação: chatgpt] (o ChatGPT responde), [ação: escritorio] (tarefa para o
-agente do escritório) ou [ação: nenhuma]. Nunca inventes números nem estados que não estão no contexto."""
+HISTORY = 16   # messages of the conversation the brain rereads before each answer
+
+# The pages of the Hub the brain can open with a button (24 Nov, David: «unido com o resto das coisas do widget»).
+PAGES = {"home": "Início", "tarefas": "Tarefas", "escritorio": "Escritório", "aprovacoes": "Aprovações", "avisos": "Avisos",
+         "mensagens": "Mensagens", "memoria": "Memória", "projetos": "Projetos", "semana": "Semana", "etsy": "Loja Etsy",
+         "trading": "Trading", "mercados": "Mercados", "radar": "Radar", "emails": "E-mails", "crm": "Clientes", "uso": "Uso",
+         "skills": "Skills", "vinted": "Vinted", "fundednext": "FundedNext", "aovivo": "Ao vivo", "despesas": "Despesas",
+         "equipa": "Equipa", "saude": "Saúde dos PCs"}
+
+SYSTEM = """És o Cérebro da Empresa AMG: o chefe de gabinete dos sócios Marco, Kovel e David (agentes de IA, sites, vídeo,
+trading, loja Etsy, clientes). Pensas como o diretor de operações de uma empresa grande: sabes o que se passa, dizes o que
+importa primeiro, decides e propões o passo seguinte. Falas em português de Portugal (se te escreverem noutra língua,
+respondes nessa), calmo e direto. Respostas curtas, faladas: 1 a 4 frases, sem listas compridas nem markdown, porque podem
+ser lidas em voz alta. No contexto tens o estado real da empresa agora: janelas do Claude, tarefas, aprovações, planos
+partilhados, avisos por ler e notas da Memória. Usa-o: nomeia as coisas pelo nome e pelo número (tarefa #12, plano #3).
+Nunca inventes números, nomes nem estados que não estão no contexto; se não sabes, diz que não está no Hub.
+
+No fim podes pôr linhas de ação, cada uma sozinha numa linha (no máximo três), que viram botões para a pessoa carregar:
+[ação: claude] uma janela do Claude Code faz o trabalho · [ação: chatgpt] o ChatGPT responde · [ação: escritorio] tarefa
+para o agente do escritório · [ação: nenhuma] quando é só conversa.
+[abrir: <página>] quando a resposta está numa página do Hub. Páginas: {pages}.
+[plano: Título | passo 1; passo 2; passo 3] quando pedem para planear ou organizar trabalho com vários passos (3 a 8 passos
+curtos, cada um uma coisa que se faz).
+[nota: Título | o que fica decidido] quando pedem para te lembrares de uma coisa ou quando se decide algo que a equipa
+deve saber sempre."""
 ACTION = re.compile(r"\[a[cç][aã]o:\s*(claude|chatgpt|escritorio|escritório|nenhuma)\]\s*$", re.I)
+TAG = re.compile(r"[ \t]*\[(a[cç][aã]o|abrir|plano|nota):\s*([^\]\n]{1,1500})\][ \t]*", re.I)
+SESSION_PT = {"working": "a trabalhar", "waiting": "à espera de resposta", "idle": "livre", "stalled": "parada"}
+STAGE_PT = {"todo": "por fazer", "in_progress": "em curso", "blocked": "bloqueada", "review": "para rever", "approval": "à espera de aprovação"}
+WEEKDAYS = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
+
+
+def read_tags(text: str) -> tuple[str, dict]:
+    """The answer without its action lines, and what they ask: {action, open, new_plan, note}. Unknown pages and empty
+    plans are dropped: a button never points at nothing."""
+    out = {"action": "nenhuma"}
+    for kind, value in TAG.findall(text):
+        kind, value = kind.lower(), value.strip()
+        if kind.startswith("a") and kind != "abrir":
+            v = value.lower().replace("ó", "o")
+            if v in ("claude", "chatgpt", "escritorio", "nenhuma"):
+                out["action"] = v
+        elif kind == "abrir":
+            page = value.lower().lstrip("#/").split("/")[0].strip()
+            if page in PAGES:
+                out["open"] = {"page": page, "label": PAGES[page]}
+        else:
+            title, _, rest = value.partition("|")
+            title = " ".join(title.split())[:200]
+            if kind == "plano":
+                steps = [" ".join(x.split())[:400] for x in re.split(r";|\s\d+[.)]\s", rest) if x.strip()][:12]
+                if title and steps:
+                    out["new_plan"] = {"title": title, "steps": steps}
+            elif title and rest.strip():
+                out["note"] = {"title": title, "content": rest.strip()[:2000]}
+    clean = re.sub(r"\n{3,}", "\n\n", TAG.sub("", text)).strip()
+    return clean, out
 
 
 def msg_out(m: BrainMessage) -> dict:
@@ -220,45 +275,141 @@ def msg_out(m: BrainMessage) -> dict:
             "user": m.user.username, "name": m.user.display_name, "plan": plan_, "at": iso(m.created_at)}
 
 
-def _context(office: dict) -> str:
+async def company(db: AsyncSession, user: User) -> dict:
+    """The state of the company the brain knows and the page counts: open tasks (blocked and late among them), approvals
+    waiting, open shared plans and this person's unread notices. Only what this person may see, read from the database."""
+    now = datetime.now(timezone.utc)
+    tasks = list((await db.execute(visible_tasks(select(Task).where(Task.status.in_(OPEN_STATUSES)), user)
+                                   .order_by(Task.updated_at.desc()))).scalars())
+    approvals = select(Approval).where(Approval.status == "PENDING").order_by(Approval.id.desc())
+    if not sees_all(user):
+        approvals = approvals.where(Approval.user_id == user.id)
+    plans = list((await db.execute(select(Plan).where(Plan.status != "done").order_by(Plan.updated_at.desc()))).scalars())
+    fresh = (Notification.user_id == user.id, Notification.read_at.is_(None))
+    unread = int((await db.execute(select(func.count(Notification.id)).where(*fresh))).scalar() or 0)
+    seen, latest = set(), []   # the newest unread notices, each said once (a robot may write the same one ten times)
+    for n in (await db.execute(select(Notification).where(*fresh).order_by(Notification.id.desc()).limit(60))).scalars():
+        if (n.title, n.body) not in seen and len(latest) < 6:
+            seen.add((n.title, n.body))
+            latest.append(n)
+    return {"tasks": tasks, "mine": [t for t in tasks if t.assignee_id == user.id],
+            "blocked": [t for t in tasks if TASK_STAGE.get(t.status) == "blocked"],
+            "late": [t for t in tasks if aware(t.deadline) and aware(t.deadline) < now],
+            "approvals": list((await db.execute(approvals)).scalars()), "plans": plans, "unread": unread, "notices": latest}
+
+
+def _fold(text: str) -> str:
+    return unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
+
+
+STOP = set("para como isso esta este essa esse aqui agora onde quem qual quais quando porque mais menos muito pouco fazer "
+           "faz tens temos tenho estou estas queres quero sobre entre depois antes ainda tudo nada cena cenas mano".split())
+
+
+async def recall(db: AsyncSession, user: User, question: str, limit: int = 4) -> list[Memory]:
+    """The notes of the Memória that speak of what was asked: the words of the question (4+ letters) found in the title
+    count three times, in the text once. A member sees the shared notes and their own agent's, as on the Memória page."""
+    words = {w for w in re.findall(r"[a-z0-9]{4,}", _fold(question)) if w not in STOP}
+    if not words:
+        return []
+    q = select(Memory)
+    if not sees_all(user):
+        q = q.where(or_(Memory.scope.in_(("global", "team", "company", "project")),
+                        (Memory.scope == "agent") & (Memory.scope_id == user.username)))
+    scored = []
+    for m in (await db.execute(q)).scalars():
+        title, body = _fold(m.title), _fold(m.content or "")
+        score = sum(3 * (w in title) + (w in body) for w in words)
+        if score >= 2:
+            scored.append((score, aware(m.updated_at) or datetime.min.replace(tzinfo=timezone.utc), m))
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [m for _, _, m in scored[:limit]]
+
+
+def _when(dt) -> str:
+    dt = aware(dt)
+    return dt.astimezone().strftime("%d/%m %H:%M") if dt else ""
+
+
+def _context(office: dict, state: dict | None = None, notes: list | None = None, user: User | None = None) -> str:
+    """Everything the brain reads before it answers, in short lines, worst first in each part."""
+    out = []
+    if user:
+        now = datetime.now().astimezone()
+        out.append(f"Agora: {WEEKDAYS[now.weekday()]}, {now.strftime('%d/%m/%Y %H:%M')} · fala {user.display_name}")
     rows = []
     for s in office["sessions"][:14]:
         if s["state"] == "ended":
             continue
-        rows.append(f"- {s['name']} · {s['project']} · {s['state']} · meta: {s['topic'] or s['title']} · agora: {s['action']}"
+        rows.append(f"- {s['name']} · {s['project']} · {SESSION_PT.get(s['state'], s['state'])} · meta: {s['topic'] or s['title']} · agora: {s['action']}"
                     + (f" · IAs: {', '.join(s['links'])}" if s.get("links") else ""))
     gpt = [f"- ChatGPT: {j['prompt'][:120]} → {j['state']}" for j in codex_watch.jobs()[:3]]
-    return "Janelas do Claude da equipa agora:\n" + ("\n".join(rows) or "- nenhuma") + ("\n" + "\n".join(gpt) if gpt else "")
+    out.append("Janelas do Claude da equipa agora:\n" + ("\n".join(rows) or "- nenhuma") + ("\n" + "\n".join(gpt) if gpt else ""))
+    if state is not None:
+        def task(t):
+            stage = TASK_STAGE.get(t.status, t.status)
+            who = (t.assignee.display_name if t.assignee else "") + (" (de quem fala)" if user and t.assignee_id == user.id else "")
+            bits = [f"#{t.id} {t.title}", who, STAGE_PT.get(stage, stage)]
+            if t.priority in ("high", "urgent"):
+                bits.append("prioridade " + ("urgente" if t.priority == "urgent" else "alta"))
+            if t.deadline:
+                bits.append("prazo " + _when(t.deadline))
+            return "- " + " · ".join(b for b in bits if b)
+        order = {"urgent": 0, "high": 1, "normal": 2, "low": 3}
+        tasks = sorted(state["tasks"], key=lambda t: (t not in state["late"], t not in state["blocked"], order.get(t.priority, 2)))
+        out.append(f"Tarefas abertas ({len(tasks)}, das quais {len(state['blocked'])} bloqueadas e {len(state['late'])} com o prazo "
+                   f"passado):\n" + ("\n".join(task(t) for t in tasks[:12]) or "- nenhuma"))
+        out.append(f"À espera de aprovação ({len(state['approvals'])}):\n" + ("\n".join(
+            f"- {a.user.display_name}: {a.action[:140]}" for a in state["approvals"][:5]) or "- nada"))
+        prow = []
+        for p in state["plans"][:8]:
+            steps = p.steps or []
+            done = sum(1 for x in steps if x.get("done"))
+            nxt = next((x.get("text", "") for x in steps if not x.get("done")), "")
+            prow.append(f"- plano #{p.id} {p.title} · {done}/{len(steps)} passos" + (f" · com {p.worker}" if p.worker else "")
+                        + (f" · próximo: {nxt[:120]}" if nxt else ""))
+        out.append(f"Planos partilhados abertos ({len(state['plans'])}):\n" + ("\n".join(prow) or "- nenhum"))
+        if state["unread"]:
+            out.append(f"Avisos por ler de quem fala ({state['unread']}, os mais recentes):\n" + "\n".join(
+                f"- {n.title}" + (f": {n.body[:120]}" if n.body else "") for n in state["notices"]))
+    if notes:
+        out.append("Notas da Memória da equipa sobre isto:\n" + "\n".join(
+            f"- [{m.category or m.scope}] {m.title}: {' '.join((m.content or '').split())[:500]}" for m in notes))
+    return "\n\n".join(out)
 
 
 async def _answer(question_id: int, brain_id: int, user_id: int):
     """The brain answers one question, in the background: the person's message is already on every screen."""
+    extra = {}
     try:
         async with SessionLocal() as db:
             user = await db.get(User, user_id)
             office = await office_router.office(user=user, db=db)
             history = (await db.execute(select(BrainMessage).where(BrainMessage.status != "thinking")
-                                        .order_by(BrainMessage.id.desc()).limit(12))).scalars().all()
+                                        .order_by(BrainMessage.id.desc()).limit(HISTORY))).scalars().all()
             q = await db.get(BrainMessage, question_id)
+            state = await company(db, user)
+            notes = await recall(db, user, q.text)
+            context = _context(office, state, notes, user)
             await db.commit()
         talk = "\n".join(f"{'Cérebro' if m.role == 'brain' else m.user.display_name}: {m.text}" for m in reversed(history)
                          if m.id != question_id)
-        prompt = (f"{_context(office)}\n\nConversa até aqui:\n{talk or '(nada)'}\n\n"
+        prompt = (f"{context}\n\nConversa até aqui:\n{talk or '(nada)'}\n\n"
                   f"Agora {user.display_name} diz: {q.text}")
-        text, _ = await council_ask(SYSTEM, prompt)
-        hit = ACTION.search(text)
-        action = (hit.group(1).lower().replace("ó", "o") if hit else "nenhuma")
-        text = ACTION.sub("", text).strip()
+        text, _ = await council_ask(SYSTEM.replace("{pages}", ", ".join(PAGES)), prompt)
+        text, extra = read_tags(text)
+        if notes:
+            extra["notes"] = [{"id": m.id, "title": m.title} for m in notes]
         status = "ok"
     except Exception as e:   # the brain says it could not, never stays «a pensar» forever
         log.warning("cerebro: %s", e)
-        text, action, status = f"Não consegui responder: {str(e)[:200]}", "nenhuma", "failed"
+        text, extra, status = f"Não consegui responder: {str(e)[:200]}", {"action": "nenhuma"}, "failed"
     async with SessionLocal() as db:
         m = await db.get(BrainMessage, brain_id)
         if m:
-            m.text, m.status = text, status
+            m.text, m.status = text or "…", status
             p = json.loads(m.plan or "{}")
-            p["action"] = action
+            p.update(extra)
             m.plan = json.dumps(p, ensure_ascii=False)
             await db.commit()
     await rt.publish("cerebro", user_id, "team")

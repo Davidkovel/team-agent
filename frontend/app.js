@@ -203,6 +203,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal
 // the phone's «Mais» read this same list, and every page's eyebrow says its section (ui.head). docs/hub-paginas.md.
 const SECTIONS = { comando: ["01", "Comando"], agentes: ["02", "Agentes"], negocios: ["03", "Negócios"], trading: ["04", "Trading"], sistema: ["05", "Sistema"] };
 const NAV = [
+  ["Cérebro", "cerebro", [["cerebro", "Cérebro"]], "comando"],   // 24 nov, Marco: «o widget é o cérebro principal, tipo um Jarvis»: tudo o que as IAs fazem, e o pedido que vai para a melhor
   ["Início", "home", [["home", "Início"]], "comando"],
   ["Tarefas", "tasks", [["tarefas", "Tarefas"], ["aprovacoes", "Aprovações"], ["semana", "Semana"]], "comando"],
   ["Chat", "chat", [["mensagens", "Chat"]], "comando"],

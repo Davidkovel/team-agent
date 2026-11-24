@@ -7,6 +7,7 @@ table) moves only the latest state. What a step says is its name in words ("a ed
 a file, a command or a search. History older than a week is dropped.
 """
 import asyncio
+import json
 import re
 import time
 from datetime import datetime, timedelta, timezone
@@ -87,7 +88,7 @@ def _topic(row) -> str:
     return text[0].upper() + text[1:]
 
 
-WHOLE = 1500  # characters of a request kept for whoever opens it
+WHOLE = 4000  # characters of a request kept for whoever opens it (24 Nov, Marco: «a prompt toda» visible)
 
 
 def _whole(prompt) -> str:
@@ -141,6 +142,57 @@ def describe(tool: str, inp: dict | None) -> str:
         server = tool.split("__")[1].replace("claude_ai_", "").replace("plugin_", "").replace("_", " ")
         return one_line(f"a usar {server}", 80)
     return one_line(f"a usar {tool}", 80)
+
+
+# The other AIs and tools a window reaches, by the name of the tool it calls (Cérebro: who talks to whom). Only names.
+ENGINES = (("higgsfield", "Higgsfield"), ("canva", "Canva"), ("claude-in-chrome", "Chrome"), ("claude_browser", "Browser"),
+           ("computer-use", "Computador"), ("gmail", "Gmail"), ("google_drive", "Drive"), ("google_calendar", "Calendário"),
+           ("notion", "Notion"), ("shopify", "Shopify"), ("posthog", "PostHog"), ("firecrawl", "Firecrawl"),
+           ("perplexity", "Perplexity"), ("codex", "ChatGPT"), ("openai", "ChatGPT"), ("chatgpt", "ChatGPT"), ("gemini", "Gemini"))
+TRAIL = 14   # steps kept per window
+
+
+def engine_of(tool: str, inp: dict | None) -> str:
+    """The AI or tool outside Claude that this step talks to, or "" for Claude's own work (reading, editing, the shell)."""
+    inp = inp or {}
+    name = tool.lower()
+    if tool in ("Bash", "PowerShell"):
+        name = str(inp.get("description") or "").lower()   # «Ask ChatGPT (Codex) for a second opinion»
+    for key, label in ENGINES:
+        if key in name:
+            return label
+    if tool in ("WebSearch", "WebFetch"):
+        return "Web"
+    if tool in SUBAGENT_TOOLS:
+        return "Subagente"
+    if tool.startswith("mcp__"):
+        return one_line(tool.split("__")[1].replace("claude_ai_", "").replace("plugin_", "").replace("_", " ").title(), 30)
+    return ""
+
+
+def _trail(row, text: str, engine: str = "", at: float | None = None):
+    """One more step on the window's trail (and its engine on the list of links); the oldest go past TRAIL."""
+    try:
+        steps = json.loads(row.steps or "[]")
+    except ValueError:
+        steps = []
+    text = one_line(text, 160)
+    if not text or steps and steps[-1][1] == text:
+        return
+    steps.append([round(at or time.time()), text, engine])
+    row.steps = json.dumps(steps[-TRAIL:], ensure_ascii=False)
+    if engine:
+        names = [n for n in (row.links or "").split(",") if n and n != engine] + [engine]
+        while len(",".join(names)) > 290:
+            names.pop(0)
+        row.links = ",".join(names)
+
+
+def trail_of(row) -> list:
+    try:
+        return [{"at": s[0], "text": s[1], "engine": s[2]} for s in json.loads(row.steps or "[]")]
+    except (ValueError, IndexError, TypeError):
+        return []
 
 
 def _skill_name(name) -> str:
@@ -213,7 +265,8 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
     clock = time.time()
     inside = str(body.get("agent_id") or "") if event != "SubagentStop" and event != "SubagentStart" else ""  # a step a subagent takes itself
     # a skill is never lost in the 2 s between two writes: the arsenal keeps every one (_add_skill)
-    routine = event == "PreToolUse" and tool not in SUBAGENT_TOOLS and tool not in ("AskUserQuestion", "Skill")
+    routine = event == "PreToolUse" and tool not in SUBAGENT_TOOLS and tool not in ("AskUserQuestion", "Skill") \
+        and not engine_of(tool, body.get("tool_input") if isinstance(body.get("tool_input"), dict) else {})   # a call to another AI is never dropped
     throttle_key = f"{key}/{inside}" if inside else key
     if routine and clock - _last_write.get(throttle_key, 0) < THROTTLE:
         return {"ok": True, "written": False}  # a burst of steps: the row already says it is working
@@ -257,9 +310,12 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
             row.prompt, row.request = _request(body.get("prompt")), _whole(body.get("prompt"))
         if _typed_skill(body.get("prompt")):
             row.skills = _add_skill(row.skills, _typed_skill(body.get("prompt")))
+        if not _machine(body.get("prompt")):
+            _trail(row, "pediu: " + _request(body.get("prompt")), "", clock)
     elif event == "PreToolUse":
         _status(row, "waiting" if tool == "AskUserQuestion" else "working", when)
         row.action = describe(tool, inp)
+        _trail(row, row.action, engine_of(tool, inp), clock)
         if tool == "Skill":
             row.skills = _add_skill(row.skills, inp.get("skill"))
         if tool in SUBAGENT_TOOLS:
@@ -313,6 +369,7 @@ async def claude_step(body: dict = Body(...), db: AsyncSession = Depends(get_db)
         _status(row, "waiting", when)
         row.action = DONE
         row.result = one_line(body.get("last_assistant_message"), 300)  # what it did, in its own words
+        _trail(row, "acabou: " + (row.result or "à tua espera"), "", clock)
     elif event == "PreCompact":
         row.action = "a resumir a conversa"
     elif event == "SessionEnd":
@@ -473,7 +530,7 @@ async def office(user: User = Depends(current_user), db: AsyncSession = Depends(
     sessions = [{"id": r.id, "key": r.key, "user": r.user.username, "name": r.user.display_name, "project": r.project, "state": _state(r),
                  "prompt": _request(r.prompt), "request": r.request or "", "title": r.title or "", "topic": _topic(r), "result": r.result or "",
                  "wait": _wait(r, _state(r)), "action": r.action, "model": r.model, "tokens": r.tokens, "since": iso(r.since), "started_at": iso(r.started_at),
-                 "updated_at": iso(r.updated_at), "skills": _skills(r.skills), "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]}
+                 "updated_at": iso(r.updated_at), "skills": _skills(r.skills), "steps": trail_of(r), "links": [n for n in (r.links or "").split(",") if n], "agents": [_agent_out(a) for a in by_session.get(r.id, [])[:12]]}
                 for r in rows]
     names = {r.id: (r.user.display_name, r.project) for r in rows}
     film = []

@@ -2,7 +2,7 @@
 
 The Hub puts it in place itself (backend/app/claude_hooks.py) as an async hook, so Claude never waits for it. It sends
 names and ids only (which tool, which file name, which subagent), never what is inside a file, a command or a page;
-the start of the request and of a subagent's answer are cut short. With a request and when the window stops it also sends
+the request goes whole (up to 4000 characters, for the Cérebro) and the start of a subagent's answer is cut short. With a request and when the window stops it also sends
 the title Claude Code itself gave the conversation (the goal, in a few words) and the start of the window's last answer
 (what it did). It never fails: with no Hub it just stays quiet.
 """
@@ -92,7 +92,7 @@ def step(data: dict) -> dict:
     body = {key: data[key] for key in PLAIN if data.get(key) not in (None, "")}
     event = data.get("hook_event_name")
     if data.get("prompt"):
-        body["prompt"] = cut(data["prompt"], 200)
+        body["prompt"] = data["prompt"][:4000]  # 24 Nov, Marco: the whole request visible in the Escritório and the Cérebro
     if isinstance(data.get("tool_input"), dict):
         body["tool_input"] = {key: cut(data["tool_input"][key], 200) for key in TOOL_INPUT if data["tool_input"].get(key)}
     if data.get("tool_name") == "Agent" and data.get("tool_response") is not None:

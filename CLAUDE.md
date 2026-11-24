@@ -296,6 +296,26 @@ Coisas que custaram tempo e não se devem repetir:
 - **O holofote do miradouro** varre a gruta e, quando chega uma missão, projeta o bat-sinal na parede do escritório (já não sai de
   dentro do escritório).
 
+### O Cérebro (24 nov, pedido do Marco)
+
+«O widget é o cérebro principal, tipo um Jarvis... a prompt toda visível... ver o ChatGPT a falar com o Claude.» `#/cerebro`,
+a 1.ª entrada de 01 · Comando e o 1.º atalho da central do widget (no lugar de «Hub»). `frontend/hub/cerebro.js` + `.css`,
+`backend/app/routers/cerebro.py`, `backend/app/codex_watch.py`, testes `tests/test_cerebro.py`.
+- **A bola** (canvas): os sócios à volta do núcleo, as janelas do Claude de cada um à volta dele (cor = estado), as IAs no anel
+  de fora (Claude Code, ChatGPT e as que as janelas usam: Higgsfield, Canva, Chrome, Web, Subagente...) com uma linha e uma
+  faísca em cada chamada dos últimos 2 min. Só mexe com alguma IA a trabalhar (~3,5% de um núcleo); parada, uma imagem só.
+- **Tudo visível**: o hook manda o pedido inteiro (até 4000 car., antes 200) e o Hub guarda `request` até 4000; cada janela
+  guarda os últimos 14 passos (`claude_sessions.steps`, JSON) e as IAs a que chegou (`links`), versão 27 da base, vão por sync.
+  `office.engine_of` diz a IA pelo nome da ferramenta (ou pela descrição de um Bash: «codex», «chatgpt»).
+- **O pedido**: enquanto se escreve, `POST /api/cerebro/plan` diz o tipo de trabalho (`KINDS`: vídeo, imagem, design, site,
+  código, pesquisa, marketing, trading, segunda opinião), o departamento, a melhor IA e porquê, o modelo e as skills
+  (`claude_contexto.offer`). Enviar (`/api/cerebro/send`, só a pessoa do próprio PC): **Claude Code** abre uma janela do
+  Terminal com o prompt do cérebro (pasta: o team-agent se fala do widget/Hub, senão a casa), e ela aparece na bola pelos
+  hooks; **ChatGPT** corre o Codex que vem no ChatGPT.app (`codex exec --sandbox read-only`: só lê) e a resposta aparece em
+  «ChatGPT neste PC»; **Os dois**; **Escritório** = tarefa para o agente (`POST /api/tasks`).
+- **ChatGPT neste PC**: as conversas do ChatGPT/Codex do último dia, lidas de `~/.codex` (nunca saem do PC; as «Guardian
+  review» do próprio Codex ficam de fora).
+
 ### Mensagens (21 out, pedido do Marco)
 
 «Quando quiser passar contas, comandos e tal, o pop-up ali pode abrir; consigo mandar como se fossem mensagens lá no widget.»

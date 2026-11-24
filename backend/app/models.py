@@ -336,6 +336,11 @@ class ClaudeSession(Base):
     title: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # What it did: the start of its last answer, kept when it stops (nothing from a Hub of before, nothing while it works).
     result: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # The Cérebro (24 Nov, Marco: «tenho que ver tudo»): the window's last steps in words, newest last, as JSON
+    # [[epoch, "a editar pages.js", "engine"], ...] (at most office.TRAIL of them, so a row stays small for sync), and the
+    # other AIs and tools it reached (Higgsfield, Canva, ChatGPT, Chrome, a subagent...), comma-separated, oldest first.
+    steps: Mapped[str | None] = mapped_column(Text, nullable=True)
+    links: Mapped[str] = mapped_column(String(300), default="")
     since: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # when the current status began
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

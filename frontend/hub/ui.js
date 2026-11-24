@@ -40,6 +40,7 @@ function lazyView(id, script, style) {
   };
   HUB_VIEWS[id] = standIn;
 }
+lazyView("cerebro", "hub/cerebro.js", "hub/cerebro.css");   // 24 nov, Marco: o cérebro principal, tipo Jarvis (routers/cerebro.py)
 lazyView("escritorio", "hub/crew.js", "hub/crew.css");   // the command centre (crew-board.js) runs on the cave's engine
 lazyView("saude", "hub/health.js", "hub/office.css");
 lazyView("empresa", "hub/crew.js", "hub/crew.css");
@@ -66,6 +67,7 @@ lazyView("fundednext", "hub/fundednext.js", "hub/fundednext.css"); // Painel Fun
 lazyView("reforco", "hub/reforco.js", "hub/reforco.css"); // Reforço na notícia: the Hub adds to the trader's news position on MT5 // Escritório de Robôs: the robots at their desks, the FundedNext accounts by API
 
 const HUB_ICONS = {
+  cerebro: '<circle cx="12" cy="12" r="3.2"/><ellipse cx="12" cy="12" rx="9.5" ry="4.2"/><ellipse cx="12" cy="12" rx="9.5" ry="4.2" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9.5" ry="4.2" transform="rotate(-60 12 12)"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>',
   folder: '<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
   bot: '<rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4M9 13v1M15 13v1M2 13v2M22 13v2"/><circle cx="12" cy="3.5" r="1"/>',

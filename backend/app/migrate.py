@@ -38,7 +38,8 @@ log = logging.getLogger("team.backend")
 # 24: tasks.worker (which of a person's agents took it) and tasks.after_id (chains of tasks).
 # 25: affiliate_products, the products of the recommendations page (Afiliados).
 # 26: mail_threads, mail_messages, mail_optouts and mail_settings, for E-mails (app/mail.py).
-SCHEMA_VERSION = 26
+# 27: claude_sessions.steps and claude_sessions.links, the trail of steps and the AIs a window reached (Cérebro).
+SCHEMA_VERSION = 27
 
 
 def current_version(conn) -> int:

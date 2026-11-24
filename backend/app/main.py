@@ -19,6 +19,7 @@ from .realtime import rt
 from .routers import agent, agents, ai, analytics, auth, hub, local, markets, messages, office, photos, ponto, tasks, team, trading, week, work, ws
 from .memes import loop as memes_loop
 from .routers import memes, mprofile
+from .routers import cerebro
 from .routers import affiliates, angariacao, conversas, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom, vinted
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
@@ -183,6 +184,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Team Agent Backend", lifespan=lifespan)
 for module in (auth, hub, tasks, team, agent, agents, ai, work, analytics, week, ponto, local, markets, trading, office, plans, skills, messages, photos, selfupdate, ws, sync, push, webpush):
     app.include_router(module.router)
+app.include_router(cerebro.router)  # Cérebro: tudo o que as IAs da empresa fazem, e o pedido que vai para a melhor
 app.include_router(tradingroom.router)  # Sala de Trading
 app.include_router(robots.router)  # Escritório de Robôs
 app.include_router(newsadd.router)  # Reforço na notícia

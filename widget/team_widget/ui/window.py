@@ -1069,6 +1069,8 @@ class Member(Hover):
 
 
 APP_GLYPHS = {   # the Hub's pages as iOS icons (24-unit strokes, like the Hub's own icons)
+    # 24 Nov, Marco: «o widget é o cérebro principal, tipo um Jarvis»: the ball with its three orbits, first of the shortcuts
+    "cerebro": '<circle cx="12" cy="12" r="3.2"/><ellipse cx="12" cy="12" rx="9.5" ry="4.2"/><ellipse cx="12" cy="12" rx="9.5" ry="4.2" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9.5" ry="4.2" transform="rotate(-60 12 12)"/>',
     "tarefas": '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M8 12.2l2.8 2.8 5.2-6"/>',
     "mensagens": '<path d="M20.5 11.5a8 8 0 01-11.8 7l-4.7 1.3 1.3-4.4A8 8 0 1120.5 11.5z"/>',
     "escritorio": '<rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8.5 20h7M12 16v4"/>',
@@ -1081,7 +1083,7 @@ APP_GLYPHS = {   # the Hub's pages as iOS icons (24-unit strokes, like the Hub's
     # 18 Nov: Ao vivo, the memecoins' window of its own (GTA 6, pump.fun, X): the bolt in a live ring
     "aovivo": '<circle cx="12" cy="12" r="9"/><path d="M13 5.8L7.6 13h4.1l-.8 5.2 5.5-7.4h-4.2z"/>',
 }
-APPS = (("hub", "Hub", "#/home"), ("escritorio", "Escritório", "#/escritorio"), ("tarefas", "Tarefas", "#/tarefas"),
+APPS = (("cerebro", "Cérebro", "#/cerebro"), ("escritorio", "Escritório", "#/escritorio"), ("tarefas", "Tarefas", "#/tarefas"),
         ("mensagens", "Mensagens", "#/mensagens"), ("radar", "Radar", "#/radar"), ("empresa", "Empresa", "#/empresa"), ("skills", "Skills", "#/skills"),
         ("trading", "Trading", "#/trading"), ("aovivo", "Ao vivo", "#/aovivo"), ("fundednext", "FundedNext", "#/fundednext"))
 _app_icons: dict[tuple, QPixmap] = {}

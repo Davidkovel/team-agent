@@ -1,0 +1,10 @@
+{
+  "_nota": "Pesquisas da Biblioteca de Anúncios da Meta por país. \"\" = todos os anúncios do país (os mais vistos primeiro). Cada pesquisa traz a 1.ª página (~30 anúncios), ordenada por impressões.",
+  "intervalo_h": 6,
+  "pausa_s": 25,
+  "paises": {
+    "UZ": {"nome": "Uzbequistão", "ligado": true, "pesquisas": ["", "kredit", "chegirma", "buyurtma", "yetkazib berish", "доставка", "скидка", "заработок", "инвестиции", "crypto", "kurs", "ilova"]},
+    "PT": {"nome": "Portugal", "ligado": true, "pesquisas": ["", "desconto", "encomende", "promoção", "envio grátis", "crédito", "investir", "ganhar dinheiro", "curso", "app", "cripto"]},
+    "UA": {"nome": "Ucrânia", "ligado": true, "pesquisas": ["", "знижка", "доставка", "замовити", "кредит", "заробіток", "інвестиції", "курс", "крипто", "додаток", "акція"]}
+  }
+}

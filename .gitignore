@@ -9,3 +9,4 @@ library/sources.json
 *.log
 # copies the schema upgrade leaves beside a SQLite database before changing it
 *.db.bak-*
+ads-radar/status.json

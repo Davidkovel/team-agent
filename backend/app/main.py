@@ -20,7 +20,7 @@ from .routers import agent, agents, ai, analytics, auth, hub, local, markets, me
 from .memes import loop as memes_loop
 from .routers import memes, mprofile
 from .routers import cerebro
-from .routers import affiliates, angariacao, conversas, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom, vinted
+from .routers import affiliates, anuncios, angariacao, conversas, crm, emails, etsy, fundednext, gap, newsadd, plans, radar, robots, sinal, skills, tradingroom, vinted
 from .security import hash_password
 from .services import (AWAY, ONLINE_VIA, PENDING_ONLINE, SOFT_VIA, dashboard_open, hub_seen, log_activity, purge_trash, save_agent_state,
                        widget_recent)
@@ -137,6 +137,7 @@ async def lifespan(app: FastAPI):
     mirroring = asyncio.create_task(espelho.loop()) if settings.sync else None  # the person's work, also on their cloud
     radaring = asyncio.create_task(radar_loop()) if settings.sync else None  # Radar: confirms again, weekly, who is still open
     vinting = asyncio.create_task(vinted.loop()) if settings.sync else None  # Vinted Radar: the guard of «Contínuo» keeps this PC's collector up
+    anunciando = asyncio.create_task(anuncios.loop()) if settings.sync else None  # Radar de Anúncios: volta a ligar o coletor se estava ligado
     angariando = asyncio.create_task(angariacao.loop()) if settings.sync else None  # Angariação: closes page visits, warms the CRM, alerts
     memeing = asyncio.create_task(memes_loop()) if settings.sync or os.environ.get("MEMES") == "1" else None  # Memecoins: os agentes que vigiam DEX e redes
     yield
@@ -146,6 +147,8 @@ async def lifespan(app: FastAPI):
         memeing.cancel()
     if vinting:
         vinting.cancel()
+    if anunciando:
+        anunciando.cancel()
     if mirroring:
         mirroring.cancel()
     if radaring:
@@ -201,6 +204,7 @@ app.include_router(emails.relay)
 app.include_router(affiliates.router)  # Afiliados: os programas, os links e as comissões
 app.include_router(memes.router)  # Memecoins: Robin, Oráculo, Lucius, Batman e o Motor GMGN
 app.include_router(mprofile.router)  # Market Profile: a pesquisa do market-profile-bot (FDAX, NQ)
+app.include_router(anuncios.router)  # Radar de Anúncios: o que a Meta mostra e aguenta dias no ar (UZ, PT, UA)
 app.include_router(vinted.router)  # Vinted Radar: artigos abaixo do preço de mercado (coletor Selenium deste PC)
 app.include_router(claude_kit.router)  # plugins and personal skills between the PCs that turned it on
 app.include_router(claude_kit.panel)  # Trabalho › Kit do Claude: every PC, and the button to turn it on here

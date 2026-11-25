@@ -221,6 +221,7 @@ const NAV = [
   ["Fábrica Etsy", "bag", [["etsy", "Fábrica Etsy"]], "negocios"],
   ["Afiliados", "link", [["afiliados", "Afiliados"]], "negocios"],   // 3 nov, Marco: affiliate marketing, aprender e registar
   ["Vinted", "bag", [["vinted", "Vinted Radar"]], "negocios"],   // 11 nov, David: artigos do Vinted abaixo do preço de mercado
+  ["Anúncios", "target", [["anuncios", "Anúncios em alta"]], "negocios"],   // 25 nov, David: anúncios da Meta que começaram há pouco e aguentam 2+ dias (UZ, PT, UA)
   ["Memecoins", "bolt", [["meme-cerebro", "Cérebro"], ["memes", "Quem acerta"], ["meme-calls", "Calls"], ["meme-moedas", "Moedas"], ["meme-agentes", "Agentes"], ["aovivo", "Ao vivo", true]], "trading"],   // 16 nov, Marco: «o maior cérebro de memecoins», os agentes que vigiam DEX e redes (+ gmgn-tracker)
   ["Sala de Trading", "trend", [["trading", "Sala de Trading"], ["sinal", "Sinal na notícia"], ["fundednext", "FundedNext"], ["robos", "Robôs"], ["reforco", "Reforço na notícia"], ["gap", "Gap da manhã"], ["mprofile", "Market Profile"]], "trading"],
   ["Mercados", "candles", [["mercados", "Mercados"]], "trading"],
